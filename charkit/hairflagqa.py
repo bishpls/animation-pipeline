@@ -476,7 +476,7 @@ def our_labels(B, design, hair=None):
             meshes.append((V, T, np.full(len(T), OTHER)))
     pieces = []
     if hair is None:
-        hair = {o.name[5:]: o.mesh('eval')[:2] for o in B.objects(groups=('hair',))
+        hair = {o.name[5:]: _surface(o) for o in B.objects(groups=('hair',))
                 if o.name.startswith('hair_') and o.name[5:] in FAMILY and o.has('eval')}
     for pc, (V, T) in hair.items():
         if pc not in FAMILY:
@@ -497,6 +497,19 @@ def our_labels(B, design, hair=None):
     return {v: np.maximum(l[1], 0).astype(np.int32) for v, l in lab.items()}, pieces
 
 
+def _ink_slots(o):
+    from .qa3d import is_ink
+    return [k for k, m in enumerate(o.materials or []) if is_ink(m)]
+
+
+def _surface(o):
+    """a hair object's surface (its eval mesh) without its ink strokes (charkit.geom.hairink's ribbons on an ink slot:
+    lines, not hair) -> (V, T)."""
+    V, T, tm, _ = o.mesh('eval')
+    ink = _ink_slots(o)
+    return (V, T) if not ink else (V, np.asarray(T)[~np.isin(tm, ink)])
+
+
 INK = 4                     # our ink's label in our_ink's z-buffer (an outline hull's visible face; bodyqa's line
                             # class, which the raster draws at least a pixel wide)
 LINE_W = 0.0014             # m: the hair's outline width (scene.hair_pieces_objects' shade.outline), for rebuilt pieces
@@ -506,7 +519,8 @@ def our_ink(B, design, hair=None, weights=None):
     """our hair's ink as the render draws it, on the design's grids: each hair object's surface pulled in by its
     outline (the bundle's per-vertex shrink: the outline's SOLIDIFY with its vertex-group widths) and its hull on the
     original surface, flipped and back-face culled per view (qa3d.render_surfaces), z-buffered among the QA's other
-    surfaces; the pixels where a hull shows. hair {piece: (V, T)}: rebuilt pieces (a lab's), their shrink made from the
+    surfaces, with its ink strokes (an ink slot's faces: charkit.geom.hairink) as ink where they lie; the pixels where
+    a hull or a stroke shows. hair {piece: (V, T)}: rebuilt pieces (a lab's), their shrink made from the
     angle-weighted normals and LINE_W, times weights {piece: per-vertex 0..1} (the outline_w vertex group) where given.
     -> {view: bool image}."""
     from . import bodyqa, qa3d
@@ -520,14 +534,18 @@ def our_ink(B, design, hair=None, weights=None):
         if o.has('eval'):
             V, T = o.mesh('eval')[:2]
             others.append((V, T, np.full(len(T), OTHER)))
-    surf, hulls = [], []
+    surf, hulls, strokes = [], [], []
     if hair is None:
         for o in B.objects(groups=('hair',)):
             if not (o.name.startswith('hair_') and o.name[5:] in FAMILY and o.has('eval')):
                 continue
-            V, T = o.mesh('eval')[:2]
+            V, T, tm, _ = o.mesh('eval')
             sh = o.a('eval', 'shrink')
             T = np.asarray(T)
+            ink = np.isin(tm, _ink_slots(o))
+            if ink.any():                     # (its ink strokes, charkit.geom.hairink: drawn as ink where they lie)
+                strokes.append((np.asarray(V, float), T[ink]))
+                T = T[~ink]
             surf.append((V + sh if sh is not None else V, T))
             if sh is not None:
                 # (a hull face with no width at any corner lies on the surface it came from: no ink; the outline_w
@@ -552,7 +570,8 @@ def our_ink(B, design, hair=None, weights=None):
             continue
         a = np.radians(az[v])
         view_d = np.array([-np.sin(a), np.cos(a), 0.0])
-        meshes = list(others) + [(V, T, np.full(len(T), PART0)) for V, T in surf]
+        meshes = list(others) + [(V, T, np.full(len(T), PART0)) for V, T in surf] + \
+            [(V, T, np.full(len(T), INK)) for V, T in strokes]
         for V, T in hulls:
             fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
             keep = fn @ view_d <= 0

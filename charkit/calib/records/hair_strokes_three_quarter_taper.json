@@ -1,0 +1,95 @@
+{
+ "check": "hair_strokes_three_quarter_taper",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T08:07:02",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_bangs",
+  "hair_piece_side_locks",
+  "hair_piece_upper_back",
+  "hair_piece_lower_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": "hst_base",
+  "value": null,
+  "status": "FAIL"
+ },
+ "floor": {
+  "blunt_strokes": {
+   "values": [
+    0.25,
+    0.25,
+    0.25,
+    0.25,
+    0.25
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.25,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.667,
+  "status": "PASS",
+  "margin": 0.556
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), hst_base reads None FAIL, the floor blunt_strokes FAIL",
+ "build": "charkit/out/hst_s1",
+ "generators": {
+  "blunt_strokes": "the head sheet's strands repainted at their own colour and middle weight with square ends (no taper)"
+ },
+ "seconds": 304.1
+}

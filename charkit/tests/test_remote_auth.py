@@ -64,3 +64,20 @@ def test_preflight_one_line():
             remote.BOX['env'] = old
             remote.CHECKED.clear()
             os.environ.clear(); os.environ.update(oenv)
+
+
+def test_jobs_lists_every_box_once():
+    """`remote jobs` with no --box asks every infra/gcp/*.env with a VM (render2 too), build and render first, and a VM
+    twice (gpu.env is the render box's) once."""
+    with tempfile.TemporaryDirectory() as d:
+        g = os.path.join(d, 'infra', 'gcp')
+        os.makedirs(g)
+        for name, vm in (('build', 'b-1'), ('gpu', 'g-1'), ('render', 'g-1'), ('render2', 'g-2')):
+            open(os.path.join(g, name + '.env'), 'w').write('VM=%s\nBUCKET=gs://x\n' % vm)
+        open(os.path.join(g, 'build.env.example'), 'w').write('VM=example\n')
+        old_root, old_env = remote.ROOT, remote.BOX['env']
+        try:
+            remote.ROOT = d
+            assert [os.path.basename(p) for p in remote._boxes()] == ['build.env', 'render.env', 'render2.env']
+        finally:
+            remote.ROOT, remote.BOX['env'] = old_root, old_env

@@ -726,7 +726,56 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
-## Wrap-up (2026-10-01 morning, account at 95% of weekly capacity): START HERE
+## Day 2 (2026-10-01, new account): START HERE, then the wrap-up below
+
+**Merged today** (pipeline-3d, pushed after each merge, Michael's standing OK; main untouched): garments4-neck (ff41ca2:
+neck-chest join; neck_crease remeasured, it never measured a real crease), garments4-stairs (0d53cb8: the staircase
+squared to the pleats, risers on folds), garments4-v (9f6379e: the V opened to skin; the bow-less bodice reference
+`bodice_layers` registered), render2 (ad08152), garments4-motionfix (e9cb156: motion QA had crashed since the creases
+milestone, the skirt's crease ink broke the cloth grid; the gates reported motion SKIPPED instead of blocking).
+
+**Infra:** a second render box `render2` (g2-standard-32, L4, 10 slots; `--box render2`; names in gitignored
+`infra/gcp/render2.env`); the old render box drains, then its idle stop stops it (not deleted). Build box slots 8 -> 16
+(`SLOTS=16` in each worktree's gitignored build.env; `python -m charkit remote load --hours N` measured CPU mean 15%).
+Board renders are CPU-bound (GPU mean 1%); build-box QA also draws with the toon renderer, so only boards need render2.
+Laptop: sweeps, labs, fits and calibrations run on the boxes (six agents' local jobs filled swap).
+
+**Rules from Michael today:** push after each merge; let a subagent with its end in sight finish rather than relaunch
+(checkpoint only near ~900k); a new check shipping at FAIL is reported, not blocking (only existing checks regressing,
+flag regressions, CPU block); moving the crab clip is fine (visibility and seating outrank the drawn spot); the
+shoulder problem is the BODY's (separate torso and arm meshes, no real shoulder; `body.shoulder` was off), garments
+drape over it; Sonnet is fine for bounded research, builds and pages.
+
+**In flight** (each in its worktree; notes in `docs/workstreams/`):
+- `tool/hands2` (`~/animation-pipeline-hands`): the default hand rebuilt from the comb (fingers together, thumb,
+  wrist taper); fit on the box, then calibrate, gate, review.
+- `tool/garments4-shoulders` -> `tool/garments4-lapels` (`~/animation-pipeline-garments4`): body shoulder first
+  (a continuous shoulder joining arms and torso, against `base_body_turnaround`, a 90-degree arm-raise check), then the
+  garment shoulders and back collar, then flat lapels (they failed on our dipped shoulder line), then re-judge
+  art_outline_collar.
+- `tool/hairstrokes` (`~/animation-pipeline-hairstrokes`): strokes gate 3; tones (per-lock ellipsoid shading normals in
+  `shade_normals`, underside tone, highlight ring F1 0.36: front 0.55, 3q 0.48, profile 0.20, back 0.21).
+- `tool/hairshell3` (`~/animation-pipeline-hairshell`): with hairstrokes' normals plus flick depth pull/containment,
+  six-placement back view 1.78 vs the hull's 1.87, terminator 1.369, back lines 0.531, lower back profile 0.639 vs
+  0.665. MERGE ORDER: hairstrokes first, then hairshell3 on top; then the pilot region's default switch -> Michael;
+  hair_noise redefined as a speckle measure.
+- `tool/face7` (`~/animation-pipeline-face7`): the profile eye gating first (item 4), then forehead, lower-face width,
+  the 3q mouth override (per-shot, off by default).
+- `tool/accessories5` (`~/animation-pipeline-acc5`): clips remade from the separated references and re-placed fully
+  visible (crab 98.5-99.3% visible, moved down below the star); gate 2 running; review page built.
+- `tool/optimize` (`~/animation-pipeline-optim`): `charkit sweep --optimize` (CMA-ES batches sized to free slots, the
+  guard as constraints, fast/real fidelity). The 2026-10-01 audit (`charkit/out/audit/20261001/`): 93 hand-stepped
+  sweep round trips, median 8.2 min and 12 agent turns each, 51% of active agent time in the loop; the clips' optimizer
+  ran ~75 evaluations per design turn against ~0.2 for sweeps. When it lands, switch face, lapels and hair fits to it.
+
+**Next, in order:** the range-of-motion measurement (after the hand and the body shoulder); the infra gate fixes (a QA
+part that crashes must block; motion QA in gate builds; acceptances covering a batch's branches; no-op remeasure
+detection; CPU warm vs warm; gate latency; the sweep's look-check fidelity, its quick drawing has no highlights) as the
+Sonnet-vs-Opus paired test; then softras r5, the buns' orientation, calibration follow-ups. Paused: expressions, the
+hand-pose library; parked: cloth (the staircase raised kick-inside 0.0024 -> 0.0071 WARN). Research verdicts: see-through
+(skip), NVIDIA Lyra (skip: Lyra 2 weights research-only, Lyra 1 ~43 GB VRAM, baked splats).
+
+## Wrap-up (2026-10-01 morning, account at 95% of weekly capacity): read after Day 2 above
 
 Every workstream stopped at a checkpoint; nothing is running. pipeline-3d f0975ad has everything merged through the
 night (the evening run below, then: hairshell r1-r2 opt-in, garments4 Part 1 (the bow's geometry with its neighbours),
@@ -1289,7 +1338,7 @@ gating on the build box (below). The integrator (the main session) reviews and m
   - Never seed charkit/out with hard links except `i3d`, which builds only read.
 - **Cross-machine hulls:** same code, different CPU gives different hull labels (see `tool/hull-det`). Each box is
   deterministic run to run. Compare only builds from one machine until hull-det lands.
-- **New worktrees** need `infra/gcp/build.env` and `render.env` copied in (gitignored).
+- **New worktrees** need `infra/gcp/build.env`, `render.env` and `render2.env` copied in (gitignored: every `infra/gcp/*.env`).
 
 **Render box facts (2026-09-29).**
 - A Clawd board frame (540x900, EEVEE, 64 samples) takes 2.4 s on the L4, 2.2 s on a T4 and 2.0 s on the M2 Pro
@@ -1357,6 +1406,14 @@ How the gate gets its code:
 
 The box runs 8 build slots, shared by every worktree's builds there. **The laptop runs 1** (`charkit slots 1`): other
 sessions share its 16 GB.
+
+**The second render box (2026-10-01, Michael's go-ahead): `remote --box render2`.** 32 vCPU, 128 GB and one L4
+(g2-standard-32; an L4 stockout falls back to n1-standard-32 with a T4), made from the first render box's snapshot in
+the same zone, network and service-account setup, gitignored `infra/gcp/render2.env`. New board builds go there;
+the first render box (`--box render`, 8 vCPU, 3 slots) is stopped once its jobs drain, not deleted.
+A cold Clawd board build there (`--boards views,body,design --no-blend`) took 18.2 min: 1.55 cores on average
+(p90 2.3, peak 5.2), 4.6 GB of RAM and 1.6 GB of VRAM at peak, and 22 boards in 62 s (2.2 s a frame). It runs **10
+slots** (CPU and VRAM each allow about 14, RAM 26); tune from `python -m charkit remote load --box render2`.
 
 ## Known issues and work items
 
@@ -1474,8 +1531,8 @@ start gate R1–R6.
   - The Mac has 16 GB, shared with other sessions. One Clawd build peaks at 2.2 GB of Blender. Build on the build box
     (`charkit remote ...`, above) and keep the laptop at `charkit slots 1`.
   - Agents: the old cap (about 3 at once) was about laptop memory, not agents. Blender and heavy Python ran the 16 GB
-    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the GPU render box, `remote
-    --box render`: 3), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
+    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the render box, `remote
+    --box render2`: 10), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
     build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29). Box capacity isn't a
     hard limit either: slots are a setting (tune them from measured load); more boxes, bigger machines or GPUs are
     provisioning changes that need Michael's approval first.

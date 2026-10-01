@@ -89,3 +89,65 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+# ------------------------------------------------------------------------------------- tool/accessories5: the new measures
+def _disc(shape, c, r):
+    yy, xx = np.mgrid[0:shape[0], 0:shape[1]]
+    return (yy - c[0]) ** 2 + (xx - c[1]) ** 2 < r * r
+
+
+def test_as_drawn_takes_out_the_drawn_cover():
+    # the drawn crab: a disc with a claw disc, its second claw under the drawn star (the cover); ours shows both claws,
+    # elsewhere and twice the size. As drawn, ours loses the claw the drawing hides and matches the drawn crab
+    sh = (300, 300)
+    body, claw_l, claw_r = _disc(sh, (150, 150), 30), _disc(sh, (110, 115), 14), _disc(sh, (110, 185), 14)
+    cover = _disc(sh, (95, 205), 30)
+    md = (body | claw_l | claw_r) & ~cover
+    ours_full = np.zeros((600, 600), bool)
+    ours_full[::1] = np.kron(body | claw_l | claw_r, np.ones((2, 2), bool))[:600, :600]
+    plain = accqa.shape_iou(ours_full, md)
+    mo, cut = accqa.as_drawn(ours_full, md, cover, lw=1)
+    assert cut > 0.03 and accqa.shape_iou(mo, md) > plain + 0.03 and accqa.shape_iou(mo, md) > 0.95
+    # a clip the drawing doesn't cover is ours as it is
+    mo2, cut2 = accqa.as_drawn(ours_full, body | claw_l | claw_r, _disc(sh, (20, 20), 5), lw=1)
+    assert cut2 == 0.0 and (mo2 == ours_full).all()
+
+
+def test_arms_reads_the_star():
+    from charkit import accessories as acc
+    sh = dict(up=0.5, down=0.5, side=0.36, minor=0.28, inner=0.15, curve=0.0, minor_at=45.0)
+    V, F = acc.star(sh)
+    m = accqa.face_on(V, F, np.eye(3), ppl=300.0)
+    a = accqa.arms(m)
+    assert abs(a['up'] - 0.5) < 0.02 and abs(a['side'] - 0.36) < 0.02 and abs(a['minor'] - 0.28) < 0.03
+    # an arm under another clip: the longer side arm still reads the star
+    m2 = m.copy(); m2[:, :int(0.25 * m.shape[1])] = False
+    assert abs(accqa.arms(m2)['side'] - a['side']) < 0.03
+
+
+def test_visible_family_and_covered_by():
+    from charkit import declared
+    sh = (120, 160)
+    crab_alone = _disc(sh, (60, 60), 25)
+    star = _disc(sh, (60, 95), 25)
+    lab = np.zeros(sh, np.int64)
+    lab[crab_alone] = 1
+    lab[star] = 2                                       # the star over the crab: the crab's right side hidden
+    I = dict(O={'front': {'lab': lab}}, names=['-', 'crab_0', 'star_1'], masks={'front__pin_crab': crab_alone,
+             'front__pin_star': star}, pm={'pin_crab': [('crab_0', None)], 'pin_star': [('star_1', None)]},
+             alone={'front': {'crab_0': crab_alone, 'star_1': star}}, dv={'front': {}}, ppl=100.0)
+    decl = [dict(check='acc_crab_{view}_visible', family='visible', piece='pin_crab', part='accessories',
+                 views=['front'], limits=[0.97, 0.90], better='higher')]
+    _, C = declared.evaluate(decl, I)
+    c = C['acc_crab_front_visible']
+    share = float((crab_alone & ~star).sum()) / crab_alone.sum()
+    assert abs(c['value'] - share) < 1e-3 and c['status'] == 'FAIL' and c['alone'] == int(crab_alone.sum())
+    lab_ids = lab.copy()
+    cb = accqa.covered_by(lab_ids, crab_alone, lab == 1, [], ['crab', 'star'])
+    assert list(cb) == ['star'] and cb['star'] == int((crab_alone & star).sum())
+    # side by side: shown whole
+    lab2 = np.zeros(sh, np.int64); lab2[crab_alone] = 1
+    I['O']['front']['lab'] = lab2
+    _, C = declared.evaluate(decl, I)
+    assert C['acc_crab_front_visible']['value'] == 1.0 and C['acc_crab_front_visible']['status'] == 'PASS'

@@ -1,0 +1,91 @@
+{
+ "check": "acc_star_arms",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T13:30:15",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "acc_star_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.024,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.024,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.024,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.024,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.024,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.024,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.024,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.024,
+    "PASS"
+   ]
+  },
+  "min": -0.024,
+  "max": -0.024,
+  "spread": 0.0,
+  "median": -0.024
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "no stored build has the compass star; the floor is the clips-alone sheet's",
+ "floor": {
+  "compass": {
+   "values": [
+    0.097,
+    0.097,
+    0.097,
+    0.097,
+    0.097
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.097,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.018,
+  "status": "PASS",
+  "margin": 0.653
+ },
+ "verdict": "guard",
+ "why": "no known-bad (no stored build has the compass star; the floor is the clips-alone sheet's); the design passes and the floor does not",
+ "build": "charkit/out/acc5/after2",
+ "generators": {
+  "compass": "the clips-alone sheet's star (side arms 0.48 of its height) as ours face-on"
+ },
+ "seconds": 35.7
+}

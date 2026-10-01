@@ -1,0 +1,627 @@
+{
+ "base": "charkit/out/g4_cuff0",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "piece_details",
+  "hands"
+ ],
+ "checks": [
+  "cuff_*",
+  "piece_cuff*",
+  "hand_*",
+  "piece_sleeve*",
+  "piece_skirt"
+ ],
+ "variants": {
+  "c0": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "top19": {
+   "garments.wrist_L.top": [
+    0.19,
+    0.16,
+    0.19,
+    0.16
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.19,
+    0.16,
+    0.19,
+    0.16
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "top21": {
+   "garments.wrist_L.top": [
+    0.21,
+    0.17,
+    0.21,
+    0.17
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.21,
+    0.17,
+    0.21,
+    0.17
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "bot10": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.11,
+    0.1,
+    0.1,
+    0.1
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.11,
+    0.1,
+    0.1,
+    0.1
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "th15": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.015,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.015
+  },
+  "th15c3": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.015,
+   "garments.wrist_L.clear": 0.003,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.015,
+   "garments.wrist_R.clear": 0.003
+  },
+  "sp48": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.48,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.48,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "sp44": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.44,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.44,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "sp70": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.7
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.7
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "band25": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.25,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.25,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "band35": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.35,
+   "garments.wrist_L.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.35,
+   "garments.wrist_R.tab": [
+    0.1,
+    0.55
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "tab12": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.12,
+    0.6
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.12,
+    0.6
+   ],
+   "garments.wrist_R.thick": 0.02
+  },
+  "tab08": {
+   "garments.wrist_L.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_L.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_L.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_L.band": 0.3,
+   "garments.wrist_L.tab": [
+    0.08,
+    0.5
+   ],
+   "garments.wrist_L.thick": 0.02,
+   "garments.wrist_R.top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "garments.wrist_R.bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "garments.wrist_R.span": [
+    0.46,
+    0.72
+   ],
+   "garments.wrist_R.band": 0.3,
+   "garments.wrist_R.tab": [
+    0.08,
+    0.5
+   ],
+   "garments.wrist_R.thick": 0.02
+  }
+ },
+ "boards": {
+  "az": [
+   0,
+   35,
+   90
+  ],
+  "crop": "wrist_L",
+  "pad": 0.15
+ }
+}
