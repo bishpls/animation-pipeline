@@ -1,0 +1,91 @@
+{
+ "check": "skirt_panel_three_quarter_shape",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T02:12:11",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "piece_skirt"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.8951,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.8822,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.8983,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.8952,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9024,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.8928,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.8982,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.8887,
+    "PASS"
+   ]
+  },
+  "min": 0.8822,
+  "max": 0.9024,
+  "spread": 0.0202,
+  "median": 0.89515
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the panel's shape guard (as the piece_* shape IoUs are: agreement with the drawing, no single flagged defect; g4_before's band-shaped panel reads 0.69 WARN): the design moved 1-2 px must pass and a random stand-in must fail",
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.0835,
+    0.2862,
+    0.2838,
+    0.4137,
+    0.2335
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.2838,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.6979,
+  "status": "WARN",
+  "margin": 0.677
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the panel's shape guard (as the piece_* shape IoUs are: agreement with the drawing, no single flagged defect; g4_before's band-shaped panel reads 0.69 WARN): the design moved 1-2 px must pass and a random stand-in must fail); the design passes and the floor does not",
+ "build": "charkit/out/g4_creases2",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 46.1
+}

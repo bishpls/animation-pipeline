@@ -1,0 +1,10 @@
+{
+ "name": "g4_before",
+ "why": "no creases on the skirt's cream panel (its pleat folds undrawn); a pillow bow without its wrinkles and creases (pipeline-3d's bow before garments4 Part 1)",
+ "flag": "Michael 2026-09-30: the skirt's cream section is missing its creases (the biggest overlooked point); the bow lacks fine crease texture",
+ "commit": "cf08de35",
+ "source": "~/animation-pipeline-garments4/charkit/out/g4_before",
+ "stored": "2026-10-01",
+ "bundle": "05b140b9362f6c4a",
+ "qa_checks": 620
+}

@@ -46,6 +46,8 @@ REGIONS = {
             'line)', ('front', 'three_quarter', 'profile'), 'design', (-0.72, 0.72, -0.3, -1.2), 330),
     'hands': ('the hands below the cuffs', ('front', 'three_quarter', 'profile', 'back'), 'body',
               (-1.75, 1.75, -1.75, -3.0), 120),
+    'skirt': ('the skirt: its cream front panel, the panel\'s creases and folds, the pleats and hem band',
+              ('front', 'three_quarter', 'profile'), 'body', (-1.2, 1.2, -1.35, -2.8), 140),
 }
 CLOSE_H = 300                       # px: every close-up shown at this height (a region's crops share one window)
 CSS = """

@@ -322,7 +322,13 @@ def garment_arrays(B0, name, V, F, pmat=None):
         Nv = vertex_normals(Ve, Tt)
         Nv = Nv / np.maximum(np.linalg.norm(Nv, axis=1, keepdims=True), 1e-12)
         c0 = abs(float(ol.get('thickness') or 0.0)) * (1 + float(ol.get('offset', 1.0))) / 2
-        rep[p + 'shrink'] = (-Nv * c0).astype(np.float32)
+        shr = -Nv * c0
+        from charkit.qa3d import is_ink
+        ink = [k for k, m in enumerate(B0.obj(name).materials or []) if is_ink(m)]
+        if ink and len(pmv) == len(Fe):
+            # a piece's ink strokes (garments.with_ink) take no outline (their outline_w 0, as Blender draws them)
+            shr[np.unique(Fe[np.isin(pmv, ink)])] = 0.0
+        rep[p + 'shrink'] = shr.astype(np.float32)
     return rep, [p + 'lnor']
 
 

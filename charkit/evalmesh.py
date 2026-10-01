@@ -573,14 +573,41 @@ def finalize(o, weight_rule=None):
         st = m['settings']
         if m['type'] == 'SOLIDIFY':
             shell = abs(float(st['thickness']))
+            # ink (garments.with_ink's strokes: a slot named *_ink) takes no thickness: set aside, put back after
+            from .qa3d import is_ink
+            ink_slots = [k for k, mm in enumerate(o.get('materials') or []) if is_ink((mm or {}).get('name'))]
+            ink = None
+            if ink_slots:
+                fi = np.isin(mat, ink_slots)
+                if fi.any():
+                    st_l = np.r_[0, np.cumsum(cnt)[:-1]]
+                    corner = np.repeat(fi, cnt)
+                    ink = dict(lv=lv[corner], cnt=cnt[fi], mat=mat[fi], uv=luv[corner] if luv is not None else None)
+                    lv, cnt, mat = lv[~corner], cnt[~fi], mat[~fi]
+                    luv = luv[~corner] if luv is not None else None
             R = solid.solidify(V, (lv, cnt), float(st['thickness']), uv=luv,
                                **{k: v for k, v in st.items() if k != 'thickness' and k in _SOLID_KW})
+            nV = len(V)
+            V0 = V
             V, lv, cnt, luv = R['V'], R['loopv'], R['counts'], R['uv']
             nf_ = len(mat)
             mat = mat[R['parent']]
             layer = np.r_[np.zeros(nf_, np.int8), np.ones(nf_, np.int8), np.full(len(R['counts']) - 2 * nf_, 2, np.int8)]
             W = np.concatenate([W, W])
             cre = R['creases'] if len(R['creases'][0]) else None
+            if ink is not None:
+                # the strokes' own vertices (the first copy keeps them in place: offset -1 moves only the second;
+                # appended as their own so the copies' are left unused by them)
+                used = np.unique(ink['lv'])
+                remap = np.full(nV, -1, np.int64); remap[used] = len(V) + np.arange(len(used))
+                V = np.r_[V, V0[used]]
+                W = np.r_[W, W[used]]
+                lv = np.r_[lv, remap[ink['lv']]]
+                cnt = np.r_[cnt, ink['cnt']]
+                mat = np.r_[mat, ink['mat']]
+                layer = np.r_[layer, np.zeros(len(ink['cnt']), np.int8)]
+                if luv is not None:
+                    luv = np.r_[luv, ink['uv']]
         elif m['type'] == 'SUBSURF':
             levels = int(st.get('levels', 1))
             if int(st.get('render_levels', levels)) != levels:

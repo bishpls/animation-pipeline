@@ -162,3 +162,90 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
 5. Neck to bow V (item 4): the jacket's `opening` table starts at z -0.72 (half 0), so the V between the lapels above
    the knot is jacket (orange); extend the opening up the collar's V (collar round 1's variant D: the jacket's opening
    carrying the collar's V) so the skin shows, and check neck_crease (26.9 W now) for the neck-chest join.
+
+## Part 2, relaunch (2026-10-01, lean agent)
+- tool/garments4-part2 3f2d550d + pipeline-3d c18b0c1 (Part 1 merged) = 5d3a7167.
+- Known-bad stored: `calibrate store g4_before charkit/out/g4_before` (charkit/calib/known_bad/g4_before.json; the store
+  is charkit/out/calib/builds/g4_before, local).
+- Box build g4_ink1 (ink1.json: Part 1's spec + the traced skirt and bow strokes): job build-garments4-1001-005337-96fd,
+  out `charkit/out/g4_ink1`, log `charkit/out/garments4/build_ink1.log`.
+- **g4_ink1 built** (box, 904 CPU s). Findings:
+  1. The QA's render drawing (qarender.view) mapped the export's `*_ink` primitives to the cloth surface, so our_lines
+     never saw the strokes (the numpy drawing did): skirt creases read 0.998 with the strokes there. Fixed
+     (qarender: ink primitives -> the ink surface; `qa3d.is_ink`). Re-read on g4_ink1: skirt front 0.005 P, **3q 1.0 F**;
+     bow front 0.044 P, 3q 0.372 W: front-traced strokes pass only in the view they were traced from.
+  2. **The cream panel's shape is off** (not measured before: piece_skirt_panel INFO, "no object builds it"): ours a band
+     as wide at the waist as at the hem, the drawn one a triangle (an inverted box pleat). New declared checks
+     (creaseqa.py): `skirt_panel_{front,three_quarter,profile}_shape` (shape_iou, close, our skirt's cream pixels vs the
+     drawn panel: declared params `drawn` + `ours_cls`) 0.695 / 0.689 / 0.232; `skirt_panel_{front,three_quarter}_edges`
+     (ink_inside `edge`: the folds bounding the panel) 0.806 / 0.825 on g4_before.
+  3. Two-view triangulation (tools/tri.py): the drawn 3q panel is as wide as the front one (cos 35.5 would make it 0.81x):
+     the 3q draws the panel more face-on than any rigid 3D panel can be (its right edge implies a depth 0.33 L behind
+     ours, its left edge agrees with ours): the views disagree there (rule 2/3: view-dependent drawing).
+  4. sweep's garment splice dropped material slots (all slot 0: no panel, band or ink): fixed (bodyeval bundle pmat).
+- Fix in progress: `skirt_hull` `panel_shape` {top, power, scale} (a column warp: the panel tapers to `top` at the waist,
+  its edge a clean vertex column); crease strokes in `space: 'panel'` (f across the panel, v down: ride with its shape).
+  Sweep k1 (tools/garments4/k1.json, out sweeps/k1): top/power/scale and panel-space creases (+ edge strokes t15e).
+- Tools: charkit/out/garments4/tools/side.py (design vs builds side by side round a drawn piece), paneliou.py, tri.py.
+- Sweeps k1-k2 (sweeps/k1, k2; stab.py tabulates): the taper (panel_shape top .15, power 1, scale 1.1) takes the panel's
+  front shape 0.695 -> 0.91 P; its 3q 0.689 -> 0.665 W; profile 0.232 -> 0.155 F (both FAIL). Recessing the panel (an
+  inverted box pleat, `depth` > 0) hides the cream in profile (0.04) and broke skirt_pleats_cream (0 -> 3 F: the knife
+  pleats were turned off on the panel): rejected; the knife pleats stay on the panel. Panel-space creases at f 0.55
+  read (relative) front 0.34 P, 3q 0.68 F; edges 0.26 P / 0.42 W. Running: k3 (protruding panel, crease placement),
+  k4 (the bow's stroke subsets: none, knot sides, + almond tops, + spokes, all but the lower creases).
+- Cuffs (item 2) measured: `cuffqa.py` declared `cuff_{view}_area_{L,R}` (new family `area`: |ours/design - 1|):
+  0.47-0.65 FAIL, 3q R 1.435 FAIL on g4_ink1. Seed for the template (tools/cuffseed.py): our band span 0.455-0.760 L,
+  radii top 0.20/0.16, bottom 0.14-0.17 L.
+- k3: protruding the panel (depth < 0) also lost profile cream (0.13/0.10) and broke skirt_pleats_cream: box-pleat depth
+  removed. Shape compromise: power 0.7 (ep07) front 0.894 P, 3q 0.698 W (up from 0.689), profile 0.169 (down from
+  0.232: the drawn profile shows the pleat's side faces as a cream wedge, which our panel doesn't model; measured by
+  tools/paneliou.py, reported, not declared this round: no geometry here reaches it).
+- k4/k5 (the bow's strokes): the knot's side strokes break bow_part_knot_iou (1.0 P -> 0.0 F: they split the knot);
+  `tops_tips` (strokes 0, 1, 2, 7 of ink1.json: the almond tops and tips) reads front 0.46 W -> 0.337 P, 3q 0.407 ->
+  0.379 W, bow_part_crease_len 0.221 -> 0.026 P, knot_iou 1.0 P, piece_bow unchanged (0.934/0.855/0.683).
+- k6 running: the skirt creases' f at top/bottom (power 0.7 panel).
+- k6 (crease f top/bottom on the power-0.7 panel): front (relative) 0.002 P at f 0.65 -> 0.45 (t65b45); 3q 0.63-0.79 F at
+  every placement (front and 3q pull opposite ways; the drawn 3q panel widens on its far side at the hem).
+- **Milestone 1 (creases) spec, e3891817:** skirt panel_shape {top .15, power .7, scale 1.1}; skirt creases (panel
+  space) f +-0.65 (v .15) -> +-0.45 (hem) and edge folds f +-0.97; bow creases = ink1's strokes 0, 1, 2, 7 (tools/
+  garments4/creases.json via setspec.py). Draft `_at` checks dropped; skirt_panel_profile_shape not declared (reported);
+  cuffqa.py moved to charkit/out/garments4/defer/ until the cuffs milestone (its checks FAIL until fixed).
+- Box build g4_creases running (log charkit/out/garments4/build_creases.log). Next: calibrate the crease checks
+  (`calibrate 'skirt_panel_*,bow_*_creases' --build charkit/out/g4_creases`), pregate, remote gate.
+- g4_creases (e3891817, box): skirt panel creases front 0.002 P / 3q 0.734 F (relative), edges 0.105 / 0.341 P, shape
+  0.894 P / 0.698 W; bow 0.337 P / 0.379 W; guard: no piece over 15% (piece_cuff_R 3q -6.2% the most); PASS -> WARN
+  flap_profile_iou_R, flap_profile_sweep_R, skirt_pleats (0.5 -> 2.5: it reads strokes as pleat lines).
+- Calibration (log charkit/out/garments4/calib_creases.log): bow front/3q, panel front creases, both edges CALIBRATED;
+  3q creases MISCALIBRATED (the design 0.41 against itself: the drawn 3q mask, closed, took in 1621 dark px the class
+  region lacks) -> fixed (relative mode: the drawn span by the same class rule); panel shapes BLIND (g4_before 0.69
+  WARN) -> declared as the panel's shape guard (no_known_bad, as the piece_* IoUs).
+- k7 (crease placement under the fixed measure): f 0.65 -> 0.5 by mid-skirt (t65m50b50) front 0.059 P, 3q 0.597 W.
+  Spec updated; box build g4_creases2 running. Then: calibrate the 8 checks on it, pregate, gate.
+- Cuff template seed build g4_cuff0 (charkit/out/garments4/specs/cuff0.json) also running.
+- **Calibrated on g4_creases2** (charkit/out/garments4/calib_creases2.log; records committed): bow front/3q,
+  skirt_panel front/3q creases, front/3q edges CALIBRATED (3q creases' design 0.104-0.108 after the span fix); panel
+  front/3q shape GUARD. g4_creases2 readings: skirt creases 0.059 P / 0.591 W, edges 0.103 / 0.308 P, shape 0.894 P /
+  0.698 W, bow 0.337 P / 0.379 W; guard vs g4_part1: largest drop piece_cuff_R 3q -6.2%; PASS -> WARN flap_profile_iou_R,
+  flap_profile_sweep_R, skirt_pleats.
+- **Branches (coordinator: one milestone per gate):** tool/garments4-part2 = the creases milestone (gated alone);
+  tool/garments4-cuffs (b5997d73 = part2 + garments.cuff's grow_line) carries the cuffs work; cuffqa.py stays in
+  charkit/out/garments4/defer/ until the cuffs milestone. Cuff sweep k8 (tools/garments4/k8.json, base g4_cuff0) running.
+- Review page JSON: charkit/out/garments4/review/creases.json.
+- pipeline-3d 6620113d (tool/hairshell, opt-in) merged (639339a3). Pregate (639339a3 into 6620113d): PASS, 49 moved,
+  0 blocking (`charkit/out/pregate/pregate_tool-garments4-part2_639339a3_into_6620113d.md`; evaluator-only row
+  piece_overskirt_panel_L_three_quarter_left -0.151 W -> -0.330 F, not in the gate's QA). Box gate running (log
+  charkit/out/garments4/gate_creases.log).
+- **Creases gate 1: FAIL under K, 5 blockers** (`charkit/out/gate/gate_tool-garments4-part2_9e35959_into_6620113.md`):
+  test_subsurf (evalmesh.finalize read o['materials'] unguarded: fixed) and 4 unregistered remeasures (the render
+  drawing now reads the bow's strokes as lines: bow_part_crease_dir/len, iso_bow_crease_dir/len): steps registered
+  (steps/partqa, isoqa, artifactqa: a17ec74c), records being refreshed on g4_creases2 (known-bad g3_render3 copied into
+  this worktree's store from pieceref's; log charkit/out/garments4/calib_remeasure.log). No new FAIL, no flag regression,
+  guard clean, CPU 1.30x. Then gate again.
+- g4_cuffs (cuffs branch 2aff9697) built: cuff sizes 0.002-0.055 P (3q R 0.03), trim front 0.086 W / back 0.029 P,
+  piece_cuff_L 0.614/0.831/0.742/0.636 -> 0.665/0.869/0.753/0.874, R 0.604/0.305/0.602 -> 0.676/0.741/0.905; hands'
+  reach WARN -> PASS (front/back/3q L), hand_shape_R F -> W; PASS -> WARN cuff_back_flare_R 0.02 -> 0.096.
+- **Creases gate 2: PASS under K** (312d83d into pipeline-3d 6620113;
+  `charkit/out/gate/gate_tool-garments4-part2_312d83d_into_6620113.md`): no new FAIL, no flag regression, CPU within
+  1.5x; 8 new checks calibrated/guard, 4 remeasured calibrated. PASS -> WARN: flap_profile_iou_R, flap_profile_sweep_R,
+  skirt_pleats. Review page `charkit/out/garments4/review/creases/index.html` (creases.json). Mergeable: tool/garments4-part2
+  at the notes commit after 312d83d.

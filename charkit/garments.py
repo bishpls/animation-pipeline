@@ -389,6 +389,176 @@ def bed_under(sv, sf, P, F_, L, b):
     return sv
 
 
+INK = '_ink'          # a material slot whose name ends so is ink: drawn lines, not cloth (qa3d.render_surfaces: a line)
+OUTLINE_W = 'outline_w'   # a per-vertex outline width (shade.outline reads the group; 0: no hull), not a bone
+
+
+def ink_strokes(G, cs, L, frame=None):
+    """creases as a line layer (Michael, 2026-09-30: "creases, folds and pleats", tool/garments4): the outline renderer's
+    inverted hulls draw silhouettes only, so a crease the design draws inside a piece (the skirt's cream panel's pleat
+    folds, the bow's wrinkles) is a stroke: a thin ribbon lying on the piece's rendered surface. cs (a garment's
+    `creases`): strokes [[[u, v], ...], ...] in the piece's own UV (G['uv'] per vertex, or G['uvs'] per face corner),
+    `width` L (the ribbon), `lift` L off the surface, `taper` (the share of a stroke's length over which each end narrows
+    to `tip` of its width), `step` L (samples along it). The surface is the piece's level-1 Subdivision (as it
+    renders: a cage's folds round off under it), its outward side by charkit.geom.wind's rule. Each sample takes the
+    weights of the surface point under it. `space` 'front': the strokes' points are (x, z) in L in the QA's front frame
+    (`frame` (x0, z0): the midline and the eye line, garments._eye_z), each on the frontmost surface there (charkit.inkfit
+    traces them from the design's front view). `space` 'panel': (f, v) across a skirt's front panel (G['panel_u'], its
+    edge columns' u: f -1 and 1 its two edges (u rising), 0 its middle), v down the skirt: the strokes ride with
+    the panel's shape (skirt_hull's panel_shape) and lie where our surface puts them in every view.
+    -> dict(verts, faces, weights {bone: (n,)}, uv (n, 2)) or None."""
+    from scipy.spatial import cKDTree
+    from .geom import wind
+    from .geom.subsurf import subdivide
+    strokes = [np.asarray(s, float) for s in (cs.get('strokes') or []) if len(s) >= 2]
+    if not strokes:
+        return None
+    if cs.get('space') == 'panel':
+        if G.get('panel_u') is None:
+            return None
+        ul, ur = G['panel_u']
+        strokes = [np.c_[(ul + ur) / 2 + s_[:, 0] * (ur - ul) / 2, s_[:, 1]] for s_ in strokes]
+    V0 = np.asarray(G['verts'], float)
+    F0 = [tuple(int(i) for i in f) for f in G['faces']]
+    if G.get('uv') is not None:
+        U0 = np.asarray(G['uv'], float)
+        uvc = [U0[list(f)] for f in F0]
+    elif G.get('uvs') is not None:
+        uvc = [np.asarray(c, float) for c in G['uvs']]
+    else:
+        return None
+    F0, uvc = wind.orient(V0, F0, uvc)[:2]
+    wk = sorted(G['weights'])
+    car = np.stack([np.asarray(G['weights'][k], float) for k in wk], 1) if wk else None
+    R = subdivide(V0, F0, levels=1, uv=[[tuple(x) for x in c] for c in uvc], carry=car)
+    V, Q = np.asarray(R['V'], float), np.asarray(R['quads'], int)
+    UVq = np.asarray(R['uv'], float)                                 # (m, 4, 2) corner UVs of the subdivided quads
+    W = np.asarray(R['carry'], float) if car is not None else None
+    # triangles in UV (each quad's two), their corners' 3D points and weights
+    tri = np.r_[Q[:, [0, 1, 2]], Q[:, [0, 2, 3]]]
+    tuv = np.r_[UVq[:, [0, 1, 2]], UVq[:, [0, 2, 3]]]
+    fn = np.cross(V[tri[:, 1]] - V[tri[:, 0]], V[tri[:, 2]] - V[tri[:, 0]])
+    fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-15)
+    vn = np.zeros_like(V)
+    np.add.at(vn, tri.ravel(), np.repeat(fn, 3, axis=0))
+    vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-15)
+    front = cs.get('space', 'uv') == 'front'
+    if front:
+        # strokes drawn in front, (x, z) in L in the QA's front frame, each point on the frontmost surface there
+        x0, z0 = frame if frame is not None else (0.0, 0.0)
+        tuv = np.stack([(V[tri][:, :, 0] - x0) / L, (V[tri][:, :, 2] - z0) / L], 2)
+    T2 = cKDTree(tuv.mean(1))
+
+    def locate(q):
+        """the surface point at q (UV, or front x, z) -> (point, normal, weights) or None."""
+        _, cand = T2.query(q, k=min(64 if front else 48, len(tuv)))
+        best, bw, by = None, None, np.inf
+        for c in np.atleast_1d(cand):
+            a, b, d = tuv[c]
+            m = np.array([[b[0] - a[0], d[0] - a[0]], [b[1] - a[1], d[1] - a[1]]])
+            if abs(np.linalg.det(m)) < 1e-14:
+                continue
+            s, t = np.linalg.solve(m, q - a)
+            w = np.array([1 - s - t, s, t])
+            if w.min() >= -1e-6:
+                if not front:
+                    best, bw = c, w
+                    break
+                y_ = float((V[tri[c], 1] * w).sum())
+                if y_ < by:
+                    best, bw, by = c, w, y_
+                continue
+            if by == np.inf and (best is None or w.min() > bw.min()):
+                best, bw = c, w
+        if best is None or bw.min() < -0.05:
+            return None
+        bw = np.clip(bw, 0, None); bw /= bw.sum()
+        ix = tri[best]
+        n = (vn[ix] * bw[:, None]).sum(0)
+        return (V[ix] * bw[:, None]).sum(0), n / max(np.linalg.norm(n), 1e-15), \
+            ((W[ix] * bw[:, None]).sum(0) if W is not None else None)
+    width, lift = cs.get('width', 0.004) * L, cs.get('lift', 0.002) * L
+    taper, tip, step = cs.get('taper', 0.25), cs.get('tip', 0.15), cs.get('step', 0.004) * L
+    verts, faces, wts, uvs = [], [], [], []
+    for s_ in strokes:
+        # the stroke's UV polyline resampled finely, mapped, then resampled at `step` along its 3D length
+        seg = np.linalg.norm(np.diff(s_, axis=0), axis=1)
+        tt = np.r_[0, np.cumsum(seg)]
+        if tt[-1] <= 0:
+            continue
+        fine = np.linspace(0, tt[-1], max(8, int(tt[-1] * 2000)))
+        q = np.c_[np.interp(fine, tt, s_[:, 0]), np.interp(fine, tt, s_[:, 1])]
+        got = [locate(x) for x in q]
+        ok = [g_ is not None for g_ in got]
+        if sum(ok) < 2:
+            continue
+        P = np.array([g_[0] for g_ in got if g_ is not None])
+        N = np.array([g_[1] for g_ in got if g_ is not None])
+        Wg = np.array([g_[2] for g_ in got if g_ is not None]) if W is not None else None
+        sl = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+        if sl[-1] < 2 * step:
+            continue
+        sa = np.linspace(0, sl[-1], max(3, int(round(sl[-1] / step)) + 1))
+        Ps = np.stack([np.interp(sa, sl, P[:, k]) for k in range(3)], 1)
+        Ns = np.stack([np.interp(sa, sl, N[:, k]) for k in range(3)], 1)
+        Ns /= np.maximum(np.linalg.norm(Ns, axis=1, keepdims=True), 1e-15)
+        Ws = np.stack([np.interp(sa, sl, Wg[:, k]) for k in range(Wg.shape[1])], 1) if Wg is not None else None
+        Tg = np.gradient(Ps, axis=0)
+        Sd = np.cross(Ns, Tg)
+        Sd /= np.maximum(np.linalg.norm(Sd, axis=1, keepdims=True), 1e-15)
+        f_ = sa / sa[-1]
+        e_ = np.minimum(f_, 1 - f_) / max(taper / 2, 1e-9)
+        hw = 0.5 * width * (tip + (1 - tip) * np.clip(e_, 0, 1))
+        base = len(verts)
+        for i in range(len(sa)):
+            c_ = Ps[i] + Ns[i] * lift
+            verts += [c_ + Sd[i] * hw[i], c_ - Sd[i] * hw[i]]
+            uvs += [(f_[i], 0.0), (f_[i], 1.0)]
+            if Ws is not None:
+                wts += [Ws[i], Ws[i]]
+        for i in range(len(sa) - 1):
+            a_ = base + 2 * i
+            faces.append((a_, a_ + 1, a_ + 3, a_ + 2))                # (normal along the surface's: outward)
+    if not faces:
+        return None
+    verts = np.asarray(verts)
+    Wd = {k: np.asarray(wts)[:, j] for j, k in enumerate(wk)} if wk else {}
+    return dict(verts=verts, faces=faces, weights=Wd, uv=np.asarray(uvs, float))
+
+
+def with_ink(G, s, mats, midx, L, line, frame=None, uv_key='uv'):
+    """a piece with its creases (s['creases'], ink_strokes) appended: their faces on an ink material (the line colour,
+    `line`), so the piece stays one object (the QA's piece masks, the evaluator's one object per garment) and its
+    strokes are drawn as lines (qa3d.render_surfaces). The strokes take no outline and no thickness: the weights'
+    OUTLINE_W group (1 the piece, 0 the strokes; _object makes the vertex group, shade.outline reads it), and the ink
+    faces' Solidify copies are dropped (evalmesh.finalize). -> (G, mats, midx)."""
+    cs = s.get('creases')
+    if not cs:
+        return G, mats, midx
+    K = ink_strokes(G, cs, L, frame)
+    if K is None:
+        return G, mats, midx
+    n0, nf0 = len(G['verts']), len(G['faces'])
+    G = dict(G)
+    G['verts'] = np.r_[np.asarray(G['verts'], float), K['verts']]
+    G['faces'] = [tuple(f) for f in G['faces']] + [tuple(int(i) + n0 for i in f) for f in K['faces']]
+    W = {}
+    for b in set(G['weights']) | set(K['weights']):
+        a_ = np.asarray(G['weights'].get(b, np.zeros(n0)), float)
+        k_ = np.asarray(K['weights'].get(b, np.zeros(len(K['verts']))), float)
+        W[b] = np.r_[a_, k_]
+    G['weights'] = W
+    if uv_key == 'uv' and G.get('uv') is not None:
+        G['uv'] = [tuple(x) for x in np.asarray(G['uv'], float)] + [tuple(x) for x in K['uv']]
+    elif G.get('uvs') is not None:
+        G['uvs'] = list(G['uvs']) + [[tuple(K['uv'][i]) for i in f] for f in K['faces']]
+    mats = list(mats) + [_toon(s['name'] + INK, cs.get('color', line), (1.0, 1.0, 1.0))]
+    ink = len(mats) - 1
+    midx = (list(midx) if midx is not None else [0] * nf0) + [ink] * len(K['faces'])
+    G['weights'][OUTLINE_W] = np.r_[np.ones(n0), np.zeros(len(K['verts']))]
+    return G, mats, midx
+
+
 def hem_snap(V, F, used, keep, sv, cut, ins):
     """a shell's hem cut clean: whole faces kept above the cut left a staircase of the body's faces (the shorts' hem
     read notched); each vertex on the kept faces' lower border moved down its edges to the body's outside neighbours,
@@ -1234,6 +1404,45 @@ def skirt(A, spec):
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=zw)
 
 
+def panel_warp(th, half, VV, ps):
+    """a skirt's vertex angles with its front panel tapered (skirt_hull's `panel_shape`): th the columns' angles (n,),
+    half the panel's half-angle (its faces: |th| < half), VV each vertex's v (rows, n); ps {top, power, scale}: the
+    panel's edge columns at scale x (top + (1 - top) v ** power) of their own angle from its middle, the columns outside
+    spread evenly over the rest of the circle -> angles (rows, n)."""
+    th = np.asarray(th, float)
+    n = len(th)
+    ks = np.nonzero(np.abs(th) < half)[0]                     # the panel's faces' first columns
+    bl, br = th[ks.min()], th[(ks.max() + 1) % n]            # its edge columns
+    c, h0 = (bl + br) / 2, (br - bl) / 2
+    f = float(ps.get('scale', 1.0)) * (float(ps.get('top', 0.1)) + (1 - float(ps.get('top', 0.1)))
+                                       * np.clip(VV, 0, 1) ** float(ps.get('power', 1.0)))
+    f = np.clip(f, 0.01, (np.pi - 1e-3) / h0)
+    d = np.mod(th[None, :] - c + np.pi, 2 * np.pi) - np.pi                       # from the panel's middle, (-pi, pi]
+    inside = np.abs(d) <= h0 + 1e-12
+    hn = h0 * f
+    out = np.where(inside, d * f, np.sign(d) * (hn + (np.abs(d) - h0) * (np.pi - hn) / (np.pi - h0)))
+    return c + out
+
+
+def _field_at(F, vs, VV, TH):
+    """a loft field's radius at each (v, angle) (bilinear: rows vs, columns F.th, periodic round)."""
+    th = np.asarray(F.th, float)
+    n = len(th)
+    step = 2 * np.pi / n
+    x = np.mod(np.asarray(TH, float) - th[0], 2 * np.pi) / step
+    k0 = np.floor(x).astype(int) % n
+    k1 = (k0 + 1) % n
+    fx = x - np.floor(x)
+    y = np.interp(np.asarray(VV, float), vs, np.arange(len(vs)))
+    i0 = np.clip(np.floor(y).astype(int), 0, len(vs) - 1)
+    i1 = np.clip(i0 + 1, 0, len(vs) - 1)
+    fy = y - i0
+    Rf = np.asarray(F.R, float)
+    a = Rf[i0, k0] * (1 - fx) + Rf[i0, k1] * fx
+    b = Rf[i1, k0] * (1 - fx) + Rf[i1, k1] * fx
+    return a * (1 - fy) + b * fy
+
+
 def skirt_hull(A, spec, hull):
     """a pleated skirt lofted through the hull's points of the skirt and its front panel (fold: skirt_panel): the waist at
     the points' top, a hem per angle where they end (the back longer, as drawn), and between them the measured section
@@ -1353,6 +1562,19 @@ def skirt_hull(A, spec, hull):
         vb = 1 - hb / np.maximum(1e-9, lenc)                                     # per face column: the band's top (v)
         band = [int(hb[k] > 0 and VVg[i, k] >= vb[k] - 1e-9 and abs(F.th[k]) >= half)
                 for i in range(VVg.shape[0] - 1) for k in range(n)]
+    THv = np.broadcast_to(TH, R.shape)
+    warped = bool(spec.get('panel_shape')) and half > 0
+    if warped:
+        # the front panel as a template (tool/garments4, Michael's "the skirt's cream section"): the drawn panel is an
+        # inverted box pleat, a triangle from the waist widening to the hem, where a constant angle made a band as wide
+        # at the waist as at the hem (skirt_panel_*_shape). Each vertex row's columns are re-spaced round the axis so the
+        # panel's edge columns sit at `scale` x (top + (1 - top) v ** power) of their own angle, the rest spread over the
+        # remaining circle: the panel's faces keep their columns (a clean edge, its UV and creases ride with it), the
+        # surface is the same field read at the new angles; the knife pleats fan with the columns (a recessed or
+        # protruding box pleat was tried, sweeps k2/k3: it hid the panel's cream in profile and fought its pleats)
+        THv = panel_warp(F.th, half, VVg, spec['panel_shape'])
+        R = _field_at(F, vs, VVg, THv) + off + depth * zig * VVg ** 0.7
+        T = t0_at(THv) + VVg * (hem_at(THv) - t0_at(THv))
     nrow = VVg.shape[0] - 1
     tuck = None
     under = spec.get('under')
@@ -1363,11 +1585,11 @@ def skirt_hull(A, spec, hull):
         # band, its top rim and pleats standing outside the band: "a strangely warping tuck-in")
         tuck = tuck_under(A, spec, hull, ax, F.th, T, L)
         if tuck:
-            R = tuck_pull(R, T, tuck)
+            R = tuck_pull(R, T, tuck, A=THv if warped else None)
     clear_info = None
     if spec.get('clear_hands'):
-        R, clear_info = clear_arms(A, spec, hull, ax, T, np.broadcast_to(TH, T.shape), R)
-    verts = ax.point(T, np.broadcast_to(TH, T.shape), R).reshape(-1, 3)
+        R, clear_info = clear_arms(A, spec, hull, ax, T, np.broadcast_to(THv, T.shape), R)
+    verts = ax.point(T, np.broadcast_to(THv, T.shape), R).reshape(-1, 3)
     faces = [(i * n + k, i * n + (k + 1) % n, (i + 1) * n + (k + 1) % n, (i + 1) * n + k)
              for i in range(nrow) for k in range(n)]
     uvs = [((k + 0.5) / n, float(VVg[i, k])) for i in range(nrow + 1) for k in range(n)]
@@ -1378,6 +1600,9 @@ def skirt_hull(A, spec, hull):
     Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
     out = dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=float(top - np.median(t0_at(F.th))),
                panel_half=half, axis=ax, grid=(nrow + 1, n), clear=clear_info)
+    kp = np.nonzero(np.abs(F.th) < half)[0]
+    if len(kp):                                  # the panel's edge columns' u (ink_strokes' space 'panel')
+        out['panel_u'] = ((kp.min() + 0.5) / n, (kp.max() + 1.5) / n)
     if band is not None:
         out['band'] = band
     if tuck:
@@ -3469,7 +3694,7 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     if layer is not None:
         me.attributes.new('ck_layer', 'INT', 'FACE').data.foreach_set('value', np.asarray(layer, np.int32))
     for b, w in weights.items():
-        if b not in arm.data.bones:
+        if b not in arm.data.bones and b != OUTLINE_W:
             continue
         g = ob.vertex_groups.new(name=b)
         wr = np.clip(np.asarray(w, float), 0.0, 1.0) if final else group_weights(w)
@@ -3611,6 +3836,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             if 'band' in G:                                            # the band as geometry (band_rows)
                 mats.append(_toon(nm + '_band', s.get('hem_color', (0.28, 0.2, 0.18)), sh))
                 midx = [2 if b_ else p_ for p_, b_ in zip(G['panel'], G['band'])]
+            G, mats, midx = with_ink(G, s, mats, midx, L, line, (0.0, _eye_z(A)))   # its creases (the panel's folds)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=midx)
             _thick(ob, 0.01 * L)
         elif k == 'collar' and s.get('source') == 'template':
@@ -3643,7 +3869,8 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             _thick(ob, 0.012 * L)
         elif k == 'bow' and s.get('source') == 'hull':
             G = bow_hull(A, dict(s, _spec=spec_all), hull)
-            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
+            G, mats, midx = with_ink(G, s, [_toon(nm, col, sh)], None, L, line, (0.0, _eye_z(A)))   # its wrinkles
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=midx)
         elif k == 'bow':
             G = bow(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
