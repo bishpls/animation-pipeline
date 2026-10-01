@@ -184,6 +184,8 @@ pipeline-3d (9be5b32); gate 2b (items 3 and 1) PASS, ready to merge. Nothing run
 3. Michael's answers (the review page's questions): brows.arch 0.1 (the views' compromise); the override as per-shot
    weights or a Blender driver; the follow-up jaw-band round; the 3/4 corner trade (wrap 0.25).
 
+## Earlier state notes (the round's running record)
+
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
   to the build box (no `--box render`); `--box render` only for builds whose boards I need. sw2 (already running on the
   render box) left to finish. Build-box sweep base: `charkit/out/face7_b0` (7e89130f, defaults = control, boards views).
