@@ -730,3 +730,8 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   ao_neck, af_collar; (3) calibrate lapelqa on the chosen build (`calibrate 'collar_three_quarter_lapel_*' --build`,
   known-bad g4_v0), box build, merge pipeline-3d, gate; (4) re-judge art_outline_collar on it (today 1.442 PASS on the
   default with the V: its FAILs were tool/collar4's stand-up template collars E2/A3/H1, 3.4-5.6).
+- Review pages: stairs charkit/out/garments4/review/stairs/index.html, neck .../review/neck_page/index.html, the V
+  .../review/v_page/index.html, lapels (informational) .../review/lapels_page/index.html (sources tools/garments4/review).
+- Heads (2026-10-01 end of this run): stairs b4670264 (merged, pipeline-3d 0d53cb8), neck 6598251b (merged, ff41ca2),
+  the V a3bb4a8b (gate PASS into 0d53cb84; merged, 9f6379e8), motion fix 880202e9 (carried PASS into ad081524; not yet
+  merged), lapels this commit (not gated).
