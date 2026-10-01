@@ -649,3 +649,11 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   (a grid with strokes: grid_of, carried exactly at rest and with a rigid move).
 - Readings: the calibration build hands_b4 (pre-creases): kick inside 0.0024, kick stretch 0.063, squat stretch 0.104
   (all PASS). Being re-measured on the box: g4_stairs1 (ink + stairs) and g4_part1 (no ink) with the fix.
+- **Motion readings with the fix (box QA):** g4_part1 (no ink) kick inside 0.00244 P, kick stretch 0.06346 P, squat
+  stretch 0.10404 P: the calibration build's exactly (the fix is neutral without ink); g4_cuffs2 (creases + cuffs, no
+  stairs) 0.00235 P / 0.0790 P / 0.1272 P; g4_stairs1 (pipeline-3d's skirt: + the staircase) 0.0071 **WARN** / 0.0796 P /
+  0.1338 P (squat inside 0.0171 INFO). **The staircase raised the kick's penetration 0.0024 -> 0.0071** (WARN; hidden while
+  motion read SKIPPED during the stairs gates): a follow-up (the fourth step's rows at the hem).
+- **Motion gate: PASS under K** (tool/garments4-motionfix 4da79555 into pipeline-3d ad081524;
+  charkit/out/gate/gate_tool-garments4-motionfix_4da79555_into_ad081524.md): CPU 1.04x; the four motion checks back
+  (records calibrated); motion's measurement steps registered after the gate (charkit/steps/motionqa.py), carried.
