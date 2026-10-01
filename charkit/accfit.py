@@ -40,6 +40,11 @@ PLAIN_W = 0.0                         # > 0: the gate's old measure (as_drawn of
                                       # size 0.23) times this (--plain W)
 ANGLE_OK, ANGLE_W = 8.0, 0.05         # a clip's axis off the drawn past this many degrees costs ANGLE_W a degree (the QA
                                       # passes 10, warns 20: an IoU aligned on centroid and area barely sees a turn)
+ANGLE_NEAR = None                     # L: the absolute-angle term only within this of the drawn spot (fading out by
+                                      # twice it): a moved clip keeps its relations, not its absolute drawn angle
+                                      # (Michael 2026-10-01; tool/accessories6). None: everywhere (round 5's)
+W_REL = 0.0                           # the crab against the star (accqa's pair checks: bearing, gap, turn, flow): each
+                                      # view's reading over its pass limit (1 + its warn bands past it) times this
 # the shape knobs each template fit moves, with their starting steps (the shape's own units: fractions of the star's
 # height, of the crab's body width; degrees)
 SHAPE_KNOBS = {
@@ -203,9 +208,11 @@ def shape_checks(kind, shape, poses, D, views=VIEWS):
     return C
 
 
-def shape_loss(C, kind, w_alone=0.5, w_side=W_SIDE, w_parts=W_PARTS):
+def shape_loss(C, kind, w_alone=0.5, w_side=W_SIDE, w_parts=W_PARTS, pull=False):
     """shape_checks() as one number: per view (1 - IoU) (WEIGHT), (1 - IoU) face-on times w_alone and edge-on times
-    w_side, and each graded FACE check's distance from PASS in its warn bands (a missing reading: 2) times w_parts."""
+    w_side, and each graded FACE check's distance from PASS in its warn bands (a missing reading: 2) times w_parts;
+    pull: inside PASS too, its value over the pass limit (0 at the sheet's own reading: a fit doesn't rest on the PASS
+    limit's edge; a count off by any: 2 + the count)."""
     from . import declared
     loss = 0.0
     for v in VIEWS:
@@ -223,9 +230,14 @@ def shape_loss(C, kind, w_alone=0.5, w_side=W_SIDE, w_parts=W_PARTS):
         if c.get('value') is None:
             loss += 2 * w_parts
             continue
-        p, w_ = declared.limits_of(d)
-        span = max(1e-9, float(w_) - float(p)) if w_ != p else 1.0
-        loss += w_parts * max(0.0, float(c['value']) - float(p)) / span
+        p, w_ = (float(x) for x in declared.limits_of(d))
+        v = float(c['value'])
+        span = max(1e-9, w_ - p) if w_ != p else 1.0
+        if pull:
+            t = (v / p if v <= p else 1.0 + (v - p) / span) if p > 0 else (0.0 if v <= 0 else 2.0 + v)
+        else:
+            t = max(0.0, v - p) / span
+        loss += w_parts * t
     return round(loss, 5)
 
 
@@ -335,6 +347,8 @@ class Scene:
         self.hair = [o.mesh('eval')[:2] for o in B.objects(groups=('hair',)) if o.has('eval')]
         self.ground = acc.Ground([(V, [tuple(t) for t in T]) for V, T in self.hair])
         self.spec_acc = [a for a in (B.spec.get('accessories') or []) if a['kind'] in KINDS]
+        self.iris = iris
+        self.flows = accqa.hair_flow(B, self.az, iris, self.centre, self.L, self.ppl)   # (the hair's flow per view)
 
     def place(self, specs):
         """the clips placed as the build places them (accessories.generate on the hair) -> [(kind, V, F, spec)]."""
@@ -371,6 +385,35 @@ class Scene:
             by[i] = dict(sorted(cov.items(), key=lambda t: -t[1]))
         return shown, alone, by
 
+    def relations(self, clips, alone):
+        """the crab against the star (accqa's pair declarations: bearing, gap, turn, flow per view) as the QA measures
+        them: clips placed (place()), alone {view: {i: mask}} (draw()'s) -> checks."""
+        from . import accqa, declared
+        kinds = [k for k, _, _, _ in clips]
+        if 'crab' not in kinds or 'star' not in kinds:
+            return {}
+        ds = [d for d in accqa.DECLARED_CHECKS if d.get('family') == 'pair']
+        ci = kinds.index('crab')
+        I = dict(O={}, names=['-'] + kinds, pm={accqa.PIECE[k]: [(k, None)] for k in kinds}, masks={}, ppl=self.ppl,
+                 dv={}, pair={})
+        R = accqa.own_axes(clips[ci][1], clips[ci][3], self.centre)
+        for v in alone:
+            if v not in accqa.CRAB_AXIS:
+                continue
+            m0 = next(iter(alone[v].values()))
+            I['O'][v] = {'lab': np.zeros(m0.shape, np.int64)}
+            I['dv'][v] = {}
+            for k in kinds:
+                md = self.D['views'].get(v, {}).get(k)
+                if md is not None:
+                    I['masks']['%s__%s' % (v, accqa.PIECE[k])] = md[:m0.shape[0], :m0.shape[1]]
+            F = self.flows.get(v)
+            I['pair'][v] = dict(alone={accqa.PIECE[k]: alone[v][i] for i, k in enumerate(kinds)},
+                                axis=dict(ours=accqa.axis_in_view(R, self.az[v]), design=accqa.CRAB_AXIS[v]),
+                                flow=None if F is None else (lambda m, F=F: accqa.flow_under(F, m)))
+        _, C = declared.evaluate(ds, I)
+        return C
+
     def seat(self, V, L=None):
         """the least of a clip's vertices' heights over the hair under them along its thin axis (accqa.seat's gap), L."""
         from . import accqa
@@ -386,12 +429,14 @@ class Scene:
         from . import accqa
         clips = self.place(specs)
         res, loss = {}, 0.0
+        alone_v = {}
         for i, (kind, V, F, s) in enumerate(clips):
             res[kind] = dict(views={}, seat=None, back=0, conform_lift=s.get('conform_lift'))
         for v in VIEWS + ('back',):
             if v not in self.depth:
                 continue
             shown, alone, by = self.draw(clips, v)
+            alone_v[v] = alone
             for i, (kind, V, F, s) in enumerate(clips):
                 md = self.D['views'].get(v, {}).get(kind)
                 mo = shown[i]
@@ -419,7 +464,9 @@ class Scene:
                 loss += VIS_W * max(0.0, VIS_MIN - vis)
                 ang = C.get(tag + 'angle', {})
                 if ang.get('status') not in (None, 'INFO') and r['angle'] is not None:
-                    loss += w * ANGLE_W * max(0.0, abs(r['angle']) - ANGLE_OK)
+                    near = 1.0 if ANGLE_NEAR is None else \
+                        float(np.clip(2.0 - (r['pos'] or 1.0) / ANGLE_NEAR, 0.0, 1.0))
+                    loss += w * ANGLE_W * near * max(0.0, abs(r['angle']) - ANGLE_OK)
                 if PLAIN_W:
                     P_, _, _ = accqa.compare(mo, md, self.ppl, kind, v)
                     pa, pi, ps = P_.get(tag + 'angle', {}), P_.get(tag + 'iou', {}), P_.get(tag + 'size', {})
@@ -430,6 +477,22 @@ class Scene:
                         loss += PLAIN_W * 5 * max(0.0, 0.62 - pi['value'])
                     if ps.get('value') is not None:
                         loss += PLAIN_W * 5 * max(0.0, abs(ps['value'] - 1) - 0.23)
+        rel = self.relations(clips, {v: a for v, a in alone_v.items() if v in VIEWS})
+        if rel:
+            res['pair'] = rel
+            if W_REL:
+                from . import accqa, declared
+                for d in accqa.DECLARED_CHECKS:
+                    if d.get('family') != 'pair':
+                        continue
+                    p_, w_ = (float(x) for x in declared.limits_of(d))
+                    for v in VIEWS:
+                        c = rel.get(d['check'].format(view=v))
+                        if c is None:
+                            continue
+                        x = c.get('value')
+                        t = 3.0 if x is None else (x / p_ if x <= p_ else 1.0 + (x - p_) / max(1e-9, w_ - p_))
+                        loss += W_REL * WEIGHT[v] * t
         for i, (kind, V, F, s) in enumerate(clips):
             g = self.seat(V)
             res[kind]['seat'] = None if g is None else round(g, 4)

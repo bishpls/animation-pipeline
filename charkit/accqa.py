@@ -117,7 +117,40 @@ DECLARED_CHECKS = [
          note="the crab face-on: its eye stalks' reach above the body over its width, |ours / sheet's - 1| (one "
               "missing reads 1)",
          calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['no_stalks'], shape=['acc_crab_shape'])),
+    # the crab against the star (Michael 2026-10-01, tool/accessories6: the crab moved under the star's lower tip; "a
+    # moved piece keeps its relations, not its absolute drawn angle"): per view, ours each drawn alone against the drawn
+    # pair (family 'pair'). Calibrated: the drawn clips standing for ours pass; the round-5 build (A3, the crab under the
+    # star's lower tip, turned with it) fails the bearing and the turn; floors move or turn the drawn crab
+    dict(check='acc_crab_{view}_bearing', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='bearing'), limits=[30.0, 55.0],
+         flag="the crab's place against the star (Michael, 2026-10-01)",
+         note="the direction from the star's centroid to the crab's (each drawn alone) against the drawn pair's, "
+              "degrees: where the crab sits round the star",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['orbit'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_{view}_gap', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='gap'), limits=[0.025, 0.05],
+         note="the clear distance between the crab and the star (each drawn alone) past the drawn pair's, L: the pair "
+              "kept together",
+         calibrate=dict(no_known_bad='no build parts the clips: its floor is the drawn crab moved off the star',
+                        kind='defect', baseline=['apart'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_{view}_turn', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='turn'), limits=[25.0, 45.0],
+         flag="the crab's turn against the star (Michael, 2026-10-01)",
+         note="the crab's own axis (toward its claws) less the bearing from the star, against the drawn pair's, "
+              "degrees: the crab turned against the star as drawn (the target turns as the crab moves round it)",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['pointing_away'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_{view}_flow', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='flow'), limits=[25.0, 45.0],
+         note="the crab's own axis less the hair's flow under it (our hair's strands), against the drawn crab's (the "
+              "flow under the drawn crab), degrees: the crab along the hair as drawn",
+         calibrate=dict(no_known_bad="round 5's crab keeps the drawn crab's turn against the hair: its floor is the "
+                                     "drawn crab turned across the flow", kind='defect', baseline=['across_flow'],
+                        shape=['acc_crab_shape'])),
 ]
+# the drawn crab's own up (toward its claws) in each view's picture, degrees (0 the picture's right, 90 up): 90 + the
+# roll of the crab template fitted to the drawn crab in that view (charkit.accfit's template fit, tool/accessories6:
+# charkit/out/acc6/opt_crab2; the drawing hides its right claw under the star, so its axis is the template's)
+CRAB_AXIS = {'front': 82.9, 'three_quarter': 77.5, 'profile': 81.9}
 FACE = 'face'                          # the clips-alone sheet's straight-on drawing as a view of the declared checks
 FACE_SHEET = 'clips_alone'             # (the stand-in's labels() sheet name for it)
 
@@ -557,6 +590,61 @@ def face_labels(masks, gap=8):
     return lab
 
 
+def axis_in_view(R, az):
+    """a clip's own up (its frame's y: a crab's claws) in a view's picture -> degrees (0 the picture's right, 90 up)."""
+    y = np.asarray(R, float)[:, 1]
+    a = np.radians(az)
+    return float(np.degrees(np.arctan2(y[2], y[0] * np.cos(a) + y[1] * np.sin(a)))) % 360.0
+
+
+def hair_flow(B, azs, iris, centre, L, ppl, views=('front', 'three_quarter', 'profile'), win=WIN):
+    """the hair's flow in each view's picture: our hair drawn alone (its nearest surface), each pixel its triangle's
+    strand direction (root to tip: the hair pieces' `strand`, geom/hair_pieces beside the bundle) projected -> {view:
+    (H, W, 2)}, {} without the pieces' strands."""
+    import os
+    from .faceqa import zbuffer
+    gdir = os.path.join(os.path.dirname(os.path.abspath(B.path)), 'geom', 'hair_pieces')
+    Vs, Ts, St, off = [], [], [], 0
+    for o in B.objects(groups=('hair',)):
+        if not o.has('eval'):
+            continue
+        p = os.path.join(gdir, o.name.replace('hair_', '', 1) + '.npz')
+        if not os.path.exists(p):
+            continue
+        V, T = o.mesh('eval')[:2]
+        st = np.load(p)['strand']
+        if len(st) != len(V):
+            continue
+        Vs.append(V); Ts.append(np.asarray(T) + off); St.append(st[np.asarray(T)].mean(1)); off += len(V)
+    if not Vs:
+        return {}
+    V, T, st = np.vstack(Vs), np.vstack(Ts), np.vstack(St)
+    out = {}
+    for v in views:
+        az = azs[v]
+        _, lab = zbuffer([(V, T, np.arange(len(T)))], az, origin(v, az, iris, centre), L, 1.0 / ppl, win)
+        a = np.radians(az)
+        F = np.zeros(lab.shape + (2,))
+        ok = lab >= 0
+        F[ok, 0] = st[lab[ok], 0] * np.cos(a) + st[lab[ok], 1] * np.sin(a)
+        F[ok, 1] = st[lab[ok], 2]
+        out[v] = F
+    return out
+
+
+def flow_under(F, m):
+    """the hair's flow under a mask: its strands' mean direction there (picture degrees) and coherence (0..1)."""
+    h, w = min(F.shape[0], m.shape[0]), min(F.shape[1], m.shape[1])
+    sel = m[:h, :w]
+    if not sel.any():
+        return None
+    s = F[:h, :w][sel].sum(0)
+    n = float(np.linalg.norm(s))
+    if n < 1e-9:
+        return None
+    return float(np.degrees(np.arctan2(s[1], s[0]))) % 360.0, n / float(sel.sum())
+
+
 def edge_body(m, keep=0.3):
     """the clips-alone sheet's edge-on clip less its hair-clip loop (drawn behind it, the back on the right; we don't
     build it: hidden in the hair once worn): the columns past the deepest one where fewer than `keep` of the deepest
@@ -861,6 +949,7 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
     kinds = [k for k, _ in clips]
     spec_acc = {a['kind']: a for a in (B.spec.get('accessories') or [])}
     table, C, pics = {'sheets': {}, 'seat': {}}, {}, {}
+    flows = None
     # the declared checks' inputs (DECLARED_CHECKS, part 'accessories'): the graded sheet's labels per view (clip k + 1),
     # the drawn clips, each clip's own silhouette drawn alone
     I = dict(O={}, names=['-'] + [o.name for _, o in clips], masks={}, alone={}, dv={},
@@ -875,11 +964,13 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
         if D['graded']:
             I['ppl'] = ppl
         for v, dv in D['views'].items():
+            extra = {}
             if labels is not None:
                 got = labels(sname, v, dv, kinds)
                 if got is None:
                     continue
-                lab_ids, solo = got
+                lab_ids, solo = got[:2]
+                extra = got[2] if len(got) > 2 else {}
             else:
                 org = origin(v, azs[v], iris, centre)
                 lab_ids = our_labels(occ, geo, azs[v], org, L, ppl, ids=True)
@@ -893,6 +984,22 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
                 I['O'][v] = {'lab': lab}
                 I['alone'][v] = {o.name: a for (_, o), a in zip(clips, solo)}
                 I['dv'][v] = {}
+                # the pair checks' inputs (the crab against the star): each clip drawn alone, the crab's own axis in
+                # the picture (ours from its frame, the drawing's CRAB_AXIS; a stand-in's from its labels), the hair's
+                # flow under a mask (our hair's strands: hair_flow)
+                if v in CRAB_AXIS:
+                    if 'crab' in kinds and labels is None:
+                        k_ = kinds.index('crab')
+                        ax_o = axis_in_view(own_axes(geo[k_][0], spec_acc.get('crab'), centre), azs[v])
+                    else:
+                        ax_o = extra.get('axis', CRAB_AXIS[v])
+                    if flows is None:
+                        flows = hair_flow(B, azs, iris, centre, L, ppl)
+                    F = flows.get(v)
+                    I.setdefault('pair', {})[v] = dict(
+                        alone={piece_of(k, spec_acc.get(k)): m for k, m in zip(kinds, solo)},
+                        axis=dict(ours=ax_o, design=CRAB_AXIS[v]),
+                        flow=None if F is None else (lambda m, F=F: flow_under(F, m)))
             for k, kind in enumerate(kinds):
                 pid = piece_of(kind, spec_acc.get(kind))
                 md = dv['masks'].get(pid)

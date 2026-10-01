@@ -45,6 +45,14 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
                degrees), 'fingers' (per lobe, 1 + its notches: the largest difference), 'notch' (the lobes' deepest
                notch over their size, |ours - design|), 'stalks' (the stalks' reach, |ours / design - 1|; one missing
                reads 1). Scale-free: ours and the drawing may be on different grids (a face-on view of the piece)
+  pair         two pieces' relation in a view, piece [a, b] (b placed against a: the crab clip against the star;
+               tool/accessories6, Michael 2026-10-01: a moved piece keeps its relations, not its absolute drawn angle):
+               ours each drawn alone (the inputs' `pair` {view: dict(alone {piece: mask}, axis {ours, design}, flow)}),
+               the drawing's drawn masks. measure 'bearing' (the direction from a's centroid to b's, |ours - design|
+               degrees), 'gap' (the clear distance between them past the drawing's, L: 0 when touching or as close as
+               drawn), 'turn' (b's own axis less the bearing: how b is turned against a, |ours - design| degrees; the
+               target turns as b moves round a), 'flow' (b's axis less the hair's flow under it: `flow`(mask) -> degrees,
+               |ours - design|)
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -1051,9 +1059,67 @@ def limbs(Mo, Md, ctx, measure='count', round_=3):
     return r
 
 
+def _wrap(a):
+    return (a + 180.0) % 360.0 - 180.0
+
+
+def pair_read(ma, mb, ppl, axis=None, flow=None):
+    """two masks' relation (b against a) -> dict(bearing (degrees: 0 the picture's right, 90 up), dist, gap (L; - the
+    overlap's sqrt(area)), axis, turn, flow, axis_flow) or None."""
+    from scipy import ndimage
+    if ma is None or mb is None or ma.sum() < 20 or mb.sum() < 20:
+        return None
+    ya, xa = np.nonzero(ma)
+    yb, xb = np.nonzero(mb)
+    d = np.array([xb.mean() - xa.mean(), -(yb.mean() - ya.mean())]) / ppl
+    b = float(np.degrees(np.arctan2(d[1], d[0]))) % 360.0
+    ov = int((ma & mb).sum())
+    g = -float(np.sqrt(ov)) / ppl if ov else float(ndimage.distance_transform_edt(~ma)[mb].min() - 1.0) / ppl
+    out = dict(bearing=round(b, 1), dist=round(float(np.linalg.norm(d)), 4), gap=round(g, 4))
+    if axis is not None:
+        out['axis'] = round(float(axis) % 360.0, 1)
+        out['turn'] = round(_wrap(axis - b), 1)
+        if flow is not None:
+            f = flow(mb)
+            if f is not None:
+                out['flow'] = round(float(f[0]), 1)
+                out['coherence'] = round(float(f[1]), 3)
+                out['axis_flow'] = round(_wrap(axis - f[0]), 1)
+    return out
+
+
+def pair(Mo, Md, ctx, measure='bearing', round_=1):
+    """two pieces' relation, piece [a, b]: ours each drawn alone (ctx 'pair': alone {piece: mask}, axis {ours,
+    design}: b's own axis in the picture, degrees; flow: mask -> (the hair's flow under it, coherence)) against the
+    drawing's masks (Md [a, b]) -> |ours - design| for the measure (pair_read; gap: ours past the drawing's, L)."""
+    from . import pieceqa
+    P = ctx.get('pair') or {}
+    pa, pb = ctx['pieces']
+    Da, Db = Md
+    if Da.sum() < pieceqa.MIN_PX or Db.sum() < pieceqa.MIN_PX:
+        return None
+    A = P.get('alone') or {}
+    if A.get(pa) is None or A.get(pb) is None or A[pa].sum() < pieceqa.MIN_PX or A[pb].sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    ax = P.get('axis') or {}
+    ro = pair_read(A[pa], A[pb], ctx['ppl'], ax.get('ours'), P.get('flow'))
+    rd = pair_read(fit(Da, A[pa].shape), fit(Db, A[pb].shape), ctx['ppl'], ax.get('design'), P.get('flow'))
+    if ro is None or rd is None:
+        return dict(value=None, why=WHY_OURS)
+    if measure == 'gap':
+        v = max(0.0, ro['gap'] - max(0.0, rd['gap']))
+        return dict(value=round(v, 4), ours=ro['gap'], design=rd['gap'], read=dict(ours=ro, design=rd))
+    key = dict(bearing='bearing', turn='turn', flow='axis_flow')[measure]
+    if key not in ro or key not in rd:
+        return None if key not in rd else dict(value=None, why='ours has no %s' % key)
+    return dict(value=round(abs(_wrap(ro[key] - rd[key])), round_), ours=ro[key], design=rd[key],
+                read=dict(ours=ro, design=rd))
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
                 position=position, ink_inside=ink_inside, area=area, strokes=strokes, line_weight=line_weight,
-                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, visible=visible, limbs=limbs)
+                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, visible=visible, limbs=limbs,
+                pair=pair)
 HIGHER = ('shape_iou', 'tones', 'class_iou', 'visible')    # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside', 'strokes', 'stair')     # families that read our drawn lines (inputs' lines)
 HAIR_FAMILIES = ('top_line',)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
@@ -1406,6 +1472,8 @@ def evaluate(decls, I):
                    graph=I.get('graph'), spec=I.get('spec'))
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
         ctx['alone'] = (lambda v=view, ps=pieces: alone(I, v, ps[0]))
+        ctx['pieces'] = pieces
+        ctx['pair'] = (I.get('pair') or {}).get(view)
         if HAIR in pieces:                                # (the hair as a piece: its design side, our non-mass parts)
             from .bodymeasure import member_mask
             ctx['hair_D'] = I.get('hair_D')
@@ -1435,7 +1503,7 @@ def evaluate(decls, I):
             if r.get('count_status'):
                 st = pieceqa.worst(st, r['count_status'])
             c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
-            for k in ('count', 'ratio', 'fill', 'ratio_fill', 'alone') + (('recall', 'place', 'precision', 'dir', 'density') if d['family'] == 'strokes' else ()) + \
+            for k in ('count', 'ratio', 'fill', 'ratio_fill', 'alone', 'read') + (('recall', 'place', 'precision', 'dir', 'density') if d['family'] == 'strokes' else ()) + \
                     (('f1', 'recall', 'precision', 'zone') if d['family'] == 'tones' else ()):
                 if k in r:
                     c[k] = r[k]
