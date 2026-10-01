@@ -338,3 +338,25 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
 - Box builds (collar4's body.shoulder {z -.525, x .47, join} + collars; specs charkit/out/garments4/specs/, overrides
   tools/garments4/sh_*.json): g4_sh0 (body.shoulder only) build-garments4-1001-034242-aa9c, g4_shA3 (+ collar A3)
   -034301-4999, g4_shE2 (+ collar E2) -034321-8333; logs charkit/out/garments4/build_sh*.log.
+- **Calibrated** (charkit/out/garments4/calib_shoulders.log; QA rerun on g4_cuffs2 as g4_cuffs2_q; known-bad g4_cuffs2
+  stored): shoulder_{front,back}_top, _dip, shoulder_front_tilt, collar_back_rows all CALIBRATED (design 0-0.03 every
+  move; known-bad FAIL; voronoi floor FAIL, but shoulder_back_dip's passes). On g4_cuffs2 they read 0.033 F / 0.019 W,
+  0.052 F / 0.042 F, 0.203 F, 0.147 F: **they must reach WARN or better before a gate** (new FAILs block).
+- Variant builds against g4_cuffs2 (tools/kcmp.py: K's view, the guard at -10%; declm.py the shoulder checks):
+
+| build | dips f/b | top f/b | tilt f | back rows | blockers under K |
+|---|---|---|---|---|---|
+| g4_cuffs2 | 0.052 / 0.042 | 0.033 / 0.019 | 0.203 | 0.147 | (base) |
+| sh0: body.shoulder | 0.005 / 0.005 | 0.028 / 0.019 | 0.104 | 0.194 | art_outline_collar P->F (back: the jacket through the hull collar's top), neck_crease 26.9 W -> 61.5 F |
+| shA3: + A3 collar | 0.005 / 0 | 0.033 / 0.019 | 0.161 | 0.079 | art_outline_collar F (front 3.9), neck F, guard piece_top f -25% 3q -15% |
+| shE2: + E2 collar | 0.005 / 0 | 0.021 / 0.019 | 0.091 | 0.065 | art_outline_collar F (front 4.7), art_outline_neck F (3q 8.7), neck_crease 57.4 F, guard collar 3q -15.3% |
+| cA3: A3, no body.shoulder | - | - | - | - | collar front -56%, neck 35 F, spikes F: the template collar needs the shoulders |
+| cE2: E2, no body.shoulder | 0.047 / 0.028 | 0.038 / 0.019 | 0.191 | 0.097 | neck 38.2 F, art_outline_collar F, collar 3q -18% |
+
+  E2 + body.shoulder looks closest to the design in every view (review/shoulders/side_vars.png: the lapels with their
+  stripe in front and 3q, the square back panel), but carries tool/collar4's blockers. The corners (tools/corners.py,
+  c_E2.png, c_A3.png): the collar's outer ends where the hair crosses its top (x +-0.36..0.41, z -0.48..-0.51), the
+  lapels' inner corners at the neck (x +-0.12, z -0.52) and where they meet the bow (x +-0.08, z -0.65).
+- **The jacket's shoulder pad** (garments.shoulder_pad, a shell's `pad` {lift [[|x|, dz]], nz, smooth}; also on the
+  hull collar): the body untouched (no neck_crease or hair refit), the jacket's (and collar's) upward faces raised to a
+  level shoulder. Sweep k13 (base g4_cuffs2, hull collar; tools/garments4/k13.json) running.
