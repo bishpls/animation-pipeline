@@ -1176,6 +1176,10 @@ class Run:
             os.remove(self.path('history.jsonl'))
         self._write_decl()
         self.load_history()
+        if st and st.get('done') and resume and str(st.get('stop') or '').startswith('budget') and \
+                self._more_budget(st):
+            self.log('optimize: %s stopped on its budget (%s): a larger one carries it on' % (self.out, st['stop']))
+            st = dict(st, done=False, stop=None)
         if st and st.get('done'):
             self.log('optimize: %s finished (%s): its confirm and reports' % (self.out, st.get('stop')))
             ctrl = next((h for h in self.H if h.get('kind') == 'control'), None)
@@ -1280,6 +1284,13 @@ class Run:
             self.confirm_stage(json.load(open(state_p)))
         report(self.out, log=self.log)
         return json.load(open(self.path('opt.json')))
+
+    def _more_budget(self, st):
+        """does this run's budget reach past where a stopped run ended (evaluations, generations, minutes)?"""
+        B = self.P.budget
+        return (int(B.get('evals') or 1e9) > int(st.get('evaluations') or 0) and
+                int(B.get('generations') or 1e9) > int((st.get('opt') or {}).get('gen') or 0) and
+                60 * float(B.get('minutes') or 1e9) > float(st.get('searched') or 0))
 
     def control_vals(self):
         """the control's knob values: the base spec's (with `set`) at each knob's path, else its start."""

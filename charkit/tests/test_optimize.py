@@ -205,7 +205,12 @@ def test_resume_reproduces_the_uninterrupted_run():
         assert s1 == s2
         # the cut generation's evaluations were reused, not run again
         assert R2.n_evals() == R1.n_evals(), (R2.n_evals(), R1.n_evals())
+        # a run stopped on its budget carries on under a larger one (the budget isn't part of the declaration's hash)
+        R3, _ = run(syn(budget=dict(generations=9, evals=1000), stop=dict(stall=0)), os.path.join(d, 'cut'),
+                    resume=True)
+        assert json.load(open(os.path.join(d, 'cut', 'state.json')))['opt']['gen'] == 9
         # a changed declaration can't resume the old folder
+
         try:
             run(syn(budget=dict(generations=7), stop=dict(stall=0), seed=9), os.path.join(d, 'cut'), resume=True)
             raise AssertionError('a changed declaration must not resume')
