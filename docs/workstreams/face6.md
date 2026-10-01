@@ -168,6 +168,27 @@ Not blocking: new FAILs brow_shape_closeup_profile 0.471, eye_lash_spikes_closeu
 0.0748, nose_mark_at_three_quarter 0.0337 (all four reported, 4 of the "new checks that FAIL"); chin_underside and
 face_preset_angry PASS -> WARN; face_folds 8 -> 35 (PASS). The guard: 0 findings.
 
+**Gate 2** (bc3f53c into 961037c, `charkit/out/gate/gate_tool-face6_bc3f53c_into_961037c.md`): FAIL under K on two
+blockers, both for the coordinator's named acceptance: face_preset_effort (expressions paused) and the flick's 2x2
+(the old window's artefact, above). Tests 79/79 ok, CPU 1.29x (737 -> 954 s), 0 guard findings, every new or
+remeasured check's record calibrated or guard. Reported, not blocking: the four new FAILs (brow profile 0.471, profile
+spikes 0, mouth 3/4 0.0748, nose 3/4 0.0337), chin_underside and face_preset_angry PASS -> WARN.
+**Build D** (`charkit/out/face6_d`, 15b889a with the merged head and the nose tick; CPU 940 s): the 27 graded flag
+checks 16 PASS / 7 WARN / 4 FAIL (1580f95: 27 FAIL); nose ink front 1.167, 3/4 0.908.
+**Review page:** `charkit/out/face6r2/review/index.html` (summary box; per flag design | start 1583cd6 | before
+1580f95 | after face6_d; `page.py` + `summary.py` in charkit/out/face6r2; the before build's bundle is the stored
+known-bad, charkit/out/calib/builds/face6_before, linked from charkit/out/calib/cur_face6_1580f95/bundle).
+
+**Next steps:**
+1. Coordinator: named acceptances for face_preset_effort and eye_view_profile_flick_out's 2x2, then
+   `python -m charkit gate --carry tool/face6 --into pipeline-3d` or a re-gate.
+2. Michael's answers (the page's questions): the 3/4 mouth as a per-shot override; head-fit rounds for the lower
+   face's section at mouth height and the forehead at brow height; an eye-shape round for the profile eye (its far
+   corner under the opening's middle: the profile spikes, the band's slant, the flick's old-window reading).
+3. Optional hygiene: rewrite the face_flags calibration records' `current` on face6_d (`python -m charkit calibrate
+   'eye_iris_fit_*,eye_lash_*,brow_*,mouth_smile_*,mouth_place_*,nose_mark_*' --build charkit/out/face6_d`); the dry
+   run on face6_b read every graded one calibrated except nose_mark_three_quarter (coarse at 0.36, fixed since: 0.91).
+
 ## Checkpoint (2026-09-30 night, context limit): state for the next agent
 
 Branch `tool/face6` head: see `git log -1` (2bdfc58 = the fixes; later commits notes only). Nothing gated, nothing
