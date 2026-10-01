@@ -235,3 +235,15 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   0 blocking (`charkit/out/pregate/pregate_tool-garments4-part2_639339a3_into_6620113d.md`; evaluator-only row
   piece_overskirt_panel_L_three_quarter_left -0.151 W -> -0.330 F, not in the gate's QA). Box gate running (log
   charkit/out/garments4/gate_creases.log).
+
+## Milestone 2: cuffs (branch tool/garments4-cuffs = part2 + the cuff work)
+- garments.cuff: rows grow by the lowest straight line over each row's clearance need (grow_line; row by row made
+  ripples where rows caught a ring of forearm vertices). Review pages: close-ups drawn from the bundle when a build has
+  no boards. declared `area` counts piece_<id>'s pixels (same-colour layers left out: the drawn far cuff in 3q lies over
+  the orange skirt; raw masks read it 0.7-1.0 FAIL in every row).
+- Sweeps k8 (one knob at a time on g4_cuff0) and k9 (combinations): row F = span [0.48, 0.72], top [.17,.14,.17,.14],
+  bottom [.13,.115,.12,.115], band 0.3, tab [0.08, 0.5], thick 0.012, clear 0.003: sizes 0.008-0.056 P, trim front
+  0.086 W / back 0.029 P, flare back 0.06 / front 0.079 P, piece_cuff_L 0.665/0.869/0.753/0.874, R 0.676/0.741/0.905
+  (pipeline-3d: L 0.614/0.831/0.742/0.636, R 0.604/0.305/0.602). In the spec (tools/garments4/cuffs.json); box build
+  g4_cuffs running. Next: calibrate cuff_*_area_* (known-bad g4_before), pregate, gate tool/garments4-cuffs (after the
+  creases gate's result; merge pipeline-3d first if it moved).
