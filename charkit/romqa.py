@@ -7,9 +7,10 @@ INFO beside their proposed grade (`grade`), as charkit.artifactqa's do.
   rom_vol_elbow, rom_vol_knee, rom_vol_fingers
                         joint volume: the smallest ring ratio at the joints (the elbows at 135 deg, the knees at 135
                         and in the squat, the knuckles in the fist and the point)
-  rom_shoulder_torso    the arm's skin inside the torso, the head or the other arm at the arm raises (deepest, L)
-  rom_shoulder_open     where the arm's separate shell met the torso at rest (within 0.02 L) parted from it at the arm
-                        poses (how far beyond the contact, L: a gap and the tube's cap show; the old body's side raise)
+  rom_shoulder_torso    the arm's skin inside the torso at the shoulder's poses (forward, side, overhead; deepest, L;
+                        the arm across the chest touches by design and is left out)
+  rom_shoulder_open     where the arm's separate shell met the torso at rest (within 0.02 L) parted from it at the
+                        shoulder's poses (how far beyond the contact, L: a gap and the tube's cap show; the old body's side raise)
   rom_leg_open          where the thigh's separate shell met the torso at rest (its top buried in the pelvis, or within
                         0.02 L) parted from it at the leg poses (how far beyond the contact, L: a gap and the cap show)
   rom_shoulder_strain, rom_shoulder_folded
@@ -32,14 +33,15 @@ from .registry import qa_part
 
 # check -> (the summary key(s) it reads, its poses (None: every pose run), the worst is 'max' or 'min')
 ARM_RAISES = ('raise_forward_90', 'raise_side_90', 'arms_up', 'arms_forward', 'arm_across')
+SHOULDER_POSES = ('raise_forward_90', 'raise_side_90', 'arms_up', 'arms_forward')
 HEAD_POSES = ('head_turn', 'head_turn_right', 'head_nod', 'head_tilt')
 LEG_POSES = ('squat', 'kick_front', 'kick_side')
 CHECKS = {
     'rom_vol_elbow': ('vol_elbow', ('elbows_135',), 'min'),
     'rom_vol_knee': ('vol_knee', ('knees_135', 'squat'), 'min'),
     'rom_vol_fingers': ('vol_fingers', ('hand_fist', 'hand_point'), 'min'),
-    'rom_shoulder_torso': ('arm_torso', ARM_RAISES, 'max'),
-    'rom_shoulder_open': ('arm_open', ARM_RAISES + ('arms_back', 'arm_twist_90'), 'max'),
+    'rom_shoulder_torso': ('arm_torso', SHOULDER_POSES, 'max'),
+    'rom_shoulder_open': ('arm_open', SHOULDER_POSES, 'max'),
     'rom_leg_open': ('leg_open', LEG_POSES, 'max'),
     'rom_shoulder_strain': ('shoulder_strain', ARM_RAISES, 'max'),
     'rom_shoulder_folded': ('shoulder_folded', ARM_RAISES, 'max'),

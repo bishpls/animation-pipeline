@@ -929,7 +929,8 @@ def summary(m):
     worst = lambda keys, f='depth': max([sp[k][f] for k in keys if k in sp] or [0.0])
     gw = lambda names, f='depth': max([g[n][f] for n in names if n in g] or [0.0])
     s.update({
-        'arm_torso': worst([k for k in sp if k.startswith(('arm_torso', 'arm_head', 'arm_arm'))]),
+        'arm_torso': worst([k for k in sp if k.startswith('arm_torso')]),
+        'arm_head': worst([k for k in sp if k.startswith(('arm_head', 'arm_arm'))]),
         'leg_torso': worst([k for k in sp if k.startswith(('thigh_torso', 'leg_leg'))]),
         'finger_finger': worst([k for k in sp if k.startswith('finger_')]),
         'arm_open': max([v['depth'] for k, v in (m.get('open') or {}).items()
@@ -1062,7 +1063,7 @@ def _bary(q, A, B, C):
 # few millimetres (0.02 L beyond the contact) shows a gap and the shell's cap.
 LIMITS = {
     'vol': (0.8, 0.65, 'higher'),
-    'arm_torso': (0.01, 0.03), 'leg_torso': (0.01, 0.03), 'finger_finger': (0.008, 0.015),
+    'arm_torso': (0.01, 0.03), 'arm_head': (0.01, 0.03), 'leg_torso': (0.01, 0.03), 'finger_finger': (0.008, 0.015),
     'arm_open': (0.02, 0.04), 'leg_open': (0.02, 0.04),
     'sleeve_body': (0.01, 0.03), 'skirt_legs': (0.01, 0.03), 'top_body': (0.01, 0.03), 'shorts_boots': (0.01, 0.03),
     'hair_shoulders': (0.001, 0.01), 'hand_skirt': (0.002, 0.01), 'sleeve_top': (0.002, 0.01),
@@ -1139,7 +1140,7 @@ def _js(x):
 
 COLUMNS = ('vol_shoulder', 'vol_elbow', 'vol_wrist', 'vol_hip', 'vol_knee', 'vol_fingers', 'vol_neck', 'vol_waist',
            'shoulder_strain', 'shoulder_folded', 'elbow_folded', 'hip_strain', 'knee_folded', 'neck_strain',
-           'arm_torso', 'arm_open', 'leg_torso', 'leg_open', 'finger_finger', 'sleeve_body', 'skirt_legs',
+           'arm_torso', 'arm_open', 'arm_head', 'leg_torso', 'leg_open', 'finger_finger', 'sleeve_body', 'skirt_legs',
            'top_body', 'shorts_boots',
            'hair_shoulders', 'hand_skirt', 'sleeve_top_L', 'sleeve_top_R', 'garment_strain', 'skin_strain',
            'skin_collapsed', 'skin_folded')
@@ -1376,7 +1377,7 @@ def _model_dqs(rig, D):
 
 
 # ------------------------------------------------------------------------------------------------- bodies compared
-BODY_COLS = ('vol_elbow', 'vol_knee', 'vol_fingers', 'arm_torso', 'arm_open', 'leg_torso', 'leg_open',
+BODY_COLS = ('vol_elbow', 'vol_knee', 'vol_fingers', 'arm_torso', 'arm_open', 'arm_head', 'leg_torso', 'leg_open',
              'finger_finger', 'shoulder_strain',
              'shoulder_folded', 'elbow_folded', 'knee_folded', 'neck_strain')
 GARMENT_COLS = ('sleeve_body', 'top_body', 'skirt_legs', 'shorts_boots', 'sleeve_top_L', 'sleeve_top_R',
