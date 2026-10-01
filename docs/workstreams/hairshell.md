@@ -1,6 +1,6 @@
 # Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: **round 4 done** (gate PASS under K; review page `charkit/out/hairshell3/review/index.html`; see "# Round 4" at the end). Round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: **round 4: the default switched** (Michael's yes; see "## The default switch" at the end; round 4's own gate PASS under K; review page `charkit/out/hairshell3/review/index.html`; see "# Round 4" at the end). Round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -804,3 +804,15 @@ as the speckle measure (rec. yes); (3) continue the whole hem after the identity
 None running. The scratch worktree `~/animation-pipeline-hairshell-ell` (branch scratch/hairshell3-ell, not for merge:
 the ellipsoid cherry-pick and style profiles, superseded by pipeline-3d's merge of the strokes; its builds ell_* and
 sweeps charkit/out/ell/ hold (2b)-(2d)'s numbers) can be removed once this round's numbers are read.
+
+
+## The default switch (Michael's answers, 2026-10-01, via the coordinator)
+(1) Switch the pilot default now: yes. (2) Keep the speckle hair_noise: yes. (3) The whole hem waits for the identity
+round. Merged pipeline-3d d44db780 (face7 gate 2b, tool/optimize, a bow test fix) -> 27d42f6. 520a317:
+charkit/spec/clawd.json and the alias clawd_body_pieces.json set hair.shape.pieces_opts.lock_shells =
+tools/hairshell3/c1_pilot.json and hair.shape.style {shade_ellipsoid: 1.0} (the default now equals r5_c1e's spec but
+for brows / mouth from face7). Expected moves on the gate (r5_hull -> r5_c1e): art_terminator_hair 2.370 W -> 1.303 P,
+hair_back_lines 0.928 W -> 0.584 W, hair_back_hem 3 W -> 2 P, art_peeks_hair 17 W -> 18 W, the lower back's profile
+IoU 0.664 -> 0.610 (-8%), side locks up, the lock lines up; build CPU up by the lock fit (~2-3 min). Pregate
+`python -m charkit pregate --box auto`, then `python -m charkit remote --box render2 gate tool/hairshell3 --into
+pipeline-3d`.
