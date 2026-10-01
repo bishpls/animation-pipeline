@@ -65,4 +65,6 @@ MEASUREMENT_STEPS = [
      "pair's"),
     ('acc_crab_*_flow', '2f19de99', "new (declared, pair): the crab's own axis less the hair's flow under it against "
      "the drawn crab's"),
+    ('acc_crab_leg_width', '3f7fdfd5', "new (declared, limbs): the legs' width over the body's against the sheet's"),
+    # (charkit.limbs.read gained the legs' width: the other limbs measures read as before)
 ]
