@@ -517,6 +517,77 @@ class Design:
         clips = self.clips()
         return accqa.reclass(dv, accqa.grid_masks(clips[0], ctx['ppl'])) if clips else dv
 
+    def shape_truth(self, part='hair'):
+        """the part's shape truth on the turnarounds (charkit.shapetruth; Michael, 2026-10-01: each piece's shape truth
+        is its layer without what lies on it): the manifest's shape_truth[part] redraw repainted into each turnaround
+        under the covers the QA finds there (accqa's drawn clips), the turnaround's pixels and placement everywhere
+        else -> {sheet kind ('head', 'body'): dict(rgb, fg, filled {view: sheet mask}, report {view: registration},
+        name)} or None (no shape truth declared, or no cover found on any sheet)."""
+        from . import accqa, shapetruth
+        key = ('shape_truth', part, self.B.assembly['eye_knobs']['x'], json.dumps(self.ref(), sort_keys=True,
+                                                                                    default=str))
+        got = self._kept(key)
+        if got is not None:
+            return got or None
+        e = shapetruth.entry(self.B.spec, part) if shapetruth.MODE != 'off' else None
+        clips = self.clips() if e is not None else None
+        if e is None or not clips:
+            return self._keep(key, {}, []) or None
+        self._rec(_path(e['manifest']))
+        ex = self.B.assembly['eye_knobs']['x']
+        src = self.rgba(e['path'])[..., :3].astype(float)
+        facings = {s[0]: s[4] for s in accqa.sheets(self.B.spec)}
+        out = {}
+        for name, d in clips[0].items():
+            rgb = self.rgba(d['path'])[..., :3].astype(float)
+            facing = facings.get(name, -1)
+            got = self.memo(shapetruth.make, rgb, None, {k: d[k] for k in ('ppl', 'views')}, d['ppl'], src, ex, facing,
+                            e['rows'], e['views'])
+            if got['filled']:
+                out[d['kind']] = dict(got, name=name, path=d['path'])
+        files = [_path(e['path']), _path(e['manifest'])]
+        return self._keep(key, out, files) or None
+
+    def shape_views(self, part='hair'):
+        """design_views() for the part's checks: the body sheet with the part's shape truth repainted under its covers
+        (shape_truth()), each view carrying `covered` (the repainted pixels on its grid; none where nothing was), the
+        figures' masks as the redraw draws them there; design_views() itself when the part declares none."""
+        from . import bodyqa
+        st = (self.shape_truth(part) or {}).get('body')
+        if st is None:
+            return self.design_views()
+        key = ('shape_views', part, self.B.assembly['eye_knobs']['x'], json.dumps(self.ref(), sort_keys=True,
+                                                                                    default=str))
+        got = self._kept(key)
+        if got is not None:
+            return got
+        ctx = self.sheet_context()
+        D = dict(ctx['D'], figures={v: dict(f) for v, f in ctx['D']['figures'].items()})
+        for v, f in D['figures'].items():
+            if v in st['filled'] and '_mask' in f:
+                fl = st['filled'][v]
+                f['_mask'] = np.where(fl, st['fg'], f['_mask'])
+        dv = self.memo(bodyqa.design_views, st['rgb'], D, ctx['ppl'])
+        for v, d in dv.items():
+            fl = st['filled'].get(v)
+            d['covered'] = bodyqa.crop(fl, d['eye'], ctx['ppl'], fill=False) if fl is not None else \
+                np.zeros(d['fg'].shape, bool)
+        return self._keep(key, dv, [])
+
+    def shape_head(self, part='hair'):
+        """the head sheet's picture with the part's shape truth repainted under its covers (shape_truth()), or None
+        when the part declares none (the head sheet's own picture stands)."""
+        st = (self.shape_truth(part) or {}).get('head')
+        return None if st is None else st['rgb']
+
+    def hidden(self, part='hair'):
+        """the objects the part's checks draw ours without: when the design side is the part's shape truth (its covers
+        repainted away), our accessories that aren't of the hair's material (the clips, not a bun built as one), so
+        each side's part is compared alone; else none -> set of object names."""
+        if not self.shape_truth(part):
+            return set()
+        return {o.name for o in self.B.objects(groups=('accessory',)) if not _hair_material(self.B, o)}
+
     def clips(self):
         """the design's hair clips per sheet (charkit.accqa.design_all: the head turnaround's and the body's) ->
         (designs, pieces) or None (no clip pieces in the outfit graph, or no sheets)."""
@@ -1098,6 +1169,23 @@ def sheet_body(B, design, out=None):
     dv = design.design_views()
     labels = bodyqa.zbuffer_views(meshes, ctx['az3'], iw, As['centre'], As['L'], ctx['ppl'], list(dv))
     table, C, views = bodyqa.evaluate(labels, dv, _scale_caution(ctx))
+    hide = design.hidden('hair')
+    if hide:
+        # the hair against its shape truth (charkit.shapetruth): the drawing's hair with its clips repainted away,
+        # ours without our clips; the rest of the figure as drawn
+        mo, names = scene_objects(B)
+        mh = [m for m, n in zip(mo, names) if n not in hide]
+        sv = design.shape_views('hair')
+        lh = bodyqa.zbuffer_views(mh, ctx['az3'], iw, As['centre'], As['L'], ctx['ppl'], list(sv))
+        th, Ch, _ = bodyqa.evaluate(lh, sv, _scale_caution(ctx))
+        for v in sv:
+            for k in HAIR_BODY_CHECKS:
+                if '%s_%s' % (v, k) in Ch:
+                    C['%s_%s' % (v, k)] = dict(Ch['%s_%s' % (v, k)], shape_truth='hair')
+            for side in ('ours', 'design'):
+                got = (((th.get('views') or {}).get(v) or {}).get(side) or {}).get('hair')
+                if got is not None and v in table.get('views', {}):
+                    table['views'][v][side]['hair'] = got
     table.update(ppl=round(ctx['ppl'], 2), az=bodyqa.azimuths(ctx['az3']))
     for v in bodyqa.AZ:
         if v not in dv:
@@ -1107,6 +1195,7 @@ def sheet_body(B, design, out=None):
     return table, C
 
 
+HAIR_BODY_CHECKS = ('iou_hair', 'hair_length', 'hair_width')     # sheet_body's checks of the hair (its shape truth)
 HAIR_FAMILIES = ('bangs', 'side_locks', 'upper_back', 'lower_back', 'buns', 'ahoge', 'flyaways')   # charkit.hairlayers'
 HAIR_PIECE_FAMILY = {'bangs': 'bangs', 'side_lock_L': 'side_locks', 'side_lock_R': 'side_locks', 'upper_back': 'upper_back',
                      'lower_back': 'lower_back', 'bun_L': 'buns', 'bun_R': 'buns', 'ahoge': 'ahoge', 'flyaways': 'flyaways'}
@@ -1138,6 +1227,23 @@ def hair_layers_masks(B, design):
     design._rec(path)
     Z = np.load(path)
     out = {k: Z[k] for k in Z.files}
+    if design.hidden('hair'):
+        # the hair's shape truth (charkit.shapetruth): under the drawn clips, the redraw's hair takes the family of the
+        # nearest hair the layers label round it (ours drawn without our clips)
+        from . import hairflagqa, shapetruth
+        sv = design.shape_views('hair')
+        for v, d in sv.items():
+            ks = [k for k in out if k.split('__')[0] == v]
+            cov = d.get('covered')
+            if not ks or cov is None or not cov.any() or out[ks[0]].shape != cov.shape:
+                continue
+            lab = np.zeros(cov.shape, np.int32)
+            for i, k in enumerate(ks):
+                lab[out[k] & (lab == 0)] = i + 1
+            lab = shapetruth.fill_labels(lab, cov, hairflagqa.drawn_hair(d))
+            for i, k in enumerate(ks):
+                out[k] = lab == i + 1
+        return out
     # the drawn clips are no hair family (the layers take the sheet's hair class, which held the crab): ours are drawn
     # as occluders, so the design's lose them too
     dv = design.design_views()
@@ -1274,8 +1380,9 @@ def hair_pieces_measure(B, design, hair, out=None):
     sk = B.skin()
     V, T = sk.mesh('masked')[:2]
     meshes.append((V, T, np.zeros(len(T), int)))
+    hide = design.hidden('hair')
     for o in B.objects(groups=('eye', 'mouth', 'accessory', 'garment')):
-        if o.has('eval'):
+        if o.has('eval') and o.name not in hide:
             V, T = o.mesh('eval')[:2]
             meshes.append((V, T, np.full(len(T), BROW if o.part == 'brow' else 0)))
     for name, (ev, _) in hair.items():

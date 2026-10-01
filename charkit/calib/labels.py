@@ -134,7 +134,9 @@ class Garments:
         pm = bodymeasure.piece_map(graph, B.spec)
         _, names = qa3d.scene_objects(B)
         self.names = list(names)
-        self.dv = design.design_views()
+        # (an adapter whose checks read a part's shape truth: the design's views as they read them, qa3d.Design's)
+        vf = getattr(self, 'views_for', None)
+        self.dv = design.shape_views(vf) if vf else design.design_views()
         skin = [o.name for o in B.objects(groups=('skin',))]
         hair = [n for n in self.names if n.startswith('hair')]
         # our surfaces meet with no ink between them: the drawing's lines (and the masks' rough edges) inside the
@@ -188,7 +190,7 @@ class Garments:
         from ..geom.raster import window_shape
         names, az = self.names, self.az
 
-        def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
+        def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), hide=()):
             return {v: dict(lab=L[v], depth=np.zeros(L[v].shape, np.float32), az=az[v], org=(0.0, 0.0))
                     for v in views if v in L}, names
 
@@ -299,7 +301,7 @@ class Hair:
         from .. import qa3d
         self.B, self.design = B, design
         masks = qa3d.hair_layers_masks(B, design)
-        dv = design.design_views()
+        dv = design.shape_views('hair')
         fam = {f: k + 1 for k, f in enumerate(qa3d.HAIR_FAMILIES)}
         self.lab, self.px = {}, {}
         for v, d in dv.items():
