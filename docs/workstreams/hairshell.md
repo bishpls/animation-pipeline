@@ -1,6 +1,6 @@
 # Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: **round 4 in progress** (see "# Round 4" at the end). Round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -559,3 +559,60 @@ hair_noise 0.0782 against 0.0716 under the current measure (0.030 against 0.034 
    measure (tone islands under a size; the prototype doesn't separate yet: design 0.020, ck6 0.030), (B) keep the old
    measure and its WARN, (C) the remeasure with a 'defect' record calibrated on the known-bad and the floor only
    (needs the gate to accept a defect detector without a design leg).
+
+
+# Round 4 (tool/hairshell3, option B continued; coordinator's brief 2026-10-01)
+
+Merged pipeline-3d 00494de and tool/hairshell3-noise aa7b3e6 (-> c8caefa; tools/ledger.jsonl: both sides kept).
+Decisions (coordinator; Michael may overrule): (1) hair_noise a speckle measure, calibrated, the old one INFO for a
+release; (2) the back view's terminator on real builds, six-placement averages (if it's a normals problem: report, the
+normals are tool/hairstrokes' (d)); (3) the lower back's profile cost; (4) the default switch for the pilot once the
+shells beat the hull on every count (Michael's yes/no on the page); (5) then region by region: back and hem, bangs,
+ahoge. The exploded references failed: the canonical rule's step 3 (best joint fit, per-view costs).
+Harness: tools/hairshell3/ (mkspec.py: a candidate spec = today's clawd.json + overrides; kinkattr.py: each terminator
+kink's pieces/components; compview.py; famconf.py: a family's per-view confusion; flickoff.py; piecemix.py; radialnormals.py;
+term6p.py: six placements for pieces dirs). Outputs charkit/out/hairshell3/{speck,kink,radn,mix,kb}.
+
+## Real builds (render box, boards views,body,design, merged head)
+- `charkit/out/r4_hull` (charkit/spec/clawd.json at 84bcb29): art_terminator_hair 2.002 W (back 1.564), peeks 17,
+  back_lines 0.894 W, hem 3 W, folds 9, lower back F/P/B 0.514/0.665/0.672, side locks F/P 0.560/0.469 (= hs_hull_r).
+- `charkit/out/r4_pilot` (tools/hairshell3/r4_pilot.json = clawd.json + lock_shells pilot.json; round 3's defaults).
+  Both QA'd before the hair_noise change (their hair_noise is aa7b3e6's).
+
+## (1) hair_noise: a speckle measure -- done, CALIBRATED (34b8ad1, record ebd02ee)
+qa3d.speckles: per tone group, the luminance's blobs under 0.002 L^2 (area opening for light ones, closing for dark;
+artifactqa.ISLAND) standing out by half the hair's cel step (hair_cel_step: the design palette's lit - shade, 0.144),
+ink and background filled from the nearest hair pixel, none within 2 px of the silhouette; per L^2 of hair, the three
+views' mean; limits 8 / 12. Lab (`charkit/out/hairshell3/speck/lab.py`, cached pictures): blobs at 0.001/0.002/0.003
+L^2; the two-tone design stand-in dropped the design's drawn shine marks (the crown's pale strokes), so the adapter
+keeps them as a third tone (SHINE_DL 0.06 over lit, tool/hairstrokes' definition). Known-bad: **ck7_blotchy**, the
+build T003 was raised on (pipeline-3d confirm ck7_final, copied: 35.8 FAIL here, back 46; the old measure read it 0.046
+WARN, i.e. missed the flag); ck6_body (round 3's stand-in) 28.2. Calibration on r4_hull: design 3.88-5.93 PASS every
+move, ck7_blotchy 32.6 FAIL, floor speckle 14.8 FAIL, current 4.46 PASS (margin 1.07), probe voronoi_tones 0 PASS (a
+speckle detector is blind to tone shapes: the pieces' shape checks guard them). Readings: hs_hull_r 4.46, hs3 (round 2
+shells) 4.55: the shells add no speckle. Old measure as INFO `hair_tone_edges` (0.0717 / 0.0784, unchanged).
+qa3d_blender's pass reports its tone edges as hair_tone_edges INFO. Ink strokes (tool/hairstrokes) are read as lines
+by render_surfaces already (hull=True): compatible. **Conflict to coordinate:** tool/hairstrokes registered its own
+hair_noise step (ae33ac8, without_ink) and needs a record for it; whichever merges second recalibrates.
+
+## (2) The back view's terminator: diagnosis (on hs3_shells_r, round 2's real build)
+- kinkattr (six placements, components = each surface's connected triangle sets): back kinks hull 7.2 / shells 9.2;
+  the excess is hair_lower_back's (4.9 against 2.75), 72-78% of kinks at a junction between components in both.
+  compview: the terminator steps at the edges of flick lower_back#7 (and #8-#10): the flick stays lit ~0.04 L lower
+  than the mass beside it.
+- flickoff (each flick pixel against the same pixel with the flicks removed): the flick is lit where the mass is
+  shaded on 17-68% of its pixels; the mass behind a flick pixel lies 0.07-0.13 L deeper along the back view's ray
+  (the hem curling under toward the nape); the flicks' vertices sit 0.009 L off the mass at the root, 0.025-0.029 L
+  at the tip: they hang straight while the mass curls under.
+- Normals transplanted (radialnormals.py: each vertex the hull's outer surface normal along the ray from the head's
+  centre; six placements): flicks back 2.52 -> 2.79 (worse), the whole lower back 2.57, the side shells too: front 6.08
+  -> 9.87; the hull's own lower back 1.87 -> 1.61. **Reading: not a normals problem the envelope normals fix; it is
+  geometry (the flicks leave the curling mass).** Next: the flick group's depth pull/smoothness (sweep), not the
+  hairstrokes normals.
+
+## (3) The lower back's profile: diagnosis
+famconf (hair_pieces' grids): profile lower back hull 0.665 / hs3 0.588. Ours grew (5603 -> 8093 px) and 23% of it lies
+where the drawing has upper back (hull 5%). Swaps (piecemix): without the flick shells 0.624 (+0.036), with the hull's
+side locks 0.606 (+0.018). In profile flicks 9 and 10 show as long blades, 58% / 64% over the drawn upper back (they
+are fitted in the back view only; containment holds only the centreline). The side shells, narrower than the hull's
+side lock in profile (side locks P 0.469 -> 0.604), uncover the lower back's top.
