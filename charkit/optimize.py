@@ -799,7 +799,11 @@ class Pool:
         self.log = log
         self.procs, self.logs = [], []
         os.makedirs(os.path.join(out, 'workers'), exist_ok=True)
+        # (each worker a fresh interpreter, fork+exec by subprocess before any thread here starts: no fork-after-threads
+        # hazard, as a multiprocessing pool forked from a threaded parent has)
         cmd = [sys.executable, '-m', 'charkit', 'sweep', 'worker', decl_path, '--out', out]
+        log('optimize: starting %d workers (each takes a build slot and makes the stage\'s context; logs %s)' % (
+            n, os.path.join(out, 'workers')))
         for i in range(n):
             lf = open(os.path.join(out, 'workers', 'worker_%d.log' % i), 'a')
             p = subprocess.Popen(cmd + ['--id', str(i)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=lf,
@@ -816,6 +820,7 @@ class Pool:
             if msg.get('ready'):
                 self.ready.append(i)
                 secs.append(msg.get('seconds') or 0)
+                log('optimize: worker %d ready (pid %s, context %s s)' % (i, msg.get('pid'), msg.get('seconds')))
             else:
                 log('optimize: worker %d failed to start: %s (%s)' % (i, msg.get('error'),
                                                                     os.path.join(out, 'workers', 'worker_%d.log' % i)))
@@ -1034,6 +1039,11 @@ class Run:
                 h['i'], h['t'] = len(self.H), round(time.time() - self.t0, 1)
                 self.append(h)
                 fresh[c['key']] = h
+                # (a line per finished row: a stalled worker shows within one row's time, not a generation's)
+                self.log('    %-14s %s  f %s v %s  %s s  worker %s  [%d/%d]%s' % (
+                    c['name'], ' '.join('%s=%s' % (k, _fmt(v)) for k, v in c['vals'].items())[:90], _fmt(h.get('f')),
+                    _fmt(h.get('v')), h.get('seconds'), h.get('worker'), len(fresh), len(todo),
+                    ('  ERROR ' + str(h['error'])[:120]) if h.get('error') else ''))
         t = time.time()
         if reqs:
             E.run(reqs, on_result=done)
