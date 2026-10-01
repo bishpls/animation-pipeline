@@ -30,8 +30,8 @@ import numpy as np
 
 DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('front', 'profile'),
                                                              'lower_back': ('back', 'front', 'profile')},
-               share=0.5, min_px=150, bins=14, samples=40, depth_ratio=0.35, inset=0.010, root_in=0.03, gap=0.006,
-               prior_depth=0.15, prior_smooth=0.02, prior_twist=0.5, assoc=0.35, assoc_cover=0.3, tip_w=0.12,
+               share=0.5, min_px=150, bins=14, samples=40, depth_ratio=0.35, inset=0.010, root_in=0.05, gap=0.006,
+               prior_depth=0.15, prior_smooth=1.0, prior_twist=0.5, assoc=0.35, assoc_cover=0.3, tip_w=0.12,
                w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'), facing=0.2,
                assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0, frag_L2=0.008, frag_reach=4,
                widen_lw=1.0, contain=1.0, dedup=0.5, unit='locks', over=0.004)
@@ -95,8 +95,28 @@ def frames(P, chart, twist=0.0):
     t = np.gradient(P, axis=0)
     t /= np.linalg.norm(t, axis=1, keepdims=True) + 1e-12
     r = P - chart.c
-    a = r - t * np.einsum('ij,ij->i', r, t)[:, None]
-    a /= np.linalg.norm(a, axis=1, keepdims=True) + 1e-12
+    a0 = r - t * np.einsum('ij,ij->i', r, t)[:, None]
+    st = np.linalg.norm(a0, axis=1) / (np.linalg.norm(r, axis=1) + 1e-12)       # how well the radial defines it
+    a0 /= np.linalg.norm(a0, axis=1, keepdims=True) + 1e-12
+    # where the centreline runs along the radial (a root going in to the scalp) the radial frame is undefined: the
+    # frame is carried along from its neighbour (parallel transport), from the tip end, blended in as the radial fades
+    n = len(P)
+    a = a0.copy()
+    for k in range(n - 2, -1, -1):
+        tr = a[k + 1] - t[k] * (a[k + 1] @ t[k])
+        tr /= np.linalg.norm(tr) + 1e-12
+        w = float(np.clip((st[k] - 0.25) / 0.5, 0.0, 1.0))
+        v = w * a0[k] + (1 - w) * tr
+        if v @ tr < 0:
+            v = tr
+        a[k] = v / (np.linalg.norm(v) + 1e-12)
+    if n > 4:
+        # no faster turn of the section than the centreline's own: the frame smoothed along it (a wide lens whose
+        # frame turns between two stations crosses its own faces)
+        from scipy.ndimage import gaussian_filter1d
+        a = gaussian_filter1d(a, 2.0, axis=0, mode='nearest')
+        a = a - t * np.einsum('ij,ij->i', a, t)[:, None]
+        a /= np.linalg.norm(a, axis=1, keepdims=True) + 1e-12
     b = np.cross(t, a)
     if twist:
         c, s = math.cos(twist), math.sin(twist)
@@ -335,9 +355,14 @@ class Lock:
         return sol
 
     def shell(self):
-        """the lock's tube (a hairpieces part), its root carried on into the hair."""
+        """the lock's tube (a hairpieces part): stations evenly spaced along it, its root carried on into the hair."""
         from scipy.ndimage import gaussian_filter1d
-        P = self.curve()
+        n = self.o['samples']
+        # even arc length (the Bezier's own parameter crowds its stations where it turns: a fold's start)
+        Pd = bernstein(self.Q, np.linspace(0, 1, 8 * n))
+        sd = np.r_[0, np.cumsum(np.linalg.norm(np.diff(Pd, axis=0), axis=1))]
+        su = np.linspace(0, sd[-1], n)
+        P = np.stack([np.interp(su, sd, Pd[:, j]) for j in range(3)], 1)
         Wt = self.widths(P, self.twist)
         s_ = self.hull_frame[0]
         ppl = self.views[self.primary].ppl
@@ -345,33 +370,33 @@ class Lock:
         W = np.clip(gaussian_filter1d(Wt, 1.5, mode='nearest'), 0.2 * Wd / self.o['w_max'], self.o['w_max'] * Wd)
         u = np.linspace(0, 1, len(P))
         W = W * np.clip((1 - u) / 0.2, self.o['tip_w'], 1.0) ** 0.6
-        # no fold where the lock bends across its broad side: half its width within 0.8 of the bend's radius
-        t, a, b = frames(P, self.F['chart'], self.twist)
-        ds = np.linalg.norm(np.gradient(P, axis=0), axis=1) + 1e-12
-        kb = np.abs(np.einsum('ij,ij->i', np.gradient(t, axis=0) / ds[:, None], b))
         W = W + 2 * self.o['widen_lw'] * self.o.get('lw_px', 2.0) / ppl * s_ * np.clip((1 - u) / 0.2, 0, 1)
-        W = np.minimum(W, 1.6 / np.maximum(gaussian_filter1d(kb, 1.0, mode='nearest'), 1e-9))
-        Tk = self.o['depth_ratio'] * W
-        # the root on the scalp: carried from the lock's start in to the skin's clearance under it (or root_in L on
-        # along its own direction where no skin is under it: hair hanging below the chin)
+        # the root carried on into the hair: along the lock's own direction root_in L, diving toward the scalp as it
+        # goes (its radius blended to the skin's clearance where there is skin under it), narrowing to 0.6 of its width
         ch, G = self.F['chart'], self.F['grid']
-        ph, th, r = ch.coords(P[:1])
-        Sk = float(G.sample(self.F['S'], ph, th)[0])
-        k = 4
-        if np.isfinite(Sk) and Sk + self.o['gap'] * self.L < r[0]:
-            q = ch.point(ph, th, np.array([Sk + self.o['gap'] * self.L + Tk[0] / 2]))[0]
-            d0 = P[0] - P[1]
-            d0 /= np.linalg.norm(d0) + 1e-12
-            q = 0.5 * (q + P[0] + d0 * self.o['root_in'] * self.L)
-            ext = P[0] + (q - P[0]) * np.linspace(1, 1.0 / k, k)[:, None]
-        else:
-            d0 = P[0] - P[1]
-            d0 /= np.linalg.norm(d0) + 1e-12
-            ext = P[0] + d0 * (self.o['root_in'] * self.L) * np.linspace(1, 1.0 / k, k)[:, None]
-        line = np.r_[ext, P]
-        Wl = np.r_[np.full(k, W[0]), W]
-        Tl = np.r_[np.full(k, Tk[0]), Tk]
-        part = tube(line, Wl, Tl, self.F['chart'], self.twist, self.o['n_ring'])
+        d0 = P[0] - P[1]
+        d0 /= np.linalg.norm(d0) + 1e-12
+        k = 6
+        f = np.linspace(1, 1.0 / k, k)
+        E = P[0] + d0 * (self.o['root_in'] * self.L) * f[:, None]
+        ph, th, r = ch.coords(E)
+        Sk = G.sample(self.F['S'], ph, th)
+        r0 = float(ch.coords(P[:1])[2][0])
+        floor = np.where(np.isfinite(Sk), Sk + self.o['gap'] * self.L + self.o['depth_ratio'] * W[0] / 2, r0)
+        dive = np.clip(r0 - floor, 0.0, 0.6 * self.o['root_in'] * self.L)          # at most a 31 degree dive
+        rr = r - dive * (3 * f ** 2 - 2 * f ** 3)                                      # smoothstep: no kink
+        E = ch.point(ph, th, rr)
+        line = np.r_[E, P]
+        Wl = np.r_[W[0] * (1 - 0.4 * f), W]
+        # no fold where the lock bends across its broad side: half its width within 0.8 of the bend's radius
+        t, a, b = frames(line, ch, self.twist)
+        ds = np.linalg.norm(np.gradient(line, axis=0), axis=1) + 1e-12
+        kb = np.abs(np.einsum('ij,ij->i', np.gradient(t, axis=0) / ds[:, None], b))
+        ka = np.abs(np.einsum('ij,ij->i', np.gradient(t, axis=0) / ds[:, None], a))
+        from scipy.ndimage import maximum_filter1d
+        Wl = np.minimum(Wl, 1.6 / np.maximum(maximum_filter1d(kb, 5, mode='nearest'), 1e-9))
+        Tl = np.minimum(self.o['depth_ratio'] * Wl, 1.6 / np.maximum(maximum_filter1d(ka, 5, mode='nearest'), 1e-9))
+        part = tube(line, Wl, Tl, ch, self.twist, self.o['n_ring'])
         from .hairpieces import folds
         nf = folds(part['V'], part['T'], part['outer'], part['vn_env'])
         part['fit'] = dict(views=sorted(self.drawn), cost_px=self.cost, twist_deg=round(math.degrees(self.twist), 1),
