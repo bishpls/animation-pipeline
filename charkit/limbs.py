@@ -11,6 +11,7 @@ read(m) on a bool mask, the piece upright (its up the picture's up):
                above LOBE_MIN of the area are lobes
   limbs        what the opening cut off, beyond BAND core widths from the core (where neighbouring legs drawn touching
                at the body part), as components: each its reach (the farthest pixel from the core, in core widths), its
+               width (twice the median distance to its edge along its medial line, its round tip left out), its
                root (the core point nearest its base: the elliptical angle on the core, 0 at the side, + up, - down,
                from the core's centroid and half extents) and its direction (base to tip, degrees above the horizontal,
                outward); a limb touching a lobe is the lobe's (its finger tips cut by the opening) and not counted;
@@ -104,6 +105,8 @@ def read(m):
     W, H, cy, cx, s = S['W'], S['H'], S['cy'], S['cx'], S['s']
     lobe_near = dilate(np.any(S['lobes'], 0), 3) if S['lobes'] else np.zeros(M.shape, bool)
     legs, stalks = {'L': [], 'R': []}, []
+    from skimage.morphology import skeletonize
+    dtm = ndimage.distance_transform_edt(M)
     for k in range(1, S['n'] + 1):
         sel = S['limbs'] == k
         if sel.sum() < LIMB_MIN * s * s or (sel & lobe_near).any():
@@ -115,7 +118,9 @@ def read(m):
         root = float(np.degrees(np.arctan2(-(ry - cy) / (H / 2), abs(rx - cx) / (W / 2))))
         side = 'R' if xx[i1] > cx else 'L'
         out = 1 if side == 'R' else -1
+        sk = skeletonize(sel) & (D < D[sel].max() - 0.5 * dtm[sel].max())    # (its medial line, the round tip off)
         rec = dict(reach=round(float(d.max()) / W, 4), root=round(root, 1),
+                   width=round(2.0 * float(np.median(dtm[sk])) / W, 4) if sk.any() else None,
                    dir=round(float(np.degrees(np.arctan2(-(yy[i1] - ry), out * (xx[i1] - rx)))), 1),
                    side=side, px=int(sel.sum()))
         if root > STALK_ROOT and abs(rx - cx) < STALK_X * W:
@@ -145,6 +150,7 @@ def read(m):
     return dict(W=W, H=H, legs=legs, stalks=stalks, lobes=lobes,
                 n_legs={k: len(v) for k, v in legs.items()}, n_stalks=len(stalks), n_lobes=len(lobes),
                 leg_reach=mean([x['reach'] for x in allegs]), leg_root=mean([x['root'] for x in allegs]),
+                leg_width=mean([x['width'] for x in allegs if x['width'] is not None]),
                 leg_dir=mean([x['dir'] for x in allegs]), stalk_reach=mean([x['reach'] for x in stalks]),
                 notch=mean([x['notch'] for x in lobes]), fingers=[x['fingers'] for x in lobes])
 
@@ -167,14 +173,15 @@ def compare(Ro, Rd, measure):
         d = max(abs(a - b) for a, b in zip(fo + [0] * len(fd), fd)) if len(fo) <= len(fd) else \
             max([abs(a - b) for a, b in zip(fo, fd + [0] * len(fo))])
         return dict(value=d, ours=fo, design=fd)
-    key = dict(reach='leg_reach', root='leg_root', stalks='stalk_reach', notch='notch', dir='leg_dir')[measure]
+    key = dict(reach='leg_reach', root='leg_root', stalks='stalk_reach', notch='notch', dir='leg_dir',
+               width='leg_width')[measure]
     if Rd.get(key) is None:
         return None
     o, dd = Ro.get(key), Rd[key]
     extra = dict(n=[Ro['n_stalks'], Rd['n_stalks']]) if measure == 'stalks' else {}
     if o is None:
         return dict(value=None, why='ours has none (%s)' % key, design=dd, **extra)
-    if measure in ('reach', 'stalks'):
+    if measure in ('reach', 'stalks', 'width'):
         v = abs(o / dd - 1) if dd else None
         if measure == 'stalks' and Ro['n_stalks'] != Rd['n_stalks']:
             v = max(v or 0.0, 1.0)                          # (a stalk missing: as far off as none)
@@ -186,6 +193,7 @@ def compare(Ro, Rd, measure):
 SPOILS = {
     'legless': 'its legs cut to stubs at the body (BAND core widths out)',
     'short_legs': 'its legs cut to 45% of their reach',
+    'thin_legs': 'its legs thinned to half their width (their medial lines kept)',
     'bottom_legs': 'its legs turned under the body: each moved round the core by 55 degrees down',
     'solid_claws': "its lobes' notches filled (each lobe its convex hull: solid pincers)",
     'no_stalks': 'its eye stalks cut: the eyes sit on the body',
@@ -244,6 +252,16 @@ def spoil(m, how):
     if how in ('legless', 'no_stalks'):
         keep = D <= (BAND * W if how == 'legless' else 0.02 * W)
         return M & ~(sel & ~keep)
+    if how == 'thin_legs':
+        out = M & ~(sel & (D > BAND * W))
+        dt = ndimage.distance_transform_edt(M)
+        for k, v in kinds.items():
+            if v != 'leg':
+                continue
+            s_ = (grown == k) & (D > BAND * W)
+            w4 = np.median(dt[s_]) if s_.any() else 0    # (a stripe's pixels lie a quarter of its width deep on average)
+            out |= s_ & (dt > w4)                        # (the inner half of its width: thinned about its middle)
+        return out
     if how == 'short_legs':
         out = M.copy()
         for k, v in kinds.items():

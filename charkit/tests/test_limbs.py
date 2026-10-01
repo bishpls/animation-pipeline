@@ -42,7 +42,7 @@ def test_short_bottom_legs_and_round_claws_fail_the_declared_checks():
                        pm={'pin_crab': [('crab', None)]}, masks={'face__pin_crab': good}, ppl=400.0,
                        dv={accqa.FACE: {}})
     ds = accfit.face_decls('crab')
-    assert len(ds) == 6
+    assert len(ds) == 7
     _, Cg = declared.evaluate(ds, I(good))
     _, Cb = declared.evaluate(ds, I(bad))
     assert all(c['status'] == 'PASS' for c in Cg.values()), Cg

@@ -98,6 +98,11 @@ DECLARED_CHECKS = [
          params=dict(measure='reach'), limits=[0.2, 0.35], flag="the crab's legs (Michael, 2026-10-01)",
          note="the crab face-on: its legs' reach off the body over the body's width, |ours / sheet's - 1|",
          calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['short_legs'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_leg_width', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='width'), limits=[0.2, 0.35], flag="the crab's legs (Michael, 2026-10-01)",
+         note="the crab face-on: its legs' width over the body's (twice the median depth along each leg's medial line), "
+              "|ours / sheet's - 1|: the sheet's sausage legs, not sticks",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['thin_legs'], shape=['acc_crab_shape'])),
     dict(check='acc_crab_leg_roots', family='limbs', piece='pin_crab', part='accessories', views=['face'],
          params=dict(measure='root'), limits=[12.0, 25.0], flag="the crab's legs (Michael, 2026-10-01)",
          note="the crab face-on: where its legs leave the body (the elliptical angle on the body, 0 at the side, - "

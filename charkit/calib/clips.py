@@ -21,6 +21,7 @@ _stalks; the declared FACE view): the stand-in is the clips-alone sheet's crab: 
 sheet's crab with one part spoiled (charkit.limbs.spoil):
   legless           (floor, legs) its legs cut to stubs at the body
   short_legs        (floor, reach) its legs cut to 45% of their reach
+  thin_legs         (floor, width) its legs thinned to half their width
   bottom_legs       (floor, roots) its legs turned under the body (55 degrees down round it)
   solid_claws       (floor, fingers and notch) its claws' notches filled
   no_stalks         (floor, stalks) its eye stalks cut
@@ -137,6 +138,7 @@ class Clips:
         'four_point': 'the star template without its minor points as ours face-on',
         'legless': "the clips-alone sheet's crab with its legs cut to stubs at the body (charkit.limbs.spoil)",
         'short_legs': "the clips-alone sheet's crab with its legs cut to 45% of their reach",
+        'thin_legs': "the clips-alone sheet's crab with its legs thinned to half their width",
         'bottom_legs': "the clips-alone sheet's crab with its legs turned under the body (55 degrees down)",
         'solid_claws': "the clips-alone sheet's crab with its claws' notches filled",
         'no_stalks': "the clips-alone sheet's crab with its eye stalks cut",
@@ -147,7 +149,7 @@ class Clips:
         'across_flow': 'the drawn crab turned in place 60-120 degrees (across the hair)',
         'apart': 'the drawn crab moved 0.06-0.1 L further from the star',
     }
-    face_floors = ('legless', 'short_legs', 'bottom_legs', 'solid_claws', 'no_stalks')
+    face_floors = ('legless', 'short_legs', 'thin_legs', 'bottom_legs', 'solid_claws', 'no_stalks')
 
     def __init__(self, B, design):
         from .. import accqa

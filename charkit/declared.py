@@ -41,7 +41,7 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   limbs        a piece's parts read from its silhouette, upright (charkit.limbs: the core, the lobes joined to it, the
                limbs standing off it; tool/accessories6, the crab clip's legs, pincers and eye stalks): measure 'count'
                (legs per side, the largest difference), 'reach' (the legs' reach off the core over its width, |ours /
-               design - 1|), 'root' (where they leave the core: the elliptical angle, 0 at the side, |ours - design|
+               design - 1|), 'width' (the legs' width over the core's, |ours / design - 1|), 'root' (where they leave the core: the elliptical angle, 0 at the side, |ours - design|
                degrees), 'fingers' (per lobe, 1 + its notches: the largest difference), 'notch' (the lobes' deepest
                notch over their size, |ours - design|), 'stalks' (the stalks' reach, |ours / design - 1|; one missing
                reads 1). Scale-free: ours and the drawing may be on different grids (a face-on view of the piece)
