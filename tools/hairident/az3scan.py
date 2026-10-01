@@ -67,7 +67,7 @@ def main(a):
     G['masks'] = masks
     jobs = [(n, az) for n in masks for az in azs]
     import multiprocessing as mp
-    with mp.get_context('fork').Pool(min(len(jobs), os.cpu_count() or 1)) as pool:
+    with mp.get_context('fork').Pool(min(len(jobs), int(rb._opt(a, '--jobs', 8)))) as pool:
         rows = pool.map(one, jobs, chunksize=1)
     best = {}
     for n in masks:
