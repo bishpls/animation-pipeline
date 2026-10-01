@@ -303,3 +303,9 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   `out` +0.03 cost the profile IoU 16-36% (guard), `fb` +0.02 alone fixes the profile size (0.059) but front/back
   sizes worsen (0.22-0.24). The views disagree on the cuff's top: front's drawn top -1.724, profile's -1.79 (ours
   -1.766 in both): the longer span is the compromise. k11 running: span x fb {0, .01} x out {0, .015}.
+- **k11** (span x fb x out; sweeps/k11): pick **s45_730_f1_o0** (span [0.45, 0.73], front/back radii +0.01): sizes
+  0.089/0.043/0.0/0.101 (L f/3q/p/b), 0.098/0.091 (R f/b); flares all PASS (back R 0.096 W -> 0.069 P), trim front
+  0.094 W, back 0.045 P; guard vs control worst -13.6% (cuff_L 3q 0.869 -> 0.751), vs pipeline-3d's cuffs (L
+  0.614/0.831/0.742/0.636) L 0.620/0.751/0.688/0.857: 3q -9.6%, p -7.3%. `out` +0.015 makes every size PASS but costs
+  the profile/3q IoU 16-18% vs control (13.7% vs pipeline-3d: too near the guard). In the spec (tools/garments4/
+  cuffs2.json via setspec.py); box build g4_cuffs2 running (log charkit/out/garments4/build_cuffs2.log).
