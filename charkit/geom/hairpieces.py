@@ -2843,8 +2843,9 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     if 'crown_trim' in F:
         report['crown_trim'] = dict(F['crown_trim'], pull_max=round(F['crown_trim']['pull_max'] / L, 4))
 
-    def add(name, family, parts):
+    def add(name, family, parts, proxy=None):
         Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf, ou, ow = [], [], [], [], [], [], [], 0, [], 0, [], []
+        sh, ov = [], []
         own = any(p.get('own_normals') for p in parts)
         for k, p in enumerate(parts):
             Vs.append(p['V']); Ts.append(p['T'] + off); vn.append(p['vn_env']); st.append(p['strand'])
@@ -2853,11 +2854,19 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
             pushes.append(p.get('push', 0.0)); off += len(p['V'])
             ou.append(np.asarray(p.get('outer', np.ones(len(p['V']), bool)), bool))
             ow.append(np.asarray(p.get('outline_w', np.ones(len(p['V']))), float))
+            sh.append(np.full(len(p['V']), 'fit' in p and isinstance(p.get('fit'), dict) and 'cost_px' in p['fit']))
+            ov.append(np.full(len(p['V']), bool(p.get('over', False))))
             nf += folds(p['V'], p['T'], p.get('outer', np.ones(len(p['V']), bool)), p['vn_env'])
         pieces[name] = dict(family=family, V=np.concatenate(Vs), T=np.concatenate(Ts), vn_env=np.concatenate(vn),
                             vn_shade=np.concatenate(vs), own_normals=own, outer=np.concatenate(ou),
                             strand=np.concatenate(st), lock=np.concatenate(lk), chains=chains,
-                            outline_w=np.concatenate(ow))
+                            outline_w=np.concatenate(ow), shell=np.concatenate(sh), over=np.concatenate(ov))
+        if proxy is not None:
+            # (tool/hairshell2: the piece as the default builds it, its wedges: the shading envelope's solid when the
+            # lock shells shade from the hull's mass, lock_shells shade 'proxy')
+            po = np.cumsum([0] + [len(q['V']) for q in proxy])
+            pieces[name]['proxy'] = (np.concatenate([q['V'] for q in proxy]),
+                                     np.concatenate([np.asarray(q['T']) + po[k] for k, q in enumerate(proxy)]))
         report['pieces'][name] = dict(family=family, locks=len(parts), verts=int(off),
                                       tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4), folds=nf)
     LS = None
@@ -2871,6 +2880,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     if o.get('crown_blend', 0) > 0 and o.get('cap_sectors', False):
         sectors = cap_sectors(crown_cap(F, style, o, L), F, regions, o['cap_sectors'])
     for piece, R in regions.items():
+        proxy = None
         ph = _unwrap(R['ph'])
         # (tool/hair5: per-piece overrides of the style's lock_min and notch, e.g. the upper back's locks wider where
         # the design draws one smooth mass, the lower back's notches deeper for its flicked hem)
@@ -2906,28 +2916,48 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
             L_ = [(None, None, float(np.mean([bd[0](np.array([LL['th'][1]]))[0], bd[1](np.array([LL['th'][1]]))[0]])))
                   for bd in B_]
         else:
+            L_all = L_
             if LS is not None:
                 # a group of this family's locks as shells: the wedges whose tips fall in its azimuths go
                 for g in LS['opts']['groups']:
                     if g['family'] == R['family'] and g.get('phi') and g.get('replace', True) and LS['parts'].get(
                             g.get('name', '%s_%s' % (g['family'], g.get('view', '')))):
                         L_ = [q for q in L_ if not (g['phi'][0] <= q[2] <= g['phi'][1])]
-            parts = [lock_shell(F, piece, a, b, t, ph, R['top'], edge, style, o, L, efn) for a, b, t in L_]
+            wedges = [lock_shell(F, piece, a, b, t, ph, R['top'], edge, style, o, L, efn) for a, b, t in L_all]
+            keep_ = {id(q) for q in L_}
+            parts = [w_ for w_, q in zip(wedges, L_all) if id(q) in keep_]
+            if LS is not None and LS['opts'].get('shade', 'proxy') == 'proxy':
+                proxy = list(wedges)
             if LS is not None:
                 side = piece.rsplit('_', 1)[-1] if R['family'] == 'side_locks' else None
                 if R['family'] in LS['opts']['families']:
                     sh = [q for q in LS['parts'].get(R['family'], []) if side is None or q['fit']['side'] == side]
                     if sh:
-                        parts = sh
+                        # (lock_shells under: the family's wedges stay as the base under its shells, set in by
+                        # under_inset L along the envelope's outward normal so they show only in the shells' gaps)
+                        if R['family'] in (LS['opts'].get('under') or ()):
+                            d_ = float(LS['opts'].get('under_inset') or 0.0) * L
+                            if d_ > 0:
+                                parts = [dict(w_, V=w_['V'] - d_ * np.where(np.asarray(w_.get('outer', np.ones(len(
+                                    w_['V']), bool)), bool)[:, None], w_['vn_env'], -w_['vn_env'])) for w_ in parts]
+                            parts = parts + sh
+                        else:
+                            parts = sh
                 for g in LS['opts']['groups']:
                     if g['family'] == R['family']:
                         parts = parts + LS['parts'].get(g.get('name', '%s_%s' % (g['family'], g.get('view', ''))), [])
         if sectors:
             if piece in sectors:
                 parts.append(sectors[piece])
+                if proxy is not None:
+                    proxy.append(sectors[piece])
         elif piece == 'upper_back':
             parts.append(crown_cap(F, style, o, L))
-        add(piece, R['family'], parts)
+            if proxy is not None:
+                proxy.append(parts[-1])
+        if proxy is not None and len(proxy) == len(parts) and all(a is b for a, b in zip(proxy, parts)):
+            proxy = None                                   # (the shells changed nothing here)
+        add(piece, R['family'], parts, proxy)
         report['pieces'][piece]['tips_deg'] = [round(t, 1) for _, _, t in L_]
     # the buns: the hull's bun points, one shell each side
     bp = V[fam == fam_id('buns')]
@@ -3051,7 +3081,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                 report['pieces'][name]['folds'] = folds(V2, pieces[name]['T'], pieces[name]['outer'],
                                                         pieces[name]['vn_env'])      # (counted again once moved)
     if style.get('normals', 'envelope') == 'envelope':
-        shade_normals(pieces, L, style)
+        shade_normals(pieces, L, style, None if LS is None else LS['opts'])
     report['fields'] = dict(columns_with_hair=int((F['reach'] >= 0).sum()), cells=int(F['valid'].sum()),
                             crown_tilt=o['crown_tilt'], body_clear=F.get('clear'))
     log('hair pieces: %s' % ', '.join('%s %d locks' % (k, r['locks']) for k, r in report['pieces'].items()))
@@ -3165,6 +3195,11 @@ def folds(V, T, outer, vn_env):
     the normal its corners should have (vn_env: the envelope's, reversed on the inner surface) by more than 120 degrees,
     or one whose neighbours on average face the other way. A steep face (the inner surface dipping past an ear) is not
     a fold. -> count."""
+    return int(fold_mask(V, T, outer, vn_env).sum())
+
+
+def fold_mask(V, T, outer, vn_env):
+    """folds()' faces as a mask over T (which faces are folded)."""
     T = np.asarray(T)
     fo = outer[T]
     surf = fo.all(1) | ~fo.any(1)
@@ -3184,17 +3219,22 @@ def folds(V, T, outer, vn_env):
     tot = np.bincount(a, d, len(T)) + np.bincount(b, d, len(T))
     cnt = np.bincount(a, None, len(T)) + np.bincount(b, None, len(T))
     flipped = (cnt > 0) & (tot / np.maximum(cnt, 1) < 0)
-    return int((surf & (against | flipped)).sum())
+    return surf & (against | flipped)
 
 
 STRAND_TONE_FAMILIES = ('flyaways', 'ahoge')     # the strands strand_tone 'root' shades in one tone (the root's)
 
 
-def shade_normals(pieces, L, style):
+def shade_normals(pieces, L, style, ls=None):
     """every piece's shading normals from the whole hair's envelope (charkit.geom.smooth.envelope_normals, as the geom
     hair's are): the union of the pieces as a solid, closed by the style's shade_close and blurred by shade_blur (L), the
     normal at each vertex the blurred field's gradient. The locks, the buns and the strands then shade as one mass, as
-    anime hair does; their outlines tell them apart. In place (vn_shade)."""
+    anime hair does; their outlines tell them apart. In place (vn_shade).
+    ls: the lock shells' options (charkit.geom.lockshell; tool/hairshell2). With shade 'proxy' the solid is the pieces
+    as the default builds them (a piece's `proxy`: its wedges), so the shells shade as the hull's one mass does where
+    they lie, and the pieces the shells don't touch keep the default's normals exactly (round 1's union of the shells
+    turned every piece's normals by up to 3 degrees and tore the back's terminator: art_terminator_hair 2.009 -> 2.32);
+    shade_lock: the lock_shading weight on the shells' vertices (their own relief across a narrow tube)."""
     from .mesh import Mesh
     from .smooth import envelope_normals
     names = list(pieces)
@@ -3202,14 +3242,39 @@ def shade_normals(pieces, L, style):
     off = np.cumsum([0] + [len(pieces[n]['V']) for n in names])
     T = np.concatenate([np.asarray(pieces[n]['T']) + off[k] for k, n in enumerate(names)])
     close, blur = style.get('shade_close', 0.30) * L, style.get('shade_blur', 0.25) * L
-    N = envelope_normals(Mesh(V, T), h=max(0.008, blur / 6.0) if L > 0.1 else blur / 6.0, close=close, blur=blur)
+    h = max(0.008, blur / 6.0) if L > 0.1 else blur / 6.0
+    if ls and ls.get('shade', 'proxy') == 'proxy' and any('proxy' in pieces[n] for n in names):
+        Vp, Tp, o_ = [], [], 0
+        for n in names:
+            Vq, Tq = pieces[n].get('proxy', (pieces[n]['V'], pieces[n]['T']))
+            Vp.append(Vq); Tp.append(np.asarray(Tq) + o_); o_ += len(Vq)
+        Ve = V
+        at_ = ls.get('shade_at', 'vertex')
+        if at_ in ('nearest', 'nearest_over'):
+            # (shade_at) a shell's vertex takes the proxy's normal at the proxy's nearest vertex: the shell shades as
+            # the mass right under it, so the terminator runs on across a lock laid over the mass ('nearest_over': the
+            # laid-over groups' shells only, the hem flicks)
+            from scipy.spatial import cKDTree
+            key = 'over' if at_ == 'nearest_over' else 'shell'
+            m_ = np.concatenate([np.asarray(pieces[n].get(key, np.zeros(len(pieces[n]['V']), bool)), bool)
+                                 for n in names])
+            if m_.any():
+                Pv = np.concatenate(Vp)
+                Ve = V.copy()
+                Ve[m_] = Pv[cKDTree(Pv).query(V[m_])[1]]
+        N = envelope_normals(Mesh(np.concatenate(Vp), np.concatenate(Tp)), h=h, close=close, blur=blur,
+                             at=Mesh(Ve, T))
+    else:
+        N = envelope_normals(Mesh(V, T), h=h, close=close, blur=blur)
     w = style.get('lock_shading', 0.0)          # the locks' own normals blended in: their relief shades as drawn
+    w_shell = w if not ls or ls.get('shade_lock') is None else float(ls['shade_lock'])
     for k, n in enumerate(names):
         p = pieces[n]
         if p.get('own_normals'):                 # a template part (a block bun) shades with its own flat faces
             continue
         Ne = N[off[k]:off[k + 1]]
-        if w > 0 and p.get('outer') is not None:
+        wv = np.where(p['shell'], w_shell, w) if p.get('shell') is not None else np.full(len(p['V']), w)
+        if wv.max() > 0 and p.get('outer') is not None:
             # each lock's outer surface's own normal, smoothed within it (across outer edges only, so the walls' and
             # the ladder's facets don't crinkle the cel shading: its ridge and grooves are what's left), blended in
             out = p['outer']
@@ -3222,7 +3287,7 @@ def shade_normals(pieces, L, style):
                 np.add.at(acc, E[:, 0], G_[E[:, 1]]); np.add.at(acc, E[:, 1], G_[E[:, 0]])
                 G_ = acc / (np.linalg.norm(acc, axis=1, keepdims=True) + 1e-12)
             G_ = np.where((np.einsum('ij,ij->i', G_, Ne) < 0)[:, None], -G_, G_)
-            Ne = np.where(out[:, None], (1 - w) * Ne + w * G_, Ne)
+            Ne = np.where(out[:, None], (1 - wv[:, None]) * Ne + wv[:, None] * G_, Ne)
             Ne /= np.linalg.norm(Ne, axis=1, keepdims=True) + 1e-12
         if p.get('family') in style.get('strand_tone_families', STRAND_TONE_FAMILIES) and \
                 style.get('strand_tone', 'surface') == 'root' and p.get('lock') is not None:
@@ -3264,7 +3329,9 @@ def save_parts(R, out, meta=None):
                  meta=dict(family=p['family'], chains=p['chains'], report=R['report']['pieces'].get(name)),
                  vn_geom=geometric_normals(p['V'], np.asarray(p['T'])), strand=p['strand'], lock=p['lock'],
                  **({'outline_w': np.asarray(p['outline_w'], np.float32)} if 'outline_w' in p and
-                    np.any(np.asarray(p['outline_w']) < 1) else {}))
+                    np.any(np.asarray(p['outline_w']) < 1) else {}),
+                 **({'shell': np.asarray(p['shell'], bool)} if p.get('shell') is not None and
+                    np.any(p['shell']) else {}))
         index['pieces'].append(dict(name=name, family=p['family'], file=name + '.npz', locks=len(p['chains'])))
     path = os.path.join(out, 'pieces.json')
     json.dump(index, open(path, 'w'), indent=1)

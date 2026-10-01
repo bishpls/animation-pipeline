@@ -277,3 +277,24 @@ def test_strand_tone_root_shades_the_ahoge_in_one_tone():
         N = P['ahoge']['vn_shade']
         spread = float(np.linalg.norm(N - N[0], axis=1).max())
         assert (spread < 1e-9) == one, (tone, spread)
+
+
+def test_shade_proxy_keeps_the_other_pieces_normals():
+    """(tool/hairshell2) lock shells shaded from the default pieces' envelope (lock_shells shade 'proxy'): a piece the
+    shells don't touch keeps exactly the normals it has without them, and the shells take the default mass's normals
+    where they lie; the round-1 union of the shells turned every piece's normals."""
+    V, T = _uv_sphere(0.5)
+    t = np.linspace(0, 1, 8)
+    line = np.c_[0.52 * np.ones(8), np.zeros(8), 0.3 - 0.6 * t]               # a lock down the side, over the mass
+    st = dict(shade_close=0.1, shade_blur=0.1)
+    base = {'mass': dict(family='upper_back', V=V, T=T, lock=np.zeros(len(V), int), chains=[[[0, 0, 0.5]]])}
+    hp.shade_normals(base, 1.0, st)
+    for shade, same in (('proxy', True), ('union', False)):
+        bl = hp.blade(line, np.linspace(0.08, 0.01, 8))
+        P = {'mass': dict(family='upper_back', V=V, T=T, lock=np.zeros(len(V), int), chains=[[[0, 0, 0.5]]]),
+             'side': dict(family='side_locks', V=bl['V'], T=bl['T'], lock=np.zeros(len(bl['V']), int),
+                          chains=[line.tolist()], shell=np.ones(len(bl['V']), bool),
+                          proxy=(np.zeros((0, 3)), np.zeros((0, 3), int)))}
+        hp.shade_normals(P, 1.0, st, dict(shade=shade, shade_lock=0.0))
+        d = float(np.abs(P['mass']['vn_shade'] - base['mass']['vn_shade']).max())
+        assert (d < 1e-9) == same, (shade, d)

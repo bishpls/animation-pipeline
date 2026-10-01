@@ -46,7 +46,7 @@ def test_tube_closed_and_unfolded():
 def test_fit_recovers_a_drawn_lock():
     views, F, hf, shape = _world()
     P, W, part = _known(F)
-    o = dict(ls.DEFAULT, bins=12)
+    o = dict(ls.DEFAULT, bins=12, widen_lw=1.0)   # (the fit alone: the side locks' overlap widening off)
     lk = ls.Lock('t', 'side_locks', 'front', F, views, hf, 1.0, o)
     for n, az in (('front', 0.0), ('profile', 90.0)):
         m = ls.silhouette(part['V'], part['T'], views[n], az, hf, shape)
