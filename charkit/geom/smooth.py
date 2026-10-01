@@ -136,11 +136,12 @@ def smooth_normals(m, vn=None, iters=10, lam=0.5):
     return N
 
 
-def envelope_normals(m, h=None, close=None, blur=None, grid=None, occ=None, fallback_mix=0.0):
+def envelope_normals(m, h=None, close=None, blur=None, grid=None, occ=None, fallback_mix=0.0, at=None):
     """per-vertex normals from a smoothed envelope: the mesh's solid (winding number; or `occ`, an occupancy Grid), closed
     by `close` (fills the gaps between locks), blurred by `blur` (world units; the shadow shapes' scale), and the normal at
     each vertex = the blurred field's gradient there. Defaults scale with the mesh: h = 1/150 of its size, close = 6 h,
-    blur = 8 h. fallback_mix: blend with the geometric normal (0 = pure envelope). -> (N,3) unit normals."""
+    blur = 8 h. fallback_mix: blend with the geometric normal (0 = pure envelope). at: another mesh whose vertices take
+    the normals (m is then only the solid: a shading proxy). -> (N,3) unit normals (at's vertices', given at)."""
     from . import volume
     m = as_mesh(m)
     lo, hi = m.bounds()
@@ -160,9 +161,10 @@ def envelope_normals(m, h=None, close=None, blur=None, grid=None, occ=None, fall
     if close > 0:
         S = volume.closing(S, close)
     S = volume.blur(S, blur)
-    g = S.gradient(m.V)
+    q = m if at is None else as_mesh(at)
+    g = S.gradient(q.V)
     gn = np.linalg.norm(g, axis=1, keepdims=True)
-    geo = vertex_normals(m.V, m.F)
+    geo = vertex_normals(q.V, q.F)
     N = np.where(gn > 1e-6, g / np.maximum(gn, 1e-12), geo)
     if fallback_mix > 0:
         N = (1 - fallback_mix) * N + fallback_mix * geo

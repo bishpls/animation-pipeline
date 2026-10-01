@@ -326,10 +326,13 @@ def garment_arrays(B0, name, V, F, pmat=None):
     return rep, [p + 'lnor']
 
 
-def hair_arrays(B0, name, V, T, vn=None):
+def hair_arrays(B0, name, V, T, vn=None, ow=None):
     """a rebuilt hair piece's arrays in place of a bundle object's eval variant (tools/hair5/labart.py's splice): V, the
     triangles, slot 0, the loop normals from the piece's shading normals (the build sets them exactly), the outline's
-    inward move along the angle-weighted vertex normal by |thickness| (1 + offset) / 2 -> (rep, drop)."""
+    inward move along the angle-weighted vertex normal by |thickness| (1 + offset) / 2, times the piece's outline_w per
+    vertex when it has one (the Blender build's outline_w vertex group: without it the splice drew full-width lines
+    where the build fades them, e.g. tool/hairshell2: art_terminator_hair 2.207 against the build's 2.318 on the same
+    geometry) -> (rep, drop)."""
     from charkit.geom.mesh import vertex_normals
     a = B0._arrays
     files = set(a.files if hasattr(a, 'files') else a)
@@ -347,7 +350,10 @@ def hair_arrays(B0, name, V, T, vn=None):
     if p + 'shrink' in files:
         ol = B0.obj(name).outline or {}
         c0 = abs(float(ol.get('thickness') or 0.0014)) * (1 + float(ol.get('offset', 1.0))) / 2
-        rep[p + 'shrink'] = (-vertex_normals(V, T) * c0).astype(np.float32)
+        sh = -vertex_normals(V, T) * c0
+        if ow is not None and len(ow) == len(V):
+            sh = sh * np.asarray(ow, float)[:, None]
+        rep[p + 'shrink'] = sh.astype(np.float32)
     return rep, drop
 
 
@@ -419,8 +425,10 @@ class HairStage(QAStage):
         got = {}
         for p in index['pieces']:
             m = load_npz(os.path.join(pdir, p['file']))
+            with np.load(os.path.join(pdir, p['file'])) as z:
+                ow = np.asarray(z['outline_w'], float) if 'outline_w' in z.files else None
             got['hair_' + p['name']] = dict(V=np.asarray(m.V, float), F=np.asarray(m.F, np.int64),
-                                            vn=None if m.vn is None else np.asarray(m.vn, float), kind='hair')
+                                            vn=None if m.vn is None else np.asarray(m.vn, float), kind='hair', ow=ow)
         return got
 
     def bundle(self, objs):
@@ -428,7 +436,7 @@ class HairStage(QAStage):
         for n, o in objs.items():
             if not self.B0.has('o/%s/eval/V' % n):
                 continue
-            r, d = hair_arrays(self.B0, n, o['V'], o['F'], o.get('vn'))
+            r, d = hair_arrays(self.B0, n, o['V'], o['F'], o.get('vn'), o.get('ow'))
             rep.update(r)
             drop += d
         return spliced(self.B0, rep, drop)
@@ -548,12 +556,21 @@ def _head(path):
 
 
 def _changed(a, b):
-    """has an object's geometry changed between two rebuilds (or does only one have it)?"""
+    """has an object's geometry changed between two rebuilds (or does only one have it)? Its shading normals and
+    outline widths count too (a shading variant moves no vertex: unspliced, its row read the base's normals)."""
     if a is None or b is None:
         return True
     if a['V'].shape != b['V'].shape or a['F'].shape != b['F'].shape or not np.array_equal(a['F'], b['F']):
         return True
-    return bool(np.abs(a['V'] - b['V']).max() > MOVED)
+    if np.abs(a['V'] - b['V']).max() > MOVED:
+        return True
+    for k in ('vn', 'ow'):
+        x, y = a.get(k), b.get(k)
+        if (x is None) != (y is None):
+            return True
+        if x is not None and (np.shape(x) != np.shape(y) or np.abs(np.asarray(x) - np.asarray(y)).max() > 1e-6):
+            return True
+    return False
 
 
 def _rows_for(decl, only=None, shard=None):

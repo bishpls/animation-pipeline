@@ -35,7 +35,8 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'), facing=0.2,
                assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0, frag_L2=0.008, frag_reach=4,
                widen_lw=1.0, contain=1.0, dedup=0.5, unit='locks', over=0.004,
-               contain_family=True, view_depth=1.0)
+               contain_family=True, view_depth=1.0, soft_width=True, diff_step=1e-3, shade='proxy', shade_lock=None,
+               under=())
 VIEWS_AZ = None
 
 
@@ -196,7 +197,16 @@ def envelope_points(F, view, az, hull_frame, cols, rows, L):
     gap = np.where(ok, r - R, np.inf).reshape(len(u), -1)
     inside = gap <= 0
     first = np.where(inside.any(1), inside.argmax(1), np.argmin(np.abs(gap), 1))
-    return Wd[np.arange(len(u)), first]
+    n = np.arange(len(u))
+    out = Wd[n, first]
+    # the crossing between the last sample outside and the first inside, interpolated on the gap: the point moves
+    # continuously with the envelope (the first sample alone jumps a ray step when 1e-10 m of noise flips a sample)
+    k = first
+    prev = np.maximum(k - 1, 0)
+    g0, g1 = gap[n, prev], gap[n, k]
+    ok_ = inside.any(1) & (k > 0) & np.isfinite(g0) & np.isfinite(g1) & (g0 > g1)
+    f = np.where(ok_, g0 / np.where(ok_, g0 - g1, 1.0), 1.0)
+    return np.where(ok_[:, None], Wd[n, prev] + f[:, None] * (Wd[n, k] - Wd[n, prev]), out)
 
 
 # ------------------------------------------------------------------------------------------------ the fit
@@ -258,6 +268,18 @@ class Lock:
     def curve(self, Q=None):
         return bernstein(self.Q if Q is None else Q, self.ts)
 
+    def drawn_width(self, pc, d):
+        """the drawn width (px) at projected points pc: with soft_width, the drawn stations' widths weighted by a
+        Gaussian of their distance (sigma: the stations' median spacing), so the fit's objective is smooth in the curve
+        (the nearest station's width, a step at every change of station, made the fit end in a different place for
+        input differences of 1e-10 m: two builds of one spec 1.3 cm apart); else the nearest station's."""
+        dd = np.linalg.norm(pc[:, None, :] - d['D'][None], axis=2)
+        if not self.o.get('soft_width', False) or len(d['D']) < 2:
+            return d['W'][np.argmin(dd, 1)]
+        sg = max(1.0, float(np.median(np.linalg.norm(np.diff(d['D'], axis=0), axis=1))))
+        w = np.exp(-0.5 * ((dd - dd.min(1, keepdims=True)) / sg) ** 2)
+        return (w * d['W'][None]).sum(1) / w.sum(1)
+
     def widths(self, P, twist):
         """per curve sample: the true width that best explains every view's drawn width (closed form), and per view the
         projected extents' coefficients."""
@@ -274,9 +296,7 @@ class Lock:
             pa = self.px(P + a * 1e-3, vn) - pc
             # the section's extent across the projected centreline, per unit width (px per m of width)
             cvec = (np.abs(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * np.abs(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
-            # the drawn width at each sample: the nearest drawn station's
-            dd = np.linalg.norm(pc[:, None, :] - d['D'][None], axis=2)
-            wd = d['W'][np.argmin(dd, 1)]
+            wd = self.drawn_width(pc, d)
             num += cvec * wd; den += cvec ** 2
         Wt = num / np.maximum(den, 1e-12)
         return Wt
@@ -334,8 +354,7 @@ class Lock:
             pb = self.px(P + b * 1e-3, vn) - pc
             pa = self.px(P + a * 1e-3, vn) - pc
             cvec = (np.abs(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * np.abs(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
-            dd = np.linalg.norm(pc[:, None, :] - d['D'][None], axis=2)
-            wd = d['W'][np.argmin(dd, 1)]
+            wd = self.drawn_width(pc, d)
             out.append(0.5 * (cvec * Wt - wd))
         out.append(np.array([self.o['prior_twist'] * twist * 10.0]))
         # every view the lock faces: its centreline at least half a drawn width inside the drawn hair (the multi-view
@@ -359,7 +378,10 @@ class Lock:
         tw = self.o['twist_max']
         x0 = np.r_[self.Q.ravel(), np.clip(self.twist, -0.99 * tw, 0.99 * tw)]
         scale = np.r_[np.full(18, 0.01 * self.L), 0.3]
-        sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=300,
+        # diff_step: the Jacobian's finite-difference step (relative; under 1 m, in m: 1e-3 is a millimetre, about a
+        # pixel of the drawing). scipy's default (1.5e-8) probes the objective far below its pixel-level corners, so
+        # the fit's end moved with input noise
+        sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=300, diff_step=self.o.get('diff_step'),
                             bounds=(np.r_[np.full(18, -np.inf), -tw], np.r_[np.full(18, np.inf), tw]))
         self.Q = sol.x[:18].reshape(6, 3)
         self.twist = float(sol.x[18])
@@ -562,6 +584,12 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
             for i in range(0, len(rr), 2000):
                 Pw = envelope_points(F, views[vn], W_['az'], hull_frame, 2 * cc[i:i + 2000], 2 * rr[i:i + 2000], L)
                 D[rr[i:i + 2000], cc[i:i + 2000]] = Pw @ e
+            # off the drawn hair: the nearest ray's depth (a NaN there read 0 in the fit: a step the curve's samples
+            # crossed at the hair's edge)
+            bad = ~np.isfinite(D)
+            if bad.any() and (~bad).any():
+                _, (ir, ic) = _nd.distance_transform_edt(bad, return_indices=True)
+                D = D[ir, ic]
             edepth[vn] = D
         return edepth[vn]
 
@@ -599,6 +627,10 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                 lk.offset = o['inset'] * L * ((hi - lay) / max(1e-6, hi - lo) if hi > lo else 0.0)
                 if grp and not grp.get('replace', True):
                     lk.offset = -o['over'] * L         # laid over the family's own pieces, not in place of them
+                elif not grp and fam in (o.get('under') or ()):
+                    # (tool/hairshell2) the family's own pieces stay under its shells, the hull's mass as the base an
+                    # anime build lays its locks over: every shell over it, the front-most layer furthest out
+                    lk.offset = -o['over'] * L * (1.0 + ((lay - lo) / (hi - lo) if hi > lo else 0.0))
                 if not lk.add_view(pv, V['az'], T_['mask'], T_['root'], lid, lay):
                     continue
                 claimed[pv].add(T_['id'])

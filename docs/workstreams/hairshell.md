@@ -1,6 +1,6 @@
-# Hair, step 2: the B lock-shell pilot (tool/hairshell)
+# Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: round 1 starting. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: round 2 in progress (see "Round 2" at the end). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -217,3 +217,86 @@ charkit/out/hs_hull_r charkit/out/hs_shells_r --check art_terminator_hair` names
 ## Jobs
 
 None running.
+
+# Round 2 (tool/hairshell2, from pipeline-3d 6620113)
+
+Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell2`. Harness scripts and outputs: `charkit/out/hairshell2/`.
+
+## Step 1: why the sweep read 2.018 and the build 2.32 (measurement fidelity) -- found, for the infra queue
+
+The hair's art checks (art_terminator_hair, art_peeks_hair, ...) don't depend on the drawing setting: artifactqa's head
+frame reads its own numpy z-buffer (`artifactqa.buffers`) under both drawings, so numpy against render is not the cause.
+Measured on hs_shells_r's own bundle locally: 2.32 exactly (8 s, `charkit/out/hairshell2/splicecmp.py`). Three causes:
+
+1. **The sweep's splice ignored the pieces' `outline_w`** (the Blender build's outline_w vertex group: the ink fades
+   where the back's locks meet). `sweep.hair_arrays` drew every hair line full width. On the build's own geometry the
+   splice read 2.207 against the build's 2.318; with the splice's shrink times outline_w it reads 2.318 (peeks 43 ->
+   39 = the build's). **Fixed** in `charkit/sweep.py` (hair_arrays takes `ow`, HairStage loads it from the npz).
+   Also fixed: `sweep._changed` compared only vertices, so a shading-only variant (same V, new normals) was never
+   spliced and read the base; it now compares vn and outline_w too.
+2. **The lock-shell fit wasn't reproducible**: the same spec and code fitted on two machines (or on two box builds of
+   one head, whose envelope fields differ by 1e-10 m) gave shells up to 1.3 cm apart (side_lock_L; lower_back 4 mm).
+   The art reading of three such fits of one spec: 2.026 (sweep 5's), 1.932 (a local refit today), 2.318 (the box
+   build). So the sweep row and the build were two draws of the fit, not one geometry measured two ways; this was most
+   of the gap (2.026 -> 2.318 with the splice fixed). Causes in `lockshell`: scipy's default finite-difference step
+   (1.5e-8 m) probing an objective with pixel-level corners (the nearest drawn station's width, a step function; the
+   envelope ray-cast's first sample inside, which jumps a ray step when noise flips a sample; NaN depths off the drawn
+   hair read as 0). **Fixed** (opt-in code only): `diff_step` 1e-3 (a millimetre, about a drawing pixel),
+   `soft_width` (Gaussian-weighted drawn widths), the ray-cast's crossing interpolated, the depth map filled off the
+   hair. Two contexts 1e-10 apart now fit to a median 1e-6 m (was 9e-4); one lock (f10.2, front-only, 7 px cost) still
+   forks (4 cm, equal cost): an ill-posed single-view lock (cross-view identity is the cure: step 4).
+   (`charkit/out/hairshell2/determ2.py CTX_A CTX_B`.)
+3. Blender's loop normals differ from the pieces' vn by up to ~0.5 deg (custom normals as stored): the hull's own
+   pieces spliced back read 2.065 against its build's 2.009. Small; not fixed (note for the infra queue: the splice
+   could round-trip normals the way Blender stores them).
+
+4. **The check's own sampling noise is as large as the move**: art_terminator_hair under six sub-pixel placements
+   of the head frame (`charkit/out/hairshell2/termnoise.py BUILD [N] [PIECES]`, render.calibrate's offsets):
+   hs_hull_r 2.007 +- 0.081 (1.875-2.155), hs_shells_r **1.989 +- 0.183** (1.757-2.320). The build's 2.32 is the
+   highest of the six placements; the shells' mean equals the hull's. Peeks: 17.5 +- 0.8 against 34.2 +- 2.5 (that
+   move is real). From here every terminator reading is given as the frame's own placement (what the gate reads) and
+   the six-placement mean +- std. Note for the infra queue: the gate compares one placement of a check whose noise
+   is ~0.1-0.2 against a 2.0 / 2.5 grade line.
+
+Rule kept this round: every art_* number in this round's tables is from a real build's bundle, or a splice of a real
+build's pieces (`splice2x2.py`: the sweep's splice with outline_w), not a sweep row's own refit.
+
+## Step 2: the shading (in progress)
+
+Carriers (`charkit sweep swap hs_hull_r hs_shells_r --check art_terminator_hair --groups hair --drop`,
+`charkit/out/hairshell2/swap_term/swap.md`): the back view (1.154 -> 2.32 ratio) carries it; B + A.lower_back takes
+back 115% of the move (back 2.32 -> 1.45), B + A.upper_back 66% and B + A.side_lock_R 52% although the upper back's
+geometry is the same in both builds: **the shells changed every piece's shading normals** (bangs and upper back up to
+3.3 deg, every corner): `hairpieces.shade_normals` takes the envelope of the union of all pieces, shells included.
+Fix: lock_shells `shade: 'proxy'` (default for shells): the envelope's solid is the pieces as the default builds them
+(each piece's wedges), sampled at every final vertex (`smooth.envelope_normals(at=)`), so the untouched pieces keep the
+default's normals exactly and the shells shade as the hull's mass does where they lie. `shade_lock`: lock_shading on
+the shells' vertices (style 0.2).
+
+Sweeps on base hs_shells_r, every hair object spliced (the sweep's splice, outline_w honoured); terminator as the
+frame's placement and the six-placement mean +- std (`termnoise.py` on the row's pieces spliced into hs_shells_r):
+
+| row (sw1, sw2) | terminator (placement / mean +- std) | per view mean F / 3q / P / B | peeks (placement / mean) | hair_noise |
+|---|---|---|---|---|
+| hull (the default's pieces) | 2.196 / 2.057 +- 0.103 | 7.70 / 8.57 / 3.74 / 1.70 | 17 / 17.5 | 0.0717 W |
+| shells, proxy shading, shade_lock 0.2 | 1.918 / 2.160 +- 0.227 | 6.61 / 5.23 / 1.56 / 2.93 | 29 / 26.3 | 0.096 F |
+| shells, union shading (round 1), shade_lock 0.2 | 1.622 / 1.787 +- 0.173 | 6.07 / 5.00 / 1.39 / 2.32 | 29 / 26.3 | 0.0961 F |
+| **shells, proxy, shade_lock 0** | **1.510 / 1.616 +- 0.086** | 5.83 / 5.74 / 1.99 / 1.69 | 29 / 26.3 | 0.0871 F |
+| shells over the side lock's wedges (under), proxy, sl 0 | 2.367 / 2.294 +- 0.117 | 8.59 / 8.46 / 3.58 / 1.57 | 22 / 23.3 | 0.0703 W |
+
+Reading: the shells' own relief (lock_shading 0.2: a narrow tube's ring normals blended in) tears the terminator,
+the back's hem flicks most (back 2.93 -> 1.69 with it off). shade_lock 0 for shells is the shading fix (terminator
+mean 1.62 against the hull's 2.06). The underlayer brings back the hull side lock's own terminator (front 8.6).
+
+## Step 3: the gaps (in progress)
+
+`charkit/out/hairshell2/peekmap.py BUILD PNG`: the peeks by object and view. hs_hull_r -> hs_shells_r: front 15 -> 25
+(lower_back 2 -> 10, upper_back 3 -> 8), three-quarter 17 -> 39 (lower_back 2 -> 13, upper_back 6 -> 14): the back's
+pieces seen in slivers between the narrow side-lock shells (their coverage of the side-lock family ~0.55-0.6).
+`under` (lock_shells: families whose own wedges stay under their shells, the shells laid over them by `over`, the
+front-most layer furthest out): any gap shows the side lock's own mass, connected to its large component.
+
+## Jobs
+
+- sw1 (laptop): `charkit/out/hairshell2/sw1.json` -> `sw1/` (control = proxy shading + the soft fit; hull; union;
+  shade_lock0), all hair objects spliced.
