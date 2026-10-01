@@ -264,8 +264,38 @@ so a build pays it only when the skirt, the body, the style or charkit/sim chang
 (3) fewer substeps (15; the calibration's 16-substep nudge says whether the checks hold). Measuring only near the worst
 frames saves little (measuring is under 5%). (1)+(2) together should roughly halve it.
 
-### Running / next (update as they land)
-- Box build of 5ad798e -> `charkit/out/xpbd/r2/build` (the motion checks in the real build, its CPU).
-- Spring tuning on base2 -> `charkit/out/xpbd/r2/tune_base2` (kick and squat, the body colliders).
-- Then: calibrate the motion checks on the r2 build (`python -m charkit calibrate motion_* --build charkit/out/xpbd/r2/build`),
-  bake the kick with the replay, the review page, pregate, gate.
+### The box build of 5ad798e (`charkit/out/xpbd/r2/build`, the merged tree with the motion QA part)
+motion_kick_skirt_inside 0.0024 PASS (depth 0.031 L), motion_kick_skirt_stretch 0.064 PASS (max 0.27),
+motion_squat_skirt_inside 0.0060 PASS (0.014 L), motion_squat_skirt_stretch 0.104 PASS (max 0.33): within 1e-4 of
+base2's local run. The part took 117.5 s wall, 119.9 s CPU on the box (91 s on the laptop); the build 1157 s CPU, 650 s
+wall (base2, 4d2ccc2: 885 s, not comparable: other merges and cache states; the gate measures the ratio). Piece IoUs
+unchanged (piece_skirt 0.893, flaps 0.693 / 0.815). QA 310 PASS / 43 WARN / 41 FAIL / 142 INFO / 2 SKIPPED (not
+motion's); the FAILs that base2 didn't have are the merges' (collar_back_iou regraded by tool/calib, acc_* new from
+tool/accessories2 and acc-reclass), none of this branch's.
+
+### Exact next steps (a fresh agent; Michael's decisions above stand)
+1. Calibration records (the gate requires them for the four new checks): `python -m charkit calibrate
+   motion_kick_skirt_inside,motion_kick_skirt_stretch,motion_squat_skirt_inside,motion_squat_skirt_stretch --build
+   charkit/out/xpbd/r2/build` (laptop, background, about 16 min: the current run, 2 computed known-bads, 8 nudged
+   design runs; charkit/calib/motion.py). If a nudge reads WARN (the squat's inside sits at 0.006 against 0.01 at
+   frame 24, mid-ramp: the 0.35 s ramp is the likeliest), report it rather than loosen; limits come from the records.
+   Commit the records (charkit/calib/records/motion_*.json).
+2. Shrink the part's CPU before the gate if the coordinator wants (above: settle once for both poses, then a 0.5 s
+   settle; re-read the four checks after, the change is a remeasure only if their numbers move).
+3. The Blender replay of the kick bake: `python -m charkit.sim bake charkit/out/xpbd/r2/build --clip kick --pc2
+   --replay` (local Blender; writes replay.json, max |d| in L per frame). Fix the object names, the stack order or the
+   PC2 frame mapping if it disagrees.
+4. The final motion run for the page, on the r2 build: `python -m charkit.sim motion charkit/out/xpbd/r2/build --out
+   charkit/out/xpbd/r2/motion --poses kick,squat --methods skinned,xpbd_hips_r1,xpbd_hips,xpbd_physics,springs_body,
+   springs_tuned,pelvis_rigid --tuned charkit/out/xpbd/r2/tune_base2/tune.json`; then `review.page2(build, motion_dir,
+   out, tune_dir, cache, rec_text, ask)` -> charkit/out/xpbd/r2/review/index.html (summary box drafted below).
+5. Spring chains: widen the grid past stiffness 8; root the skirt chains' top joints on the skin's weights (the squat's
+   6.3% at 0.185 L); then write the tuned settings beside the graph's (Michael's call A/B).
+6. Pregate, then `python -m charkit remote gate tool/xpbd --into pipeline-3d` (merge pipeline-3d first if it moved).
+
+Draft summary box. Recommended: ship the anime default (cloth held toward the drawn shape on the pelvis, pins on the
+skin): all four gated motion checks PASS (kick 0.2% inside / 6% stretch, squat 0.6% / 10%) where the shipped skinned
+skirt stretches 199% at the kick and has 5.8% 0.185 L inside at the squat. Asked of Michael: (1) give the waistband the
+body's weights near the waist too (yes/no; it sits 31% / 0.265 L inside the belly at the squat); (2) write the tuned
+spring settings into the outfit graph now (A) or after the skirt chains are rooted on the skin (B); (3) informational:
+the pelvis and belly capsules are fitted (p90 <= 0.022 L) but the cloth doesn't need them; they are for the VRM colliders.
