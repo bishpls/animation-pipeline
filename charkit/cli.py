@@ -812,7 +812,8 @@ def figures(args):
         print('wrote', mp)
 
 
-CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep', 'accfit')
+CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep', 'accfit',
+          'profile')
 
 
 def _cap(args):
