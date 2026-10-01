@@ -16,7 +16,7 @@ from charkit.faceqa import zbuffer
 import shm
 
 ARM_BONES = ('UpperArm', 'LowerArm', 'Hand')
-PIVOT = 0.18                       # L up the upper arm's line: the posed check's second pivot (the deltoid's centre)
+PIVOTS = [float(x) for x in os.environ.get('BODYJ_PIVOTS', '0.18').split(',') if x]   # L up the upper arm's line
 
 
 def score(M):
@@ -113,12 +113,12 @@ def labels(Bd, Bk, cut_z):
     return [(V, T, tl), (Vh, Th[hk], np.full(int(hk.sum()), shm.HEAD))]
 
 
-def views(meshes, Bk, D):
+def views(meshes, Bk, D, only=None):
     ctx = D.sheet_context()
     iris = np.array(qa3d.iris_centres(Bk))
     az = bodyqa.azimuths(ctx['az3'])
     out = {}
-    for v in shm.VIEWS:
+    for v in (only or shm.VIEWS):
         org = bodyqa.origin(v, az[v], iris, Bk.assembly['centre'])
         out[v] = zbuffer(meshes, az[v], org, Bk.assembly['L'], 1.0 / ctx['ppl'], bodyqa.WIN)[1]
     return out
@@ -150,6 +150,7 @@ def pose(Bd, side, target, clav=0.0, pivot=0.0):
     w_arm = sum(W.get(side + b, 0) for b in ARM_BONES)
     fing = [b for b in W if b.startswith(side) and any(k in b for k in ('Thumb', 'Index', 'Middle', 'Ring', 'Little'))]
     w_arm = w_arm + sum(W[b] for b in fing)
+    pose.R = R
     out = V + np.asarray(w_arm)[:, None] * ((V - p) @ R.T + p - V)
     if clav:
         c = np.asarray(J['clavicle.%s____head' % S], float)
@@ -174,8 +175,32 @@ def region(Bd, side, L):
     return m
 
 
-def posed_measures(Bd, P, side, L, rest_T):
-    """edge stretch and face flips over the shoulder's region; arm vertices inside the torso's rest volume."""
+def closed_volume(Bd, P):
+    """the volume (L^3 units of the verts) of the torso's component (the torso, the bridges, the arms: the neck ring
+    closed by its centre) at positions P."""
+    parts = Bd['parts']
+    keep = np.zeros(len(P), bool)
+    for k, (a, b) in parts.items():
+        if k == 'torso' or k.startswith(('arm_', 'shoulder_')):
+            keep[a:b] = True
+    vol = 0.0
+    for f in Bd['faces']:
+        if not keep[f[0]]:
+            continue
+        for k in range(1, len(f) - 1):
+            vol += np.dot(P[f[0]], np.cross(P[f[k]], P[f[k + 1]]))
+    ring = Bd['neck_ring']
+    c = P[ring].mean(0)
+    for j in range(len(ring)):
+        vol += np.dot(c, np.cross(P[ring[j]], P[ring[(j + 1) % len(ring)]]))
+    return vol / 6.0
+
+
+def posed_measures(Bd, P, side, L, rest_T, R=None):
+    """over the shoulder's region (region()): edge stretch (all edges, and those at least 0.015 L long at rest: p95 of
+    the larger of l1/l0 and l0/l1), faces folded (their posed normal against the rest normal carried by the face's
+    own blend of the arm's rotation: the share of the region's area facing away), faces collapsed (posed area under a
+    quarter of their rest area: the area share); the closed upper body's volume change."""
     V = np.asarray(Bd['verts'], float)
     m = region(Bd, side, L)
     E = set()
@@ -192,11 +217,22 @@ def posed_measures(Bd, P, side, L, rest_T):
     n0 = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
     n1 = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
     a0 = np.linalg.norm(n0, axis=1); a1 = np.linalg.norm(n1, axis=1)
-    # (a face whose posed normal turned more than 120 degrees from where its rigid part would carry it reads folded)
-    return dict(edges=int(len(E)), stretch_p1=round(float(np.percentile(r, 1)), 3), stretch_p99=round(float(np.percentile(r, 99)), 3),
-                stretch_min=round(float(r.min()), 3), stretch_max=round(float(r.max()), 3),
-                area_min=round(float((a1 / np.maximum(a0, 1e-12)).min()), 3),
-                area_p1=round(float(np.percentile(a1 / np.maximum(a0, 1e-12), 1)), 3))
+    long_ = l0 >= 0.015 * L
+    rr = np.maximum(r, 1 / np.maximum(r, 1e-9))[long_]
+    out = dict(edges=int(len(E)), stretch_p1=round(float(np.percentile(r, 1)), 3), stretch_p99=round(float(np.percentile(r, 99)), 3),
+               stretch_min=round(float(r.min()), 3), stretch_max=round(float(r.max()), 3),
+               strain_p95=round(float(np.percentile(rr, 95)), 3) if len(rr) else None,
+               area_min=round(float((a1 / np.maximum(a0, 1e-12)).min()), 3),
+               area_p1=round(float(np.percentile(a1 / np.maximum(a0, 1e-12), 1)), 3))
+    if R is not None:
+        W = Bd['weights']
+        w_arm = sum(np.asarray(W.get(side + b, 0)) for b in ARM_BONES)
+        wf = np.asarray(w_arm)[T].mean(1)
+        ex = np.where((wf > 0.5)[:, None], n0 @ R.T, n0)
+        fold = (np.sum(ex * n1, 1) < 0)
+        out['folded_area'] = round(float(a0[fold].sum() / a0.sum()), 4)
+        out['collapsed_area'] = round(float(a0[a1 < 0.25 * a0].sum() / a0.sum()), 4)
+    return out
 
 
 def inside_torso(Bd, P, side, Z, L, Oz):
@@ -255,16 +291,23 @@ def png(path, rows, D, bb):
                     ax[r, j].plot(C[:, 1] / ppl + ext[0], ext[3] - C[:, 0] / ppl, ls, color=col, lw=1.0)
             ax[r, j].set_title('%s %s' % (R['name'], v), fontsize=9)
             ax[r, j].set_aspect('equal')
-        # the posed meshes (front: the forward raise from the side; the side raise from the front)
-        for q, (key, a, b) in enumerate((('pose_side', 0, 2), ('pose_front', 1, 2))):
-            P = R.get(key + '_V')
-            if P is None:
+        # the posed bodies' outlines (the side raise seen from the front, the forward raise from the side; red: the
+        # arm and the bridge), rest dashed
+        for q, (key, v) in enumerate((('pose_side', 'front'), ('pose_front', 'profile'))):
+            lab = R.get(key + '_lab')
+            if lab is None:
                 continue
-            T = R['T']
-            m = R['region']
-            T2 = T[m[T].any(1)]
             axx = ax[r, len(vs) + q]
-            axx.triplot(P[:, a], P[:, 2], T2, lw=0.15, color='k')
+            r0, r1 = shm.rc(0.0, 0, ppl)[0], shm.rc(-1.6, 0, ppl)[0]
+            c0, c1 = shm.rc(0, -0.9, ppl)[1], shm.rc(0, 1.6, ppl)[1]
+            ext = [c0 / ppl - W['x'], c1 / ppl - W['x'], W['top'] - r1 / ppl, W['top'] - r0 / ppl]
+            for L_, ls in ((R['labels'][v], '--'), (lab, '-')):
+                L_ = L_[r0:r1, c0:c1]
+                for m, col in ((L_ >= 0, 'k'), (L_ == shm.ARM, 'tab:red')):
+                    for C in skm.find_contours(np.pad(m, 1).astype(float), 0.5):
+                        C = C - 1
+                        axx.plot(C[:, 1] / ppl + ext[0], ext[3] - C[:, 0] / ppl, ls, color=col, lw=0.8)
+            axx.set_xlim(ext[0], ext[1]); axx.set_ylim(ext[2], ext[3])
             axx.set_aspect('equal')
             axx.set_title('%s %s (%s)' % (R['name'], key, R.get(key, {})), fontsize=7)
     fig.tight_layout()
@@ -278,6 +321,8 @@ def main():
     only = opt('--only')
     args = [a for a in args if a not in (out, only)]
     build, var = args[0], json.load(open(args[1]))
+    global PIVOTS
+    PIVOTS = var.pop('_pivots', PIVOTS)
     os.makedirs(out, exist_ok=True)
     Bk = bundle.load(build + '/bundle')
     D = qa3d.Design(Bk)
@@ -307,16 +352,22 @@ def main():
         rec = dict(topology=top, views={k: v for k, v in M['views'].items()}, n_verts=len(Bd['verts']))
         R = dict(name=name, labels=lab, T=T)
         for side in ('left',):
-            for key, tgt, pv in (('pose_side', (1.0, 0.0, 0.0), 0.0), ('pose_front', (0.0, -1.0, 0.0), 0.0),
-                                 ('pose_side_pivot', (1.0, 0.0, 0.0), PIVOT), ('pose_front_pivot', (0.0, -1.0, 0.0), PIVOT)):
+            poses = [('pose_side', (1.0, 0.0, 0.0), 0.0), ('pose_front', (0.0, -1.0, 0.0), 0.0)]
+            for pvt in PIVOTS:
+                poses += [('pose_side_p%02d' % round(pvt * 100), (1.0, 0.0, 0.0), pvt),
+                          ('pose_front_p%02d' % round(pvt * 100), (0.0, -1.0, 0.0), pvt)]
+            for key, tgt, pv in poses:
                 P = pose(Bd, side, tgt, pivot=pv)
-                pm = posed_measures(Bd, P, side, L, T)
+                pm = posed_measures(Bd, P, side, L, T, R=pose.R)
+                pm['volume'] = round(closed_volume(Bd, P) / closed_volume(Bd, np.asarray(Bd['verts'], float)) - 1, 4)
                 pm['inside'] = inside_torso(Bd, P, side, Z, L, Oz)
                 Pc = pose(Bd, side, tgt, clav=0.25, pivot=pv)
-                pm['with_clavicle_25pc'] = dict(posed_measures(Bd, Pc, side, L, T), inside=inside_torso(Bd, Pc, side, Z, L, Oz))
+                pm['with_clavicle_25pc'] = dict(posed_measures(Bd, Pc, side, L, T, R=pose.R), inside=inside_torso(Bd, Pc, side, Z, L, Oz))
                 rec[key] = pm
-                R[key] = dict(st=[pm['stretch_min'], pm['stretch_max']], inside=pm['inside']['n'])
-                R[key + '_V'] = P
+                R[key] = dict(strain=pm.get('strain_p95'), folded=pm.get('folded_area'), inside=pm['inside']['n'])
+                if key in ('pose_side', 'pose_front'):
+                    Bp = dict(Bd, verts=P)
+                    R[key + '_lab'] = views(labels(Bp, Bk, 1e9)[:1], Bk, D)['front' if key == 'pose_side' else 'profile']
             R['region'] = region(Bd, 'left', L)
         rest_in = inside_torso(Bd, np.asarray(Bd['verts'], float), 'left', Z, L, Oz)
         rec['rest_inside'] = rest_in
@@ -335,15 +386,17 @@ def main():
                     print('       outer x (ours, ref) %s' % rr['st_out'])
             if v == 'profile':
                 print('   profile arm front %s back %s' % (q['arm_front'], q['arm_back']))
-        for key in ('pose_side', 'pose_front', 'pose_side_pivot', 'pose_front_pivot'):
+        pkeys = [k for k in rec if k.startswith('pose_')]
+        for key in pkeys:
             print('   %s %s' % (key, rec[key]))
         rec['score'] = score(M)
         fl = M['views']['front']['left']
-        print('SUMMARY %-10s score %.4f | front L top %s outer %s point %s axilla %s | stretch side %s/%s front %s/%s | pivot side %s/%s front %s/%s' % (
-            name, rec['score'], fl['top_loose'].get('rms'), fl['outer'].get('rms'), fl['point_ours'], fl['axilla_ours'],
-            rec['pose_side']['stretch_min'], rec['pose_side']['stretch_max'], rec['pose_front']['stretch_min'],
-            rec['pose_front']['stretch_max'], rec['pose_side_pivot']['stretch_min'], rec['pose_side_pivot']['stretch_max'],
-            rec['pose_front_pivot']['stretch_min'], rec['pose_front_pivot']['stretch_max']))
+        qq = lambda k: '%s/%s/%s/%s/%s' % (rec[k].get('strain_p95'), rec[k].get('folded_area'), rec[k].get('collapsed_area'),
+                                          rec[k]['inside']['n'], rec[k].get('volume'))
+        print('SUMMARY %-10s score %.4f | front L top %s outer %s point %s axilla %s' % (
+            name, rec['score'], fl['top_loose'].get('rms'), fl['outer'].get('rms'), fl['point_ours'], fl['axilla_ours']))
+        for key in pkeys:
+            print('POSED %-10s %-18s strain95/folded/collapsed/inside/dV %s' % (name, key, qq(key)))
     json.dump(res, open(os.path.join(out, 'bodyj.json'), 'w'), indent=1, default=str)
     if rows:
         best = sorted(rows, key=lambda R: res[R['name']]['score'])

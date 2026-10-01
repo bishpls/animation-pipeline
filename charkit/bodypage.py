@@ -59,6 +59,8 @@ def save_body(spec, path, log=print):
             arrays['shoulder_%s_drop_v' % sd] = np.array(so['drop_v'], int).reshape(-1, 2)
             arrays['shoulder_%s_drop_f' % sd] = np.array(so['drop_f'], int).reshape(-1, 2)
             arrays['shoulder_%s_clav' % sd] = np.array(so['spec'].get('clav', (0.6, 0.2)), float)
+            arrays['shoulder_%s_w' % sd] = np.r_[np.asarray(so['spec'].get('arm_w', (0.0, 1.0)), float),
+                                                 np.asarray(so['spec'].get('torso_arm', (0.0, 0.1)), float)]
         else:
             R = np.stack([section_r(P[k], th, 0.0) for k in range(len(rows))])
             if n.startswith('arm_'):                 # the arm's tube ends at the wrist: the hand template takes over

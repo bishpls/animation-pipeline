@@ -770,3 +770,31 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   (0.74, -0.856)); armpit -0.85; no arm in profile above z -0.85. The arm below z -1.0 is within 0.03 L (outer edge
   0.759 / 0.792 at -1.0 / -1.2 against 0.73 / 0.80). The skeleton's shoulder joint (the 2D rig's, outfit.rig_frame) sits
   at (0.544, -0.886): ~0.16 L under where the deltoid's centre would be.
+- **The joined shoulder (52949256, off by default: body.shoulder.socket):** code_body.socket_rim / shoulder_bridge: a
+  hole in the torso's side (rows from where the side reaches `top` L out down to the armpit `bottom`; columns within
+  `half` deg of the side), a bridge of `loops` edge loops from its rim to the arm's ring at `s0` L down the chain (per
+  rim vertex a cubic leaving the torso toward the hole's middle lifted `lift` deg, arriving along the arm; `reach`
+  tangent shares), the arm's columns matched to the rim's (angle round the bridge's axis) and evened over `blend` rings.
+  build_body_data stitches the torso with holes, the bridges and the arms into one closed surface (only the neck ring
+  open; tests charkit/tests/test_shoulder_join.py), the torso's partial rows listed for the neck join
+  (code_base._torso_rings), weights: the clavicle round the rim (`clav`), the bridge eased from the rim's to the arm's
+  (`arm_w`), optionally the upper arm over the torso round the rim (`torso_arm`); the template's widening at the sides
+  only (`az`). Harness tools/garments5/bodyj.py (box: `remote run --fetch OUT script tools/garments5/bodyj.py
+  charkit/out/g5_base VARIANTS.json --out OUT`): the body data built from the spec without Blender, topology, the base
+  body measures (shm.measure_labels), the posed check.
+- Grid j2 (charkit/out/garments5/bodyj2): best `t36_l65_a45_b50` = shoulder {z -0.525, x 0.38, round 0.03, hold 0,
+  fall 0.10, az 50, join [[0,.12],[45,.12],[75,.03],[180,.03]], socket {top 0.36, lift [65, 75], reach [0.45, 0.5]}}:
+  score 0.051 (j1 defaults) -> 0.030 (own body 0.17-0.2 rms); front: top rms 0.042, outer 0.019, point (0.585, -0.588)
+  vs ref (0.585, -0.595), armpit -1.047 vs -1.01; profile arm front/back rms 0.029/0.026. Residual top line at |x|
+  0.2-0.35: ours -0.547 (the neck join re-seats the template's top rows within 0.03 L of the cut at the sides) against
+  the sheet's -0.50..-0.53 (under its hair's edge: an upper bound); the trapezius flare above the cut is the head's neck.
+- Posed check (90 deg, LBS on the body's own weights): the old body's arm tubes don't deform but go through the torso
+  in the forward raise (27 vertices, 0.04 L deep); the joined shoulder deforms with the 2D rig's low joint (0.544,
+  -0.886): stretch up to 4.7x (the armpit's short bridge), faces down to 3% area in the forward raise. Being tested:
+  the pivot up the arm's line (0.1-0.26 L) and the weights (arm_w, torso_arm), metrics strain p95 (edges >= 0.015 L),
+  folded/collapsed area shares, penetration, volume (run j3, charkit/out/garments5/bodyj3).
+- Declared checks for the body against the base body sheet (uncommitted until calibrated): declared `ref`
+  'base_body' (base_body(): the manifest's sheet at the refcheck scale, registered on the turnaround's head; our_body():
+  the skin alone) with `below` / `window`, family `side_line` (dx / rms / axilla); the Declared adapter's stand-in for
+  our_body (the sheet's body moved; a floor: the costume's silhouette). Draft tools/garments5/drafts/bodyshoulder.json
+  (body_shoulder_{front,back}_top / _side, body_axilla_{front,back}, body_shoulder_{view}_iou).

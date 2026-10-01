@@ -372,7 +372,7 @@ def shoulders(sh, rows, ts, th_c, R, Pi, meas, ay, env, Bh):
 
 # ----------------------------------------------------------------------------------------------- the joined shoulder
 SOCKET = dict(top=0.30, bottom=-1.0, half=30.0, shift=0.0, s0=0.12, lift=(25.0, 75.0), reach=(0.45, 0.45),
-              loops=6, blend=3, clav=(0.6, 0.2))
+              loops=6, blend=3, clav=(0.6, 0.2), arm_w=(0.0, 1.0), torso_arm=(0.0, 0.1))
 # the shoulder joining the arm to the torso (body.shoulder.socket; Michael's diagnosis, 2026-10-01: the body had no
 # shoulder: the torso a tube, the arms capped tubes beside it, nothing joining them). A hole in the torso's side, its
 # rows from where the side reaches `top` L out (on the shoulder's top) down to the armpit at `bottom` (L from the eye
@@ -381,7 +381,9 @@ SOCKET = dict(top=0.30, bottom=-1.0, half=30.0, shift=0.0, s0=0.12, lift=(25.0, 
 # middle, lifted `lift` degrees off its surface (at the rim's top and its bottom, interpolated by height round it),
 # arriving along the arm, its tangents `reach` (start, end) of the chord long; `loops` rings between (the edge loops
 # round the shoulder); the arm's columns matched to the rim's at s0 and evened over `blend` rings. clav: the clavicle's
-# weight on the rim and how far (L) it reaches over the torso from it.
+# weight on the rim and how far (L) it reaches over the torso from it; arm_w: the bridge's share of the way over which
+# the upper arm's weight comes in (a smoothstep from the rim's weights to the arm's); torso_arm: the upper arm's weight
+# on the rim and how far (L) it reaches over the torso.
 
 
 def _wrap(a):
@@ -933,8 +935,12 @@ def build_body_data(spec, chin, log=print):
                 zb = float(Z['torso_z'][int(lp[:, 0].max())])
                 wc = cw * np.clip(1 - d / max(reach, 1e-9), 0, 1) ** 2 * (sg * V_[:, 0] > 0.05) * \
                     np.clip((V_[:, 2] - zb) / 0.08, 0, 1)
-                Wp = np.c_[Wp * (1 - wc)[:, None], wc]
-                bones_t.append(sd + 'Shoulder')
+                wk = 'shoulder_%s_w' % sd
+                a_w, a_r = (float(x) for x in (Z[wk][2:4] if wk in Z.files else (0.0, 0.1)))
+                wa = a_w * np.clip(1 - d / max(a_r, 1e-9), 0, 1) ** 2 * (sg * V_[:, 0] > 0.05)
+                wa = np.minimum(wa, 1 - wc)
+                Wp = np.c_[Wp * (1 - wc - wa)[:, None], wc, wa]
+                bones_t += [sd + 'Shoulder', sd + 'UpperArm']
             for i, b in enumerate(bones_t):
                 W.setdefault(b, []).append((nv, Wp[:, i]))
             keep_w['torso'] = (nv, bones_t, Wp)
@@ -990,7 +996,10 @@ def build_body_data(spec, chin, log=print):
         tb, tW = keep_w['torso'][1], keep_w['torso'][2]
         rimW = tW[rim - t0]
         armW = aW[:N]
-        g = (u * u * (3 - 2 * u))[:, None, None]
+        wk = 'shoulder_%s_w' % sd
+        ua, ub = (float(x) for x in (Z[wk][:2] if wk in Z.files else (0.0, 1.0)))
+        g = np.clip((u - ua) / max(ub - ua, 1e-9), 0, 1)
+        g = (g * g * (3 - 2 * g))[:, None, None]
         allb = list(tb) + [b for b in abones if b not in tb]
         Rw = np.zeros((N, len(allb)))
         Aw = np.zeros((N, len(allb)))
