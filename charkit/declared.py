@@ -377,7 +377,16 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     o_ = skeletonize(fit(lines, sh) & zone_o & ndimage.binary_dilation(Mo, iterations=2))
     o_len = float(o_.sum()) / ppl
     if relative:
-        o_ = remap_rows(o_, Ro, R)
+        # the drawn region's span by the same rule as ours (its pixels of that class, closed, filled): the drawn mask
+        # closed takes in what lies between its parts (dark pixels under the panel's hem in three-quarter)
+        cld = ctx.get('cls')
+        Rs = R.copy()
+        if cld is not None:
+            h, w = min(sh[0], cld.shape[0]), min(sh[1], cld.shape[1])
+            c_ = np.zeros(sh, bool)
+            c_[:h, :w] = cld[:h, :w] == bodyqa.CLASS[relative]
+            Rs = ndimage.binary_fill_holes(ndimage.binary_closing(R & c_, iterations=3))
+        o_ = remap_rows(o_, Ro, Rs)
     r = tol * ppl
     near_o = ndimage.distance_transform_edt(~o_) <= r if o_.any() else np.zeros(sh, bool)
     near_d = ndimage.distance_transform_edt(~d_) <= r
