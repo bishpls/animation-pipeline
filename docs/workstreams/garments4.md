@@ -1270,3 +1270,11 @@ the targets (g7_base, pipeline-3d's default before the switch; builds g7_base / 
   tool/garments4-shoulders --into pipeline-3d` (or a re-gate with --accept naming them); (2) round 8 (fresh agent): the
   separated references, then the flat lapels and the puffs' dome (handoff above); tools/garments5/v/candidate_shoulder.json
   is unchanged (its socket keys implicit: the same values as the default's explicit ones).
+- **Coordinator (Michael's decision, finishing it)**: accept motion_*_skirt_* by name (the 2x2 couldn't run the old motion
+  measure on the joined body; the new measure identical on both); refresh motion_kick_skirt_inside's record on today's
+  skirt with a note (done: verdict miscalibrated, noted as upstream drift; a non-calibrated verdict still blocks under
+  the gate's calibration rule: the coordinator's call); merge pipeline-3d 241f0547 (tool/rom, tool/hairtruth; done,
+  56227cc2); accept rom_weights_stray ("the joined shoulder's bridge carries neck weight; fixed by tool/motion1") and any
+  other rom_* the switch regresses; re-gate cold (--args "--cache refresh") with the full --accept list
+  (charkit/out/garments7/accept_list.txt). Gate 4 running (log charkit/out/garments7/gate4.log). Michael's flag: a big
+  kink in the raised arm on the round-7 review page: tool/motion1's first item.
