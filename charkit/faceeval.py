@@ -57,11 +57,11 @@ def _tris(faces):
 
 
 # ------------------------------------------------------------------------------------------------------------ geometry
-def skin_quads(A, below=0.55, levels=1, box=None, carry=None):
+def skin_quads(A, below=0.55, levels=1, box=None, carry=None, parents=False):
     """the skin as Blender evaluates it: the head and neck (from `below` L under the chin up) subdivided like its modifier
     (the eye margins creased): levels 1 as the QA reads meshes (the viewport level), 2 as a render draws it; box: only
     the skin inside (x0, x1, z0, z1) world; carry: per-vertex values (N, k) subdivided alongside (vertex group weights,
-    as the modifier carries them). -> (V, quads, per-quad material (0 body, 1 head, 2 mouth cavity, 3 eye line)), and
+    as the modifier carries them); parents: each quad's assembly face too (a bundle variant's `parent`). -> (V, quads, per-quad material (0 body, 1 head, 2 mouth cavity, 3 eye line)), and
     the carried values when asked."""
     V = np.asarray(A['verts']); Hd = A['head']; L = Hd['L']
     if carry is not None:
@@ -81,6 +81,8 @@ def skin_quads(A, below=0.55, levels=1, box=None, carry=None):
     fm = np.asarray(A['fmat'])[fi][parent]
     if carry is not None:
         return V1[:, :3], quads, fm, V1[:, 3:]
+    if parents:                                        # (each quad's assembly face: a bundle variant's `parent`)
+        return V1, quads, fm, np.asarray(fi)[parent]
     return V1, quads, fm
 
 

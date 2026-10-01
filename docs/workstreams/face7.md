@@ -36,7 +36,29 @@ unchanged by construction.
   remake of a preview's head/body codes (`getattr(cli, 'head_code')` -> cli.code_head).
 - `headfit.LAST`: the last assemble()'s per-row cheek fit (raw, smoothed, the contour), for labs.
 
+## Sweeps
+
+- **sw1** (local, before the memory call; `charkit/out/face7/sw1`): the noop splice reproduces the base exactly. The
+  head-fit rows read nothing new: code_base.head_sections' in-process cache was keyed without the style's face section
+  (fixed: the key carries face_style). The skin match: worst 4.2 mm between the base's Blender skin and the evaluator's
+  (some vertices; where is logged now). eyes.wrap (front view kept by construction): eye_corner_profile -0.074 -> +0.062
+  (wrap 0.5) / +0.146 (1.0), close-up -0.087 -> +0.046 / +0.131, three-quarter 0.017 -> 0.072 / 0.12 (overshoots past
+  ~0.25); the profile spikes 0 -> 0.75 PASS, iris 3/4 1.127 -> 1.096 PASS, close-up profile iris 0.936 -> 0.982; but the
+  front spikes 1.0 -> 0.33 FAIL and face_piece_lash front 0.49 -> 0.41 (-16%): the spikes stand rigid at their root's
+  depth and the skin over the lid (fading back to the face over fold_reach) came in front of them. New knob
+  `eyes.wrap_reach` (L): the skin follows the wrap that far out.
+- **sw2** (render box, base `charkit/out/face7_a`; decl `charkit/out/remote/face7_sw2.json`): cheek refit x4, forehead
+  x4, wrap 0.15-0.3 with wrap_reach 0.07 / wrap_from 0.2, scale_smooth 0.015 / 0.035 (the jaw WARNs).
+- Box build `charkit/out/face7_a` (control, 0a50c46c, render box, 1600 s wall incl. a hull miss): every face check as
+  52f6324 plus the 8 new ones (face_contour_three_quarter 0.774 FAIL, brow_len_closeup_profile 0.713 FAIL,
+  eye_corner_profile -0.074 FAIL, close-up profile -0.087 FAIL, front 0.022 / close-up front -0.033 / 3/4 0.017 PASS,
+  brow_len_closeup_front 1.022 PASS).
+
 ## State
+
+- Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
+  to the build box (no `--box render`); `--box render` only for builds whose boards I need. sw2 (already running on the
+  render box) left to finish. Build-box sweep base: `charkit/out/face7_b0` (7e89130f, defaults = control, boards views).
 
 - WIP commit 0a50c46c (defaults unchanged: every new knob off). Coordinator (2026-10-01): the laptop's memory is
   critical: no new local heavy jobs; sweeps, builds, labs on the boxes (`charkit sweep --box`, `remote run|build`).

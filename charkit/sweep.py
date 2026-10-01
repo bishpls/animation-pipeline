@@ -521,7 +521,7 @@ class FaceStage(QAStage):
             S = cli.code_head(copy.deepcopy(spec), os.path.join(out, 'spec.json'), out, 'off' if style else 'on')
             view = mouthlib.view_knobs(mouthlib._knobs(S.get('mouth'))) is not None
             A = character.assemble(S, keys=view)            # (the per-shot mouth keys need the keyed assembly)
-            V1, quads, fm = faceeval.skin_quads(A, below=1e3)
+            V1, quads, fm, par = faceeval.skin_quads(A, below=1e3, parents=True)
             b = bl.Builder({k: v for k, v in S.items() if k != '_dir'}, bl.assembly_meta(A, S), None)
             faceeval.materials(b, S)
             faceeval.features(b, A, S, keys=False)
@@ -540,7 +540,9 @@ class FaceStage(QAStage):
         step = next((l.split(' ', 2)[-1] for l in buf.getvalue().splitlines() if l.startswith('CHARKIT_CACHE code_head')),
                     'uncached' if style else None)
         VK = A['mouth'].get('view_keys') or {}
-        got = {self.SKIN: dict(V=np.asarray(V1, float), F=np.asarray(quads), kind='skin', render=render,
+        ac = bl.assembly_variant(A)
+        got = {self.SKIN: dict(V=np.asarray(V1, float), F=np.asarray(quads), kind='skin', render=render, fm=fm, parent=par,
+                               cage_loopv=ac['loopv'], cage_counts=ac['counts'], cage_pmat=ac['pmat'],
                                cage=np.asarray(A['verts'], float), meta=bl.assembly_meta(A, S), step=step,
                                keys={n: P['skin'] for n, P in VK.items()}, spec=S)}
         for o in Bf.objects(visible=False):
@@ -590,14 +592,46 @@ class FaceStage(QAStage):
                           vn, int(off.sum()), len(Vb), self.MATCH, d.max(), zl.min(), zl.max()))
         return self._ref
 
+    def _replaced(self, sk):
+        """the skin's arrays when the row's head has another topology than the base's (the cage's blocks fall on other
+        columns: a cheek term moves the mouth block's edge across a column): its eval and bare variants and its cage
+        (base, assembly) replaced whole by the evaluator's (no UVs, masks or expression keys: the rest pose's measures
+        only), the masked one kept as the base's (the garments' cut; the head isn't under it). -> (rep, drop)."""
+        R = self.reference()
+        print('sweep face: the row\'s skin has %d vertices, the base\'s %d (the cage\'s topology moved): its eval, bare '
+              'and cage replaced whole' % (len(sk['V']), len(R['V1'])))
+        files = self.B0._arrays.files if hasattr(self.B0._arrays, 'files') else list(self.B0._arrays)
+        rep, drop = {}, []
+        q = np.asarray(sk['F'])
+        cnt = np.full(len(q), q.shape[1], np.int32)
+        for vn in ('eval', 'bare'):
+            p = 'o/%s/%s/' % (R['name'], vn)
+            if not self.B0.has(p + 'V'):
+                continue
+            rep.update({p + 'V': sk['V'].astype(np.float32), p + 'loopv': q.ravel().astype(np.int32), p + 'counts': cnt,
+                        p + 'pmat': np.asarray(sk['fm'], np.int16)})
+            keep = ('V', 'loopv', 'counts', 'pmat')
+            if vn == 'eval':
+                rep[p + 'parent'] = np.asarray(sk['parent'], np.int32)
+                keep += ('parent',)
+            drop += [f for f in files if f.startswith(p) and f[len(p):] not in keep]
+        for vn in ('base', 'assembly'):
+            p = 'o/%s/%s/' % (R['name'], vn)
+            if not self.B0.has(p + 'V'):
+                continue
+            rep.update({p + 'V': sk['cage'], p + 'loopv': np.asarray(sk['cage_loopv'], np.int32),
+                        p + 'counts': np.asarray(sk['cage_counts'], np.int32),
+                        p + 'pmat': np.asarray(sk['cage_pmat'], np.int16)})
+            drop += [f for f in files if f.startswith(p) and f[len(p):] not in ('V', 'loopv', 'counts', 'pmat')]
+        return rep, drop
+
     def bundle(self, objs):
         rep, drop = {}, []
         sk = objs.get(self.SKIN)
-        if sk is not None:
+        if sk is not None and sk['V'].shape != self.reference()['V1'].shape:
+            rep, drop = self._replaced(sk)
+        elif sk is not None:
             R = self.reference()
-            if sk['V'].shape != R['V1'].shape:
-                raise RuntimeError('sweep face: the row\'s skin has %d vertices, the base\'s %d (the head\'s topology '
-                                   'changed: the splice needs the same cage)' % (len(sk['V']), len(R['V1'])))
             D = sk['V'] - R['V1']
             a = self.B0._arrays
             for vn, i in R['idx'].items():
@@ -608,6 +642,9 @@ class FaceStage(QAStage):
                 p = 'o/%s/%s/' % (R['name'], vn)
                 if self.B0.has(p + 'V') and len(a[p + 'V']) == len(sk['cage']):
                     rep[p + 'V'] = (np.asarray(a[p + 'V'], float) + sk['cage'] - R['cage']).astype(a[p + 'V'].dtype)
+        if sk is not None:
+            R = self.reference()
+            a = self.B0._arrays
             for tag, G in sk['render'].items():
                 p = 'o/%s/render_eye_%s/' % (R['name'], tag)
                 if self.B0.has(p + 'V'):
