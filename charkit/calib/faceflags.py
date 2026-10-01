@@ -16,6 +16,9 @@ Generators (the floor; seeded, each a random stand-in that must not pass):
                   1.8-2.5)
   mouth_moved     the mouth moved 0.03-0.06 L up or down and 0.03-0.06 L across, at random
   nose_moved      the nose's mark moved 0.03-0.06 L in a random direction, 5-20% of its ink kept
+  corner_moved    each eye's masks warped so its far corner moves 0.15-0.3 opening heights up or down (tool/face7)
+  contour_moved   the face's leading contour at the mouth's rows moved 12-25% nearer or further (tool/face7)
+  brow_lengthened each brow rebuilt 0.6-0.8x or 1.25-1.5x as long (tool/face7)
 """
 import numpy as np
 
@@ -28,6 +31,35 @@ CALIBRATION = [
          baseline=['lash_blocked'], shape=['face_piece_lash']),
     dict(check='eye_lash_gaps_*', part='face_flags', adapter='FaceFlags', known_bad='face6_before',
          baseline=['lash_smoothed'], shape=['face_piece_lash'], better='higher'),
+    # tool/face7 (Michael's 2026-10-01 items on the face6 build, 52f6324's state: face7_before); before 'brow_*' (an
+    # entry is the first that matches a name) and by exact names (a pattern needs the current build's qa.json to have it)
+    dict(check='eye_corner_profile', part='face_flags', adapter='FaceFlags', known_bad='face7_before',
+         baseline=['corner_moved'], shape=['face_piece_lash', 'face_piece_iris']),
+    dict(check='eye_corner_closeup_profile', part='face_flags', adapter='FaceFlags', known_bad='face7_before',
+         baseline=['corner_moved'], shape=['face_piece_lash', 'face_piece_iris']),
+    dict(check='eye_corner_front', part='face_flags', adapter='FaceFlags', known_bad=None,
+         no_known_bad="the front corner was never flagged: it holds the eye's front while the profile's far corner "
+                      "moves (a turned eye keeps every (x, z): its front is unchanged by construction)",
+         baseline=['corner_moved'], shape=['face_piece_lash', 'face_piece_iris']),
+    dict(check='eye_corner_closeup_front', part='face_flags', adapter='FaceFlags', known_bad=None,
+         no_known_bad="the front corner was never flagged: it holds the eye's front while the profile's far corner "
+                      "moves (a turned eye keeps every (x, z): its front is unchanged by construction)",
+         baseline=['corner_moved'], shape=['face_piece_lash', 'face_piece_iris']),
+    dict(check='eye_corner_three_quarter', part='face_flags', adapter='FaceFlags', known_bad=None,
+         no_known_bad="the three-quarter's near eye was never flagged: it holds while the profile's far corner moves",
+         baseline=['corner_moved'], shape=['face_piece_lash', 'face_piece_iris']),
+    dict(check='face_contour_three_quarter', part='face_flags', adapter='FaceFlags', known_bad='face7_before',
+         baseline=['contour_moved'], shape=['face_piece_mouth']),
+    dict(check='mouth_place_three_quarter_override', part='face_flags', adapter='FaceFlags', known_bad=None,
+         no_known_bad="the per-shot override is new (off by default; no build had it): it reads the drawn placement "
+                      "as mouth_place_three_quarter does, with the override's keys on",
+         baseline=['mouth_moved'], shape=['face_piece_mouth'], better='lower'),
+    dict(check='brow_len_closeup_profile', part='face_flags', adapter='FaceFlags', known_bad='face7_before',
+         baseline=['brow_lengthened'], shape=['face_piece_brow']),
+    dict(check='brow_len_closeup_front', part='face_flags', adapter='FaceFlags', known_bad=None,
+         no_known_bad="the front brow's length was never flagged: it holds the brow's x extent while the forehead "
+                      "rounds and the profile's length grows",
+         baseline=['brow_lengthened'], shape=['face_piece_brow']),
     dict(check='brow_*', part='face_flags', adapter='FaceFlags', known_bad='face6_before',
          baseline=['brow_warped'], shape=['face_piece_brow']),
     dict(check='mouth_smile_*', part='face_flags', adapter='FaceFlags', known_bad='face6_before',
@@ -93,6 +125,22 @@ def _move(m, dy, dx):
     return _moved(m, dy, dx)
 
 
+def _corner_warp(m, side, s):
+    """an eye's mask with its columns shifted up (s > 0) or down by s x the opening's height times t^2, t 0 at its
+    inner end and 1 at its outer (her left eye's outer end the picture's right): its far corner moves, its inner part
+    stays."""
+    if m is None or not m.any():
+        return m
+    rows, cols = np.nonzero(m.any(1))[0], np.nonzero(m.any(0))[0]
+    h = rows[-1] - rows[0] + 1
+    out = np.zeros_like(m)
+    for c in cols:
+        t = (c - cols[0]) / max(1, cols[-1] - cols[0])
+        t = t if side == 'L' else 1 - t
+        out[:, c] = np.roll(m[:, c], -int(round(s * h * t * t)))
+    return out
+
+
 def perturb(F, kind, seed):
     """a copy of a read's design features perturbed by a generator (see the module)."""
     from charkit import faceflags as ff
@@ -142,6 +190,26 @@ def perturb(F, kind, seed):
     elif kind == 'mouth_moved' and F.get('mouth') is not None:
         dy, dx = (rng.choice((-1, 1)) * rng.uniform(0.03, 0.06) * ppl for _ in range(2))
         F['mouth'] = _move(F['mouth'], dy, dx)
+    elif kind == 'corner_moved':
+        E2 = {}
+        s_ = rng.choice((-1, 1)) * rng.uniform(0.15, 0.3)          # (both eyes the same way: a symmetric stand-in)
+        for side, E in (F.get('eye_masks') or {}).items():
+            if E is None or not E['O'].any():
+                E2[side] = E
+                continue
+            E2[side] = {k: _corner_warp(m, side, s_) for k, m in E.items()}
+        F['eye_masks'] = E2
+    elif kind == 'contour_moved' and F.get('lead') is not None:
+        from charkit.faceflags import CONTOUR_ROWS
+        ax, ey = F['anchor']
+        f = rng.choice((-1, 1)) * rng.uniform(0.12, 0.25)
+        lead = F['lead'].copy()
+        r0, r1 = int(ey + (CONTOUR_ROWS[0] - 0.05) * ppl), int(ey + (CONTOUR_ROWS[1] + 0.05) * ppl)
+        sl = slice(max(0, r0), max(0, r1) + 1)
+        lead[sl] = ax - (ax - lead[sl]) * (1 + f)
+        F['lead'] = lead
+    elif kind == 'brow_lengthened':
+        F['brow'] = {s_: _rebuild(m, length=_either(rng, (0.6, 0.8), (1.25, 1.5))) for s_, m in F['brow'].items()}
     elif kind == 'nose_moved' and 'nose_ink' in F:
         a, r = rng.uniform(0, 2 * np.pi), rng.uniform(0.03, 0.06) * ppl
         keep = rng.uniform(0.05, 0.2)
@@ -163,7 +231,13 @@ class FaceFlags:
         ('mouth_moved', 'the mouth moved 0.03-0.06 L up or down and 0.03-0.06 L across, at random'),
         ('nose_moved', "the nose's mark moved 0.03-0.06 L in a random direction, 5-20% of its ink kept"),
         ('lash_smoothed', 'the upper lash line low-passed (a Gaussian of 0.6-1.2 x its band, cut at half): its thin '
-                          'spikes and the gaps between its strokes gone'))}
+                          'spikes and the gaps between its strokes gone'),
+        ('corner_moved', "each eye's masks warped (both eyes the same way): its columns shifted 0.15-0.3 x the "
+                         "opening's height up or down times t^2 (0 at the inner end, 1 at the outer): the far corner "
+                         "moved, the inner part kept"),
+        ('contour_moved', "the face's leading contour over the mouth's rows (and 0.05 L either side) moved 12-25% "
+                          "nearer or further from the eyes' midpoint"),
+        ('brow_lengthened', 'each brow rebuilt 0.6-0.8x or 1.25-1.5x as long'))}
 
     def __init__(self, B, design):
         self.B, self.design = B, design
@@ -183,4 +257,5 @@ class FaceFlags:
             Nd, No = ff.numbers(Fd), ff.numbers(Fo)
             shapes[(sheet, view)] = ff.pair(Fd, Fo, No)
             reads[(sheet, view)] = (Nd, No)
+        reads[ff.OVERRIDE] = reads[('turnaround', 'three_quarter')]     # (the override's read: the same stand-in)
         return ff.checks_of(reads, shapes)

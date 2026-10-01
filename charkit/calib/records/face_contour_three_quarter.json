@@ -1,0 +1,93 @@
+{
+ "check": "face_contour_three_quarter",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-10-01T10:08:15",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "face_piece_mouth"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.974,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.958,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.014,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.023,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.021,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.036,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.985,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.974,
+    "PASS"
+   ]
+  },
+  "min": 0.958,
+  "max": 1.036,
+  "spread": 0.078,
+  "median": 0.9995
+ },
+ "known_bad": {
+  "name": "face7_before",
+  "value": 0.774,
+  "status": "FAIL"
+ },
+ "floor": {
+  "contour_moved": {
+   "values": [
+    1.208,
+    0.787,
+    0.839,
+    0.77,
+    0.852
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.839,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.775,
+  "status": "FAIL",
+  "margin": -0.399
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.078), face7_before reads 0.774 FAIL, the floor contour_moved FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/face7_g1",
+ "generators": {
+  "contour_moved": "the face's leading contour over the mouth's rows (and 0.05 L either side) moved 12-25% nearer or further from the eyes' midpoint"
+ },
+ "seconds": 38.4
+}

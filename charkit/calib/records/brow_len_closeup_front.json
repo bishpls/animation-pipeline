@@ -1,0 +1,91 @@
+{
+ "check": "brow_len_closeup_front",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-10-01T10:08:15",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_brow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.993,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.993,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.993,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.993,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.993,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.993,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.993,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.993,
+    "PASS"
+   ]
+  },
+  "min": 0.993,
+  "max": 0.993,
+  "spread": 0.0,
+  "median": 0.993
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the front brow's length was never flagged: it holds the brow's x extent while the forehead rounds and the profile's length grows",
+ "floor": {
+  "brow_lengthened": {
+   "values": [
+    1.353,
+    1.456,
+    1.324,
+    0.721,
+    0.617
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 1.324,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.022,
+  "status": "PASS",
+  "margin": 0.912
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the front brow's length was never flagged: it holds the brow's x extent while the forehead rounds and the profile's length grows); the design passes and the floor does not",
+ "build": "charkit/out/face7_g1",
+ "generators": {
+  "brow_lengthened": "each brow rebuilt 0.6-0.8x or 1.25-1.5x as long"
+ },
+ "seconds": 38.4
+}
