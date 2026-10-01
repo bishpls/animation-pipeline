@@ -120,15 +120,23 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   Records on hst_s1: all 13 CALIBRATED, committed (54a0c57).
 - Pregate (54a0c57 into 3168961): PASS, 2 moved, 0 blocking
   (charkit/out/pregate/pregate_tool-hairstrokes_54a0c578_into_31689611.md).
-- **Box gate running:** job gate-hairstrokes-1001-061007-9305 (tool/hairstrokes 54a0c57 into pipeline-3d 3168961; log
-  charkit/out/hairstrokes/gate.log; the first follower died on ssh drops, reattached: gate_attach.log; if that dies too,
-  `python -m charkit remote attach gate-hairstrokes-1001-061007-9305` collects the report).
+- **Gate 1: FAIL under K, 4 blockers** (54a0c57 into 3168961;
+  charkit/out/gate/gate_tool-hairstrokes_54a0c578_into_31689611.md): (1) test_spec_alias.py: clawd_body_pieces.json
+  is an alias of clawd.json and lacked the strokes block (fixed); (2-4) hair_back_lines, hair_lock_lines_profile,
+  hair_lock_lines_three_quarter are remeasured (hairflagqa now draws ink strokes as ink) and need refreshed records
+  (steps registered against ae33ac8 in charkit/steps/hairflagqa.py, and hair_noise's in steps/qa3d.py). Otherwise:
+  no new FAIL, no flag grade regression (flag values moved: lock lines 3q 0.176 -> 0.281, profile 0.104 -> 0.167,
+  peeks 17 -> 18, back lines 0.894 -> 0.928), 0 guard findings, build CPU 1.22x, the 13 new checks calibrated. The
+  2x2: the hair flags read the same on the old geometry under the new measure (0.894, 0.1044, 0.1764).
 
 ## Exact next steps (lean relaunch)
-1. Read the gate (charkit/out/gate/gate_tool-hairstrokes_54a0c57_into_3168961.md; attach the job above if the
-   report isn't there). If it asks for remeasure steps
-   (hairflagqa's lines/parts and qa3d.hair_noise now read ink-slot faces as lines; values unchanged without strokes),
-   register them in charkit/steps/hairflagqa.py and steps/qa3d.py against ae33ac8.
+1. Refresh the three remeasured flags' records: copy the known-bad store
+   `~/animation-pipeline-hair4/charkit/out/calib/builds/hair5_1580f95` into this worktree's
+   charkit/out/calib/builds/ (read-only source), then `python -m charkit calibrate
+   hair_back_lines,hair_lock_lines_three_quarter,hair_lock_lines_profile --build charkit/out/hst_s1` (writes
+   charkit/calib/records/; expect CALIBRATED: the design reads the same, hair5_1580f95 has no strokes). Commit, pregate,
+   `python -m charkit remote gate tool/hairstrokes --into pipeline-3d` (the box ssh drops often: if the follower
+   dies, `remote attach JID`). Merge pipeline-3d first if it moved.
 2. Review page (charkit review page): design | today (hst_base) | strokes (hst_s1) per view at matching scale, the
    boards' close-ups of the side locks and buns; tools/ovl.py, bunov.py pictures. Asked of Michael: the per-view cost
    (strokes from one view don't match another view's texture: density WARN in every view, by design of the rule);
@@ -139,5 +147,5 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
    (e) the underside tone (hair_toon `inner` / under families), (f) highlight marks (traced, view-aware), gate.
 
 ## Jobs
-- Done: box build charkit/out/hst_s1 (build_s1.log); calib3 (lab); calib_s1 (records); pregate. Running: the gate
-  gate-hairstrokes-1001-061007-9305.
+- Done: box build charkit/out/hst_s1 (build_s1.log); calib3 (lab); calib_s1 (records); pregate; gate 1 (FAIL, 4
+  blockers: next steps 1). None running.
