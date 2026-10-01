@@ -4002,6 +4002,8 @@ def collar_hull(A, spec, normals, hull):
     V = conform(G['verts'], G['faces'], P, L, reach=spec.get('reach', 0.12), k=spec.get('conform_k', 8),
                 smooth=spec.get('conform_smooth', 3))
     G['verts'] = V + vertex_normals(V, G['faces']) * spec.get('lift', 0.005) * L
+    if spec.get('pad'):                       # (the jacket's shoulder pad under it: the same lift, so it lies on it)
+        G['verts'] = shoulder_pad(A, G['verts'], G['faces'], spec['pad'])
     return G
 
 
