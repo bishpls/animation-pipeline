@@ -150,6 +150,10 @@ is a decision for Michael. The flaps alone are drawn too wide in both takes.
 - Box gate: **PASS under K** (32b5d354 into 31689611): nothing moved, 0 items, build CPU 906.1 -> 894.3 s (0.99x;
   the build lists the manifest and the new PNGs as read, but no stamp changed), 92 test files ok. Report
   charkit/out/gate/gate_tool-layerrefs_32b5d354_into_31689611.md.
+- Follow-up (282cdb32, merged with pipeline-3d 393539e7 as 124c1a51): pregate PASS (0 moved, 0 blocking, 105 s);
+  box gate job `gate-layerrefs-1001-065053-c3b3` running at wrap-up (account at 95% capacity): read it with
+  `python -m charkit remote attach gate-layerrefs-1001-065053-c3b3`; expected to move nothing (manifest prose and a
+  new PNG only, no stamp change), as the first gate didn't.
 - Next (for whoever continues): Michael's calls (the base body's profile; the skirt row's hidden-hem level; a
   clips-alone sheet from enlarged clip crops); then the remaining gaps by rank: the flaps alone, the shorts alone (on
   a dress form), the cream panel's hidden extent, the hair over the nape (three-quarter and back of a hair-free head).
