@@ -394,17 +394,35 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
    - Review page `charkit/out/pieceref/review/index.html` (review.py b2_before_res pr3 t12; summary.json): w4 kept,
      the attribution with pictures, the options measured and not taken (t12, c1, r1/r2), the three questions.
 
-## Next steps (round 6; the coordinator decides first)
-1. The coordinator: named acceptances, or the collar's and sleeves' placement brought forward to the garments round
-   (the sleeve caps 0.06 L low; the lapels ending inside the bow's top edge as drawn). tool/sleeves (paused) conflicts
-   with this branch in collarqa.py and steps/collarqa.py.
-2. The bow's own blockers, if not accepted: t12's sets (`ribbon.root` .155, `root_back` .006, `root_seat` .5,
-   `pleat.tuck` [.04,.3], `strip_ov` .07) clear the four torn checks; what's left is the knot's lower line (knotring
-   0.983, knot_line 0.18 W): the tails' turned top row still stands in front of the knot's bottom; try the top row
-   un-turned (turn eased in from 0 over the first tenth) rather than seated back. The bleed: c1's column push clears it
-   without folds but moves mid-lobe 0.08 L (the strips' rims buried deep): bring the strips' lower rims out of the
-   bust at the source (their step behind the panel smaller toward the outer half) and push only what's left.
-3. Build CPU sits at 1.49x: any added geometry must pay for itself.
+   - **Coordinator's decision (round 5's end; Michael may switch it): land the measurement, hold the geometry.**
+     0cfac70a: `garments.bow_spec` resolves `pleat.on`; the default spec (clawd.json = clawd_body_pieces.json) has the
+     close-hung pillow bow on (Michael's choice, as at 2dc325a: knot 0.6, end 0.2, end_p [4, 1.4], drop 0.2, ribbon
+     turn 20, w [0.204, 0.338]) and the pleated bow OFF: `pleat` {on: false, w4's keys, tuck [.04,.3], strip_ov .07,
+     knot_box [.10,.09,.145,.02], tails {root .155, root_back .006, root_seat .5}} (w4 + t12 behind one switch; test
+     test_one_switch_turns_the_pleated_bow_and_its_fixes_on_together). The measurement lands: partqa/isoqa/bowqa's
+     checks and records, bow_profile_ribbon's remeasure (accepted), bow_part_knot_iou on its tightened lines. On the
+     current bow the new bow_part_*/iso_* checks read FAIL (reported, new checks). Close-hung pillows' own readings from
+     round 2's box build b2_close (for the gate's reader): bow_front_bleed 0.205 F and bow_front_loop_end 0.244 W were
+     its values there (pipeline-3d's bow 0.0 P / 0.121 P): if the batch gate shows them, they are the close-hung
+     option's, not this round's.
+   - pipeline-3d de2fa87 (tool/hands) merged (59ce8f96; prompts.json: both kept). The coordinator gates this branch
+     in a batch with tool/face6 and tool/sweep (no gate of mine this round).
+
+## The garments round's plan (coordinator)
+Turn w4 + t12 on (`pleat.on: true`) in the same gate as the neighbours' placement fixes, so the bow's corners meet
+pieces placed as drawn:
+1. **The collar's lapels** end inside the bow's top edge as drawn (now they reach out to the lobes' upper outer
+   corners: art_outline_collar 1.379 -> 2.096 W, 3 corners in front against 1).
+2. **The sleeve caps** 0.06 L higher (our top row 394 against the drawn 381 at 212.5 px/L): the bow's corner then no
+   longer bites the cap's inner top (sleeve_front_spikes_L/R 0.029/0.019 F).
+3. **The bust/loop contact behind the bleed** (bow_front_bleed 0.275 F): the strips' lower rims buried in the bust,
+   which comes toward the camera under them; the non-folding column push (`clear` mode 'column', c1) clears it but
+   moves mid-lobe 0.08 L forward. Bring the strips' rims out of the bust at the source (their step behind the panel
+   smaller toward the outer half) and push only what remains, or shape the bust/jacket under the loops.
+4. With t12 on: the bow's torn checks and collar_front_torn PASS (splice t12); the knot's lower line still thin
+   (knotring 0.983, bow_part_knot_line 0.18 W): the tails' turned top row stands in front of the knot's bottom (try it
+   un-turned, the turn eased in over the first tenth). Build CPU sat at 1.49x with w4 on.
+tool/sleeves (paused) conflicts with this branch in collarqa.py and steps/collarqa.py.
 
 ## Round 3's next steps (done but as noted in State 13)
 1. **bow_front_bleed on w4** (flag; baseline b2_before 0.0 P: must PASS, <= 0.03): add u (along the lobe) to
