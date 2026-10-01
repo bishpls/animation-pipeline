@@ -375,3 +375,25 @@ fits, builds and calibrations run on the boxes; local work is light (single eval
   Next: `remote run --fetch charkit/out/hands2/box_fit3 hand fit --build charkit/out/hands2_s1 --floors ... --method de
   --workers 16 --maxiter 30 --rounds 1 --maxfev 300 --png/--json charkit/out/hands2/box_fit3/...`, then setknobs.py,
   the after-build on --box render2 (boards body,design), calibrate on the build box.
+- **s1's QA (build box, start knobs; vs the before hands2_base):** gaps 0.10-0.19 FAIL -> 0-0.018 PASS (every graded
+  view); taper 0.15-0.25 FAIL -> within 0.07 PASS; cleftpos front L/R, back R PASS, back L FAIL 0.071 (drawn 0.565: the
+  drawing's L/R differ by 0.05 in back), profile FAIL -0.338, 3q L WARN 0.043; reach within 0.02 L (profile -0.066 WARN,
+  was -0.088 FAIL); hand_shape_L 0.510 -> **0.403 (profile: the guard)**, views front 0.756/0.774, 3q 0.656/0.625, back
+  0.743/0.745. Moved, not blocking: body_front_skirt_width PASS 0.982 -> WARN 0.861 and body_three_quarter_skirt_aline
+  PASS -0.012 -> WARN 0.09 (both read the rows no hand touches: ours now blocks every row the design leaves free, so
+  skirt_width falls back to the waist rows, 0.76 vs 0.88 L); digits back WARN +2 (our seams show 4, drawn 2); 3q cleft L
+  WARN 0.42; art_bumps_legs 0 PASS; piece_cuff unchanged.
+- **fit3 (build box, job via `remote run --fetch charkit/out/hands2/box_fit3`): DE 30 generations (7936 evaluations,
+  16 spawned workers) + Powell 300.** Fit-scale IoU front 0.771/0.793, 3q 0.769/0.715, back 0.760/0.765, profile 0.478;
+  gaps 0; taper 0.41-0.44 vs drawn 0.40-0.48; cleftpos front 0.625/0.602 (drawn 0.644/0.639), 3q L 0.626 (0.622), back
+  0.608/0.610 (0.565/0.616), profile -0.02 (0.736: our pocket in profile is the wrist's); wrist 0.78-0.83 (drawn
+  0.78-0.84; 3q L 0.78 vs 0.69, profile 0.87 vs 0.66). Knobs (e2db92f): length 0.685, palm 0.4345, palm_w 0.219, wrist_w
+  0.169, palm_t 0.081, taper 0.567, overlap 0.215, spread -1.06, curl 6.3, thumb_len 0.345, thumb_w 0.047, thumb_out
+  14.2, thumb_down 1.9, thumb_base 0.100, bend -2.3, dev -0.84 (yaw 61.9, out 5.5 kept). Fist: knuckles 0.77 of rest,
+  thumb 0.94; neighbours' deepest overlap 0.009-0.010 L in the fist vs 0.012-0.015 at rest (held together by design).
+- Known-bad stores pushed to the build box (bucket push: comb_hand, mitten), so calibrate runs there.
+- **Running:** after-build with boards on render2 `charkit/out/hands2_after` (log after.log) and its QA-only twin on the
+  build box `charkit/out/hands2_after_q` (log after_q.log). Then: `remote run --fetch charkit/calib/records calibrate
+  NAMES --build charkit/out/hands2_after_q` (NAMES = the graded hand_* in after_q's qa.json, not the 3 EDGE_ON INFO),
+  the review page (`charkit review page`, before hands2_base | after hands2_after, regions hands + hands_close), pregate,
+  `remote gate tool/hands2 --into pipeline-3d`.
