@@ -415,8 +415,12 @@ fits, builds and calibrations run on the boxes; local work is light (single eval
 - Pregate skipped (laptop memory-critical; it runs the evaluator for both trees locally, and the box copy has no git):
   the after-build's real QA against the before stands in. Merged pipeline-3d 9be5b32 (40a0168). Gate launched.
 
-### Gate 1 of hands2 (40a0168 + notes c... into pipeline-3d 9be5b32): job gate-hands-1001-123155-2a02, log
-charkit/out/hands2/gate.log (result below when it lands)
+### Gate of hands2: **PASS under K** (tool/hands2 fc89db1d into pipeline-3d e003960d)
+Report charkit/out/gate/gate_tool-hands2_fc89db1d_into_e003960d.md. Nothing blocks: no new FAIL among existing checks,
+no flag regression, CPU 1.21x (1153.6 -> 1394.3 s); 39 calibration records accepted, 0 guard findings. Reported: the
+two skirt measures PASS -> WARN (body_front_skirt_width 0.982 -> 0.861, body_three_quarter_skirt_aline -0.012 ->
+0.09: the hand-row exclusion), the new hand_profile_cleftpos_L FAIL (-0.825; rest A's profile), flag values moved
+within PASS (art_mirror_waist 0.72 -> 0.754). The coordinator merges it as the interim (strictly better than the comb).
 
 ## Round 6: hands3, the structure from the hand sheet (coordinator, Michael's call 2026-10-01)
 The turnaround's hands are small with merged fingers (the canonical rule's step 2: internal structure it can't resolve),
