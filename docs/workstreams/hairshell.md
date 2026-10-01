@@ -187,6 +187,14 @@ their drawn locks mean 0.650; only 1 lock fitted jointly in two views (the ident
 8. Each step: `python -m charkit.geom.lockshell BUILD --opts ...` (fit, coverage, picture), then `charkit sweep` rows
    against the hull (the guard per view), `tools/hairshell/lockpics.py` for the truth, then Michael's call on the page.
 
+## Gate
+
+Merged pipeline-3d c18b0c1 (garments4 Part 1) -> 9509442. Pregate at 9509442: PASS, 0 moved, 0 blocking
+(`charkit/out/pregate/pregate_tool-hairshell_9509442e_into_c18b0c10.md`; the first pregate before the merge read
+garments4's 57 moves). Box gate running (`python -m charkit remote gate tool/hairshell --into pipeline-3d`, log
+`charkit/out/hairshell/gate.log`).
+
 ## Jobs
 
-- sweep 4 (laptop, background): `charkit/out/hairshell/sw4` (sides, pilot, pilot_over) + lock scores `lp4`.
+- the box gate (log above); render builds `charkit/out/hs_hull_r` (default) and `charkit/out/hs_shells_r` (the pilot
+  spec), boards views,body,design, for the review page.
