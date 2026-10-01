@@ -132,4 +132,11 @@ is a decision for Michael. The flaps alone are drawn too wide in both takes.
 
 ## State
 
-(updated as the round goes)
+- Review page: `charkit/out/layerrefs/review/index.html` (from `charkit/out/layerrefs/page.py` -> page.json).
+- Pregate: PASS (0 moved, 0 blocking, 225 s), charkit/out/pregate/pregate_tool-layerrefs_43f7e548+dirty_into_31689611.md.
+- Box gate: `python -m charkit remote gate tool/layerrefs --into pipeline-3d` launched (log
+  charkit/out/layerrefs/gate.log). Expected: no check moves (no build reads the new files; no top-level sha256 or
+  authority key added, so no produced reference restamps).
+- Next (for whoever continues): Michael's calls (the base body's profile; the skirt row's hidden-hem level; a
+  clips-alone sheet from enlarged clip crops); then the remaining gaps by rank: the flaps alone, the shorts alone (on
+  a dress form), the cream panel's hidden extent, the hair over the nape (three-quarter and back of a hair-free head).
