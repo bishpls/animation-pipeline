@@ -15,6 +15,24 @@ accqa.design) as our label images, scored by accqa.evaluate itself (its `labels`
                     covers must read hidden (no build hides the star, so this stands for its known-bad)
   compass           (floor, arms) the clips-alone sheet's star (an equal-armed compass star: side arms 0.48 of its height)
   four_point        (floor, minor) the star template without its minor points (the round-1 placeholder's structure)
+The crab's parts face-on (tool/accessories6: acc_crab_legs, _leg_reach, _leg_roots, _claw_fingers, _claw_notch,
+_stalks; the declared FACE view): the stand-in is the clips-alone sheet's crab: for a design move (dy, dx) redrawn at
+1 + 0.015 dy its scale and moved (dy, dx) / 2 px (each move a different raster of the same drawing), and each floor the
+sheet's crab with one part spoiled (charkit.limbs.spoil):
+  legless           (floor, legs) its legs cut to stubs at the body
+  short_legs        (floor, reach) its legs cut to 45% of their reach
+  thin_legs         (floor, width) its legs thinned to half their width
+  bottom_legs       (floor, roots) its legs turned under the body (55 degrees down round it)
+  solid_claws       (floor, fingers and notch) its claws' notches filled
+  no_stalks         (floor, stalks) its eye stalks cut
+The crab against the star (acc_crab_VIEW_bearing, _gap, _turn, _flow; the declared family 'pair'): the drawn clips stand
+for ours (the crab's axis the drawing's, accqa.CRAB_AXIS, turned with the stand-in); floors:
+  orbit             (floor, bearing) the drawn crab moved round the star by 90-150 degrees, turned with it
+  pointing_away     (floor, turn) the drawn crab turned so its claws point away from the star
+  across_flow       (floor, flow) the drawn crab turned 60-120 degrees in place
+  apart             (floor, gap) the drawn crab moved 0.06-0.1 L further from the star
+Known-bad acc_a3_crab: pipeline-3d 25ff0f25 (round 5's crab, A3: short legs under the body, solid round pincers; the crab
+under the star's lower tip, turned with it).
 Known-bad: acc_r4_overlap (pipeline-3d 00494de, round 4's placement: the star bent over the crab, the crab 62-78% shown)
 for the crab's visible share; it passes the other checks in some views, so those take floors (their verdict: guard).
 """
@@ -41,6 +59,7 @@ CALIBRATION = [
          baseline=['four_point'], shape=['acc_star_shape'], better='lower'),
 ]
 MOVE_UNDER = 0.05           # L: the probe's crab moved onto the star
+PAIR_FLOORS = ('orbit', 'pointing_away', 'across_flow', 'apart')    # the pair checks' floors (the crab against the star)
 TOUCH = 2                   # px: the probe's clips moved into each other
 
 
@@ -62,6 +81,37 @@ def _affine(m, s=1.0, deg=0.0, shift=(0.0, 0.0)):
     P = np.stack([yy - c[0] - shift[0], xx - c[1] - shift[1]], 0).reshape(2, -1)
     Q = Ri @ P + c[:, None]
     return ndimage.map_coordinates(m.astype(float), Q, order=0, mode='constant').reshape(m.shape) > 0.5
+
+
+def _resample(m, s=1.0, shift=(0.0, 0.0)):
+    """a mask redrawn at scale s about its centroid and moved shift px (rows, columns), bilinear then halved: a
+    different raster of the same drawing."""
+    from scipy import ndimage
+    ys, xs = np.nonzero(m)
+    c = np.array([ys.mean(), xs.mean()])
+    pad = int(abs(s - 1) * max(m.shape)) + 4
+    M = np.pad(m, pad).astype(float)
+    yy, xx = np.mgrid[0:M.shape[0], 0:M.shape[1]]
+    c = c + pad
+    return ndimage.map_coordinates(M, [(yy - c[0] - shift[0]) / s + c[0], (xx - c[1] - shift[1]) / s + c[1]], order=1,
+                                   mode='constant') >= 0.5
+
+
+def _turn(m, deg, about=None):
+    """a mask turned deg degrees counter-clockwise in the picture about a point (rows, columns; default its centroid)."""
+    from scipy import ndimage
+    if not m.any():
+        return m
+    if about is None:
+        ys, xs = np.nonzero(m)
+        about = (ys.mean(), xs.mean())
+    r0, c0 = about
+    a = np.radians(deg)
+    yy, xx = np.mgrid[0:m.shape[0], 0:m.shape[1]]
+    x, y = xx - c0, -(yy - r0)                                 # the target pixel in the picture's frame
+    sx = x * np.cos(a) + y * np.sin(a)                         # its source: turned back
+    sy = -x * np.sin(a) + y * np.cos(a)
+    return ndimage.map_coordinates(m.astype(float), [r0 - sy, c0 + sx], order=0, mode='constant') > 0.5
 
 
 def _onto(m, target, d=None):
@@ -86,7 +136,20 @@ class Clips:
         'star_under_crab': 'the drawn crab moved 0.05 L onto the star, over it',
         'compass': "the clips-alone sheet's star (side arms 0.48 of its height) as ours face-on",
         'four_point': 'the star template without its minor points as ours face-on',
+        'legless': "the clips-alone sheet's crab with its legs cut to stubs at the body (charkit.limbs.spoil)",
+        'short_legs': "the clips-alone sheet's crab with its legs cut to 45% of their reach",
+        'thin_legs': "the clips-alone sheet's crab with its legs thinned to half their width",
+        'bottom_legs': "the clips-alone sheet's crab with its legs turned under the body (55 degrees down)",
+        'solid_claws': "the clips-alone sheet's crab with its claws' notches filled",
+        'no_stalks': "the clips-alone sheet's crab with its eye stalks cut",
+        'orbit': 'the drawn crab moved round the drawn star by 90-150 degrees (turned with it: its turn against the star '
+                 'kept)',
+        'pointing_away': "the drawn crab turned in place so its claws point away from the star (its axis along the "
+                         "bearing)",
+        'across_flow': 'the drawn crab turned in place 60-120 degrees (across the hair)',
+        'apart': 'the drawn crab moved 0.06-0.1 L further from the star',
     }
+    face_floors = ('legless', 'short_legs', 'thin_legs', 'bottom_legs', 'solid_claws', 'no_stalks')
 
     def __init__(self, B, design):
         from .. import accqa
@@ -103,6 +166,8 @@ class Clips:
         cache = {}
 
         def labels(sname, v, dv, kinds):
+            if sname == accqa.FACE_SHEET:
+                return self._face(kind, arg, kinds)
             if not D.get(sname, {}).get('graded'):
                 return None
             ppl = D[sname]['ppl']
@@ -112,8 +177,32 @@ class Clips:
             if (sname, v) in cache:
                 return cache[(sname, v)]
             ms = []
+            extra = {}
+            star_m = drawn[kinds.index('star')] if 'star' in kinds else None
             for i, m in enumerate(drawn):
                 if not m.any():
+                    ms.append(m)
+                    continue
+                crab = kinds[i] == 'crab' and star_m is not None and star_m.any() and v in accqa.CRAB_AXIS
+                if crab and kind in PAIR_FLOORS:
+                    # (the pair checks' floors: the drawn crab moved or turned against the drawn star; its axis in
+                    # the picture turns with it)
+                    ax0 = accqa.CRAB_AXIS[v]
+                    cs, cc = accqa._centroid(star_m), accqa._centroid(m)
+                    bearing = float(np.degrees(np.arctan2(-(cc[0] - cs[0]), cc[1] - cs[1])))
+                    if kind == 'orbit':
+                        t = float(rng.choice([-1, 1]) * rng.uniform(90, 150))
+                        m, extra['axis'] = _turn(m, t, about=cs), ax0 + t
+                    elif kind == 'pointing_away':
+                        t = bearing - ax0
+                        m, extra['axis'] = _turn(m, t), ax0 + t
+                    elif kind == 'across_flow':
+                        t = float(rng.choice([-1, 1]) * rng.uniform(60, 120))
+                        m, extra['axis'] = _turn(m, t), ax0 + t
+                    elif kind == 'apart':
+                        d = rng.uniform(0.06, 0.1) * ppl
+                        a = np.radians(bearing)
+                        m = _roll(m, round(-d * np.sin(a)), round(d * np.cos(a)))
                     ms.append(m)
                     continue
                 if kind == 'design':
@@ -127,7 +216,10 @@ class Clips:
                     a, d = rng.uniform(0, 2 * np.pi), rng.uniform(0.07, 0.12) * ppl
                     m = _roll(m, round(d * np.sin(a)), round(d * np.cos(a)))
                 elif kind == 'turned':
-                    m = _affine(m, 1.0, rng.uniform(25, 40))
+                    t = rng.uniform(25, 40)
+                    m = _affine(m, 1.0, t)                  # (counter-clockwise in the picture)
+                    if crab:
+                        extra['axis'] = accqa.CRAB_AXIS[v] + t
                 elif kind == 'touching' and kinds[i] == 'star':
                     others = [x for j, x in enumerate(drawn) if j != i and x.any()]
                     m = _onto(m, np.any(others, 0), TOUCH) if others else m
@@ -142,9 +234,28 @@ class Clips:
             lab = np.zeros(ms[0].shape, np.int64)
             for i in order:
                 lab[ms[i]] = i + 1
-            cache[(sname, v)] = (lab, ms)
-            return lab, ms
+            cache[(sname, v)] = (lab, ms, extra)
+            return lab, ms, extra
         return labels
+
+    def _face(self, kind, arg, kinds):
+        """the FACE view's stand-in for ours: the clips-alone sheet's clips (design: redrawn at a slightly different scale
+        and sub-pixel place; a floor: the crab spoiled one way) as face_labels -> (label image, None) or None."""
+        from .. import accqa, limbs
+        if kind not in ('design',) + self.face_floors:
+            return None
+        ms = []
+        for k in kinds:
+            m = self.alone.get(k)
+            if m is None:
+                ms.append(np.zeros((8, 8), bool))
+                continue
+            if kind == 'design':
+                m = _resample(m, 1 + 0.015 * arg[0], (0.5 * arg[0], 0.5 * arg[1]))
+            elif k == 'crab':
+                m = limbs.spoil(m, kind)
+            ms.append(m)
+        return accqa.face_labels(ms), None
 
     def _arms(self, kind, arg):
         """acc_star_arms and acc_star_minor on a stand-in star (design: each view's drawn star, the worst; a floor: one
@@ -185,7 +296,8 @@ class Clips:
         from .. import accqa
         C = {}
         if self.got and kind not in ('compass', 'four_point'):
-            _, C, _ = accqa.evaluate(self.B, self.got[0], self.got[1], labels=self._labels(kind, arg))
+            _, C, _ = accqa.evaluate(self.B, self.got[0], self.got[1], labels=self._labels(kind, arg),
+                                     alone=self.alone or None)
         if kind in ('design', 'compass', 'four_point'):
             C.update(self._arms(kind, arg))
         return C

@@ -76,6 +76,11 @@ ran: the acceptance reproductions in charkit/tests/test_sweep.py and docs/workst
     python -m charkit sweep charkit/out/b2_close --stage garments --objects bow --parts collar_flags \\
         --oat 'garments.bow.pleat.tilt=[0.5,1.0]' --checks 'bow_*'
     python -m charkit sweep swap charkit/out/h5_base charkit/out/hair5_b --check art_terminator_hair --drop
+
+Background work: a sweep, an optimize run and their workers run at CPU niceness 10 and take build slots after gates
+(charkit.procs.background): a gate waiting for a slot gets one before them, and between rows a shard or a worker gives
+its slot to a waiting gate and waits behind it. A sharded sweep passes its shards' lines on as they come
+('[shard i] ...'), so its job's stall alarm (charkit/boxjob.py) reads its progress.
 """
 import contextlib, copy, fnmatch, itertools, json, os, re, subprocess, sys, time
 
@@ -852,9 +857,11 @@ def _rows_for(decl, only=None, shard=None):
     return rows
 
 
-def run_rows(decl, rows, out, log=print):
+def run_rows(decl, rows, out, log=print, between=None):
     """the rows measured in this process -> [row dict]. The stage's context is made once; with no declared objects the
-    spliced objects are those any row's rebuild changed against the control's (every row splices the same set)."""
+    spliced objects are those any row's rebuild changed against the control's (every row splices the same set).
+    between: called between rows (the slot's yield_point: a waiting gate gets the slot, charkit.procs)."""
+    between = between or (lambda: 0.0)
     t0 = time.time()
     decl = dict(decl, _out=out)
     B0 = load_bundle(decl['base'], decl.get('rebase', True))
@@ -866,6 +873,7 @@ def run_rows(decl, rows, out, log=print):
         decl['stage'], decl['base'], len(rows), ','.join(parts), time.time() - t0))
     geo = {}
     for r in rows:
+        between()
         t = time.time()
         geo[r['name']] = S.objects(r, os.path.join(out, _safe(r['name'])))
         r['seconds_build'] = round(time.time() - t, 1)
@@ -878,6 +886,7 @@ def run_rows(decl, rows, out, log=print):
     names = list(names or ())
     done = []
     for r in rows:
+        between()
         t = time.time()
         objs = {n: o for n, o in geo.pop(r['name']).items() if n in names}
         B = S.bundle(objs)
@@ -933,7 +942,7 @@ def run(decl, out, jobs=1, only=None, log=print):
         from charkit import procs
         lock = procs.acquire_slot('sweep')
         try:
-            rows = run_rows(decl, _rows_for(decl, only), out, log)
+            rows = run_rows(decl, _rows_for(decl, only), out, log, between=lock.yield_point)
         finally:
             lock.close()
     res = dict(decl={k: v for k, v in decl.items() if not k.startswith('_')}, code=root(), commit=_head(root()),
@@ -946,6 +955,35 @@ def run(decl, out, jobs=1, only=None, log=print):
     log(md)
     log('sweep: %s (%.0f s)' % (os.path.join(out, 'sweep.json'), time.time() - t0))
     return res
+
+
+def _forward(ps, logs, ids, log, every=2.0):
+    """each shard's log lines passed on as they're written ('  [shard i] ...') until every shard has ended: the sweep's
+    own output shows its rows coming in (a sharded sweep printed nothing until its end, so a box job's stall alarm,
+    charkit/boxjob.py, couldn't tell a long sweep from a hung one)."""
+    at, part = [0] * len(logs), [b''] * len(logs)
+
+    def drain():
+        for k, path in enumerate(logs):
+            try:
+                with open(path, 'rb') as f:
+                    f.seek(at[k])
+                    b = f.read()
+            except OSError:
+                continue
+            at[k] += len(b)
+            lines = (part[k] + b).split(b'\n')
+            part[k] = lines.pop()
+            for line in lines:
+                if line.strip():
+                    log('  [shard %s] %s' % (ids[k], line.decode('utf-8', 'replace').rstrip()))
+    while any(p.poll() is None for p, _ in ps):
+        drain()
+        time.sleep(every)
+    drain()
+    for k in range(len(logs)):
+        if part[k].strip():
+            log('  [shard %s] %s' % (ids[k], part[k].decode('utf-8', 'replace').rstrip()))
 
 
 def _sharded(out, jobs, only, log):
@@ -961,6 +999,7 @@ def _sharded(out, jobs, only, log):
                             (['--only', ','.join(only)] if only else []))
             logf = open(os.path.join(out, 'shard_%d.log' % i), 'w')
             ps.append((subprocess.Popen(cmd, cwd=root(), stdout=logf, stderr=subprocess.STDOUT), logf))
+        _forward(ps, [os.path.join(out, 'shard_%d.log' % i) for i in which], list(which), log)
         for p, f in ps:
             p.wait()
             f.close()
@@ -1264,6 +1303,7 @@ def swap(a, b, check, part=None, objects=None, groups=('hair', 'garment', 'acces
     rows = []
 
     def one(name, B, kind, obj=None):
+        lock.yield_point()                              # (a waiting gate gets the slot between measurements)
         t = time.time()
         C = measure(B, parts)
         v, extra_ = _value(C, check)
@@ -1469,6 +1509,8 @@ def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__)
         return 0
+    from charkit import procs
+    procs.background()                                  # (sweeps, optimize and their workers: after gates, nice 10)
     if args[0] in ('optimize', '--optimize') or '--optimize' in args:
         from charkit import optimize                    # (a batch optimizer over a sweep's rows: charkit/optimize.py)
         return optimize.main([a for a in args if a not in ('optimize', '--optimize')])
@@ -1504,7 +1546,7 @@ def main(args):
             from charkit import procs
             lock = procs.acquire_slot('sweep')
             try:
-                rows = run_rows(decl, _rows_for(decl, only, (i, n)), _abs(out))
+                rows = run_rows(decl, _rows_for(decl, only, (i, n)), _abs(out), between=lock.yield_point)
             finally:
                 lock.close()
             json.dump(rows, open(os.path.join(_abs(out), 'shard_%d.json' % i), 'w'), indent=1)

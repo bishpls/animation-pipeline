@@ -12,7 +12,15 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
                                                          --keep-older doesn't). --code REF: the gate's own code from REF,
                                                          not BASE's (to try a change to the gate itself)
     python -m charkit remote run [--fetch DIR] CMD...    anything, in the synced copy (DIR fetched back when it ends)
-    python -m charkit remote jobs [--days N]             every box's jobs: running, finished (N days, default 1), lost
+    python -m charkit remote jobs [--days N] [--silences] every box's jobs: running, finished (N days, default 1), lost.
+                                                         A running job with no output for its limit (20 min; a gate 45,
+                                                         a pregate 30: charkit/boxjob.py STALL_MIN) is flagged SILENT, one
+                                                         past 2x the duration it declared OVERRUN; nothing is stopped.
+                                                         --silences: each kind's longest silences (N days, default 7)
+    python -m charkit remote build|tune|gate|pregate [--expect MIN] [--stall MIN] ...,  remote run [--fetch DIR]
+                              [--expect MIN] [--stall MIN] CMD...
+                                                         the job declares the minutes it expects (flagged past 2x) and
+                                                         its own silence limit (or CHARKIT_JOB_EXPECT_MIN, _STALL_MIN)
     python -m charkit remote attach JID                  follow a job again (its log from the start) and collect its outputs
     python -m charkit remote kill JID                    stop a job on its box (its processes only)
     python -m charkit remote load [--hours N] [--fresh] [--json]
@@ -141,6 +149,7 @@ def charkit(cmd, publish=None, collect=None):
     """a charkit command in the box's copy of this worktree (synced first), as a detached job. publish=(PATH, NAME): PATH
     in the copy is published to the bucket under NAME when it ends (charkit/bucketsync.py), for `build.sh pull`.
     collect: what `remote attach` does with a finished job (kept in the job's local record)."""
+    cmd = _take_job_opts(cmd)
     up()
     seed()
     _sh('sync', ROOT, retry=True)
@@ -158,6 +167,7 @@ def charkit(cmd, publish=None, collect=None):
 
 def build(args, kind='build'):
     """remote build or tune: the spec made portable, the command run there, its --out fetched."""
+    args = _take_job_opts(args)
     spec = _portable_spec(args[0])
     rest = [_rel(a) for a in args[1:]]
     name = json.load(open(os.path.join(ROOT, spec))).get('name', 'char')
@@ -197,6 +207,7 @@ def gate(args):
     many builds run at once. Only this gate's report comes back. The old way held one lock for the whole gate, so gates
     queued for hours on a box two-thirds idle (2026-09-29)."""
     import uuid
+    args = _take_job_opts(args)
     branch, into = args[0], _opt(args, '--into', 'pipeline-3d')
     gate_code = _opt(args, '--code')
     tag = re.sub(r'[^A-Za-z0-9._-]', '_', branch)
@@ -286,6 +297,7 @@ def pregate(args):
     pre-gates), the gates' reports are read from /srv/work/gate-out (pregate.gate_names), and the report comes back
     through the bucket into charkit/out/pregate. Uncommitted edits aren't seen: commit first."""
     import uuid
+    args = _take_job_opts(args)
     into = _opt(args, '--into', 'pipeline-3d')
     branch = subprocess.run(['git', '-C', ROOT, 'rev-parse', '--abbrev-ref', 'HEAD'], capture_output=True, text=True,
                             check=True).stdout.strip()
@@ -540,6 +552,28 @@ def _box_status(env=None):
     return (r.stdout.strip() or None) if r.returncode == 0 else None
 
 
+def _take_job_opts(args):
+    """leading --expect MIN and --stall MIN (right after remote's command: `remote run --expect 30 sweep ...`, `remote
+    gate --stall 60 BRANCH ...`), kept for the job's meta (_job_opts) -> args without them."""
+    args = list(args)
+    while len(args) > 1 and args[0] in ('--expect', '--stall'):
+        float(args[1])                              # (a number of minutes, or a ValueError here, not on the box)
+        BOX[args[0][2:]] = args[1]
+        args = args[2:]
+    return args
+
+
+def _job_opts():
+    """the job's declared duration (--expect MIN, CHARKIT_JOB_EXPECT_MIN: `remote jobs` flags it past 2x) and its silence
+    limit (--stall MIN, CHARKIT_JOB_STALL_MIN: default per kind, charkit/boxjob.py STALL_MIN) -> meta fields."""
+    out = {}
+    for key, name in (('expect_min', 'expect'), ('stall_min', 'stall')):
+        v = BOX.get(name) or os.environ.get('CHARKIT_JOB_%s_MIN' % name.upper())
+        if v:
+            out[key] = float(v)
+    return out
+
+
 def job(kind, script, label, collect=None):
     """script run on the box as a detached job (charkit/boxjob.py), followed here until it ends -> its exit code
     (STILL_RUNNING if this command gave up following; LOST if it ended without one)."""
@@ -548,7 +582,7 @@ def job(kind, script, label, collect=None):
     wt = os.path.basename(ROOT)
     jid = '%s-%s-%s-%s' % (re.sub(r'[^A-Za-z0-9._-]', '_', kind), re.sub(r'[^A-Za-z0-9._-]', '_', wt.replace(
         'animation-pipeline-', '')), time.strftime('%m%d-%H%M%S'), uuid.uuid4().hex[:4])
-    meta = dict(v=1, jid=jid, kind=kind, wt=wt, label=label, bucket=_env('BUCKET'), created=time.time())
+    meta = dict(v=1, jid=jid, kind=kind, wt=wt, label=label, bucket=_env('BUCKET'), created=time.time(), **_job_opts())
     # (unbuffered: the log is followed as it's written; Python block-buffers a file otherwise)
     files = {'run.sh': ('#!/usr/bin/env bash\n# charkit box job %s: %s %s (from %s)\nexport PYTHONUNBUFFERED=1\n%s\n'
                         % (jid, kind, label, wt, script), 0o755),
@@ -564,7 +598,7 @@ def job(kind, script, label, collect=None):
             tf.addfile(ti, io.BytesIO(b))
     preflight()
     rec = dict(jid=jid, box=os.path.basename(BOX['env'])[:-4], kind=kind, label=label, collect=collect,
-               sent=time.strftime('%Y-%m-%dT%H:%M:%S'), state='starting')
+               sent=time.strftime('%Y-%m-%dT%H:%M:%S'), state='starting', **_job_opts())
     _record(rec)
     cfg, vm = _cfg()
     # a retried start (the first one's connection dropped) finds the job claimed and doesn't run it again
@@ -607,7 +641,13 @@ def attach(jid, rec=None, out=None):
     keep = open(os.path.join(JOBS_HERE, jid + '.log'), 'ab')
     if keep.tell():
         keep.truncate(0)                          # (a follow from the start: attach replays the whole log)
-    fr = boxjob.Frames(lambda b: (out.write(b), out.flush(), keep.write(b), keep.flush()))
+    wrote = [time.time(), False]                  # the job's last output seen here, and whether its silence was told
+
+    def data(b):
+        out.write(b), out.flush(), keep.write(b), keep.flush()
+        wrote[:] = [time.time(), False]
+    fr = boxjob.Frames(data)
+    limit = boxjob.stall_limit(rec.get('kind') or jid.split('-')[0], rec.get('stall_min'))
     cfg, vm = _cfg()
     drops, failing_since, errors = 0, None, 0
     while True:
@@ -636,6 +676,11 @@ def attach(jid, rec=None, out=None):
         try:
             while t.is_alive():
                 t.join(2)
+                if not wrote[1] and time.time() - wrote[0] > limit * 60:
+                    wrote[1] = True               # (the stall alarm, as `remote jobs` shows it; told once per silence)
+                    print('\nremote: job %s has written nothing for %.0f min (its limit %g): not stopped; `python -m '
+                          'charkit remote kill %s` if it hangs' % (jid, (time.time() - wrote[0]) / 60, limit, jid),
+                          file=sys.stderr, flush=True)
                 if t.is_alive() and time.time() - last[0] > WATCHDOG:
                     print('\nremote: no word from the box for %d s: reconnecting' % WATCHDOG, file=sys.stderr, flush=True)
                     p.kill()
@@ -901,8 +946,11 @@ def box_has(path):
 
 
 def jobs(args):
-    """every box's jobs (running, and finished in the last --days, default 1)."""
+    """every box's jobs (running, and finished in the last --days, default 1), a running one's alarms under it (SILENT,
+    OVERRUN: charkit.boxjob.flags); --silences: each kind's longest silences instead (silences)."""
     from charkit import boxjob
+    if '--silences' in args:
+        return silences(args)
     days = _opt(args, '--days', '1')
     envs = [BOX['env']] if BOX.get('chosen') else _boxes()
     for env in envs:
@@ -920,13 +968,55 @@ def jobs(args):
             continue
         rows = [json.loads(l) for l in r.stdout.decode().splitlines() if l.startswith('{')]
         run = [x for x in rows if x['state'] == 'running']
-        print('%s box: %d running, %d finished in %s day(s)' % (name, len(run), len(rows) - len(run), days))
+        alarms = [x for x in run if x.get('flags')]
+        print('%s box: %d running, %d finished in %s day(s)%s' % (name, len(run), len(rows) - len(run), days, (
+            ', %d FLAGGED (silent past its limit, or past 2x its expected time)' % len(alarms)) if alarms else ''))
         for x in sorted(rows, key=lambda x: (x['state'] != 'running', -(x['started'] or 0))):
             dur = ((x['ended'] or time.time()) - x['started']) if x['started'] else 0
-            print('  %-44s %-8s %-5s %s %6.1f min  %-26s %s' % (
+            quiet = ''
+            if x['state'] == 'running' and x.get('quiet') is not None:
+                quiet = ' quiet %.0f' % (x['quiet'] / 60)
+            print('  %-44s %-8s %-5s %s %6.1f min%-9s %-26s %s' % (
                 x['jid'], x['state'], '' if x['rc'] is None else 'rc %d' % x['rc'],
                 time.strftime('%m-%d %H:%M', time.localtime(x['started'])) if x['started'] else '--',
-                dur / 60, (x['label'] or '')[:26], (x['tail'] or '')[:70]))
+                dur / 60, quiet, (x['label'] or '')[:26], (x['tail'] or '')[:70]))
+            for f in x.get('flags') or ():
+                print('      ^ %s' % flag_text(f, x['jid']))
+    return 0
+
+
+def flag_text(f, jid='JID'):
+    """one alarm (charkit.boxjob.flags) in words."""
+    if f['flag'] == 'silent':
+        return ('SILENT: no output for %.0f min (its limit %g); not stopped: read its log (`remote attach %s`), '
+                '`remote kill %s` if it hangs' % (f['minutes'], f['limit'], jid, jid))
+    return 'OVERRUN: running %.0f min, past 2x the %g min it expected; not stopped' % (f['minutes'], f['expect'])
+
+
+def silences(args):
+    """`remote jobs --silences [--days N]`: per box and kind, the longest silence of each job the box's load sampler
+    saw (its `quiet`, each minute: charkit.boxjob.silences), for the jobs that ended rc 0 (and apart, the others), beside
+    the kind's limit: the measurement STALL_MIN is checked against."""
+    from charkit import boxjob
+    days = _opt(args, '--days', '7')
+    for env in ([BOX['env']] if BOX.get('chosen') else _boxes()):
+        BOX['env'] = env
+        name = os.path.basename(env)[:-4]
+        if _box_status() != 'RUNNING':
+            print('%s box: not running' % name)
+            continue
+        cfg, vm = _cfg()
+        r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - silences --days %s' % shlex.quote(days)],
+                           input=open(boxjob.__file__, 'rb').read(), capture_output=True, env=_genv(env))
+        rows = [json.loads(l) for l in r.stdout.decode().splitlines() if l.startswith('{')]
+        print('%s box: the longest silence of each job, by kind (minutes; %s day(s) of samples)' % (name, days))
+        print('  %-14s %-8s %5s %6s %6s %6s %6s  %s' % ('kind', 'ended', 'jobs', 'p50', 'p90', 'max', 'limit', 'worst'))
+        for x in rows:
+            print('  %-14s %-8s %5d %6.1f %6.1f %6.1f %6g  %s%s' % (
+                x['kind'][:14], x['ended'], x['jobs'], x['p50'], x['p90'], x['max'], x['limit'], x['worst'],
+                '  (over the limit)' if x['ended'] == 'ok' and x['max'] >= x['limit'] else ''))
+        if not rows:
+            print('  (no samples with `quiet` yet: the sampler records it from boxjob VERSION 4 on)')
     return 0
 
 
