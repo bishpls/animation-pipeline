@@ -19,7 +19,8 @@ Started 15:38 EDT. Wall time per task is logged in "Time" below.
 | 4 fail-fast, 6 denominators, 2 budget plumbing | 16:05 | 16:35 | code + unit tests (budget numbers wait on b0) |
 | b0 profile, QA cProfile, counts | 16:35 | 16:50 | b0 cold build profiled; the renderer is the QA's cost |
 | coordinator's stale-cache item | 16:50 | 17:35 | walker, depth, runtime record, verify, affected gates |
-| 3 cuts: declared buffers, render culling | 17:35 | | b1 launched 17:30 |
+| 3 cuts: declared buffers, render culling, memos | 17:35 | 18:20 | b1; culling measured (no gain) and taken out |
+| final builds (b2 after, bb before, side by side), pregate | 18:20 | | |
 
 ## 1. Per-stage build profile
 
@@ -168,3 +169,33 @@ venv/code_head 76, blender/character 59, blender/look_export 56, qa/motion 45 (1
 Running: b1 (this branch before the culling and the memos, `--box build`, `--cache off`) into charkit/out/infra5/b1
 (log charkit/out/infra5/b1.log); its venv memo is warm from b0 (the --cache off fix came after), so b1's QA isn't a
 cold figure; b2 will be.
+
+**Culling, measured and taken out.** On the build box, six render-heavy parts on b1's bundle, side by side with
+CHARKIT_RENDER_CULL=0 and 1 (`profile qa --no-cprofile --env ...`, charkit/out/infra5/cull0, cull1): readings equal in
+all six, 741 -> 737 s CPU, 323 -> 318 s wall (frame times equal within noise; ~115 primitives culled a frame in the
+head and body windows). lavapipe's cost is the fragments (the picture 4 x 4 supersampled), not the triangles off the
+window. The frame log stays (render.buffers: each frame's inputs as a digest): **no frame is drawn twice** in a QA
+pass (0 repeats in all six parts), so a cross-part frame memo wouldn't pay either. The renderer's CPU cost is
+intrinsic on a CPU box: drawing the QA on a GPU box would remove most of it (recommendation, routing is
+tool/build2's).
+
+## 6 (continued). Denominators demonstrated on the real crash
+
+`remote run gate --rejudge` (this branch's judge) on the box's reports of the gates that let motion QA's crash in:
+- **tool/garments4-part2 312d83d into 6620113: then PASS, under K with denominators FAIL**: "a QA part crashed:
+  motion (ValueError: skirt: not a grid (5110 vertices, stride 144))";
+- tool/garments4-part2 9e35959 into 6620113: then FAIL (tests), now also the motion crash;
+- tool/garments4-stairs b4670264 into ff41ca20: then PASS, now FAIL (the base crashed too: the rule is unconditional on
+  the candidate, the baseline's own crash is reported).
+(log charkit/out/infra5/rejudge_motion.log; these qa.json predate part_status, so the crash is read from the part's
+lone SKIPPED entry with an exception's text.)
+
+## 2. The budget: the proposed blocking rule (not enabled; Michael's call)
+
+The relative rule (candidate <= 1.5x its baseline) can't see creep: each of today's merges added 3-15% and passed,
+577 -> 1310 s in a day. Proposal: **block when the candidate's total build CPU is over charkit/budget.json's total by
+more than 10% and over its baseline's by more than 5%** (this merge pushed it over), unless the merge raises the budget
+in charkit/budget.json itself, with a reason, in the same merge (reviewable: the gate report shows the old and new
+budget). Per-stage budgets stay report-only (they name where the cost went). The total is compared on gate builds
+(threads 4, venv steps restored from the shared step cache); a candidate that rebuilds a venv step its baseline
+restored is judged on the stages both built (the phases in build_cpu.json make that possible now).
