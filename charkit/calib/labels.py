@@ -253,9 +253,42 @@ class Garments:
 
         def bleed(B, design, dvf, bow_d, ppl):
             return self.bleed(dvf, bow_d, ppl, L, kind)
+
+        def ribbon_line(B, dvp, tails_d, rows, zs, ppl, az):
+            return self.ribbon_line(dvp, tails_d, rows, ppl, L, kind)
         return [(pieceqa, 'our_labels', our_labels), (pieceqa, 'fine_labels', fine_labels),
                 (pieceqa, 'our_classes', our_classes), (qa3d, 'scene_objects', lambda B: (fake, names)),
-                (qa3d, 'bodyqa_zbuffer', bodyqa_zbuffer), (collarqa, 'bleed', bleed)]
+                (qa3d, 'bodyqa_zbuffer', bodyqa_zbuffer), (collarqa, 'bleed', bleed),
+                (collarqa, 'ribbon_line', ribbon_line)]
+
+    def ribbon_line(self, dvp, tails_d, rows, ppl, L, kind):
+        """collarqa.ribbon_line with a stand-in for ours, on the design's grid (the rows as the measure picks them): the
+        design moved keeps its drawn lines (its tails' cream against orange, the cream where the stand-in puts the bow:
+        it reads the design's own value); a generator's stand-in has no line between its pieces (its bow's runs touch
+        its jacket directly wherever they meet)."""
+        from .. import bodyqa as bq, collarqa
+        raw = dvp.get('raw')
+        if raw is None:
+            return None
+        CL = bq.CLASS
+        h, w = min(raw.shape[0], tails_d.shape[0]), min(raw.shape[1], tails_d.shape[1])
+        cream = raw[:h, :w] == CL['cream']
+        orange = raw[:h, :w] == CL['orange']
+        rr = range(rows[0], rows[1] + 1)
+        bad = lambda W_, T_: float(np.mean((W_ < collarqa.RUN_MIN) | T_))
+        Wd, Td = collarqa.runs_rows(cream & tails_d[:h, :w], orange, rr, ppl)
+        idx = {n: i for i, n in enumerate(self.names)}
+        lab = L['profile'][:h, :w]
+        ob = (lab % 1000 == idx.get('bow', -9)) & (lab >= 0)
+        if kind == 'design':
+            Wo, To = collarqa.runs_rows(cream & ob, orange, rr, ppl)
+        else:
+            jk = np.isin(lab % 1000, [idx[n] for n in collarqa.JACKET if n in idx]) & (lab >= 0)
+            Wo, To = collarqa.runs_rows(ob, jk, rr, ppl)
+        return dict(ours=round(bad(Wo, To), 3), design=round(bad(Wd, Td), 3),
+                    ours_w=round(float(np.median(Wo)), 4), design_w=round(float(np.median(Wd)), 4),
+                    ours_touch=round(float(np.mean(To)), 3), design_touch=round(float(np.mean(Td)), 3),
+                    ours_thin=round(float(np.mean(Wo < collarqa.RUN_MIN)), 3))
 
     def bleed(self, dvf, bow_d, ppl, L, kind):
         """collarqa.bleed with a stand-in for ours: the drawn bow's cream touching orange (the design's own reading),
