@@ -67,6 +67,25 @@ def test_ring_keeps_volume_under_a_smooth_bend_and_loses_it_on_a_twist():
     assert r_twist < 0.05                        # the candy-wrapper: a half turn collapses the middle ring
 
 
+def test_dqs_keeps_the_ring_lbs_loses():
+    V, F = tube()
+    joint = np.array([0.0, 0, -1.0])
+    rings = rom._plane_loops(V, F, joint, np.array([0, 0, -1.0]))
+    a0 = rom.ring_area(rom._ring_points(V, rings[0]))
+    W = two_bone(V, 0.25)
+    J = np.tile([0, 1], (len(V), 1))
+    for R1, lbs_max in ((P.rotation([1, 0, 0], 135), 0.6), (P.rotation([0, 0, 1], 150), 0.3)):
+        R = np.stack([np.eye(3), R1])
+        t = np.stack([np.zeros(3), joint - R1 @ joint])
+        X = rom.dqs(V, J, W, R, t)
+        assert rom.ring_area(rom._ring_points(X, rings[0])) / a0 > 0.9
+        Xl = lbs2(V, W, R1, joint)
+        assert rom.ring_area(rom._ring_points(Xl, rings[0])) / a0 < lbs_max
+    # rigid: one bone's motion exactly
+    X = rom.dqs(V, np.zeros_like(J), np.c_[np.ones(len(V)), np.zeros(len(V))], R, t)
+    assert np.allclose(X, V, atol=1e-12)
+
+
 def test_inside_new_and_crossings():
     V, F = tube()
     bv0 = BVH((V, F))

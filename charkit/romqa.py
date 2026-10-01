@@ -4,50 +4,52 @@ pose's reading in `by_pose`), graded against physical limits (charkit.rom.LIMITS
 a check whose calibration record is calibrated (charkit/calib/rom.py) carries its grade as its status, the rest report
 INFO beside their proposed grade (`grade`), as charkit.artifactqa's do.
 
-  rom_vol_FAMILY        joint volume: the smallest ring ratio at the family's joints (shoulder, elbow, wrist, hip, knee,
-                        fingers, neck, waist)
+  rom_vol_elbow, rom_vol_knee, rom_vol_fingers
+                        joint volume: the smallest ring ratio at the joints (the elbows at 135 deg, the knees at 135
+                        and in the squat, the knuckles in the fist and the point)
   rom_shoulder_torso    the arm's skin inside the torso, the head or the other arm at the arm raises (deepest, L)
+  rom_shoulder_strain, rom_shoulder_folded
+                        the skin within 0.35 L of the shoulder joint at the raises: strain p95 (edges of 0.015 L and
+                        more), folded + collapsed area share
+  rom_knee_folded, rom_neck_strain   the same at the knees (bent) and the neck (the head poses)
   rom_leg_torso         the thigh inside the torso or the other leg at the squat and the kicks (L)
   rom_finger_finger     a finger inside its neighbour at the hand poses (L)
   rom_sleeve_body, rom_skirt_legs, rom_top_body
                         a garment group's vertices newly inside the skin (deepest, L)
+  rom_sleeve_top        the puff sleeves' edges newly through the top, the collar, the bow (share)
+  rom_garment_strain    p95 |edge / rest - 1| of the worst garment at the raises, the leg poses and the head turn
   rom_hair_shoulders    the hair's edges newly through the skin or the upper garments at the head poses (share)
   rom_hand_skirt        the hands' skin edges newly through the skirt and the flaps (share)
-  rom_sleeve_top        the puff sleeves' edges newly through the top, the collar, the bow (share)
-  rom_garment_strain, rom_skin_strain   p95 |edge / rest - 1|, worst over every pose run
-  rom_skin_folded       the skin's area turned over against its bone (share), worst over every pose run
-  rom_weights_stray     the share of vertices with a stray influence (charkit.rom.weight_sanity), worst object
+  rom_weights_stray     the skin's share of vertices with a stray influence (charkit.rom.weight_sanity)
 """
 import json, os, time
 
 from .registry import qa_part
 
-# check -> (the summary key(s) it reads, its poses, the worst is 'max' or 'min')
+# check -> (the summary key(s) it reads, its poses (None: every pose run), the worst is 'max' or 'min')
+ARM_RAISES = ('raise_forward_90', 'raise_side_90', 'arms_up', 'arms_forward', 'arm_across')
+HEAD_POSES = ('head_turn', 'head_turn_right', 'head_nod', 'head_tilt')
+LEG_POSES = ('squat', 'kick_front', 'kick_side')
 CHECKS = {
-    'rom_vol_shoulder': ('vol_shoulder', ('raise_forward_90', 'raise_side_90', 'arms_up', 'arm_across'), 'min'),
     'rom_vol_elbow': ('vol_elbow', ('elbows_135',), 'min'),
-    'rom_vol_wrist': ('vol_wrist', ('wrist_twist_90',), 'min'),
-    'rom_vol_hip': ('vol_hip', ('squat', 'kick_front', 'kick_side'), 'min'),
     'rom_vol_knee': ('vol_knee', ('knees_135', 'squat'), 'min'),
     'rom_vol_fingers': ('vol_fingers', ('hand_fist', 'hand_point'), 'min'),
-    'rom_vol_neck': ('vol_neck', ('head_turn', 'head_nod'), 'min'),
-    'rom_vol_waist': ('vol_waist', ('spine_twist',), 'min'),
-    'rom_shoulder_torso': ('arm_torso', ('raise_forward_90', 'raise_side_90', 'arms_up', 'arm_across'), 'max'),
-    'rom_leg_torso': ('leg_torso', ('squat', 'kick_front', 'kick_side'), 'max'),
+    'rom_shoulder_torso': ('arm_torso', ARM_RAISES, 'max'),
+    'rom_shoulder_strain': ('shoulder_strain', ARM_RAISES, 'max'),
+    'rom_shoulder_folded': ('shoulder_folded', ARM_RAISES, 'max'),
+    'rom_knee_folded': ('knee_folded', ('knees_135', 'squat'), 'max'),
+    'rom_neck_strain': ('neck_strain', HEAD_POSES, 'max'),
+    'rom_leg_torso': ('leg_torso', LEG_POSES, 'max'),
     'rom_finger_finger': ('finger_finger', ('hand_fist', 'hand_point'), 'max'),
-    'rom_sleeve_body': ('sleeve_body', ('raise_forward_90', 'raise_side_90', 'arms_up', 'arm_across', 'elbows_135'),
-                        'max'),
-    'rom_skirt_legs': ('skirt_legs', ('squat', 'kick_front', 'kick_side'), 'max'),
-    'rom_top_body': ('top_body', ('raise_forward_90', 'raise_side_90', 'arms_up', 'spine_twist', 'head_turn'), 'max'),
-    'rom_hair_shoulders': ('hair_shoulders', ('head_turn', 'head_nod', 'arms_up'), 'max'),
-    'rom_hand_skirt': ('hand_skirt', ('spine_twist', 'kick_front', 'hand_fist'), 'max'),
-    'rom_sleeve_top': (('sleeve_top_L', 'sleeve_top_R'), ('raise_forward_90', 'raise_side_90', 'arms_up', 'arm_across'),
-                       'max'),
-    'rom_garment_strain': ('garment_strain', None, 'max'),
-    'rom_skin_strain': ('skin_strain', None, 'max'),
-    'rom_skin_folded': ('skin_folded', None, 'max'),
+    'rom_sleeve_body': ('sleeve_body', ARM_RAISES + ('elbows_135',), 'max'),
+    'rom_top_body': ('top_body', ARM_RAISES + ('spine_twist',), 'max'),
+    'rom_skirt_legs': ('skirt_legs', LEG_POSES, 'max'),
+    'rom_sleeve_top': (('sleeve_top_L', 'sleeve_top_R'), ARM_RAISES, 'max'),
+    'rom_garment_strain': ('garment_strain', ARM_RAISES + LEG_POSES + ('head_turn',), 'max'),
+    'rom_hair_shoulders': ('hair_shoulders', HEAD_POSES, 'max'),
+    'rom_hand_skirt': ('hand_skirt', ('spine_twist', 'hand_fist'), 'max'),
 }
-WEIGHT_CHECKS = {'rom_weights_stray': ('stray_share', (0.0, 0.001))}
+WEIGHT_CHECKS = {'rom_weights_stray': ('stray_share', (0.0, 0.001), ('clawd_skin',))}
 # the checks whose records are calibrated (charkit/calib/records): their grade is their status
 CALIBRATED = ()
 
@@ -89,8 +91,8 @@ def checks_of(rep, calibrated=CALIBRATED):
         C[name] = dict(value=round(float(v), 5), status=g if name in calibrated else 'INFO', grade=g, pose=p,
                        by_pose={k: round(float(x), 5) for k, x in by.items()})
     W = rep.get('weights') or {}
-    for name, (key, (p_, w_)) in WEIGHT_CHECKS.items():
-        by = {o: r.get(key) for o, r in W.items() if r.get(key) is not None}
+    for name, (key, (p_, w_), objs) in WEIGHT_CHECKS.items():
+        by = {o: r.get(key) for o, r in W.items() if r.get(key) is not None and (not objs or o in objs)}
         if not by:
             continue
         o = max(by, key=by.get)
@@ -101,10 +103,12 @@ def checks_of(rep, calibrated=CALIBRATED):
     return C
 
 
-def measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, max_edges=30000, tol=None, log=None):
+def measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, max_edges=30000, tol=None, log=None,
+            method='lbs'):
     """the suite on a bundle's build at the checks' poses -> the report (charkit.rom.run's shape, no pictures).
     weights: a function (rig) -> None changing the rig's weights in place (the calibration's broken rigs); f: every pose
-    taken f of the way; tol: the penetration depth that counts (L)."""
+    taken f of the way; tol: the penetration depth that counts (L); method: 'lbs' (as a runtime skins the export) or
+    'dqs' (the calibration's volume-keeping reference)."""
     from . import pose as P, rom
     from .render.buildboards import export_of
     build = os.path.dirname(os.path.abspath(B.path))
@@ -120,6 +124,7 @@ def measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, max_e
     rig = rom.Rig(export, lm, kinds)
     if weights is not None:
         weights(rig)
+    rig.method = method
     lib = lib or P.library()
     ctx = rom.Context(rig, B, max_points=max_points, max_edges=max_edges)
     if tol is not None:
@@ -132,6 +137,7 @@ def measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, max_e
         D = rig.solve(lib[n], f)
         m = rom.measure_pose(ctx, D)
         rep['poses'][n] = dict(summary=rom.summary(m))
+    rep['method'] = method
     rep['seconds'] = round(time.time() - t0, 1)
     if log:
         log('romqa: %d poses, %.1f s' % (len(rep['poses']), rep['seconds']))

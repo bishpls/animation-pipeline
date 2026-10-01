@@ -141,9 +141,13 @@ class Rig:
         return R, t
 
     def skin(self, o, D, V=None):
-        """object o's vertices (or V, same rows) skinned by D -> (n, 3)."""
+        """object o's vertices (or V, same rows) skinned by D -> (n, 3): linear blend skinning, as a runtime skins
+        the export; with self.method 'dqs' dual quaternion skinning (Kavan et al. 2007: the bones' rigid motions blended
+        as dual quaternions, no LBS collapse at a bend or twist) - the calibration's volume-keeping reference."""
         R, t = self.matrices(D) if isinstance(D, dict) else D
         V = o.V if V is None else V
+        if getattr(self, 'method', 'lbs') == 'dqs':
+            return dqs(V, o.J, o.W, R, t)          # (and 'shell': LBS here, the garments carried in posed())
         X = np.zeros_like(V)
         for k in range(o.J.shape[1]):
             w = o.W[:, k]
@@ -158,9 +162,41 @@ class Rig:
         return X
 
     def posed(self, D, names=None):
-        """{object: posed V} for every object (or names)."""
+        """{object: posed V} for every object (or names). With self.method 'shell' the garments ride the posed skin
+        as shells (shell()) instead of their own weights."""
         Rt = self.matrices(D)
-        return {n: self.skin(o, Rt) for n, o in self.objs.items() if names is None or n in names}
+        out = {n: self.skin(o, Rt) for n, o in self.objs.items() if names is None or n in names}
+        if getattr(self, 'method', 'lbs') == 'shell':
+            sk = next(n for n, o in self.objs.items() if o.kind == 'skin')
+            Xs = out.get(sk)
+            if Xs is None:
+                Xs = self.skin(self.objs[sk], Rt)
+            for n, o in self.objs.items():
+                if o.kind == 'garment' and n in out:
+                    out[n] = self.shell(o, sk, Xs)
+        return out
+
+    def shell(self, o, sk, Xs):
+        """garment o carried by the posed skin Xs as a shell: each vertex keeps its offset from its nearest skin point
+        in that skin triangle's own frame (a garment that follows the body exactly, never through it while the skin
+        itself doesn't fold): the garment checks' reference deformation."""
+        if not hasattr(self, '_shell'):
+            self._shell = {}
+        so = self.objs[sk]
+        if o.name not in self._shell:
+            from .geom.bvh import BVH
+            if not hasattr(self, '_skin_bvh'):
+                self._skin_bvh = BVH((so.V, so.F))
+            _, f, q = self._skin_bvh.nearest(o.V)
+            T = so.F[f]
+            bc = _bary(q, so.V[T[:, 0]], so.V[T[:, 1]], so.V[T[:, 2]])
+            E = _tri_frames(so.V, T)
+            d = o.V - q
+            self._shell[o.name] = (T, bc, np.einsum('nij,nj->ni', E, d))
+        T, bc, loc = self._shell[o.name]
+        q1 = sum(bc[:, i:i + 1] * Xs[T[:, i]] for i in range(3))
+        E1 = _tri_frames(Xs, T)
+        return q1 + np.einsum('nji,nj->ni', E1, loc)
 
     def solve(self, preset, f=1.0):
         return P.solve(self.sk, preset, f)
@@ -190,6 +226,52 @@ class Rig:
             prims.append(q)
         M2.prims = prims
         return M2
+
+
+def _quat(R):
+    """rotation matrices (n, 3, 3) -> unit quaternions (n, 4) as (w, x, y, z)."""
+    from scipy.spatial.transform import Rotation
+    q = Rotation.from_matrix(R).as_quat()                  # (x, y, z, w)
+    return np.concatenate([q[:, 3:], q[:, :3]], 1)
+
+
+def _qmul(a, b):
+    w1, x1, y1, z1 = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+    w2, x2, y2, z2 = b[..., 0], b[..., 1], b[..., 2], b[..., 3]
+    return np.stack([w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2, w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                     w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2], -1)
+
+
+def dqs(V, J, W, R, t):
+    """dual quaternion skinning of V (n, 3) with bone indices J and weights W (n, k) by the bones' rotations R
+    (nb, 3, 3) and translations t (nb, 3) -> (n, 3)."""
+    qr = _quat(R)
+    qd = 0.5 * _qmul(np.concatenate([np.zeros((len(t), 1)), t], 1), qr)
+    W = W / np.maximum(W.sum(1, keepdims=True), 1e-12)
+    piv = qr[J[:, 0]]
+    br = np.zeros((len(V), 4))
+    bd = np.zeros((len(V), 4))
+    for k in range(J.shape[1]):
+        s = np.sign(np.einsum('ij,ij->i', qr[J[:, k]], piv))
+        s[s == 0] = 1
+        br += (W[:, k] * s)[:, None] * qr[J[:, k]]
+        bd += (W[:, k] * s)[:, None] * qd[J[:, k]]
+    n = np.linalg.norm(br, axis=1, keepdims=True)
+    br, bd = br / n, bd / n
+    w, v = br[:, :1], br[:, 1:]
+    rot = V + 2 * np.cross(v, np.cross(v, V) + w * V)
+    conj = br * np.array([1, -1, -1, -1.0])
+    tr = 2 * _qmul(bd, conj)[:, 1:]
+    return rot + tr
+
+
+def _tri_frames(X, T):
+    """per triangle (rows of T) its orthonormal frame as rows (n, 3, 3): the first edge, the in-plane normal to it,
+    the face normal."""
+    e1 = _rows_unit(X[T[:, 1]] - X[T[:, 0]])
+    n = _rows_unit(np.cross(X[T[:, 1]] - X[T[:, 0]], X[T[:, 2]] - X[T[:, 0]]))
+    e2 = np.cross(n, e1)
+    return np.stack([e1, e2, n], 1)
 
 
 def _rows_unit(X):
@@ -447,11 +529,15 @@ def crossings_new(X0, X1, E, bv0, bv1):
     return dict(n=n, share=round(n / len(E), 5))
 
 
-def strain(V0, V1, E):
-    """|edge / rest edge - 1| over edges E -> dict(p95, max)."""
+def strain(V0, V1, E, min_len=0.0):
+    """|edge / rest edge - 1| over edges E at least min_len long at rest (all of them when none is) -> dict(p95,
+    max). (Over the subdivided export's every edge the bridge's tight loops dominate: garments4 read the posed shoulder
+    over edges of 0.015 L and more, STRAIN_EDGE.)"""
     l0 = np.linalg.norm(V0[E[:, 0]] - V0[E[:, 1]], axis=1)
     l1 = np.linalg.norm(V1[E[:, 0]] - V1[E[:, 1]], axis=1)
-    ok = l0 > 1e-9
+    ok = l0 > max(min_len, 1e-9)
+    if not ok.any():
+        ok = l0 > 1e-9
     s = np.abs(l1[ok] / l0[ok] - 1)
     if not len(s):
         return dict(p95=0.0, max=0.0)
@@ -647,6 +733,7 @@ GARMENT_GROUPS = {
 }
 UPPER = ('top', 'bodice_panel', 'collar', 'bow')               # what the hair and the sleeves may pass through
 SKIRT = ('skirt', 'overskirt_panel_L', 'overskirt_panel_R')
+STRAIN_EDGE = 0.015         # L: strain is read over edges at least this long at rest
 ZONE = 0.35                 # L: the skin round a joint read for its strain, collapsed and folded area
 ZONES = [(z + '_' + S, s + b) for s, S in (('left', 'L'), ('right', 'R')) for z, b in (
     ('shoulder', 'UpperArm'), ('elbow', 'LowerArm'), ('hip', 'UpperLeg'), ('knee', 'LowerLeg'))] + [('neck', 'neck')]
@@ -756,7 +843,7 @@ def measure_pose(ctx, D, X=None):
     g = {}
     for n, idx in ctx.gpts.items():
         g[n] = inside_new(ctx.rest[n][idx], X[n][idx], ctx.skin_bv0, skin_bv, L, ctx.tol)
-        g[n]['strain'] = strain(ctx.rest[n], X[n], ctx.edges[n])
+        g[n]['strain'] = strain(ctx.rest[n], X[n], ctx.edges[n], STRAIN_EDGE * L)
     out['garments'] = g
     # thin surfaces through each other
     cr = {}
@@ -773,8 +860,8 @@ def measure_pose(ctx, D, X=None):
     out['crossings'] = cr
     # the skin's own deformation
     o = rig.objs[sk]
-    out['skin'] = dict(strain(o.V, Xs, ctx.edges[sk]), **skin_faces(rig, o, D, Xs))
-    out['zones'] = {zn: dict(strain(o.V, Xs, Ez), **skin_faces(rig, o, D, Xs, Fz))
+    out['skin'] = dict(strain(o.V, Xs, ctx.edges[sk], STRAIN_EDGE * L), **skin_faces(rig, o, D, Xs))
+    out['zones'] = {zn: dict(strain(o.V, Xs, Ez, STRAIN_EDGE * L), **skin_faces(rig, o, D, Xs, Fz))
                     for zn, (Fz, Ez) in ctx.zones.items() if len(Fz)}
     return out
 
@@ -925,10 +1012,11 @@ def _bary(q, A, B, C):
 # Volume: tissue is incompressible; a bent joint's section flattens but keeps most of its area: under 0.8 the pinch
 # shows, under 0.65 the joint collapses (LBS's candy-wrapper). Penetration: contact (0.01 L, about 2.5 mm on Clawd)
 # passes, 0.03 L shows. Crossings: a few edges at a seam pass, a percent shows. Strain: cloth and skin stretched 25%
-# pass, 50% tear the look.
+# pass, 50% tear the look. Fingers are thin (about 0.06 L across): one inside another past a quarter of its width
+# shows.
 LIMITS = {
     'vol': (0.8, 0.65, 'higher'),
-    'arm_torso': (0.01, 0.03), 'leg_torso': (0.01, 0.03), 'finger_finger': (0.01, 0.03),
+    'arm_torso': (0.01, 0.03), 'leg_torso': (0.01, 0.03), 'finger_finger': (0.008, 0.015),
     'sleeve_body': (0.01, 0.03), 'skirt_legs': (0.01, 0.03), 'top_body': (0.01, 0.03), 'shorts_boots': (0.01, 0.03),
     'hair_shoulders': (0.001, 0.01), 'hand_skirt': (0.002, 0.01), 'sleeve_top': (0.002, 0.01),
     'skin_strain': (0.25, 0.5), 'garment_strain': (0.25, 0.5), 'skin_collapsed': (0.002, 0.01),
