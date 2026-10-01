@@ -142,6 +142,13 @@ Merged pipeline-3d 342e88c (tool/face5) at 71fab0c (cli.py: code_head's modules 
 charkit.faceregion). Pregate on 71fab0c into 342e88c: PASS (20 value moves, 0 blocking;
 charkit/out/pregate/pregate_tool-face6_71fab0cc_into_342e88c8.md).
 
+**The nose tick sized to the design's** (spec `nose.tick` (0.0045, 0.016, -0.006) -> (0.0075, 0.022, -0.007)): the
+calibration re-run on build B (dry, `charkit/out/face6r2/calib_b.log`) read nose_mark_three_quarter COARSE: our 3/4
+mark's ink 0.36 of the drawn one passed the 0.35 band at margin 0.375 from the floor (needs 0.5). Lab: ink front 0.5 ->
+1.0, 3/4 0.363 -> 0.817; nose IoU front 0.478 -> 0.506; nose_mark_at_three_quarter unchanged (0.034 FAIL). Every other
+face_flags record re-reads calibrated on B (eye_iris_fit_profile and eye_lash_spikes_three_quarter are INFO reads,
+miscalibrated as recorded). The first gate (6db6973) was stopped for this change.
+
 ## Checkpoint (2026-09-30 night, context limit): state for the next agent
 
 Branch `tool/face6` head: see `git log -1` (2bdfc58 = the fixes; later commits notes only). Nothing gated, nothing
