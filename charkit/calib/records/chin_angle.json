@@ -1,0 +1,154 @@
+{
+ "check": "chin_angle",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T21:22:02",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": 40.4,
+  "status": "FAIL"
+ },
+ "floor": {
+  "affine_jaw": {
+   "values": [
+    11.7,
+    12.9,
+    0.5,
+    4.9,
+    4.8,
+    0.1,
+    0.5,
+    3.6,
+    13.6
+   ],
+   "statuses": [
+    "WARN",
+    "WARN",
+    "PASS",
+    "WARN",
+    "WARN",
+    "PASS",
+    "PASS",
+    "WARN",
+    "WARN"
+   ],
+   "median": 4.8,
+   "status": "WARN",
+   "passing": 3
+  },
+  "widths_jaw": {
+   "values": [
+    5.7,
+    2.9,
+    5.3,
+    3.9,
+    1.9,
+    0.0,
+    0.0,
+    3.4,
+    2.8
+   ],
+   "statuses": [
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "PASS",
+    "PASS",
+    "WARN",
+    "WARN"
+   ],
+   "median": 2.9,
+   "status": "WARN",
+   "passing": 2
+  },
+  "other_view": {
+   "values": [
+    12.0,
+    12.0,
+    12.0,
+    12.0,
+    12.0,
+    12.0,
+    12.0,
+    12.0,
+    12.0
+   ],
+   "statuses": [
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN"
+   ],
+   "median": 12.0,
+   "status": "WARN",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.5,
+  "status": "WARN",
+  "margin": 0.688
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), jaw0_flagged reads 40.4 FAIL, the floor affine_jaw WARN, widths_jaw WARN, other_view WARN",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
+  "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)",
+  "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
+ },
+ "seconds": 51.6
+}

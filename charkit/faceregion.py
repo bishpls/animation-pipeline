@@ -256,7 +256,9 @@ def crease_of(V, c, L, cols=36, dz=0.01, sector=math.radians(6)):
 # lines kept. Both are on one grid round the eyes (the front's and three-quarter's middle, the profile's near eye).
 JAW_WIN = dict(x=0.6, top=0.05, bottom=-0.8)   # L round the eyes' point
 BOARD_CAM = dict(dist=1.0, lift=0.06)           # m out from the target (0, 0, eye line + lift L), level (charkit.scene)
-LEVEL_CAM = dict(dist=100.0, lift=0.0)          # the design's: level with the eyes, far out (all but orthographic)
+LEVEL_CAM = dict(dist=None, lift=0.0)           # the design's projection: level with the eyes, orthographic (was 100 m
+                                                # out, all but orthographic: a pixel's difference at most)
+ORTHO_DEPTH = 100.0                             # (the orthographic view's depths: in front of the reference point by this)
 INK_L = 0.004                    # the outline's width (L): the look's lines.frac 0.0022 of the board's 900 px at 85 mm, 1 m
 INK = (4, 8, 10)                 # the drawing's ink classes (bodyqa.CLASS line, dark, other: the jaw's line and the wedge
                                  # under the chin read as line or other)
@@ -269,23 +271,50 @@ NECK_BELOW = 0.1                 # L under / over the design's chin where the ne
 REACH = 0.035                    # L under the face's lowest pixel a jaw line's ink, and the neck under the ink, are looked for
 TAPER = (0.015, 0.03)            # L: PASS / WARN for the outline's rms against the design's, and for the chin point's height
 JAW_LINE = (0.7, 0.4)            # ours over the design's jaw line over the neck: PASS at least / WARN at least
-RATIO = (0.15, 0.3)              # |ratio - 1|: PASS / WARN for the chin's V and the neck's width over the face's
-UNDER = (6.0, 12.0)              # degrees: PASS / WARN for the chin's underside angle in profile against the design's
+RATIO = (0.15, 0.3)              # (was chin_v's and neck_to_face's |ratio - 1| PASS / WARN, before face5 round 7)
+UNDER = (6.0, 12.0)              # (was chin_underside's PASS / WARN, degrees, before face5 round 7)
+# face5 round 7 (2026-09-30): limits from each check's calibration triple (charkit/calib/jaw.py; the records in
+# charkit/calib/records/): PASS at most halfway from the design's own reading (its median over the 1-2 px moves) to the
+# floor (the median of its random stand-ins' medians: calibrate.MARGIN), and under every floor generator's median, never
+# under the design's worst move; WARN at most the floor; neither looser than before. The values are the graded
+# deviations from the design's (the floor's median then reads a random stand-in's typical deviation, not the seed whose
+# signed value lands nearest the design's). The PASS line: min(halfway from the design's median to the floor, midway
+# from the design's worst move to the nearest floor generator's median), not under the design's worst move. The WARN lines
+# are kept (each check's known-bad still FAILs: jaw0_flagged). Numbers: charkit/out/calib_jaw/calib_r7a.json, r7b.json
+# (9 seeds; design median / worst move | floors' medians):
+JAW_TAPER = (0.0102, 0.03)       # L rms. design 0.0020 / 0.0079 | affine 0.0582, widths 0.0125, other_view 0.0607 (was
+                                 # TAPER's 0.015: widths_jaw passed it, 7 of 9 seeds)
+CHIN_V = (0.042, 0.3)            # |rise over the design's - 1|, the rise sub-pixel (_outline_rise). design 0 / 0 |
+                                 # affine 0.084, widths 0.084, other_view 1.0 (was RATIO's 0.15)
+NECK_FACE = (0.0867, 0.24)       # |chin_share - the design's| (a new measure: WARN at the floor, 0.24). design 0.020 /
+                                 # 0.081 | affine 0.388, other_view 0.092
+UNDERSIDE = (0.4, 12.0)          # deg. design 0 / 0 | affine 1.5, widths 0.8 (was UNDER's 6)
 WIGGLE = (12.0, 18.0)            # degrees: PASS / WARN for the neck's front outline under the throat in profile, its
                                  # sharpest bend (a lip and a notch under the jaw bend it, 24 on the step-built chin; the
                                  # neck's own long curve doesn't; the design's own neck, read further down past its hanging
                                  # lock and into the shoulders' flare, is shown)
-NECK_BAND = 0.1                  # L under the throat where the neck's front outline is read (the neck under the jaw)
-DESIGN_NECK_BAND = 0.25          # ... on the design, the reference (a lock hangs in front of its neck under the jaw)
+DESIGN_NECK_BAND = 0.25          # L under the throat where the design's neck's front outline is read (a lock hangs in
+                                 # front of its neck under the jaw: it shows from 0.13 L under the throat)
+NECK_BAND = DESIGN_NECK_BAND     # ... and ours (face5 round 7; was 0.1: the design, standing in for ours, showed no
+                                 # neck front there, so the check couldn't be calibrated): the same rows
+NECK_STEP = 0.01                 # L: a row-to-row jump of the neck's front edge this big ends the neck (the chest's line
+                                 # meeting it: the design's foot of the neck at z -0.608 read as a 14.5 degree bend)
+SHARE_BAND = 0.05                # L over the design's chin: the rows where the face's share of the width is read
+
 
 
 def cam_points(V, az, target, ref, L, dist=BOARD_CAM['dist']):
     """world points -> the board camera's view as points for raster.window_zbuffer at az 0: (u, depth, v) times L, u and v
     the picture's right and up in L at the reference point's depth (perspective), 0 at the reference point, depth L
-    along the view. The camera (charkit.qa.render_view): at target + dist (sin az, -cos az, 0), level, looking at it."""
+    along the view. The camera (charkit.qa.render_view): at target + dist (sin az, -cos az, 0), level, looking at it;
+    dist None: orthographic along the same axis (the design's projection: the head sheet is drawn level and
+    orthographic)."""
     a = math.radians(az)
-    eye = np.asarray(target, float) + dist * np.array([math.sin(a), -math.cos(a), 0.0])
     r, f = np.array([math.cos(a), math.sin(a), 0.0]), np.array([-math.sin(a), math.cos(a), 0.0])
+    if dist is None:                    # orthographic (the design's projection): u, v the picture's plane through ref
+        q = np.asarray(V, float) - np.asarray(ref, float)
+        return np.stack([q @ r, q @ f + ORTHO_DEPTH, q[:, 2]], 1)
+    eye = np.asarray(target, float) + dist * np.array([math.sin(a), -math.cos(a), 0.0])
     q = np.asarray(V, float) - eye
     X, Y, Z = q @ r, q @ f, q[:, 2]
     qr = np.asarray(ref, float) - eye
@@ -360,6 +389,61 @@ def _region(cls, seeds, ppl, win=JAW_WIN):
     return np.isin(lab, sorted(keep)) if keep else np.zeros_like(skin)
 
 
+def _row_width(mask, ppl, zz, win=JAW_WIN):
+    """the width (L) of mask's run at row z zz containing the window's middle column, or the nearest run; None if none."""
+    H = mask.shape[0]
+    r = int(round((win['top'] - zz) * ppl - 0.5))
+    if not 0 <= r < H or not mask[r].any():
+        return None
+    c0 = int(round(win['x'] * ppl))
+    c = np.nonzero(mask[r])[0]
+    runs = np.split(c, np.nonzero(np.diff(c) > 1)[0] + 1)
+    run = min(runs, key=lambda q: 0 if q[0] <= c0 <= q[-1] else min(abs(q[0] - c0), abs(q[-1] - c0)))
+    return (run[-1] - run[0] + 1) / ppl
+
+
+def _chin_share(face, sil, ppl, zc, win=JAW_WIN):
+    """the face's share of the figure's width just over the chin (face5 round 7; Michael's flag on jaw_0: "the face ran
+    straight into a neck as wide as the lower face"): per row from the chin zc (the design's) up SHARE_BAND, the face
+    region's width over the skin-and-ink run's (the face, the jaw lines and the neck beside them), the rows' mean; a V
+    chin over a neck reads low, a face running into the neck near 1 -> share or None."""
+    shares = []
+    for zz in np.arange(zc, zc + SHARE_BAND + 1e-9, 1.0 / ppl):
+        a, b = _row_width(face, ppl, zz, win), _row_width(sil, ppl, zz, win)
+        if b:
+            shares.append((a or 0.0) / b)
+    return round(float(np.mean(shares)), 4) if shares else None
+
+
+def _outline_rise(face, ppl, uc, win=JAW_WIN, tip=0.02):
+    """the V's rise on the face region's outline: the lowest outline crossing JAW_V either side of the chin's column uc
+    over the outline's lowest point within `tip` L of it (L), the sides' mean; the outline by marching squares on the
+    region (holes filled), so the crossings are sub-pixel -> rise or None."""
+    from scipy import ndimage
+    from skimage import measure as skm
+    f = ndimage.binary_fill_holes(face)
+    if not f.any():
+        return None
+    C = max(skm.find_contours(np.pad(f, 1).astype(float), 0.5), key=len) - 1
+    X = np.stack([(C[:, 1] + 0.5) / ppl - win['x'], win['top'] - (C[:, 0] + 0.5) / ppl], 1)
+    near = np.abs(X[:, 0] - uc) < tip
+    if not near.any():
+        return None
+    zmin = float(X[near, 1].min())
+    rise = []
+    for s_ in (-1, 1):
+        u0 = uc + s_ * JAW_V
+        a, b = X[:-1], X[1:]
+        k = np.nonzero((a[:, 0] - u0) * (b[:, 0] - u0) <= 0)[0]
+        k = k[a[k, 0] != b[k, 0]]
+        if not len(k):
+            continue
+        t = (u0 - a[k, 0]) / (b[k, 0] - a[k, 0])
+        zc_ = a[k, 1] + t * (b[k, 1] - a[k, 1])
+        rise.append(float(zc_.min()) - zmin)
+    return round(float(np.mean(rise)), 4) if rise else None
+
+
 def jaw_front(cls, ppl, chin_z=None, win=JAW_WIN, seeds=FACE_SEEDS):
     """a front or three-quarter picture's jaw (cls: classes on the jaw window, the ink as line). Down each column from
     SCAN_TOP (under the mouth) the face's skin runs until ink or another class: its lowest pixel, and a jaw line over
@@ -393,6 +477,8 @@ def jaw_front(cls, ppl, chin_z=None, win=JAW_WIN, seeds=FACE_SEEDS):
         c = np.nonzero(face[r])[0]
         half[r] = (c[-1] - c[0] + 1) / ppl / 2
     out['half'] = half
+    if chin_z is not None:                              # (read on the design's chin's rows even when ours has no chin)
+        out['chin_share'] = _chin_share(face, skin | ink, ppl, chin_z, win)
     mid = np.abs(u) < 0.15
     cand = np.nonzero(mid & (low >= 0))[0]
     if not len(cand):
@@ -405,20 +491,20 @@ def jaw_front(cls, ppl, chin_z=None, win=JAW_WIN, seeds=FACE_SEEDS):
         c = int(round(cc + s_ * JAW_V * ppl))
         if 0 <= c < W and low[c] >= 0:
             rise.append(float(z[low[c]] - zc))
-    out['rise'] = round(float(np.mean(rise)), 4) if rise else None
+    out['rise_px'] = round(float(np.mean(rise)), 4) if rise else None
+    # (face5 round 7) the rise on the face region's outline (marching squares, sub-pixel): the column scan's whole rows
+    # read the design's V's rise (0.03 L, 12 px) in 1-pixel steps of 8%, ours one row over it as far off as a random
+    # affine jaw's median
+    out['rise'] = _outline_rise(face, ppl, float(u[cc]), win)
+    if out['rise'] is None:
+        out['rise'] = out['rise_px']
     zc_ref = zc if chin_z is None else chin_z
 
-    def width(zz, mask):
-        r = int(round((win['top'] - zz) * ppl - 0.5))
-        if not 0 <= r < H or not mask[r].any():
-            return None
-        c0 = int(round(win['x'] * ppl))
-        c = np.nonzero(mask[r])[0]
-        runs = np.split(c, np.nonzero(np.diff(c) > 1)[0] + 1)
-        run = min(runs, key=lambda q: 0 if q[0] <= c0 <= q[-1] else min(abs(q[0] - c0), abs(q[-1] - c0)))
-        return (run[-1] - run[0] + 1) / ppl
+    width = lambda zz, mask: _row_width(mask, ppl, zz, win)
     out['face_w'] = width(zc_ref + NECK_BELOW, face)
     out['neck_w'] = width(zc_ref - NECK_BELOW, skin)
+    if 'chin_share' not in out:
+        out['chin_share'] = _chin_share(face, skin | ink, ppl, zc_ref, win)
     return out
 
 
@@ -499,7 +585,8 @@ def jaw_profile(cls, ppl, win=JAW_WIN, seeds=PROFILE_SEEDS, neck_band=NECK_BAND)
             rows.append(r); es.append(u[c0])
     if len(rows) >= 8:
         rows, es = np.array(rows), np.array(es)
-        cut = np.nonzero(np.diff(rows) > 2)[0]                          # the longest run of rows from the throat down
+        cut = np.nonzero((np.diff(rows) > 2) | (np.abs(np.diff(es)) >= NECK_STEP))[0]   # the longest run of rows from
+                                                                        # the throat down, ended at the neck's foot
         runs = np.split(np.arange(len(rows)), cut + 1)
         run = max(runs, key=len)
         if len(run) >= 8:
@@ -534,30 +621,49 @@ def jaw_compare(D, O, ppl):
         worst = int(np.argmax(np.abs(np.where(ok, d, 0))))
         C['jaw_taper'] = dict(value=round(rms, 4) if rms is not None else None, worst=[round(float(z[rows[worst]]), 3),
                               round(float(d[worst]), 4)], rows=[round(float(z_hi), 3), round(float(zc), 3)],
-                              status=_grade(rms, TAPER))
+                              status=_grade(rms, JAW_TAPER))
         oc = of.get('chin')
         dz = None if oc is None else oc[1] - zc
         C['chin_point_z'] = dict(value=None if dz is None else round(dz, 4), design=zc, ours=None if oc is None else oc[1],
                                  status=_grade(dz, TAPER))
         rd, ro = df.get('rise'), of.get('rise')
         rr = ro / rd if rd and ro is not None else None
-        C['chin_v'] = dict(value=None if rr is None else round(rr, 3), design=rd, ours=ro,
-                           status=_grade(None if rr is None else rr - 1, RATIO))
-        if df.get('face_w') and df.get('neck_w') and of.get('face_w') and of.get('neck_w'):
-            q = (of['neck_w'] / of['face_w']) / (df['neck_w'] / df['face_w'])
-            C['neck_to_face'] = dict(value=round(q, 3), design=round(df['neck_w'] / df['face_w'], 3),
-                                     ours=round(of['neck_w'] / of['face_w'], 3), status=_grade(q - 1, RATIO))
+        C['chin_v'] = dict(value=None if rr is None else round(abs(rr - 1), 3), ratio=None if rr is None else
+                           round(rr, 3), design=rd, ours=ro, status=_grade(None if rr is None else rr - 1, CHIN_V),
+                           note="|ours' V's rise over the design's - 1| (the rise %.2f L either side of the chin point)"
+                                % JAW_V)
+        if df.get('chin_share') is not None and of.get('chin_share') is not None:
+            q = of['chin_share'] - df['chin_share']
+            old = None
+            if df.get('face_w') and df.get('neck_w') and of.get('face_w') and of.get('neck_w'):
+                old = round((of['neck_w'] / of['face_w']) / (df['neck_w'] / df['face_w']), 3)
+            C['neck_to_face'] = dict(value=round(abs(q), 4), ours=of['chin_share'], design=df['chin_share'],
+                                     widths_ratio=old, status=_grade(q, NECK_FACE),
+                                     note="|ours - the design's| share of the figure's width the face takes over the "
+                                          "rows %.2f L over the design's chin (a V chin over the neck reads low; a "
+                                          "face running into a neck as wide as it, near 1); widths_ratio: the old "
+                                          "measure (the neck's width %.1f L under the chin over the face's over it, "
+                                          "over the design's)" % (SHARE_BAND, NECK_BELOW))
     for vn in ('front', 'three_quarter'):
         d_, o_ = D.get(vn) or {}, O.get(vn) or {}
         if d_.get('jaw_line_L'):
             q = (o_.get('jaw_line_L') or 0.0) / d_['jaw_line_L']
+            qb = (o_.get('jaw_line_L_board') or 0.0) / d_['jaw_line_L'] if 'jaw_line_L_board' in o_ else None
             C['jaw_line_' + vn] = dict(value=round(q, 3), design=d_['jaw_line_L'], ours=o_.get('jaw_line_L'),
-                                       status='PASS' if q >= JAW_LINE[0] else 'WARN' if q >= JAW_LINE[1] else 'FAIL')
+                                       board=None if qb is None else round(qb, 3),
+                                       status='PASS' if q >= JAW_LINE[0] else 'WARN' if q >= JAW_LINE[1] else 'FAIL',
+                                       note="ours' jaw line over the neck over the design's (L), in the level camera "
+                                            "(board: the boards' camera)")
+    h = hidden_compare(df.get('hidden'), of.get('extents'))
+    if h:
+        C['jaw_outline_hidden'] = h
     dp, op = D.get('profile') or {}, O.get('profile') or {}
     if dp.get('underside_deg') is not None:
         a = op.get('underside_deg')
-        C['chin_underside'] = dict(value=a, design=dp['underside_deg'], status=_grade(
-            None if a is None else a - dp['underside_deg'], UNDER))
+        C['chin_underside'] = dict(value=None if a is None else round(abs(a - dp['underside_deg']), 1), ours=a,
+                                   design=dp['underside_deg'], status=_grade(
+            None if a is None else round(a - dp['underside_deg'], 1), UNDERSIDE),     # (graded as reported: 0.1 deg)
+                                   note="|ours - the design's| underside angle in profile (deg)")
     if op.get('neck_bend_deg') is not None or 'chin' in op:
         b = op.get('neck_bend_deg')
         C['neck_front_wiggle'] = dict(value=b, design=dp.get('neck_bend_deg'), residual_L=op.get('neck_wiggle'),
@@ -572,11 +678,13 @@ def jaw_compare(D, O, ppl):
 # shape. These read the outline as a curve: in front its half-width w(t) from the cheekbone row (t 0) to the chin point
 # (t 1) and its direction along its arc length (the arms' bends, the V's opening near the chin, how much of the V's turn
 # its point makes); in three-quarter the far cheek's contour (a local hollow) and the near jaw line (a notch). Graded in
-# the boards' camera (what the boards show), each with the level camera's value beside it (the drawing's projection).
+# the level camera, orthographic (the design's projection; Michael, 2026-09-30), each with the boards' camera's value
+# beside it (what the boards show: 6 degrees over the chin, in perspective, which shortens the chin's V).
 TAPER_TOP = (-0.05, 0.1)         # t 0: the design's widest row in view (its hair leaves it: _occluded) under the first z
                                  # and this far over its chin (on the head sheet -0.179, under the side locks' tips)
 TAPER_T = 0.02                   # the taper curve's step in t
-TAPER_SHAPE = (0.025, 0.04)      # rms of w(t)/w(0) against the design's: PASS / WARN
+TAPER_SHAPE = (0.0141, 0.04)     # rms of w(t)/w(0) against the design's: PASS / WARN (face5 round 7, from the triple:
+                                 # design 0.0032 / 0.0105 | widths 0.0251; was 0.025, the floor's median)
 TAPER_START = 0.9                # the taper starts where w(t)/w(0) first falls under this
 ARMS = (0.2, 0.95)               # t: the jaw lines (their straightness and bends): z -0.215 to -0.354 on the head
                                  # sheet, the window t 0.4-0.95 had been while t 0 sat on the hair's edge (-0.113)
@@ -588,7 +696,8 @@ BEND_SMOOTH = 0.03               # L of arc: a bend is the direction less its sm
 ARM_BEND = (6.0, 10.0)           # deg: the jaw lines' sharpest local bend (a kink where the silhouette jumps in depth;
                                  # the design's own 4.4)
 CHIN_ARMS = (0.06, 0.12)         # L of arc from the chin point: the V's arms, fitted as lines
-CHIN_ANGLE = (10.0, 20.0)        # deg: |ours - design| of the V's opening between them
+CHIN_ANGLE = (1.45, 20.0)        # deg: |ours - design| of the V's opening between them (face5 round 7, from the
+                                 # triple: design 0 / 0 | affine 4.8, widths 2.9, other_view 12.0; was 10)
 TIP_ARC = 0.02                   # L of arc either side of the chin point: the V's point
 TIP_SHARE = (0.7, 0.55)          # the share of the V's turn its point makes: PASS / WARN at least (a U turns all
                                  # the way round its bottom; the design's arms run straight to within TIP_ARC of it)
@@ -874,66 +983,193 @@ def tq_jaw(cls, ppl, facing=-1, win=JAW_WIN, seeds=FACE_SEEDS, top=None):
     return out
 
 
-def taper_compare(D, O, Ol=None):
+def taper_compare(D, O, Ob=None):
     """the taper's checks: the design's taper_front / tq_jaw measures D ({'front': , 'three_quarter': }) against ours O
-    (the boards' camera), Ol (the level camera's, shown beside) -> checks."""
+    (the level camera's: the design's projection, graded; Michael, 2026-09-30), Ob (the boards' camera's, shown beside
+    as 'board') -> checks."""
     C = {}
     df, of = D.get('front'), O.get('front')
-    lf = (Ol or {}).get('front') or {}
-    if df and of:
-        dr = of['r'] - df['r']
+    bf = (Ob or {}).get('front') or {}
+
+    def shape_rms(o):
+        if o is None or o.get('r') is None:
+            return None, None
+        dr = o['r'] - df['r']
         ok = np.isfinite(dr)                                       # (the t both pictures show)
-        k = int(np.argmax(np.where(ok, np.abs(dr), -1.0)))
-        rms = float(np.sqrt(np.mean(dr[ok] ** 2))) if ok.any() else None
-        dl = lf['r'] - df['r'] if lf.get('r') is not None else None
-        lvl = float(np.sqrt(np.mean(dl[np.isfinite(dl)] ** 2))) if dl is not None and np.isfinite(dl).any() else None
+        if not ok.any():
+            return None, None
+        return float(np.sqrt(np.mean(dr[ok] ** 2))), int(np.argmax(np.where(ok, np.abs(dr), -1.0)))
+    if df and of:
+        rms, k = shape_rms(of)
+        brd = shape_rms(bf)[0] if bf else None
         C['jaw_taper_shape'] = dict(value=None if rms is None else round(rms, 4),
-                                    worst=[round(float(df['t'][k]), 2), round(float(dr[k]), 4)],
+                                    worst=None if k is None else [round(float(df['t'][k]), 2),
+                                                                  round(float(of['r'][k] - df['r'][k]), 4)],
                                     start=[of.get('start'), df.get('start')], w0=[of['w0'], df['w0']],
-                                    top=df.get('top'), level=None if lvl is None else round(lvl, 4),
+                                    top=df.get('top'), board=None if brd is None else round(brd, 4),
                                     status=_grade(rms, TAPER_SHAPE),
                                     note='rms of w(t)/w(0), t 0 at the design\'s widest row its hair leaves in view %.3f, 1 '
-                                         'at the chin; worst [t, ours - design]; start [ours, design]: where it first falls '
-                                         'under %.1f' % (df['z0'], TAPER_START))
+                                         'at the chin, in the level camera (board: the boards\' camera); worst [t, ours - '
+                                         'design]; start [ours, design]: where it first falls under %.1f' % (
+                                             df['z0'], TAPER_START))
         if of.get('arms') and df.get('arms'):
-            bb = max(a['bend'] for a in of['arms'].values())
-            bl = max(a['bend'] for a in lf['arms'].values()) if lf.get('arms') else None
-            b = max(bb, bl or 0.0)
-            C['jaw_line_bend'] = dict(value=b, board=bb, level=bl, design=max(a['bend'] for a in df['arms'].values()),
-                                      arms=of['arms'], arms_level=lf.get('arms'), arms_design=df['arms'],
+            b = max(a['bend'] for a in of['arms'].values())
+            bb = max(a['bend'] for a in bf['arms'].values()) if bf.get('arms') else None
+            C['jaw_line_bend'] = dict(value=b, board=bb, design=max(a['bend'] for a in df['arms'].values()),
+                                      arms=of['arms'], arms_board=bf.get('arms'), arms_design=df['arms'],
                                       status=_grade(b, ARM_BEND),
-                                      note='the jaw lines (t %.2f-%.2f) sharpest local bend (deg), the worse camera\'s; per '
-                                           'side a line fit\'s rms (L) and bow (L, + convex)' % ARMS)
+                                      note='the jaw lines (t %.2f-%.2f) sharpest local bend (deg), in the level camera '
+                                           '(board: the boards\' camera); per side a line fit\'s rms (L) and bow (L, + '
+                                           'convex)' % ARMS)
         if of.get('chin_angle') is not None and df.get('chin_angle') is not None:
             d = of['chin_angle'] - df['chin_angle']
-            C['chin_angle'] = dict(value=of['chin_angle'], design=df['chin_angle'], arms=of.get('chin_arms'),
-                                   level=lf.get('chin_angle'), w90=[of['w90'], df['w90']], status=_grade(d, CHIN_ANGLE),
-                                   note="the V's opening between its arms %.2f-%.2f L of arc from the chin point (deg); "
+            C['chin_angle'] = dict(value=round(abs(d), 1), ours=of['chin_angle'], design=df['chin_angle'],
+                                   arms=of.get('chin_arms'), board=bf.get('chin_angle'), w90=[of['w90'], df['w90']],
+                                   status=_grade(round(d, 1), CHIN_ANGLE),     # (graded as reported: 0.1 deg)
+                                   note="|ours - the design's| V opening between its arms %.2f-%.2f L of arc from the "
+                                        "chin point (deg), in the level camera (board: ours in the boards' camera); "
                                         'w90 [ours, design]: the half-width at t 0.9 (L)' % CHIN_ARMS)
         if of.get('tip_share') is not None and df.get('tip_share') is not None:
             v = of['tip_share']
-            C['chin_tip'] = dict(value=v, design=df['tip_share'], level=lf.get('tip_share'),
+            C['chin_tip'] = dict(value=v, design=df['tip_share'], board=bf.get('tip_share'),
                                  status='PASS' if v >= TIP_SHARE[0] else 'WARN' if v >= TIP_SHARE[1] else 'FAIL',
                                  note="the share of the V's turn made within %.3f L of arc of its point (1 a sharp V, "
-                                      'low a round U)' % TIP_ARC)
+                                      "low a round U), in the level camera (board: the boards' camera)" % TIP_ARC)
     dq, oq = D.get('three_quarter'), O.get('three_quarter')
-    lq = (Ol or {}).get('three_quarter') or {}
+    bq = (Ob or {}).get('three_quarter') or {}
     if dq and oq:
         if oq.get('hollow') is not None:
-            h = max(oq['hollow'], lq.get('hollow') or -1.0)
-            C['tq_cheek_hollow'] = dict(value=h, board=oq['hollow'], level=lq.get('hollow'), z=oq.get('hollow_z'),
-                                        z_level=lq.get('hollow_z'), curv=oq.get('curv'), design=dq.get('hollow'),
-                                        status=_grade(max(0.0, h), TQ_HOLLOW),
+            h = oq['hollow']
+            C['tq_cheek_hollow'] = dict(value=h, board=bq.get('hollow'), z=oq.get('hollow_z'), z_board=bq.get('hollow_z'),
+                                        curv=oq.get('curv'), design=dq.get('hollow'), status=_grade(max(0.0, h), TQ_HOLLOW),
                                         note='the far cheek contour\'s deepest local hollow inside its chord over %.2f L of arc '
-                                             'either side (L), the worse camera\'s; curv: its most concave curvature (1/L)'
-                                             % HOLLOW_ARC)
+                                             'either side (L), in the level camera (board: the boards\' camera); curv: its '
+                                             'most concave curvature (1/L)' % HOLLOW_ARC)
         if oq.get('notch') is not None:
-            nn = max(oq['notch'], lq.get('notch') or 0.0)
-            C['tq_jaw_notch'] = dict(value=nn, board=oq['notch'], level=lq.get('notch'), du=oq.get('notch_du'),
-                                     du_level=lq.get('notch_du'), design=dq.get('notch'), status=_grade(nn, TQ_NOTCH),
-                                     note="the near jaw line's largest drop under its own rise from the chin (L), the worse "
-                                          "camera's: a notch or step where the jaw meets the neck")
+            nn = oq['notch']
+            C['tq_jaw_notch'] = dict(value=nn, board=bq.get('notch'), du=oq.get('notch_du'), du_board=bq.get('notch_du'),
+                                     design=dq.get('notch'), status=_grade(nn, TQ_NOTCH),
+                                     note="the near jaw line's largest drop under its own rise from the chin (L), in the "
+                                          "level camera (board: the boards' camera): a notch or step where the jaw meets "
+                                          "the neck")
     return C
+
+
+# ------------------------------------------------------------ the face's outline under the hair: head_construction
+# Michael (2026-09-30): the head sheet's side locks cover the face's edge from z -0.179 up, and the face runs on under
+# them, widening to the cheek under the ear, where our fit had followed the locks' tips in. head_construction (the bald
+# head, front and profile) draws that outline. Measured against the head sheet where both show the face (face round 5):
+# its face is 0.030 L longer (the chin lower) and its widths 0.036 L wider on those rows as drawn; registered on the
+# chin (its rows scaled about the eye line so its chin meets the sheet's) and its widths by one factor fitted over those
+# rows, it reads the sheet's outline to a few thousandths of L. So it is the authority for the front outline from the
+# sheet's hair-occlusion row up to its own widest row under the eyes (the jaw's side, the ramus in front of the ear),
+# the sheet where the sheet shows the face. Both read by their region's outermost extent per row (_outer): a scan from
+# the chin's column stops where an eye's lines meet the region's edge.
+CONS_REF = 'head_construction'
+HIDDEN = (0.006, 0.01)           # L: PASS / WARN for ours against head_construction's outline under the sheet's hair (rms):
+                                 # the two references agree to 0.002 where both show the face (registered), so PASS within
+                                 # 3x that; the flagged head (pipeline-3d d60486a, the face curving in under the locks)
+                                 # reads 0.011, FAIL
+HIDDEN_DZ = 0.0025               # L: the rows compared
+HIDDEN_ZMAX = 0.05               # z: construction_front's rows run up to here (the head's fit reads them past the check's)
+HIDDEN_FLAG = ("the face curving in where the head sheet's hair covers its edge (Michael, 2026-09-30): the outline "
+               "there is head_construction's")
+
+
+def _outer(cls, ppl, chin, win=JAW_WIN, seeds=FACE_SEEDS):
+    """per row from the chin up, the face region's (holes filled) outermost extent either side of the chin's column:
+    the outline itself, which the scan from the chin's column (_extents) loses where an eye's lines meet the region's
+    edge -> (z (rows), left, right (L; nan off the face))."""
+    from scipy import ndimage
+    face = ndimage.binary_fill_holes(_region(cls, seeds, ppl, win))
+    H, W = cls.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    u = (np.arange(W) + 0.5) / ppl - win['x']
+    xl, xr = np.full(H, np.nan), np.full(H, np.nan)
+    for r in np.nonzero(face.any(1) & (z >= chin[1] - 0.5 / ppl))[0]:
+        c = np.nonzero(face[r])[0]
+        xl[r], xr[r] = chin[0] - u[c[0]] + 0.5 / ppl, u[c[-1]] - chin[0] + 0.5 / ppl
+    return z, xl, xr
+
+
+def _rows_on(z, v, zg):
+    """a per-row series (z descending or not) on the rows zg, nan outside its finite rows."""
+    ok = np.isfinite(v)
+    if ok.sum() < 2:
+        return np.full(len(zg), np.nan)
+    o = np.argsort(z[ok])
+    return np.interp(zg, z[ok][o], v[ok][o], left=np.nan, right=np.nan)
+
+
+def construction_front(spec, eye_x, facing, chin, top, cls_t, ppl_t):
+    """head_construction's front outline registered on the head sheet's front (its chin `chin`, its hair-occlusion row
+    `top`, its classes cls_t at ppl_t) -> dict(z (rows, L, up to HIDDEN_ZMAX), xl, xr (the half-widths either side of the
+    chin's column, L; nan off the face), rows [top, the construction's widest row under the eyes]: where the check
+    compares, sz (its rows'
+    scale about the eye line: the chins meet), sx (its widths' scale, fitted over the rows both show), fit (the rms of the
+    registered half-widths against the sheet's there; fit_raw unregistered), outline (its registered outline (u, z))),
+    or None without the reference."""
+    from . import manifest, refcheck
+    M = manifest.load(spec['ref']['manifest'])['references']
+    if CONS_REF not in M:
+        return None
+    Vc, pc = design_jaw_views(refcheck._load(M[CONS_REF]['path']), eye_x, facing, which=('front',))
+    clsc = Vc['front']['cls']
+    chc = jaw_front(clsc, pc)['chin']
+    zc, cl, cr = _outer(clsc, pc, chc)
+    zt, tl, tr = _outer(cls_t, ppl_t, chin)
+    sz = chin[1] / chc[1]
+    zg = np.arange(chin[1], HIDDEN_ZMAX + 1e-9, HIDDEN_DZ)
+    cl_r, cr_r = _rows_on(zc * sz, cl, zg), _rows_on(zc * sz, cr, zg)
+    cl_o, cr_o = _rows_on(zc, cl, zg), _rows_on(zc, cr, zg)
+    tl_g, tr_g = _rows_on(zt, tl, zg), _rows_on(zt, tr, zg)
+    shown = (zg >= chin[1] + 0.01) & (zg <= (top if top is not None else TAPER_TOP[0]))
+    wt, wc = 0.5 * (tl_g + tr_g), 0.5 * (cl_r + cr_r)
+    ok = shown & np.isfinite(wt) & np.isfinite(wc)
+    if ok.sum() < 10:
+        return None
+    sx = float(np.sum(wt[ok] * wc[ok]) / np.sum(wc[ok] ** 2))
+    fit = float(np.sqrt(np.mean((sx * wc[ok] - wt[ok]) ** 2)))
+    okr = shown & np.isfinite(wt) & np.isfinite(cl_o + cr_o)
+    fit_raw = float(np.sqrt(np.mean((0.5 * (cl_o + cr_o)[okr] - wt[okr]) ** 2)))
+    rows = None
+    if top is not None:
+        up = (zg > top) & (zg <= TAPER_TOP[0] + 1e-9) & np.isfinite(wc)
+        if up.any():
+            k = np.nonzero(up)[0][np.argmax(wc[up])]
+            rows = [round(float(top), 4), round(float(zg[k]), 4)]
+    X = face_outline(clsc, pc)
+    return dict(z=zg, xl=sx * cl_r, xr=sx * cr_r, rows=rows, sz=round(sz, 4), sx=round(sx, 4), fit=round(fit, 4),
+                fit_raw=round(fit_raw, 4), chin=chc, ppl=round(pc, 1),
+                outline=None if X is None else X[0] * np.array([sx, sz]))
+
+
+def hidden_compare(H, E):
+    """the front outline under the head sheet's hair: ours (E: _outer of ours, level, hair hidden: dict z, xl, xr)
+    against head_construction's registered outline (H: construction_front's) over its rows -> the check or None."""
+    if not H or not H.get('rows') or not E:
+        return None
+    lo, hi = H['rows']
+    sel = (H['z'] > lo) & (H['z'] <= hi + 1e-9)
+    zz = zr = H['z'][sel]
+    # the half-width: the mean of the two sides (the full width over 2), so the drawing's chin off its face's middle
+    # (the construction's by 0.004 L, the sheet's 0.013) isn't read as a side too wide and the other too narrow
+    d = 0.5 * (_rows_on(E['z'], E['xl'], zz) + _rows_on(E['z'], E['xr'], zz)) - 0.5 * (H['xl'][sel] + H['xr'][sel])
+    ok = np.isfinite(d)
+    if ok.sum() < 5:
+        return None
+    rms = float(np.sqrt(np.mean(d[ok] ** 2)))
+    k = int(np.argmax(np.where(ok, np.abs(d), -1.0)))
+    from .registry import flag_check
+    return flag_check(dict(value=round(rms, 4), mean=round(float(np.mean(d[ok])), 4),
+                           worst=[round(float(zr[k]), 3), round(float(d[k]), 4)], rows=[lo, hi], fit=H['fit'],
+                           sx=H['sx'], sz=H['sz'], status=_grade(rms, HIDDEN),
+                           note="ours' front half-width (level, hair hidden; the two sides' mean) against "
+                                "head_construction's outline (its "
+                                "rows scaled so its chin meets the head sheet's, its widths by sx, fitted where both "
+                                "show the face: fit, rms L) from the head sheet's hair-occlusion row to the "
+                                "construction's widest row under the eyes (rows, z): rms L, mean (+ ours wider), worst "
+                                "[z, ours - design]"), HIDDEN_FLAG)
 
 
 def design_jaw(spec, eye_x):
@@ -946,6 +1182,9 @@ def design_jaw(spec, eye_x):
          for vn, v in views.items()}
     if 'front' in views:
         D['front']['taper'] = taper_front(views['front']['cls'], ppl)
+        if D['front'].get('chin') and D['front']['taper']:
+            D['front']['hidden'] = construction_front(spec, eye_x, fs.get('facing', -1), D['front']['chin'],
+                                                      D['front']['taper'].get('top'), views['front']['cls'], ppl)
     if 'three_quarter' in views:
         D['three_quarter']['taper'] = tq_jaw(views['three_quarter']['cls'], ppl, fs.get('facing', -1))
     return D, ppl, {vn: v['cls'] for vn, v in views.items()}, {vn: v['az'] for vn, v in views.items()}
@@ -997,9 +1236,13 @@ def ours_jaw(meshes, skin, iris, eye_z, L, ppl, az, design_chin=None, design_z0=
         else:
             M = jaw_front(cams['level'], ppl, design_chin if vn == 'front' else None)
             Mb = jaw_front(cams['board'], ppl)
-            M.update(jaw_line_L=Mb['jaw_line_L'], jaw_cols=Mb['jaw_cols'])
+            M.update(jaw_line_L_board=Mb['jaw_line_L'], jaw_cols_board=Mb['jaw_cols'])
             if vn == 'front':
-                M['half'] = jaw_front(cams['level_bare'], ppl)['half']
+                Mlb = jaw_front(cams['level_bare'], ppl)
+                M['half'] = Mlb['half']
+                if Mlb.get('chin'):
+                    ze, xl, xr = _outer(cams['level_bare'], ppl, Mlb['chin'])
+                    M['extents'] = dict(z=ze, xl=xl, xr=xr)
                 M['taper'] = taper_front(cams['board_bare'], ppl, design_z0)
                 M['taper_level'] = taper_front(cams['level_bare'], ppl, design_z0)
             else:
@@ -1012,7 +1255,7 @@ def ours_jaw(meshes, skin, iris, eye_z, L, ppl, az, design_chin=None, design_z0=
 def taper_checks(D, O):
     """the taper's checks from design_jaw's and ours_jaw's measures."""
     pick = lambda M, k: {vn: (M.get(vn) or {}).get(k) for vn in ('front', 'three_quarter')}
-    return taper_compare(pick(D, 'taper'), pick(O, 'taper'), pick(O, 'taper_level'))
+    return taper_compare(pick(D, 'taper'), pick(O, 'taper_level'), pick(O, 'taper'))
 
 
 def jaw(B):

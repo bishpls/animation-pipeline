@@ -1,0 +1,10 @@
+{
+ "name": "jaw4_review",
+ "why": "tool/face round 2's final build (pipeline-3d 5cb5256 merged, render box), the round Michael reviewed: the three-quarter's hollow and notch and the jaw lines' kink (in the level camera its front's V reads near the design's: the U was the boards' look down)",
+ "flag": "the chin's taper: a U, not a V; in three-quarter a hollow under the cheek and a notch at the neck (Michael, 2026-09-30)",
+ "commit": "5cb5256",
+ "source": "~/animation-pipeline-face/charkit/out/jaw_4",
+ "stored": "2026-09-30",
+ "bundle": "cb8825ef129b995c",
+ "qa_checks": 235
+}

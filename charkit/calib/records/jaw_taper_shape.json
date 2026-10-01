@@ -1,0 +1,99 @@
+{
+ "check": "jaw_taper_shape",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T21:20:53",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0032,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0032,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0053,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0105,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0032,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0032,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0024,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0037,
+    "PASS"
+   ]
+  },
+  "min": 0.0024,
+  "max": 0.0105,
+  "spread": 0.0081,
+  "median": 0.0032
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": 0.1799,
+  "status": "FAIL"
+ },
+ "floor": {
+  "widths_jaw": {
+   "values": [
+    0.0494,
+    0.0156,
+    0.0208,
+    0.0233,
+    0.0328,
+    0.0251,
+    0.0251,
+    0.0451,
+    0.0685
+   ],
+   "statuses": [
+    "FAIL",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0251,
+   "status": "WARN",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0157,
+  "status": "WARN",
+  "margin": 0.429
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0081), jaw0_flagged reads 0.1799 FAIL, the floor widths_jaw WARN",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)"
+ },
+ "seconds": 86.3
+}

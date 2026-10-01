@@ -95,7 +95,7 @@ def main(argv):
     C = fr.jaw_compare(D, O, ppl)
     C.update(fr.taper_checks(D, O))
     out = dict(design={kk: D['front']['taper'].get(kk) for kk in ('chin_angle', 'chin_arms', 'tip_share', 'w90')},
-               checks={kk: dict(value=C[kk].get('value'), status=C[kk]['status'], level=C[kk].get('level'))
+               checks={kk: dict(value=C[kk].get('value'), status=C[kk]['status'], board=C[kk].get('board'))
                        for kk in taper_lab.SHOW if kk in C})
     for scale in (k,):
         F = front(V, T, iris, ez, L, ppl * scale, az, z0)
@@ -107,9 +107,9 @@ def main(argv):
                                                 bend=max([a['bend'] for a in arms.values()] or [None]),
                                                 taper=round(float(np.sqrt(np.nanmean(dr ** 2))), 4))
     out['rims'] = rims(geom, spec)
-    print("the graded checks (the sheet's scale; the level camera's beside):")
+    print("the graded checks (the sheet's scale, the level camera; the boards' beside):")
     for kk, v in out['checks'].items():
-        print('  %-24s %-8s %-5s level %s' % (kk, v['value'], v['status'], v['level']))
+        print('  %-24s %-8s %-5s board %s' % (kk, v['value'], v['status'], v['board']))
     for cam in ('board', 'level'):
         t = O['front']['taper' if cam == 'board' else 'taper_level']
         arms = t.get('arms') or {}
