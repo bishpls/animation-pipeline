@@ -2210,31 +2210,10 @@ def main(args):
     return 0
 
 
-PREFER = 'build'               # --box auto: the build box while it has room; render boxes take the overflow
-MIN_FREE = 4                   # ... room: at least this many free slots beyond the reserve
-
-
 def pick_box(reserve=1, log=print):
-    """--box auto: every running box's free slots (charkit.remote.box_slots), the build box when it has MIN_FREE beyond
-    the reserve, else the box with the most free (overflow rather than wait) -> (name, [slot readings])."""
+    """--box auto: charkit.remote.pick_box (the build box while it has room, else the box with the most free slots)."""
     from . import remote
-    got = []
-    for env in remote._boxes():
-        try:
-            got.append(remote.box_slots(env))
-        except Exception as e:                      # (a box we can't read is skipped)
-            got.append(dict(name=os.path.basename(env)[:-4], status='unreadable', why=str(e)[:200]))
-    for g in got:
-        log('optimize: box %-8s %s' % (g['name'], '%d of %d slots free (%d held, %d waiting)' % (
-            g['free'], g['count'], g['held'], g['waiting']) if 'free' in g else g['status']))
-    up = [g for g in got if 'free' in g]
-    if not up:
-        raise SystemExit('optimize: --box auto: no running box could be read')
-    pref = next((g for g in up if g['name'] == PREFER), None)
-    if pref and pref['free'] - reserve >= MIN_FREE:
-        return pref['name'], got
-    best = max(up, key=lambda g: (g['free'], g['name'] == PREFER))
-    return best['name'], got
+    return remote.pick_box(reserve, log=lambda m: log('optimize: ' + m))
 
 
 def _box(args):
