@@ -271,6 +271,9 @@ def design_head(B, design):
         return {}
     ex = B.assembly['eye_knobs']['x']
     rgb = design.rgba(fs['image'])[..., :3]
+    st = design.shape_head('hair')          # (the hair's shape truth: the head sheet with its clips repainted away)
+    if st is not None:
+        return B.memo(('hairweight_design', ex, 'shape'), lambda: _design_head(st, ex, fs.get('facing', -1)))
     return B.memo(('hairweight_design', ex), lambda: _design_head(rgb, ex, fs.get('facing', -1)))
 
 
@@ -297,11 +300,11 @@ def _design_head(rgb, ex, facing):
     return out
 
 
-def our_head(B, az3, views=VIEWS, ss=SS):
+def our_head(B, az3, views=VIEWS, ss=SS, hide=()):
     """our head drawn by the QA's renderer at HEAD_PPL (charkit.lookqa's head frame and scene, the lines at the head
     boards' width: lookqa.line_scale on charkit.artifactqa's head page), per view: dict(rgb on the sheet's grey, hair
-    (our hair objects, their outlines and ink), strands (our ink strokes' coverage >= 0.25), clips (the accessories)).
-    Memoized on the bundle."""
+    (our hair objects, their outlines and ink), strands (our ink strokes' coverage >= 0.25), clips (the accessories));
+    hide: objects left out (the hair's shape truth: ours without our clips). Memoized on the bundle."""
     def make():
         from . import artifactqa, bodyqa, lookqa, qa3d
         # (the lines as the head boards draw them: the look's screen lines on a page of the head frame's height, as
@@ -310,6 +313,8 @@ def our_head(B, az3, views=VIEWS, ss=SS):
         from .geom.hairink import LOCK_MATERIAL
         surfs, ink = [], []
         for s_ in lookqa._scene(B, skin_outline=True, line_scale=lookqa.line_scale(B, HEAD_PPL, page)):
+            if s_['o'].name in hide:
+                continue
             is_ink = bool(s_['hull']) and len(s_['slots']) > 0 and \
                 all(qa3d.is_ink(s_['o'].materials[int(t)]) for t in np.unique(s_['slots']))
             lock = np.array([s_['o'].materials[int(t)] == LOCK_MATERIAL for t in s_['slots']], bool) if is_ink \
@@ -341,4 +346,4 @@ def our_head(B, az3, views=VIEWS, ss=SS):
             out[v] = dict(rgb=rgb, hair=cov(hair[idx]) >= 0.5, strands=cov(ink[idx]) >= 0.25,
                           clips=cov(acc[idx]) > 0)
         return out
-    return B.memo(('hairweight_ours', float(az3), tuple(views), ss), make)
+    return B.memo(('hairweight_ours', float(az3), tuple(views), ss) + ((tuple(sorted(hide)),) if hide else ()), make)

@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T06:05:55",
+ "at": "2026-10-01T21:54:21",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -51,7 +51,7 @@
  },
  "known_bad": {
   "name": "hst_base",
-  "value": 0.791,
+  "value": 0.858,
   "status": "FAIL"
  },
  "floor": {
@@ -78,15 +78,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.009,
+  "value": 0.018,
   "status": "PASS",
-  "margin": 0.991
+  "margin": 0.982
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.009), hst_base reads 0.791 FAIL, the floor voronoi_pieces FAIL",
- "build": "charkit/out/hst_s1",
+ "why": "the design passes every move (spread 0.009), hst_base reads 0.858 FAIL, the floor voronoi_pieces FAIL",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
  },
- "seconds": 251.7
+ "seconds": 1025.1
 }

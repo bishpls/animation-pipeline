@@ -1134,6 +1134,32 @@
   "eyes": "head_turnaround",
   "body": "body_turnaround"
  },
+ "shape_truth": {
+  "hair": {
+   "shape": "hair_clips_layers",
+   "rows": "top",
+   "views": ["front", "three_quarter", "profile"],
+   "placement": "head_turnaround",
+   "covers": "accessories",
+   "role": "the hair's shape truth: the hair WITHOUT its star and crab clips (Michael, 2026-10-01: hair checks against the no-accessories references). Read by charkit.shapetruth: each turnaround (head and body) keeps its pixels and placement everywhere but under the clips the QA finds (charkit.accqa), which are repainted from this redraw registered on the view; the back keeps the turnaround (the clips don't reach it). The QA's hair checks read that composite and draw our hair without our accessories",
+   "refcheck": {
+    "command": "python -m charkit.shapetruth charkit/spec/clawd.json",
+    "tol": "ring IoU >= 0.85 (the fill joins the turnaround: the hair's colour in a ring 0.02-0.15 L round the cover); the hair's silhouette IoU outside the cover >= 0.85, or within 0.03 of the placement sheet's own on a sheet the redraw wasn't made from",
+    "head_turnaround": {
+     "front": {"hair_iou": 0.9707, "ring_iou": 0.9429, "scale_vs_ppl": 1.005, "shift_px": [-2, 0], "pass": true},
+     "three_quarter": {"hair_iou": 0.9336, "ring_iou": 0.9295, "scale_vs_ppl": 1.015, "shift_px": [4, -1], "pass": true},
+     "profile": {"hair_iou": 0.9748, "ring_iou": 0.9577, "scale_vs_ppl": 1.005, "shift_px": [-6, -1], "pass": true}
+    },
+    "body_turnaround": {
+     "front": {"hair_iou": 0.8502, "ring_iou": 0.8694, "scale_vs_ppl": 1.005, "shift_px": [-1, 1], "head_turnaround_own": 0.8489, "pass": true},
+     "three_quarter": {"hair_iou": 0.8582, "ring_iou": 0.914, "scale_vs_ppl": 1.0251, "shift_px": [2, 0], "head_turnaround_own": 0.8797, "pass": true},
+     "profile": {"hair_iou": 0.9146, "ring_iou": 0.9455, "scale_vs_ppl": 1.005, "shift_px": [0, -2], "head_turnaround_own": 0.9186, "pass": true}
+    },
+    "known_bad": "the redraw's views mislaid (front on the three-quarter, three-quarter on the profile, profile on the front): hair IoU 0.36-0.54, ring IoU 0.68-0.77, FAIL in every view of both sheets",
+    "note": "the body turnaround's hair agrees with the redraw (0.850 / 0.858 / 0.915) as well as with the head turnaround itself registered the same way (0.849 / 0.880 / 0.919): two drawings of one head disagree by that much; the fill reaches the cover's found pixels grown 0.012 L and the turnaround's pixels within 0.04 L that differ from the redraw and join it (the crab's legs and outline the finder misses)"
+   }
+  }
+ },
  "design_light": {
   "mode": "camera",
   "key": [15.0, 47.5],

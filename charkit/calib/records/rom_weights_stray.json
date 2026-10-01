@@ -1,0 +1,86 @@
+{
+ "check": "rom_weights_stray",
+ "part": "rom",
+ "adapter": "Rom",
+ "module": "charkit.calib.rom",
+ "at": "2026-10-01T15:50:30",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_top"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "rom_stray",
+  "value": 0.01519,
+  "status": "FAIL"
+ },
+ "floor": {
+  "shuffled_weights": {
+   "values": [
+    0.00467,
+    0.00367
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.00417,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), rom_stray reads 0.01519 FAIL; a random stand-in fails it; shape guarded by piece_top",
+ "build": "charkit/out/rom_base2",
+ "generators": {
+  "shuffled_weights": "the skin's weights shuffled among its vertices (seeded): a random rig"
+ },
+ "seconds": 925.8
+}

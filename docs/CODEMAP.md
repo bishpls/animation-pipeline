@@ -29,6 +29,9 @@ regenerate it after changing a module's docstring or public functions. The curat
 - **Review pages**: reviewpage.py (`charkit review page`: the standard page), preview.py (per-merge previews),
   review.py, flags.py, checkpoint.py, *page.py.
 - **Simulation**: sim/ (xpbd.py cloth, springbone.py, drape.py, motion.py, motionqa.py).
+- **Range of motion**: pose.py and poses/*.json (named poses as data, in anatomical terms, any humanoid), rom.py (the
+  suite: the shipped export's rig posed and measured, `charkit rom BUILD`), romqa.py (QA part 'rom', report-only),
+  calib/rom.py (its reference rigs and known-bads).
 - **Renderer**: render/ (charkit's WebGPU toon renderer: gpu.py, buffers.py, views.py, softras.py, parity.py);
   qarender.py (the QA's drawing through it).
 - **Geometry kernel**: geom/ (mesh IO, repair, booleans, BVH, raster, loft, hull, solidify, subsurf).
@@ -73,6 +76,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | 2300 | `skirt` | - | skirt | `charkit/qa3d.py:skirt` |
 | 2400 | `accessories` | - | accessories | `charkit/accqa.py:qa_accessories` |
 | 2500 | `motion` | `motion_` | motion | `charkit/sim/motionqa.py:motion_qa` |
+| 2600 | `rom` | - | rom | `charkit/romqa.py:rom_qa` |
 
 ## Commands (`python -m charkit CMD`)
 
@@ -115,6 +119,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `refs-check` | `manifest` |
 | `remote` | `remote` |
 | `review` | `review` |
+| `rom` | `rom` |
 | `script` | `cli` |
 | `slots` | `procs` |
 | `sweep` | `sweep` |
@@ -140,6 +145,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `art.py` | `art_bumps_legs` | artifacts | Art | body5b_render |
 | `art.py` | `art_*_sleeves` | artifacts | Art | body6_render |
 | `art.py` | `art_band_lower` | artifacts | Art | body6_render |
+| `bodyhair.py` | `body_*_iou_hair` | sheet_body | BodyHair | - |
 | `chin.py` | `face_shadow_chin_edge` | look | Chin | look5_before |
 | `chin.py` | `face_shadow_chin` | look | Chin | look5_before |
 | `clips.py` | `acc_*_iou` | accessories | Clips | - |
@@ -230,7 +236,12 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `labels.py` | `piece_sleeve_[LR]` | sheet_pieces | Pieces | co_render |
 | `labels.py` | `piece_bow` | sheet_pieces | Pieces | - |
 | `labels.py` | `piece_collar` | sheet_pieces | Pieces | - |
-| `labels.py` | `hair_piece_bangs` | hair_pieces | Hair | hl_base |
+| `labels.py` | `hair_piece_bangs` | hair_pieces | Hair | - |
+| `labels.py` | `hair_piece_side_locks` | hair_pieces | Hair | - |
+| `labels.py` | `hair_piece_upper_back` | hair_pieces | Hair | - |
+| `labels.py` | `hair_piece_lower_back` | hair_pieces | Hair | - |
+| `labels.py` | `hair_piece_buns` | hair_pieces | Hair | - |
+| `labels.py` | `hair_bun_outline` | hair_pieces | Hair | - |
 | `motion.py` | `motion_kick_skirt_stretch` | motion | Motion | motion_skinned |
 | `motion.py` | `motion_squat_skirt_stretch` | motion | Motion | motion_skinned |
 | `motion.py` | `motion_kick_skirt_inside` | motion | Motion | motion_nocol |
@@ -245,6 +256,15 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `parts.py` | `iso_bow_crease_*` | iso_pieces | IsoParts | g3_render3 |
 | `parts.py` | `bow_profile_tail_*` | bow_profile | BowProfile | g3_render3 |
 | `parts.py` | `bow_profile_loop_*` | bow_profile | BowProfile | g3_render3 |
+| `rom.py` | `rom_vol_elbow` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_vol_knee` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_vol_fingers` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_shoulder_torso` | rom | RomShoulder | rom_rigid_shoulder |
+| `rom.py` | `rom_shoulder_open` | rom | RomShoulder | rom_rigid_shoulder |
+| `rom.py` | `rom_hair_shoulders` | rom | Rom | rom_hair_on_chest |
+| `rom.py` | `rom_finger_finger` | rom | Rom | rom_fingers_shifted |
+| `rom.py` | `rom_weights_stray` | rom | Rom | rom_stray |
+| `rom.py` | `rom_garment_strain` | rom | RomRigid | rom_garments_shuffled |
 
 ## Declared checks (charkit/declared.py)
 
@@ -448,7 +468,7 @@ Artifact QA: the jaggedness a viewer sees as "torn", "stepped" or "dotted", meas
 - `overlay(rgb, pics, dim=0.45)`: a view's detector overlay: the picture dimmed and greyed; each region's outline green with its corners red; its ...
 - `buffers(B, surfs, az, fr, ldir=None)`: qa3d.draw's buffers without its picture: the surface index per pixel (-1 empty) and the cel tone (0 lit ..
 - `flat_picture(kimg, tone, line)`: a buffer view as a flat picture for the overlays: each kind's colour, darkened by its cel tone, the lines ink.
-- `ours(B, az3=35.5, body_ppl=None, body_page=1440, pictures=None)`: our regions measured on the QA's own numpy drawings (buffers(): qa3d.draw's mesh and tone buffers, as the boards ...
+- `ours(B, az3=35.5, body_ppl=None, body_page=1440, pictures=None, hide=())`: our regions measured on the QA's own numpy drawings (buffers(): qa3d.draw's mesh and tone buffers, as the boards ...
 - `drawing_kinds(rgb, fg, ppl, votes=None, whole=None)`: a drawing's kinds (the design's, or a render of ours) from its cells: by a vote image (indices into KINDS, e.g.
 - `drawing_view(rgb, fg, ppl, chin_row=None, regions=REGIONS, votes=None, ...)`: the four detectors on a drawing (the design's view, a render), and given z_of_row (rows -> L from the eye line) ...
 - `design_heads(rgb, eye_x, facing, ppl=HEAD_PPL)`: the head sheet's views measured (hair, face, neck) at ppl, each cut round its head; the face and neck split at ...
@@ -1161,8 +1181,8 @@ Declared checks (tool/sweep, 2026-09-30): a check as a declaration (the piece, i
 - `pair(Mo, Md, ctx, measure='bearing', round_=1)`: two pieces' relation, piece [a, b]: ours each drawn alone (ctx 'pair': alone {piece: mask}, axis {ours, design}: ...
 - `grade(v, limits, better='lower')`
 - `inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, ...)`: what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the ...
-- `our_lines(B, ppl, az3, views=VIEWS)`: our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls ...
-- `our_ink(B, ppl, az3, views=VIEWS)`: our ink strokes' pixels per view on the design's grids (a piece's ink slot, qa3d.is_ink: the creases, the hair's ...
+- `our_lines(B, ppl, az3, views=VIEWS, hide=())`: our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls ...
+- `our_ink(B, ppl, az3, views=VIEWS, hide=())`: our ink strokes' pixels per view on the design's grids (a piece's ink slot, qa3d.is_ink: the creases, the hair's ...
 - `fold_lines(n, own, depth, k=FOLD_PX, min_deg=FOLD_DEG, step=1.5, pix=1.0, ...)`: the folds in a view's normal image (n (H, W, 3), own the object per pixel (-1 none), depth; smoothed by a ...
 - `our_folds(B, ppl, az3, views=VIEWS, min_deg=FOLD_DEG, k=FOLD_PX)`: our geometry's folds per view on the design's grids (tool/garments4, the staircase): the faces z-buffered by ...
 - `silhouette(I, view, pid)`: the drawn piece's silhouette in a view: its pixels in the drawing drawn as our label image ...
@@ -1876,6 +1896,7 @@ Michael's flags on the hair (2026-09-30 evening review of preview 1580f95; tool/
 - `our_ink(B, design, hair=None, weights=None)`: our hair's ink as the render draws it, on the design's grids: each hair object's surface pulled in by its outline ...
 - `our_lines(B, design, ours, hair=None, weights=None)`: our ink inside the hair per view (our_ink; the calibration patches this with its stand-ins).
 - `truth_path(B)`
+- `truth_for(design, truth)`: the hair truth as the hair's shape truth reads it (charkit.shapetruth): its labels under the drawn clips cleared, ...
 - `design_inputs(B, design)`: design_side() for the bundle's references, made once per Design -> (D, ppl) or (None, why).
 - `measure(B, design=None, out=None)`: Michael's hair flags (the module's docstring) -> (table, checks).
 - `picture(ours, pieces, D, ppl, lines=None, views=VIEWS)`: per view the hair cropped: ours (each part a shade, detached parts red), the drawn lines inside the mass (blue) ...
@@ -2021,7 +2042,7 @@ The hair's line weight and taper (tool/hairstrokes, scope (a); Michael, 2026-10-
 - `measure(rgb, hair, strands=None, clips=None, ppl=HEAD_PPL)`: one view's picture: rgb (H, W, 3) floats, hair the hair's pixels (lines and ink included), strands our ink's ...
 - `redraw(img, hair, clips, kind, seed=0, ss=4)`: the design's head picture with its strands repainted (the calibration's floors): 'heavy_strokes' in the outline's ...
 - `design_head(B, design)`: the design's head sheet at HEAD_PPL, per view: dict(rgb, hair, clips, az3), or {} without a face sheet.
-- `our_head(B, az3, views=VIEWS, ss=SS)`: our head drawn by the QA's renderer at HEAD_PPL (charkit.lookqa's head frame and scene, the lines at the head ...
+- `our_head(B, az3, views=VIEWS, ss=SS, hide=())`: our head drawn by the QA's renderer at HEAD_PPL (charkit.lookqa's head frame and scene, the lines at the head ...
 
 #### `charkit/handqa.py` (QA parts: `hands`)
 
@@ -2601,7 +2622,7 @@ Garment piece details (tool/garments2, docs/workstreams/garments2.md): the fault
 - `arm_profile(Ms, Mc, skin, ppl, above=(0.01, 0.04), below=(0.03, 0.08))`: a puff sleeve's widths across its arm in one view, from its mask Ms, its cuff's Mc and the arm's skin: the arm's ...
 - `closeup_section(rgb)`: sleeve_closeup's cross-section (in its lower left quarter: the puff seen along the arm, round the cream band and ...
 - `our_section(B, sleeve, band, skin, nth=72)`: our puff seen along its arm, as the design's cross-section: the arm's axis the normal of its band's ring (the ...
-- `our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'))`: our objects z-buffered on the design's grids: per view the object label image (index into names; + 1000 for a ...
+- `our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), ...)`: our objects z-buffered on the design's grids: per view the object label image (index into names; + 1000 for a ...
 - `our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'))`: our model-sheet classes on the design's grids per view (bodyqa.ours: lines absorbed) -> {view: cls}.
 - `members(lab, names, pm, pid)`
 - `sleeves(O, names, masks, pm, ppl, dv, skin_names=('clawd_skin',))`: the puff sleeves' outline and shape checks per view and side (see the module doc) -> (table, checks).
@@ -2623,6 +2644,21 @@ Garment piece details (tool/garments2, docs/workstreams/garments2.md): the fault
 - `waist(O, names, masks, pm, ppl, dv=None)`: the waistband's edges and width per view and the top's overhang over it in profile (see the module doc; the ...
 - `piece_details(B, design=None, out=None)`: the outfit pieces' details against the design: the puff sleeves' spikes, outline and width along the arm and ...
 - `measure(B, design, out=None)`: the piece details' checks on a bundle against the design (qa3d.Design) -> (table, checks).
+
+#### `charkit/pose.py`
+
+Named poses as data (tool/rom, 2026-10-01): a pose is a preset in a JSON library (charkit/poses/*.json), applied to any humanoid skeleton (the VRM humanoid bones: charkit.mh.VRM_JOINTS / VRM_PARENT) in anatomical terms, so motion tests, the range-of-motion suite (charkit.rom) and shots reuse the same presets on any character.
+
+- `library(path=LIBRARY)`: a pose library file -> {name: preset} (in the file's order).
+- `rotation(axis, deg)`: the rotation by deg degrees about axis (right-handed; Rodrigues).
+- `side_of(bone)`
+- `bare(bone)`: a bone's side-less name ('leftLowerArm' -> 'LowerArm').
+- class `Skeleton`: the humanoid's rest skeleton (Blender's frame): heads and tails per VRM bone, parents (charkit.mh.VRM_PARENT), ...
+- `ops_of(sk, preset)`: a preset's ops per bone: {bone: {op: value}} (side-less keys and patterns expanded to both sides).
+- `bone_rotation(sk, b, ops, d, flex, spread, f=1.0)`: the rotation (3x3, world) of bone b's ops taken f of the way, from its carried direction d, hinge direction flex ...
+- `solve(sk, preset, f=1.0)`: {bone: 4x4 world deformation} of a preset taken f of the way (rest -> posed; Blender's frame), composed down the ...
+- `posed_joints(sk, D)`: each bone's posed head and tail -> ({bone: head}, {bone: tail}).
+- `angle_between(sk, D, a, b)`: the posed angle (degrees) between bones a and b's directions (the flexion a joint reached).
 
 #### `charkit/pregate.py`
 
@@ -2946,9 +2982,62 @@ The standard review page (`charkit review page`): what every round's hand-made p
 - `checks_table(builds, patterns)`: each build's qa.json on the named checks (patterns), side by side; flag checks marked [F] -> HTML.
 - `key_numbers(builds, patterns, limit=8)`: the summary's key numbers when the JSON gives none: the first `limit` named checks across the builds.
 - `sweep_section(page, path)`: a sweep's table (sweep.md, as HTML) and its rows' boards -> HTML.
+- `table_section(sec)`: a given table: {"title", "text", "columns", "rows"}, a cell a string or [text, status].
 - `figures_section(page, sec)`: a section of given pictures (a round's own measurement pictures: the drawn locks, a fit's overlay): {"title", ...
 - `make(spec, out=None, log=print)`: the page from a PAGE.json's dict -> its index.html path.
 - `main(args)`
+
+#### `charkit/rom.py`
+
+The range-of-motion suite (tool/rom, 2026-10-01; docs/CHARKIT_HANDOFF.md "Known gaps before motion testing" item 2): the shipped rig posed through the pose library (charkit/poses/rom.json, charkit.pose) and measured per pose, numbers before pictures. The rig is the build's export (OUT/NAME.look.glb): its skeleton (the VRM humanoid's nodes and inverse ...
+
+- class `Obj`: one exported object welded into a mesh (Blender's frame): V (n, 3) its surface (the outline's inward move ...
+- class `Rig`: a build's shipped rig: the export's skeleton (Skeleton on the bones' heads from the inverse bind matrices, tails ...
+- `dqs(V, J, W, R, t)`: dual quaternion skinning of V (n, 3) with bone indices J and weights W (n, k) by the bones' rotations R (nb, 3, ...
+- `load(build, export=None)`: a build folder -> (Rig, the bundle or None): the export beside the bundle (NAME.look.glb, else NAME.vrm), the ...
+- `board_views(rig, az=BOARD_AZ, res=BOARD_RES, prefix='', centre=None, ortho=None)`: the posed boards' views: orthographic, one scale for every pose (1.45 x the height on the picture's height, the ...
+- `render_boards(rig, poses, out, az=BOARD_AZ, res=BOARD_RES, adapter=None, ss=2, ...)`: each pose drawn by charkit's toon renderer from every azimuth into out/POSE_AZ.png -> {pose: {az: path}}.
+- `head_length(rig, B=None)`: the character's head length L (m): the bundle's assembly L, else the export's boards / head L.
+- `regions(rig, skin='clawd_skin')`: the skin's vertices by region (each vertex's dominant bone): {name: bool (n,)}: torso, head, and per side the arm ...
+- `shells(V, F)`: each vertex's connected shell (an id).
+- `submesh(F, keep)`: the triangles of F whose three vertices are all kept -> (m, 3).
+- `boundary_loops(F)`: an oriented triangle set's boundary loops (each directed edge with no reverse twin), chained -> [[v...]].
+- `capped(X, F, loops)`: X with a centroid per loop appended, F with each loop fanned shut (orientation closing the surface) -> (X', F').
+- class `Closed`: a region of a mesh as a closed surface (its boundary loops capped, the same caps rest and posed).
+- `inside_new(Q0, Q1, bv0, bv1, L, tol=0.004)`: points (rest Q0, posed Q1) inside a closed surface posed (bv1) and not at rest (bv0), deeper than tol L -> ...
+- `crossing_edges(X, E, bv)`: which edges (X[E[:, 0]] -> X[E[:, 1]]) cross the surface in bv -> bool (len(E),).
+- `crossings_new(X0, X1, E, bv0, bv1)`: edges crossing a surface posed and not at rest -> dict(n, share).
+- `strain(V0, V1, E, min_len=0.0)`: |edge / rest edge - 1| over edges E at least min_len long at rest (all of them when none is) -> dict(p95, max).
+- `tri_area_n(X, F)`
+- `skin_faces(rig, o, D, X1, F=None)`: the skin's faces against rest: collapsed (under 20% of their rest area) and folded (their normal turned over ...
+- `ring_area(Q)`: a ring's area on its best-fit plane (charkit.code_hand.ring_area).
+- `joint_rings(rig, skin='clawd_skin')`: every joint's rest rings on the skin -> {joint: [dict(offset, ring, area (m^2), r)]}, joints named per side ...
+- `ring_ratios(rings, X)`: each joint's rings posed (X the posed skin) over rest -> {joint: dict(min, at (offset), ratios)}.
+- class `Context`: what every pose shares: the rig, L, the skin's regions and rings, the closed regions and their rest BVHs, the ...
+- `measure_pose(ctx, D, X=None)`: one pose's measures (D: {bone: 4x4}) -> dict(rings, skin_pairs, garments, crossings, strain, skin).
+- `joint_family(j)`
+- `summary(m)`: a pose's measures as its headline numbers (the report's table and the QA's checks read these) -> dict: vol_FAMILY ...
+- `dense_weights(rig, o, rows=None)`: an object's weights as a dense (n, bones) float32 array (bones: rig.bone_names(), humanoid ancestors merged).
+- `seg_dist(P_, a, b)`
+- `weight_sanity(rig, L, skin='clawd_skin', step_len=0.03, stray_far=0.35, ...)`: the rig's weights checked once (no pose): per object the largest |sum - 1|, the vertices with no weight, stray ...
+- `limit_of(key)`
+- `grade(key, v)`
+- `run(build, out=None, poses=None, boards=False, export=None, lib=None, ...)`: the suite on a build -> the report (also out/rom.json and out/rom.md when out is given).
+- `markdown(rep)`
+- `main(args)`
+- class `Posable`: a bundle made posable: each drawn variant's vertices (the skin's 'masked', every other object's 'eval') matched ...
+- `art_posed(rig, B, poses, log=print)`: the toon artefact detectors (charkit.artifactqa: outline corners, terminator kinks, fragments, speckle, the ...
+- `render_closeups(rig, out, lib=None, which=None, res=(520, 520), adapter=None, ss=2, ...)`: the close-up set (CLOSEUPS) into out/NAME_AZ.png: the joint the pose stresses, posed, at a fixed window round its ...
+- `compare_markdown(reps, labels)`: several bodies' reports (run()'s) side by side: per pose, body findings then garment findings, each cell the ...
+
+#### `charkit/romqa.py` (QA parts: `rom`)
+
+Range-of-motion QA (tool/rom, 2026-10-01): the range-of-motion suite (charkit.rom) run on a build's export at the poses each check names, report-only. Every check is the worst reading over its poses (the pose named in `pose`, every pose's reading in `by_pose`), graded against physical limits (charkit.rom.LIMITS: there is no drawing of these poses); a ...
+
+- `poses_needed(checks=CHECKS)`
+- `checks_of(rep, calibrated=CALIBRATED)`: the suite's report (charkit.rom.run's, or measure()'s) -> {check: dict(value, status, grade, pose, by_pose)}.
+- `measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, ...)`: the suite on a bundle's build at the checks' poses -> the report (charkit.rom.run's shape, no pictures).
+- `rom_qa(B, design=None, out=None)`: the range-of-motion suite at the checks' poses on the build's export (report-only).
 
 #### `charkit/scene.py`
 
@@ -3003,6 +3092,23 @@ charkit's cel shading (docs/CHARKIT.md §2, materials): three-tone toon on an ar
 - `set_light(d, head_matrix=None)`: every cel material's light: 'ldir' (world) and the face's 'ldir_head' (head space; head_matrix the head bone's ...
 - `line_width(ob, m_per_px=None, res_y=None, look=None)`: an outlined object's width (m) in a view: its build width, or ('screen' lines) the look's share of the picture's ...
 - `set_view(az, m_per_px=None, res_y=None, look=None)`: the look for one camera (azimuth az, degrees; m_per_px at the target, res_y the picture's height): the light, and ...
+
+#### `charkit/shapetruth.py`
+
+A piece's shape truth on the turnarounds (Michael, 2026-10-01: each piece's shape truth is its layer without what lies on it; "if we aren't yet comparing hair checks against the no-accessories references, we absolutely should be"). The manifest's shape_truth[part] names a redraw of a turnaround without the pieces that cover the part (Clawd's hair without ...
+
+- `entry(spec, part)`: the manifest's shape_truth[part] when it names a picture of a turnaround redrawn without the part's covers -> ...
+- `rows_of(rgb, rows)`: the picture's rows a shape truth reads: 'top' / 'bottom' (split at the widest empty band of rows, ...
+- `part_mask(rgb, fg)`: the part's colour on a drawing (the hair: the orange family, bodyqa.family; the character's palette when one is ...
+- `source(rgb, eye_x, facing=-1, rows=None, views=None)`: the redraw's heads: dict(rgb (its rows), ppl, views {view: eye (x, y px)}, fg, part, blobs {view: its head's ...
+- `blob(fg, eye)`: the figure (a connected part of fg) holding the eye point (x, y), else the one nearest it.
+- `register(dst_rgb, dst_part, dst_blob, cover, dst_eye, ppl, src, view, log=None)`: one view's registration of the redraw (source()) on the turnaround: dst_rgb, dst_part, dst_blob (the turnaround's ...
+- `composite(rgb, fg, covers, eyes, ppl, src, log=None)`: the turnaround with its covers repainted from the redraw: rgb (H, W, 3) floats, fg its figure (the whole sheet, ...
+- `fill_labels(lab, covered, part)`: a label image (0 unlabelled, else a label: the hair's families, a truth's regions) under the repainted pixels: ...
+- `sheet_covers(design_clips, ppl, shape)`: a sheet's covers per view on the whole sheet from charkit.accqa's design() of it (masks on windows round each ...
+- `make(rgb, fg, design_clips, ppl, src_rgb, eye_x, facing, rows, views)`: the composite of a sheet (rgb, its figure fg or None; design_clips: accqa.design() of it) with the shape truth's ...
+- `refcheck(spec, part='hair', out=None, log=print, known_bad=True)`: the shape truth registered on both turnarounds (the head sheet; the body sheet the hair checks read) -> dict( ...
+- `main(args)`
 
 #### `charkit/sheetqa.py`
 
@@ -4070,6 +4176,12 @@ Calibration adapter for the artifact detectors calibrated on Michael's flags (ch
 
 - class `Art`
 
+#### `charkit/calib/bodyhair.py` (1 calibration entries)
+
+Calibration adapter for the body sheet's hair checks (qa3d.sheet_body: body_<view>_iou_hair, bodyqa's hair class against ours per view; tool/hairtruth, 2026-10-01: measured against the hair's shape truth, the drawing with its clips repainted from hair_clips_layers, ours without our clips). Ours is our classes z-buffered on the design's grids ...
+
+- class `BodyHair`
+
 #### `charkit/calib/chin.py` (2 calibration entries)
 
 Calibration adapter for the chin's shadow on the jaw (charkit.lookqa: face_shadow_chin_edge, face_shadow_chin; Michael's chin-shadow flag). look5's first chin measure failed its own calibration (the design's shadow moved 1-2 px read IoU 0.55-0.87, eye-aligned); look6 measured on the jaw (designlight.chin_calibration). Here that same code moves the ...
@@ -4129,7 +4241,7 @@ Calibration adapter for the jaw, the chin, the three-quarter's jaw and the neck 
 
 - class `Jaw`
 
-#### `charkit/calib/labels.py` (12 calibration entries)
+#### `charkit/calib/labels.py` (17 calibration entries)
 
 Calibration adapters for the QA parts that read our pieces as label images on the design's grids (the body sheet's scale): collar_flags (charkit.collarqa), sheet_pieces (piece_*: charkit.qa3d) and hair_pieces (hair_piece_*). Ours is what our z-buffer draws (pieceqa.our_labels / fine_labels, qa3d.bodyqa_zbuffer, bodyqa.zbuffer_views); here the design's ...
 
@@ -4161,6 +4273,26 @@ Calibration adapters for the bow: its parts and the lines inside them (charkit.p
 - class `IsoParts`: iso_pieces: the turnaround's front bow (parts and lines) as ours drawn alone.
 - class `BowProfile`: bow_profile (bowqa): the drawn profile bow's loops (the outfit's `bow` mask) and tails (bow_tail_L|R) as our ...
 
+#### `charkit/calib/rom.py` (9 calibration entries)
+
+Calibration adapter for range-of-motion QA (charkit.romqa: the range-of-motion suite at the checks' poses on the build's export; tool/rom, 2026-10-01). Defect detectors with physical limits (no drawing of these poses grades them); the shape they could be gamed against is the body's and the garments' (sheet_pieces' piece IoUs: a fix that moves the ...
+
+- `rigid_joints(rig, skin='clawd_skin')`: every skin vertex on its dominant bone alone (no blend across any joint).
+- `garments_on_hips(rig)`
+- `hair_on_chest(rig)`
+- `skirt_on_thigh(rig)`
+- `fingers_shifted(rig, skin='clawd_skin')`: each finger's vertices skinned to the bones two fingers on (index -> ring, middle -> little, ring -> index, ...
+- `stray(rig, skin='clawd_skin', share=0.02, seed=0)`: share of the skin's vertices given half their weight on a far bone (the opposite foot's for the upper body, the ...
+- `shuffled(rig, seed=0, skin='clawd_skin')`
+- `garments_rigid(rig)`: every garment on its own commonest dominant bone alone: garments that never stretch (the garment strain check's ...
+- `garments_shuffled(rig, seed=0)`
+- class `Rom`: the build as it ships, nudged (the design leg): range-of-motion QA's checks that the build itself passes.
+- class `RomShoulder`: the shoulder at the arm poses: the design leg the build itself (calibrate it on a joined-shoulder build; the ...
+- class `RomVolume`: joint volume: the design leg the same rig skinned by dual quaternions (Kavan et al.
+- class `RomFit`: garments against the body: the design leg every garment skinned with the skin's weights under it (garments_fit: ...
+- class `RomRigid`: garment strain: the design leg every garment rigid on its commonest bone (garments_rigid: nothing stretches), nudged.
+- `garments_fit(rig, skin='clawd_skin')`: every garment skinned with the skin's own weights at its nearest skin point (barycentric, the top four): the ...
+
 ### charkit/steps/
 
 #### `charkit/steps/__init__.py`
@@ -4183,7 +4315,7 @@ The measurement steps of the checks charkit/bodyqa.py measures (charkit.registry
 
 The measurement steps of the checks charkit/bowqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/code_body.py` (2 measurement steps)
+#### `charkit/steps/code_body.py` (3 measurement steps)
 
 The measurement steps of checks whose measuring code reaches charkit/code_body.py (charkit.registry; docs/CHARKIT.md). The motion QA (charkit/sim/motionqa.py) rebuilds the skin's weights with the tree's own code_body.build_body_data (charkit/sim/motion.py: Scene, through bodyeval's assembly) and poses the skin with them, so the gate's code walk counts ...
 
@@ -4194,6 +4326,10 @@ The measurement steps of the checks charkit/collarqa.py measures (charkit.regist
 #### `charkit/steps/cuffqa.py` (1 measurement steps)
 
 The measurement steps of the checks charkit/cuffqa.py declares (measured by charkit/declared.py's area family; charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
+
+#### `charkit/steps/declared.py` (2 measurement steps)
+
+The measurement steps of the checks charkit/declared.py's families measure (charkit.registry; docs/CHARKIT.md): the declarations live in their owners' modules (charkit/hairstrokeqa.py, ...), the measuring code here and in what it calls (charkit/hairweight.py for line_weight). A step: (check pattern, the commit that changed the measurement, what changed). ...
 
 #### `charkit/steps/detailqa.py` (10 measurement steps)
 
@@ -4207,7 +4343,7 @@ The measurement steps of the checks charkit/eyeqa.py measures (charkit.registry;
 
 The measurement steps of the checks charkit/faceregion.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/hairflagqa.py` (7 measurement steps)
+#### `charkit/steps/hairflagqa.py` (12 measurement steps)
 
 The measurement steps of the checks charkit/hairflagqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
@@ -4235,7 +4371,7 @@ The measurement steps of the checks charkit/partqa.py measures (charkit.registry
 
 The measurement steps of the checks charkit/pieceqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/qa3d.py` (59 measurement steps)
+#### `charkit/steps/qa3d.py` (65 measurement steps)
 
 The measurement steps of the checks charkit/qa3d.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
