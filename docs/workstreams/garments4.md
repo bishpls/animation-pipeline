@@ -1194,3 +1194,17 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   gj: opt1's puff and tuck knobs + collar back_depth 0.51; g7_c7b + side_depth 0.364) for the review page and the
   decision: switch on now with named regressions accepted (motion testing unblocked) or hold for the flat lapels and
   the puffs' dome.
+- **Michael's decision (2026-10-01, via the coordinator): the joined shoulder ON now, garment regressions accepted by
+  name** (motion testing goes on the default body); round 8 (a fresh agent) generates separated references (the collar
+  and lapels alone, the top without collar and bow, the bow alone if bow_closeup isn't one) and rebuilds the flat lapels
+  and puffs from per-piece shape truths.
+- c7 vs c7b vs c4 against g7_base (kcmp): c7 best (art_mirror_waist PASS, no sleeve spikes FAIL, piece_top 0.507/0.669,
+  sleeves front 0.941/0.945); c7b art_outline_neck 5.9 but neck_crease 32 FAIL, spikes R FAIL, 3q torn FAIL.
+- pipeline-3d cd1c327f (char3, build2) merged (9e258250; code_body's bare-hull paths and other footwear, not Clawd's).
+- **Default switched** (charkit/spec/clawd.json + alias = g7_c7's spec; Clawd's shoulder written out in full:
+  tools/garments7/clawd_shoulder_explicit.json; the only difference from c7's spec: the socket's keys explicit, equal to
+  the code's defaults). Spec tests pass. Pregate running (log charkit/out/garments7/pregate.log).
+- Posed c7 (posed.py; charkit/out/garments7/posed_c7.png/json): side raise skin out 3 verts / 0.021 L, forward 17 / 0.025;
+  jacket strain p95 1.17 / 1.13; puff p95 2.09 / 2.36, folded 1.3% / 4.3%; the armpit wedge of skin under the puff
+  when raised (skin showing 236 vs 144 at rest; old body 258 vs 240): for round 8 (the puff's underarm or the jacket's
+  armhole under it).
