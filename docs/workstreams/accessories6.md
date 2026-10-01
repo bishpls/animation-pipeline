@@ -195,8 +195,13 @@ pipeline-3d 60c0f1a4 (hands2) merged (1056491c); CODEMAP regenerated; pregate on
   three_quarter size 1.098 -> 1.131 WARN; flags moved, grades unchanged: art_terminator_hair 2.178 -> 2.134 (the
   gate's own reading), art_peeks_hair 18 -> 22 (FAIL grade both), hair_strokes_front_weight 0.308 -> 0.229 (PASS both).
 
+- pipeline-3d moved to cd1c327f (tool/char3) after gate 2: `gate --carry` refused (rc 3: the move and the branch
+  meet at charkit/accessories.py: char3 adds crown / pin / sash kinds). Merged (4d6c806c, clean; CODEMAP regenerated;
+  the crab template unchanged: 2,490 vertices as built; accessory, accqa, accfit, limbs, declared, optimize, calibrate
+  tests pass). Re-gate: the coordinator's call.
+
 ## Next steps
-1. For the coordinator to merge (head f5afc94e plus notes).
+1. For the coordinator: re-gate or merge (gate 2 PASS at f5afc94e into 59c93f38; tip after the char3 merge).
 2. Michael's A/B on the review page (the crab's place: the drawing's arrangement vs his upper-left with the pincers along
    the bearing); if B: the turn check's target 'pincers along the bearing' (accqa.CRAB_AXIS against a relation
    constant), refit (opt_place declarations in charkit/out/remote/, the ring in tools/acc6/ring.py).
