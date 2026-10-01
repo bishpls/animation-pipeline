@@ -11,6 +11,21 @@ branch doesn't edit calibrate.py, boxjob.py or the sweep worker launch. These no
 
 Started 15:38 EDT. Wall time per task is logged in "Time" below.
 
+**Done; gated.** Gate K **PASS** f36b2f07 into pipeline-3d 27a4b6c3 (`--code tool/infra5-o`, build box; report
+charkit/out/gate/gate_tool-infra5-o_f36b2f07_into_27a4b6c3.md): nothing blocks, no check changed, 104 test files
+pass, CPU 1660 -> 1887 s (1.14x: the candidate rebuilt the produced references once under this branch's keys). The
+earlier gate 33edd0a7 into 27a4b6c3 (build2) also PASS. Commits after f36b2f07: notes only. Review page:
+charkit/out/infra5/page/html/index.html (`charkit review page charkit/out/infra5/page/page.json`). The measurement
+worktree ~/animation-pipeline-infra5o-base (branch tmp/infra5o-base2: pipeline-3d + the instrumentation; also
+tmp/infra5o-base, tmp/infra5o-failfast) can be removed once the coordinator has the numbers.
+
+**Box state changed by this round:** the stale shared hull entry 60a77c6f-b021909c was moved aside on the build box
+(/tmp/stale-hull-...-moved-by-infra5o: recoverable).
+
+**Left / proposed:** the budget's blocking rule (Michael's call); the QA's drawing on a GPU box (routing:
+tool/build2's area); the iterate profile as a default for QA-only runs and sweep confirm builds (optimize.py's
+confirm builds, not touched); `CHARKIT_PREVIEW_VERIFY` (a verify build per merge) not wired.
+
 ## Time
 | task | start | end | notes |
 | --- | --- | --- | --- |
@@ -20,7 +35,9 @@ Started 15:38 EDT. Wall time per task is logged in "Time" below.
 | b0 profile, QA cProfile, counts | 16:35 | 16:50 | b0 cold build profiled; the renderer is the QA's cost |
 | coordinator's stale-cache item | 16:50 | 17:35 | walker, depth, runtime record, verify, affected gates |
 | 3 cuts: declared buffers, render culling, memos | 17:35 | 18:20 | b1; culling measured (no gain) and taken out |
-| final builds (b2 after, bb before, side by side), pregate | 18:20 | | |
+| final builds (b2/bb, then the clean pair b4/bb3), pregate | 18:20 | 19:55 | the merge with 27a4b6c3 in between |
+| coordinator's like-for-like CPU item | 19:05 | 19:20 | gate.like_for_like + test |
+| gates (33edd0a7 build2, f36b2f07 build box), review page | 19:15 | 19:58 | both PASS |
 
 ## 1. Per-stage build profile
 
