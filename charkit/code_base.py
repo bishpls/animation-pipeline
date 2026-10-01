@@ -604,29 +604,47 @@ def _torso_rings(Bm, ring_b, Vb):
         rings.append(nxt)
 
 
-def _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L):
+def _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L, base=NECK_BASE):
     """the neck's join lofted as one surface: the head's own neck (the head sheet's, slender) kept down to the cut, then
     each column one monotone cubic (neck_curve) from it down to the authored torso's ring NECK_BASE under the cut, meeting
     both with their own slopes: the neck flares into the shoulders under the collar, as drawn, with no ring or crease.
     The torso's rings between are re-seated on it (its top ring, a circle as wide as the neck's skin, stood out from the
-    head's neck and from the rows under it). -> (Vb, curve) or (Vb, None) for a body without an authored torso."""
+    head's neck and from the rows under it). base: how far under the cut the loft reaches (L), a number or a table by
+    azimuth round the neck ([[degrees from the front, L], ...], mirrored): the shoulders template's `join`, whose level
+    top lies in the rows the default loft re-seats (a short join at the sides and the back keeps it; the front's long
+    one keeps the chest's flare into the V). Between the table's angles each vertex's radius is interpolated between
+    the lofts of its neighbouring entries. -> (Vb, curve (the first entry's)) or (Vb, None) for a body without an
+    authored torso."""
     rings = _torso_rings(Bm, ring_b, Vb)
     zr = [(Vb[rg, 2].mean() - Oz) / L for rg in rings]
-    k = next((i for i, z in enumerate(zr) if zr[0] - z >= NECK_BASE), None)
-    if k is None or k + 1 >= len(rings):
-        return Vb, None
+    table = sorted(base) if isinstance(base, (list, tuple)) else [[0.0, float(base)]]
     axis = np.array([Ox, Oy + cy_cut * L])
     polar = lambda rg: _ring_polar((Vb[rg, :2] - axis) / L, (0.0, 0.0), S.th)
-    r_low, r_next = polar(rings[k]), polar(rings[k + 1])
-    s_low = (r_low - r_next) / (zr[k] - zr[k + 1])
-    curve = neck_curve(S, CUT, (zr[k], r_low, s_low))
+    lofts = []                                     # per table entry: (its ring index k, its curve)
+    for _, d in table:
+        k = next((i for i, z in enumerate(zr) if zr[0] - z >= d - 1e-9), None)
+        if k is None or k + 1 >= len(rings):
+            return Vb, None
+        r_low, r_next = polar(rings[k]), polar(rings[k + 1])
+        s_low = (r_low - r_next) / (zr[k] - zr[k + 1])
+        lofts.append((k, neck_curve(S, CUT, (zr[k], r_low, s_low))))
+    V0 = np.array(Vb, float, copy=True)
     Vb = np.array(Vb, float, copy=True)
-    for rg, z in zip(rings[:k], zr[:k]):
-        q = Vb[rg, :2] - axis
+    degs = np.array([a for a, _ in table], float)
+    for j, (rg, z) in enumerate(zip(rings, zr)):
+        if j >= max(k for k, _ in lofts):
+            break
+        q = V0[rg, :2] - axis
         th = np.arctan2(q[:, 0], -q[:, 1])
-        rr = np.interp(th, S.th, curve(z), period=2 * np.pi) * L
+        r_own = np.hypot(q[:, 0], q[:, 1])
+        R = np.stack([np.interp(th, S.th, c(z), period=2 * np.pi) * L if j < k else r_own for k, c in lofts], 1)
+        if len(lofts) == 1:
+            rr = R[:, 0]
+        else:
+            a = np.degrees(np.abs(th))
+            rr = np.array([np.interp(a_, degs, R[i]) for i, a_ in enumerate(a)])
         Vb[rg, :2] = axis + np.stack([np.sin(th) * rr, -np.cos(th) * rr], 1)
-    return Vb, curve
+    return Vb, lofts[0][1]
 
 def _cut_body(Bm, Vb, Fb, z_cut, L):
     """MakeHuman's body cut level at the neck -> (the kept faces' indices, those faces, the neck ring)."""
@@ -686,7 +704,8 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
             'eye_depth', 0.01))) * L
     # an authored torso: the join lofted as one surface from the head's neck down into the torso (no crease where the
     # head's rows met the torso's top ring)
-    Vb, curve = _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L)
+    Vb, curve = _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L,
+                           base=((spec.get('body') or {}).get('shoulder') or {}).get('join', NECK_BASE))
     nc = Vb[ring_b].mean(0)
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r, curve=curve)
