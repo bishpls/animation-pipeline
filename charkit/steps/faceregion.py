@@ -68,4 +68,11 @@ MEASUREMENT_STEPS = [
     ('neck_front_wiggle', '72eb64a', 'ours read on the design\'s band (0.25 L under the throat, was 0.1: the design\'s '
                                     'neck front is behind a lock there), the run ended at the neck\'s foot (a 0.01 L '
                                     'jump in a row): f5m 5.4 -> 4.8 PASS, the design 4.7'),
+    # tool/garments4 (2026-10-01): the join's crease on the skin's exact cut (the V opened read 55.3 on the sampling)
+    ('neck_crease*', '958bfcd2', 'each column the skin\'s exact cut at its azimuth (faceregion.section_outline: the '
+                                 'half-plane\'s crossings with the triangles), read on unbroken runs (was the largest '
+                                 'vertex radius within 6 degrees and 0.006 L per height, gaps interpolated: it read the '
+                                 'torso\'s row spacing on the flare, the clamped window ends and a mask\'s edge as bends): '
+                                 'g4_stairs1 neck_crease 26.9 WARN -> 12.6 PASS, neck_crease_all 44.7 -> 14.4; the V '
+                                 'opened (g4_nv2) 55.3 FAIL -> 12.7 PASS; a 0.02 L ring at the cut 49.6 FAIL'),
 ]
