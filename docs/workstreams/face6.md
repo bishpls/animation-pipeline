@@ -47,3 +47,11 @@ IoU per view beside every check moved.
     band reads ~0.013 L thicker than the ribbon (the lid's eyeline under it).
   - brows fitted to the close-up's front brows (`charkit/out/face6/browfit.py`, centred-mask IoU + thickness + arch):
     IoU 0.46 -> 0.84/0.82, thick 0.0167 (design 0.0178), arch 0.100 (0.096), length 0.154 (0.151).
+
+## Running (2026-09-30 night)
+
+- Box build (render box, boards views,body,design) of 2bdfc58: `charkit/out/face6_a` (log `charkit/out/face6/build_a.log`;
+  the hull rebuilds: code_base changed). Pregate: `charkit/out/face6/pregate_a.log`.
+- Review page harness: `charkit/out/face6/page.py OUT NOW_BUILD OURS_BUILD --start BOARDS --summary JSON` (design |
+  start 1583cd6 board rescaled | now 1580f95 | ours, per flag and view; the old face checks before/after; the pieces'
+  IoU). NOW_BUILD = `charkit/out/calib/cur_face6_1580f95` (its qa.json has the face_flags checks).
