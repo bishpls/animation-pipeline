@@ -67,3 +67,6 @@ projects/clawd3d/refs/mocap/*.bvh
 projects/*/refs/bones/
 # charkit review boards and builds (regenerable)
 charkit/out/
+
+# private characters: references, specs and builds that stay out of the public repo (synced to the boxes by bucketsync)
+charkit/private/

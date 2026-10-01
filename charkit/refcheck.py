@@ -29,6 +29,13 @@ from . import sheetqa
 from .faceqa import drawn_chin          # the chin rule, shared with the QA's reading of ours
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HEAD_ORDERS = {4: ('front', 'three_quarter', 'profile', 'back'), 3: ('front', 'profile', 'back'), 2: ('front', 'profile')}
+EAR_BEHIND = 0.02   # a head's rear "eye" this far behind its axis (share of its width), the front one EAR_RATIO times as far
+                    # ahead: an ear (a bald construction profile, 2026-10-01); three-quarters' rear eyes lie ahead
+EAR_RATIO = 1.3    # (fronts read 1.02-1.03 on both characters, a construction profile's ear 1.47)
+EDGE_EYE = 0.06     # a dark blob within this share of the head's width of its silhouette's edge is no eye (an ear, a
+                    # nose tip: a bald construction head at full size read its ears as a front pair, 2026-10-01; eyes
+                    # sit 0.19-0.31 of the width inside the edge, Clawd's 0.28-0.31)
 GUIDE = dict(k=4, diff=0.12, share=0.35)   # a guide line: a thin horizontal feature across much of the sheet
 VIEWS = ('front', 'three_quarter', 'profile')
 
@@ -62,6 +69,29 @@ def without_guides(rgb):
     return out, [int(r[len(r) // 2]) for r in runs]
 
 
+def _eyes_off_the_edge(lab, box, m, facing, tries=3):
+    """sheetqa.find_eyes' pair (else one eye) in a head, with blobs at its silhouette's edge (EDGE_EYE) left out and the
+    search run again without them."""
+    lab = lab.copy()
+    w = max(1, box[2] - box[0])
+    for _ in range(tries):
+        e = sheetqa.find_eyes(lab, box, 2, facing=facing, max_tilt=0.25) or sheetqa.find_eyes(lab, box, 1, facing=facing)
+        bad = []
+        for x, y in e:
+            xs = np.nonzero(m[int(round(y))])[0] if 0 <= int(round(y)) < m.shape[0] else []
+            if len(xs) and min(x - xs[0], xs[-1] - x) < EDGE_EYE * w:
+                bad.append((x, y))
+        if not bad:
+            return e
+        r = int(0.04 * w) + 2
+        for x, y in bad:
+            lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1][
+                lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1] == 3] = 0
+            lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1][
+                lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1] == 4] = 0
+    return [p for p in e if p not in bad]
+
+
 def detect_heads(rgb, eye_x, facing=-1):
     """the heads on a head sheet: every blob off the background at least a fifth the size of the largest; its view from
     its eyes as sheetqa.detect_figures names a model sheet's (two level eyes centred on the silhouette: front; off
@@ -77,11 +107,19 @@ def detect_heads(rgb, eye_x, facing=-1):
             continue
         box = [int(v) for v in B[i]]
         m = blobs == i + 1
-        e = sheetqa.find_eyes(lab, box, 2, facing=facing, max_tilt=0.25) or sheetqa.find_eyes(lab, box, 1, facing=facing)
+        e = _eyes_off_the_edge(lab, box, m, facing)
         off = None
         if len(e) == 2:
             ey = float(np.mean([p[1] for p in e]))
             c = sheetqa._row_centre(m, int(ey - 20), int(ey + 21))
+            # a profile's ear read as its second eye: the rear blob behind the head's axis while the front one lies
+            # far ahead of it (a front's pair is even about the axis, a three-quarter's rear eye lies ahead of it)
+            w = max(1, box[2] - box[0])
+            fr, re = (min(e, key=lambda p: p[0] * -facing), max(e, key=lambda p: p[0] * -facing))
+            behind, ahead = (re[0] - c) * -facing / w, (c - fr[0]) * -facing / w
+            if behind > EAR_BEHIND and ahead > EAR_RATIO * behind:
+                e = [fr]
+        if len(e) == 2:
             off = (c - float(np.mean([p[0] for p in e]))) / max(1.0, abs(e[1][0] - e[0][0]))
         found.append(dict(box=box, eyes=e, off=off, _mask=m))
     two = [f for f in found if f['off'] is not None]
@@ -90,13 +128,36 @@ def detect_heads(rgb, eye_x, facing=-1):
     front = min(two, key=lambda f: abs(f['off']))
     ppl = abs(front['eyes'][1][0] - front['eyes'][0][0]) / (2 * eye_x)
     ey_front = float(np.mean([p[1] for p in front['eyes']]))
-    heads = {}
-    for f in sorted(found, key=lambda f: f['box'][0]):
+    by_x = sorted(found, key=lambda f: f['box'][0])
+
+    def view_of(f):
         e = f['eyes']
         if len(e) == 2:
-            view = 'front' if f is front and abs(f['off']) < 0.5 else 'three_quarter'
-        else:
-            view = 'profile' if len(e) == 1 else 'back'
+            return 'front' if f is front and abs(f['off']) < 0.5 else 'three_quarter'
+        return 'profile' if len(e) == 1 else 'back'
+    order = HEAD_ORDERS.get(len(by_x))
+    named = [view_of(f) for f in by_x]
+    rank = [('front', 'three_quarter', 'profile', 'back').index(v) for v in named]
+    consistent = all(a < b for a, b in zip(rank, rank[1:]))     # no view twice, left to right in turnaround order
+    if order and by_x[0] is front and not consistent:
+        # the kit's head sheets' layouts (their prompts draw them so), where the eyes' names are inconsistent (a view
+        # twice or out of order: small dark eyes lost at a reduced scale): eyes off the front's eye line dropped, the
+        # missing re-searched on it (slivers)
+        for f, v in zip(by_x, order):
+            want = dict(front=2, three_quarter=2, profile=1, back=0)[v]
+            if v != 'front':
+                f['eyes'] = [p for p in f['eyes'] if abs(p[1] - ey_front) <= sheetqa.EYE_LINE_L * ppl][:want]
+                if 0 < want > len(f['eyes']):
+                    top = int(ey_front - sheetqa.EYE_LINE_L * ppl)
+                    band = (f['box'][0], top, f['box'][2], top + int(2 * sheetqa.EYE_LINE_L * ppl / 0.62))
+                    e = sheetqa.find_eyes(lab, band, want, facing=facing, max_tilt=0.25, soft=True)
+                    if len(e) > len(f['eyes']):
+                        f['eyes'] = e
+            f['_view'] = v
+    heads = {}
+    for f in by_x:
+        e = f['eyes']
+        view = f.get('_view') or view_of(f)
         eye_y = float(np.mean([p[1] for p in e])) if e else ey_front      # a sheet's heads share its eye line
         name = view if view not in heads else '%s_%d' % (view, sum(k.startswith(view) for k in heads) + 1)
         heads[name] = dict(box=f['box'], eyes=[[round(a, 2), round(b, 2)] for a, b in e], eye_y=round(eye_y, 2),
@@ -111,9 +172,20 @@ def _resample(rgb, f):
     return np.asarray(im.resize((max(1, round(im.width * f)), max(1, round(im.height * f))), Image.LANCZOS)).astype(float) / 255
 
 
+AT_SCALE_NEAR = 0.01        # at_scale's closest attempt is taken when none lands within 0.3 px, if within this share
+                            # of the spacing: small dark eyes read their spacing to a pixel or so, not linearly in the
+                            # factor (a second character's: factor 1.03 read 131.7 px for 134.5), so it never converged
+
+
 def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
     """a head sheet resampled so its front head's eyes are `spacing` px apart (the model sheet's)
-    -> (rgb at that scale, the factor, detect_heads' result there)."""
+    -> (rgb at that scale, the factor, detect_heads' result there). Within 0.3 px, else the closest attempt within
+    AT_SCALE_NEAR of the spacing, else RuntimeError."""
+    best = [None]
+
+    def near(small, f, H, cur):
+        if best[0] is None or abs(cur - spacing) < best[0][0]:
+            best[0] = (abs(cur - spacing), small, f, H)
     f = guess
     for _ in range(6):
         small = _resample(rgb, f)
@@ -125,8 +197,52 @@ def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
         cur = H['ppl'] * 2 * eye_x
         if abs(cur - spacing) <= 0.3:
             return small, f, H
+        near(small, f, H, cur)
         f *= spacing / cur
+    # (a sheet whose heads the guess's scale loses, small dark eyes: start from its own scale instead)
+    try:
+        H = detect_heads(rgb, eye_x, facing)
+    except RuntimeError:
+        H = None
+    H0 = H
+    f = spacing / (H['ppl'] * 2 * eye_x) if H else None
+    for _ in range(6 if H else 0):
+        small = _resample(rgb, f) if abs(f - 1) > 1e-9 else rgb
+        try:
+            H = detect_heads(small, eye_x, facing)
+        except RuntimeError:
+            break
+        cur = H['ppl'] * 2 * eye_x
+        if abs(cur - spacing) <= 0.3:
+            return small, f, H
+        near(small, f, H, cur)
+        f *= spacing / cur
+    if best[0] is not None and best[0][0] <= AT_SCALE_NEAR * spacing:
+        return best[0][1:]
+    if H0 is not None:
+        # (small dark eyes lost at every reduced scale tried, though the sheet's own resolution reads them: its heads
+        # scaled to the resampled sheet, 2026-10-01)
+        f = spacing / (H0['ppl'] * 2 * eye_x)
+        return _resample(rgb, f), f, scale_heads(H0, f)
     raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
+
+
+def scale_heads(H, f):
+    """detect_heads' result for the sheet resampled by f: px per L, boxes, eyes and eye lines scaled, masks resampled."""
+    from PIL import Image
+    sc = lambda v: [round(float(a) * f, 2) for a in v]
+    heads = {}
+    for k, h in H['heads'].items():
+        g = dict(h, box=[int(round(a * f)) for a in h['box']], eyes=[sc(e) for e in h['eyes']],
+                 eye_y=round(float(h['eye_y']) * f, 2))
+        if h.get('head') is not None:
+            g['head'] = [int(round(a * f)) for a in h['head']]
+        if h.get('_mask') is not None:
+            m = np.asarray(h['_mask'], bool)
+            g['_mask'] = np.asarray(Image.fromarray(m.astype(np.uint8) * 255).resize(
+                (max(1, round(m.shape[1] * f)), max(1, round(m.shape[0] * f))), Image.NEAREST)) > 127
+        heads[k] = g
+    return dict(H, ppl=H['ppl'] * f, heads=heads)
 
 
 def measure_heads(rgb, heads, ppl, facing=-1, below=-0.2, leak=0.06):
@@ -198,6 +314,12 @@ def figures_at_scale(rgb, eye_x, spacing, facing=-1, guess=0.5):
     raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
 
 
+def common(S):
+    """the scale every sheet is measured at (px per L): the source design's (S.ppl), or, for a character with no source
+    sheet and rig, S.common: its face sheet's own (main() sets it)."""
+    return getattr(S, 'common', None) or S.ppl
+
+
 def measure_ref(ref, S, log=print):
     """one head sheet (layout 'heads') or full-body sheet (layout 'figures') measured at the common scale
     -> dict(ref, path, layout, factor, scale_vs_sheet, guides, chin (the profile's drawn chin), O {view: measures},
@@ -205,18 +327,19 @@ def measure_ref(ref, S, log=print):
     from PIL import Image
     facing = S.spec_sheet.get('facing', -1)
     rgb0 = np.asarray(Image.open(_p(ref['path'])).convert('RGB')).astype(float) / 255
-    spacing = S.ppl_eyes * 2 * S.eye_x
+    cp = common(S)
+    spacing = (S.ppl_eyes if cp == S.ppl else cp) * 2 * S.eye_x
     figs = None
     if ref.get('layout') == 'figures':
         guides = []
         rgb, f, H = figures_at_scale(rgb0, S.eye_x, spacing, facing)
-        figs = {v: {'eye_y': round(g['eye_y'] / S.ppl, 4), 'ground': round(g['box'][3] / S.ppl, 4),
-                    'top': round(g['box'][1] / S.ppl, 4), 'height': round((g['box'][3] - g['box'][1]) / S.ppl, 4)}
+        figs = {v: {'eye_y': round(g['eye_y'] / cp, 4), 'ground': round(g['box'][3] / cp, 4),
+                    'top': round(g['box'][1] / cp, 4), 'height': round((g['box'][3] - g['box'][1]) / cp, 4)}
                 for v, g in H['figures'].items()}
     else:
         rgb0, guides = without_guides(rgb0)
         rgb, f, H = at_scale(rgb0, S.eye_x, spacing, facing)
-    O, chin = measure_heads(rgb, H['heads'], S.ppl, facing)
+    O, chin = measure_heads(rgb, H['heads'], cp, facing)
     log('%s: x%.3f (%.2fx the model sheet), heads %s, %d guide lines out, profile chin %s' % (
         ref['id'], f, 1 / f, ', '.join(H['heads']), len(guides), None if chin is None else round(chin, 3)))
     return dict(ref=ref['id'], path=ref['path'], layout=ref.get('layout'), factor=round(f, 4),
@@ -320,7 +443,7 @@ def eye(R, S):
         return None, None
     f = R['factor']
     ex, ey = min(h['eyes'])                                             # the viewer's left eye, at the common scale
-    cx, cy, ppl = ex / f, ey / f, S.ppl / f                             # at the sheet's own resolution
+    cx, cy, ppl = ex / f, ey / f, common(S) / f                         # at the sheet's own resolution
     hw, hh = EYE_BOX[0] * ppl, EYE_BOX[1] * ppl
     rgb = R['_rgb0'][int(cy - hh):int(cy + hh), int(cx - hw):int(cx + hw)]
     rgba = np.concatenate([rgb, np.ones(rgb.shape[:2] + (1,))], -1)
@@ -332,7 +455,8 @@ def eye(R, S):
 def run(spec, refs, S, log=print):
     """-> dict(sheets [measure_ref], pairs [dict(a, b, views)], within {ref: checks}, design {ref: views}): the pairs and
     each sheet's own views are the verdict; design (each sheet against the model sheet) is information."""
-    D = sheetqa.measure_sheet(S.rgb, {k: tuple(v) for k, v in S.spec_sheet['heads'].items()}, S.eye_x, ppl=S.ppl)
+    heads = S.spec_sheet.get('heads') or {v: f['head'] for v, f in S.D['figures'].items() if v in VIEWS}  # (found, when
+    D = sheetqa.measure_sheet(S.rgb, {k: tuple(v) for k, v in heads.items()}, S.eye_x, ppl=S.ppl)          # none typed)
     sheets = [measure_ref(r, S, log) for r in refs]
     pairs = [dict(a=A['ref'], b=B['ref'], views=compare_views(A['O'], B['O']))
              for i, A in enumerate(sheets) for B in sheets[i + 1:]]
@@ -478,9 +602,16 @@ def main(args):
     # otherwise fill the design's role
     import copy
     src = copy.deepcopy(spec)
-    for k in [k for k in src['ref'] if k.endswith('_sheet')]:
-        src['ref'].pop(k)
+    if src['ref'].get('sheet') and src['ref'].get('rig'):
+        for k in [k for k in src['ref'] if k.endswith('_sheet')]:
+            src['ref'].pop(k)
+    # (a character with no source sheet and 2D rig, as any but the first: the departures are its body turnaround's, the
+    # generated sheet that fills the design's role, and the common scale its face sheet's own, where its heads are big)
     S = bodymeasure.Sheet(src)
+    if not (src['ref'].get('sheet') and src['ref'].get('rig')) and spec['ref'].get('face_sheet'):
+        from PIL import Image
+        face = np.asarray(Image.open(_p(spec['ref']['face_sheet']['image'])).convert('RGB')).astype(float) / 255
+        S.common = detect_heads(without_guides(face)[0], S.eye_x, S.spec_sheet.get('facing', -1))['ppl']
     res = run(spec, [next(r for r in refs if r['id'] == rid) for rid in want], S)
     plain = lambda x: {k: v for k, v in x.items() if not k.startswith('_')}
     json.dump({'spec': args[0], 'sheet_ppl': S.ppl, 'status': res['status'],

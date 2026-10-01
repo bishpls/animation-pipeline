@@ -159,8 +159,10 @@ def silhouette(m, az, frame, el=0.0):
 
 # --------------------------------------------------------------------------------------------- windows round a point
 def window_shape(pix, win):
-    """a measuring window's pixel size (W, H): win = dict(x, top, bottom) in units of L round the origin."""
-    return int(round(2 * win['x'] / pix)), int(round((win['top'] - win['bottom']) / pix))
+    """a measuring window's pixel size (W, H): win = dict(x, top, bottom) in units of L round the origin. Over
+    faceqa.MAX_WINDOW_PX it raises (an implausible scale, not a grid to allocate)."""
+    from ..faceqa import check_window
+    return check_window(int(round(2 * win['x'] / pix)), int(round((win['top'] - win['bottom']) / pix)))
 
 
 def window_project(V, az, origin, L, pix, win):

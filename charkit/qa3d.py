@@ -2507,6 +2507,8 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     if isinstance(B, str):
         B = bundlelib.load(B)
     os.makedirs(out, exist_ok=True)
+    from . import palette
+    palette.activate_spec(B.spec)                  # the character's palette (charkit.palette), or the constants
     design = Design(B)
     if ref_image is None:
         ref = B.spec.get('ref')

@@ -1032,6 +1032,61 @@ def belt(A, spec):
     return dict(verts=verts, faces=faces, weights=band_weights(A, spec, verts), uv=uvs)
 
 
+def sash(A, spec):
+    """a sash (a drape worn diagonally: a himation, a baldric, a pageant sash) as a band round the torso in a tilted
+    plane: through the top of its `shoulder`'s shoulder ('right' or 'left') and the opposite hip (`hip`: between the hip
+    and spine joints, as the skirt's `waist`), the plane holding the front-to-back axis. Round the plane's centre, each
+    direction's radius is the body's (its vertices within `band` L of the plane, the farthest per angle) plus `offset`;
+    the band is `width` L across the plane, `thick` thick, its section bowed `bow` L outward. Weighted from the body
+    under it (body_weights), so it bends with the shoulder and the waist. -> dict(verts, faces, weights, uv)."""
+    L = A['head']['L']
+    side = spec.get('shoulder', 'right')
+    other = 'left' if side == 'right' else 'right'
+    J = bone_seg(A, side + 'Shoulder')[1]                      # the shoulder joint
+    r_arm = limb_radius(A, side + 'UpperArm', 0.1)
+    S = J + np.array([0.0, 0.0, r_arm + spec.get('lift', 0.02) * L])   # over the shoulder's top
+    hj, sj = bone_seg(A, 'hips')[0], bone_seg(A, 'spine')[1]
+    zh = hj[2] + (sj[2] - hj[2]) * spec.get('hip', 0.4)
+    c, rad = body_section(A, zh, n=72)
+    sgn = 1.0 if other == 'left' else -1.0                       # the character's left is +x
+    H = np.array([c[0] + sgn * rad[int(round((sgn * math.pi / 2 + math.pi) / (2 * math.pi) * 72)) % 72], c[1], zh])
+    u = (S - H) / np.linalg.norm(S - H)                          # along the diagonal, up to the shoulder
+    yax = np.array([0.0, 1.0, 0.0])
+    v = yax - (yax @ u) * u; v /= np.linalg.norm(v)              # toward the back, in the plane
+    nrm = np.cross(u, v)
+    C = (S + H) / 2
+    C[1] = c[1]
+    V = np.asarray(A['verts'], float)
+    Q = V - C
+    near = np.abs(Q @ nrm) < spec.get('band', 0.06) * L
+    ang = np.arctan2(Q[near] @ v, Q[near] @ u)
+    rr = np.hypot(Q[near] @ u, Q[near] @ v)
+    n = spec.get('cols', 120)
+    bins = np.linspace(-math.pi, math.pi, n + 1)
+    R = np.full(n, np.nan)
+    for k in range(n):
+        m = (ang >= bins[k]) & (ang < bins[k + 1])
+        if m.any():
+            R[k] = rr[m].max()
+    ok = np.isfinite(R)
+    R = np.interp(np.arange(n), np.nonzero(ok)[0], R[ok], period=n) if ok.any() else np.full(n, 0.5 * L)
+    off, w, th, bow = (spec.get(k_, d) * L for k_, d in (('offset', 0.03), ('width', 0.45), ('thick', 0.012),
+                                                          ('bow', 0.02)))
+    prof = [(-w / 2, 0.0), (-w / 4, 0.7 * bow), (0.0, bow), (w / 4, 0.7 * bow), (w / 2, 0.0)]
+    verts, uvs = [], []
+    for k in range(n):
+        a = (bins[k] + bins[k + 1]) / 2
+        d = math.cos(a) * u + math.sin(a) * v
+        for j, (dz, dr) in enumerate(prof):
+            verts.append(C + d * (R[k] + off + dr) + nrm * dz)
+            uvs.append((k / n, j / (len(prof) - 1)))
+    m_ = len(prof)
+    faces = [(k * m_ + j, ((k + 1) % n) * m_ + j, ((k + 1) % n) * m_ + j + 1, k * m_ + j + 1)
+             for k in range(n) for j in range(m_ - 1)]
+    verts = np.array(verts)
+    return dict(verts=verts, faces=faces, weights=body_weights(A, verts), uv=uvs)
+
+
 # ---------------------------------------------------------------------------------------------------- the hull's pieces
 def hull_target(A, shape):
     """where the hull's eyes land on ours for the garments (target3d.eye_target): at our irises' height, _eye_z's frame,
@@ -3853,6 +3908,10 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 hide[G['hide']] = True
             if s.get('source') == 'hull':                            # the loft is the band's outside: give it a thickness
                 _thick(ob, s.get('thick', 0.025) * L)
+        elif k == 'sash':
+            G = sash(A, s)
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
+            _thick(ob, s.get('thick', 0.012) * L)
         elif k == 'sleeve':
             G = puff(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'template' else \
                 sleeve_hull(A, s, hull) if s.get('source') == 'hull' else sleeve(A, s)
