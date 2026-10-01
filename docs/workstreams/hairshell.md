@@ -939,3 +939,10 @@ charkit/steps/qa3d.py resolved keeping both); hair_noise's record refreshed on i
   early steps read (re-gate 4: 1.61x; cold-cold 0.99x / 1.10x): gate with `--args "--cache refresh"`; test_slotprio is
   timing-flaky under the gate's test load; `remote run` now picks a box (name `--box build` for a build living there);
   the laptop's python3 fails TLS on bucket pulls (CHARKIT_PY=venv python).
+
+## Final gate (round 4, after the revert): PASS under K
+tool/hairshell3 af582dcd into pipeline-3d ae865afc, both sides cold (`--args "--cache refresh"`, `--accept hair_noise`
+not needed: the geometry is the same, no 2x2 drop), `charkit/out/gate/gate_tool-hairshell3_af582dcd_into_ae865afc.md`:
+nothing blocks; hair_noise remeasured 0.0765 W -> 4.82 P (record CALIBRATED), hair_tone_edges new INFO (0.0765);
+measuring code changed with no step reported for parts that read qa3d.LIMITS / lockshell (nothing moved); 107 test
+files pass (test_slotprio too); build CPU 1627.0 -> 1641.1 s (1.01x). Pregate (box) PASS, 0 moved. No jobs running.
