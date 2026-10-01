@@ -1172,3 +1172,28 @@ art_terminator_hair 2.514 against 2.308 by the same route, most likely.
    jaw_taper_shape. sleeve_profile_rough_L no longer blocks.
 3. `--accept` can't take a new FAIL under policy K (above). It's moot for sleeve_profile_rough_L now; for Michael if
    he wants a way to record such an acceptance in the gate.
+
+## Round 6 (2026-09-30 night): the re-gate's blockers (tool/bunorient's agent)
+
+Merged pipeline-3d 3f7b730 (hull-local, calib, accessories2, softras round 4) at aac435e. Box build `charkit/out/f5m`
+(`--boards '' --no-blend`): art_terminator_hair 2.111 WARN, jaw_outline_hidden 0.0025 PASS, jaw_taper_shape 0.0157
+PASS, hair_piece_side_locks 0.519 WARN: the gate's candidate reproduced.
+
+**The terminator is not the buns** (docs/workstreams/bunorient.md, section 1): on the gate's own pair the buns move
+4.8e-7 L, 0 deg; piece swaps put it on the side locks (before + face5's side_lock_L 2.114; after + the base's 1.979;
+side_lock_R 1.989 / 1.973; lower_back 1.976). The input swap (`charkit/out/f5swap/swap.json`, hairswap.py on the box):
+the hull's carve near the cheek carries it (with the base's hull the bangs and lower back are the base's, side_lock_R
+takes its counts), the skin's clearance from the new jaw adds about 0.01 L to the side locks. No clean local fix here
+(the lock partition is tool/hair5's); the coordinator takes it to Michael as a named acceptance.
+
+**The 15 calibration records: not started.** No registry entry covers the jaw / chin / tq / neck checks
+(`python -m charkit calibrate list 'jaw*'` is empty). Plan: `charkit/calib/jaw.py`, CALIBRATION entries for
+jaw_outline_hidden, chin_*, jaw_line_*, jaw_taper*, neck_front_wiggle, neck_to_face, tq_* (part face_region), an
+adapter `Jaw` with `run(kind, arg)` (as calib/chin.py's): 'design' = the head sheet's own class images
+(faceregion.design_jaw_views) moved (dy, dx) standing for ours' level / board / bare cameras, measured by jaw_front /
+jaw_profile / taper_front / tq_jaw and compared by jaw_compare + taper_checks (jaw_outline_hidden: head_construction's
+outline moved, through hidden_compare); a floor generator (the design's jaw views under a random affine: scaled 8-15%,
+sheared, or another view's jaw); known-bads: the base build (pipeline-3d's head: jaw_outline_hidden 0.0112 FAIL under
+the new measure) stored with `calibrate store`, older face rounds' builds for the others where one FAILs; checks with no
+known-bad that the floor separates get verdict guard; any the design fails moved 1-2 px, or the floor passes, reported
+as miscalibrated / coarse, not loosened. Current build: `charkit/out/f5m`.
