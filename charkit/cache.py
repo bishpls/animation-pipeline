@@ -1143,6 +1143,7 @@ def env():
 
 # -------------------------------------------------------------------------------------------------------------- tracking
 _REC = None                             # the running step's recorder
+STEP_RESULTS = {}                       # this process's venv steps: name -> 'hit' (restored) or what ran (file_step)
 _CUR = None                             # the build's Cache (its `wrote`: files written during the build)
 
 
@@ -2601,6 +2602,16 @@ def _unport(p, build_out):
 
 def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False, depth=None,
               build_out=None, verify=False):
+    """_file_step, its outcome kept in STEP_RESULTS (the build's build_cpu.json records which steps were restored: the
+    merge gate compares CPU only over the stages both builds ran, charkit.gate.like_for_like)."""
+    r = _file_step(name, run, fns, key, out, inputs=inputs, modules=modules, name_key=name_key, refresh=refresh,
+                   depth=depth, build_out=build_out, verify=verify)
+    STEP_RESULTS[name] = r
+    return r
+
+
+def _file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False, depth=None,
+               build_out=None, verify=False):
     """a venv-side step whose product is files under `out` (the geom hair cut, before Blender): restored by copying them
     when its code (fns and `modules` with what they import, `depth` imports deep: step_depth()), the venv's packages,
     `key` (what it is given, exactly), the content of `inputs` and of every file it opened are unchanged. Paths in the

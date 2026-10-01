@@ -221,6 +221,51 @@ def _cpu(out, key='cpu_seconds'):
     return json.load(open(p)).get(key) if os.path.exists(p) else None
 
 
+VENV_STEPS = ('outfit_draft', 'code_head', 'code_body', 'hair_select', 'geom_hair', 'pieces_hair', 'garments_geom')
+
+
+def like_for_like(base_out, cand_out):
+    """the two builds' CPU over what both ran (the coordinator's fairness report, 2026-10-01: a baseline that restored
+    the venv steps against a candidate that ran them cold read 871 -> 1406 s, 1.61x, where cold against cold was ~1.04x):
+    each build's phases (build_cpu.json, cli._phases) and what it restored (`restored`: the venv steps, file_step's
+    hits; the produced references, manifest.produced) -> dict(base, cand, ratio, excluded [(phase, why)], raw [base,
+    cand]), or None when either build predates the record (the totals are compared then). A venv step counts when both
+    ran it; `resolve` (the produced references made or restored, the design measured) when both built the same
+    references; Blender, the QA and the rest always (a gate's worktrees are fresh: both run them); the CPU outside the
+    phases (the slot's wait, imports) on both sides as it is."""
+    def rec(o):
+        p = os.path.join(o, 'build_cpu.json')
+        try:
+            r = json.load(open(p))
+        except (OSError, ValueError):
+            return None
+        return r if r.get('phases') and 'restored' in r else None
+    A, B = rec(base_out), rec(cand_out)
+    if A is None or B is None:
+        return None
+    excluded, a, b = [], A['cpu_seconds'], B['cpu_seconds']
+    sa, sb = (A['restored'].get('steps') or {}), (B['restored'].get('steps') or {})
+    for k in VENV_STEPS:
+        if k not in A['phases'] or k not in B['phases']:
+            continue
+        ra, rb = sa.get(k), sb.get(k)
+        if ra is None and rb is None:
+            continue                                    # (not a cached step in this spec: both did the same)
+        if ra != rb or ra == 'restored':
+            excluded.append((k, 'the baseline %s it, the candidate %s it' % (ra or 'skipped', rb or 'skipped')))
+            a -= A['phases'][k][1]
+            b -= B['phases'][k][1]
+    pa, pb = A['restored'].get('produced') or {}, B['restored'].get('produced') or {}
+    built = lambda P: sorted(k for k, v in P.items() if v == 'built')
+    if built(pa) != built(pb) and 'resolve' in A['phases'] and 'resolve' in B['phases']:
+        excluded.append(('resolve', 'produced references built: baseline %s, candidate %s' % (
+            ', '.join(built(pa)) or 'none', ', '.join(built(pb)) or 'none')))
+        a -= A['phases']['resolve'][1]
+        b -= B['phases']['resolve'][1]
+    return dict(base=round(a, 1), cand=round(b, 1), ratio=round(b / a, 2) if a > 0 else None, excluded=excluded,
+                raw=[A['cpu_seconds'], B['cpu_seconds']])
+
+
 def _closure_of(out):
     p = os.path.join(out, 'closure.json')
     return json.load(open(p)) if os.path.exists(p) else None
@@ -951,6 +996,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             rep['blender_seconds'] = ends
             rep['cpu_seconds'] = [_cpu(base_out), _cpu(cand_out)]
             rep['cpu_threads'] = [_cpu(base_out, 'threads'), _cpu(cand_out, 'threads')]
+            rep['cpu_like'] = like_for_like(base_out, cand_out)
             # the absolute budget (infra round 5; REPORT ONLY): each budgeted stage's CPU, both builds, against the
             # merged tree's charkit/budget.json (a branch that adds cost raises it there, in review)
             try:
@@ -1483,6 +1529,15 @@ def judge(rep, qa_a, qa_b):
         block = keep
     ca_, cb_ = (rep.get('cpu_seconds') or [None, None])[:2]
     ta, tb_ = (rep.get('cpu_threads') or [None, None])[:2]
+    like = rep.get('cpu_like')
+    if like and like.get('ratio') is not None:
+        # (like for like: the stages both builds ran; the totals and what was left out are reported)
+        if like['excluded']:
+            R['notes'].append('build CPU compared like for like: %.0f -> %.0f s (%.2fx), the totals %.0f -> %.0f s (%.2fx) '
+                              'less %s' % (like['base'], like['cand'], like['ratio'], ca_ or 0, cb_ or 0,
+                                           (cb_ / ca_) if ca_ and cb_ else 0, '; '.join(
+                                               '%s (%s)' % e for e in like['excluded'])))
+        ca_, cb_ = like['base'], like['cand']
     if ca_ and cb_:
         rep['cpu_ratio'] = round(cb_ / ca_, 2)
         if ta != tb_:
@@ -1490,7 +1545,8 @@ def judge(rep, qa_a, qa_b):
                               '%s), and an uncapped build burns CPU spinning as the box gets busier' % (
                                   rep['cpu_ratio'], ca_, cb_, ta or 'uncapped', tb_ or 'uncapped'))
         elif cb_ > CPU_LIMIT * ca_:
-            block.append({'kind': 'build CPU', 'base': ca_, 'cand': cb_, 'ratio': rep['cpu_ratio']})
+            block.append({'kind': 'build CPU', 'base': ca_, 'cand': cb_, 'ratio': rep['cpu_ratio'],
+                          'like': bool(like and like.get('ratio') is not None)})
     elif (rep.get('cand_build') or {}).get('skipped'):
         rep['cpu_ratio'] = None
     elif rep.get('qa') is not None:
@@ -1534,7 +1590,8 @@ def _why(b):
         a, z = (b['from'], b['to']) if 'from' in b else (b.get('base'), b.get('cand'))
         return '%s: %s %s -> %s' % (k, b['check'], _cell(a), _cell(z))
     if k == 'build CPU':
-        return 'the build takes %.2fx the CPU time (%s -> %s s)' % (b['ratio'], b['base'], b['cand'])
+        return 'the build takes %.2fx the CPU time (%s -> %s s%s)' % (b['ratio'], b['base'], b['cand'],
+                                                                     ', the stages both builds ran' if b.get('like') else '')
     if k in PART_BLOCKS.values():
         return '%s: %s (%s%s; measured %s, declares %s)' % (k, b['part'], b['status'], ': ' + str(b['why'])[:200]
                                                            if b.get('why') else '', b.get('checks'), b.get('expected'))
@@ -1767,6 +1824,11 @@ def _write(rep, gdir, tag):
                                     ('baseline', lambda r: f(r.get('base'))), ('candidate', lambda r: f(r.get('cand'))),
                                     ('candidate / budget', lambda r: '%.2fx' % r['ratio'] if r.get('ratio') is not None
                                      else ''), ('', lambda r: r.get('flag') or '')])
+    lk = rep.get('cpu_like')
+    if lk and lk.get('ratio') is not None:
+        L.append('- build CPU like for like (the stages both builds ran; what policy K reads): %s s -> %s s (%.2fx)%s' % (
+            lk['base'], lk['cand'], lk['ratio'], '; left out: ' + '; '.join('%s (%s)' % e for e in lk['excluded'])
+            if lk['excluded'] else ''))
     L.append('\n## Phases\n')
     L += _table(rep.get('phases') or [], [('phase', lambda r: r['phase']), ('start (s)', lambda r: r['start']),
                                           ('seconds', lambda r: r['seconds']), ('note', lambda r: r.get('note', ''))])

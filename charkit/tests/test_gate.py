@@ -610,6 +610,40 @@ def test_fail_fast_a_build_started_after_the_failure_is_stopped(tmp_path=None):
     assert time.time() - t0 < 20, time.time() - t0
 
 
+def test_build_cpu_is_compared_like_for_like(tmp_path=None):
+    """policy K's CPU rule reads the stages both builds ran (the coordinator's report, 2026-10-01: a baseline that
+    restored the venv steps against a candidate that ran them cold read 871 -> 1406 s, 1.61x, cold against cold
+    ~1.04x): a step one side restored, and `resolve` when the sides built different produced references, are left
+    out of both; a build without the record falls back to the totals."""
+    import pathlib
+    tmp_path = tmp_path or pathlib.Path(tempfile.mkdtemp())
+    a, b = tmp_path / 'base', tmp_path / 'cand'
+    a.mkdir(); b.mkdir()
+    ph = lambda **k: {n: [1.0, v] for n, v in k.items()}
+    json.dump({'cpu_seconds': 871.0, 'phases': ph(resolve=4.0, code_head=1.0, pieces_hair=1.0, blender=180.0, qa=680.0),
+               'restored': {'steps': {'code_head': 'restored', 'pieces_hair': 'restored'}, 'produced': {'hull': 'hit'}}},
+              open(a / 'build_cpu.json', 'w'))
+    json.dump({'cpu_seconds': 1406.0, 'phases': ph(resolve=250.0, code_head=75.0, pieces_hair=200.0, blender=180.0,
+                                                    qa=696.0),
+               'restored': {'steps': {'code_head': 'ran', 'pieces_hair': 'ran'}, 'produced': {'hull': 'built'}}},
+              open(b / 'build_cpu.json', 'w'))
+    L = gate.like_for_like(str(a), str(b))
+    assert [e[0] for e in L['excluded']] == ['code_head', 'pieces_hair', 'resolve'], L
+    assert L['base'] == 865.0 and L['cand'] == 881.0 and L['ratio'] == 1.02 and L['raw'] == [871.0, 1406.0], L
+    v, block, R = _judge({'checks': {}}, {'checks': {}}, cpu_seconds=[871.0, 1406.0], cpu_like=L)
+    assert v == 'PASS' and any('like for like' in n for n in R['notes']), (block, R['notes'])
+    # cold against cold, the candidate twice the baseline's QA: blocks, saying it compared the stages both ran
+    L2 = dict(L, base=865.0, cand=1400.0, ratio=1.62)
+    v, block, R = _judge({'checks': {}}, {'checks': {}}, cpu_seconds=[871.0, 1406.0], cpu_like=L2)
+    assert v == 'FAIL' and 'the stages both builds ran' in gate._why(block[0])
+    # a build without the record: the totals, as before (1.61x blocks)
+    os.remove(a / 'build_cpu.json')
+    json.dump({'cpu_seconds': 871.0}, open(a / 'build_cpu.json', 'w'))
+    assert gate.like_for_like(str(a), str(b)) is None
+    v, block, R = _judge({'checks': {}}, {'checks': {}}, cpu_seconds=[871.0, 1406.0], cpu_like=None)
+    assert v == 'FAIL' and block[0]['kind'] == 'build CPU'
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

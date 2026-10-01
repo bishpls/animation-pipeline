@@ -36,6 +36,7 @@ and each hit or miss prints a CHARKIT_PRODUCED line (the time saved or spent) an
 import copy, glob, hashlib, json, os, shutil, stat, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PRODUCED_RESULTS = {}       # this process's produced references: rid -> 'kept' (this copy's), 'hit' (restored), 'built'
 
 
 def _p(path):
@@ -625,6 +626,7 @@ def produced(spec, rid, log=print):
     # or restored: CHARKIT_CACHE_STALE when they differ)
     verify = os.environ.get('CHARKIT_PRODUCED_VERIFY') == '1'
     if os.path.exists(p) and have() == st and not verify:
+        PRODUCED_RESULTS.setdefault(rid, 'kept')
         return p
     for k in r.get('reads', ()):
         if k != rid and (R.get(k) or {}).get('produced_by'):
@@ -636,6 +638,7 @@ def produced(spec, rid, log=print):
         fcntl.flock(lock, fcntl.LOCK_EX)
         was = have()
         if os.path.exists(p) and was == st and not verify:       # another build in this copy made it meanwhile
+            PRODUCED_RESULTS.setdefault(rid, 'kept')
             return p
         old = None
         if verify and os.path.exists(p) and was == st:          # (this copy's own, kept aside for the comparison)
@@ -672,6 +675,7 @@ def produced(spec, rid, log=print):
                 _event(root, rid=rid, key=key, event='hit', seconds=round(dt, 2), built_seconds=built,
                        saved_seconds=round(built - dt, 1) if built is not None else None, files=len(E['files']),
                        bytes=size)
+                PRODUCED_RESULTS[rid] = 'hit'
                 return p
             log('%s %s: miss %s (%s), building' % (_TAG, rid, short, why))
         from . import cache
@@ -718,6 +722,7 @@ def produced(spec, rid, log=print):
             raise RuntimeError('%s: its producer (%s) ran but made no %s; the build stops rather than going on '
                                'without it' % (rid, r['produced_by'], r['path']))
         dt = time.time() - t0
+        PRODUCED_RESULTS[rid] = 'built'
         with open(sp + '.json.tmp', 'w') as f:
             json.dump(dict(parts, stamp=st, ran=ran_rec), f, indent=1, sort_keys=True)
         os.replace(sp + '.json.tmp', sp + '.json')

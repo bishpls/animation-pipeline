@@ -382,6 +382,10 @@ def _cpu_line(out, t0, phases=None):
     print('CHARKIT_BUILD_CPU %s' % json.dumps(rec), flush=True)
     if phases:
         rec['phases'] = phases
+        # (what this build restored rather than ran: the gate compares CPU like for like, gate.like_for_like)
+        from . import cache, manifest
+        rec['restored'] = {'steps': {k: ('restored' if v == 'hit' else 'ran') for k, v in cache.STEP_RESULTS.items()},
+                           'produced': dict(manifest.PRODUCED_RESULTS)}
     json.dump(rec, open(os.path.join(out, 'build_cpu.json'), 'w'))
 
 
