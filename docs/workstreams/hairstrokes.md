@@ -224,6 +224,18 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   all-families reference with boards. The normals sweep (queued on the old render box) stopped: rerun on the build box
   over hst_b3.
 
+- **Lock lines: off by default (05bf2ea).** hst_b3 (build box, lock lines on bangs + side locks): flags 3q 0.419,
+  profile 0.329 (from 0.281 / 0.167), back lines 0.928 W, but the boards show cracks on the side locks (short jagged
+  fragments; hst_b3/boards/face_000.png, heads/ab_*.png), hair_noise 0.085 F (the render drawing; numpy 0.0717 for
+  both: the lines change the render's hair, not the ink prims: the qarender skip didn't move it, reverted with its
+  step), taper front 0.364 F (strand ends meet the lock lines). Michael's A/B on the review page.
+- hst_s2 (old render box, lock lines on every family): done; not used (superseded by the decision).
+- Pregate skipped (laptop memory, coordinator's directive; the evaluator can't see these changes); gate 2 on the build
+  box: 2e8b73f (after merging pipeline-3d ad08152; declared.py both sides, CODEMAP regenerated), gate2.log.
+- Strokes review page: charkit/out/review_pages/hair_strokes/index.html (page_strokes.json): summary (A recommended;
+  asked: density WARN cost, lock lines A/B, stroke width world vs screen), design | today | A per view, close-ups,
+  line weight figures at 400 px/L (heads/), the floors, the A/B.
+
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store
    `~/animation-pipeline-hair4/charkit/out/calib/builds/hair5_1580f95` into this worktree's
