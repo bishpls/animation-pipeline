@@ -329,7 +329,13 @@ charkit/out/hair5/review_r2/summary.json --ref charkit/out/hair5/review_r2/ref.j
 
 ## State (2026-09-30 late night)
 
-Branch `tool/hair5` at 5718c65 + notes (pipeline-3d 342e88c merged), never pushed. Gate launched at 5718c65.
+Branch `tool/hair5` (pipeline-3d 342e88c merged), never pushed.
+
+**Gate 1** (83f503c into 342e88c): FAIL, one blocker: art_speckle_neck 0.678 PASS -> 1.7 WARN (face5's jaw moved the
+neck: the hem's drawn cuts at notch 3 leave the speck there too). art_terminator_hair 2.111 -> 2.008 (WARN both: face5's,
+accepted by Michael), the lock-lines checks new at FAIL (0.1054 / 0.1825: reported, not blocking). Report
+charkit/out/gate/gate_tool-hair5_83f503c_into_342e88c.md. Per the coordinator: the drawn cuts off (5899da7), re-gated
+once (**gate 2 running**, log charkit/out/hair5/gate2.log); b10 (the no-cuts notch-3 hem's lab and labart numbers) beside it.
 
 **Scope change (coordinator, 2026-09-30):** the hair bulk moves to per-lock shells (tool/hairsplit builds the lock
 splitter). No more hull-shell fixes and **no layering round on the hull approach**. The layering, the profile's and
