@@ -20,6 +20,8 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   position     a piece's centroid against the design's (L from the eye line and the midline): the larger of |dx|, |dz|
                (params axis 'x', 'z' or 'both')
   area         the piece's pixels over the drawn piece's, |ratio - 1| (a size: the wrist cuffs 1.5-2.4x the drawn)
+  class_iou    a model-sheet class inside a window (L round the eye line): IoU of ours with the drawing's (the skin
+               in the V above the bow)
   top_line     the upper edge of a union of pieces (the shoulder line) per column over x bands, ours against the drawn
                silhouette's where the lower edge isn't under hair: its height (dz), slope or trough (the dip)
   ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
@@ -347,6 +349,33 @@ def top_line(Mo, Md, ctx, x=((-0.7, -0.15), (0.15, 0.7)), measure='dz', min_cols
     return dict(value=round(max(vals), round_), ours=per, design=None)
 
 
+def class_iou(Mo, Md, ctx, cls='skin', window=(-0.2, 0.2, -0.4, -0.75), round_=4):
+    """a model-sheet class inside a window (x0, x1 from the midline, z top, z bottom: L from the eye line): the IoU of
+    our pixels of that class (pieceqa.our_classes) with the drawing's (its classes) there, higher better: the skin in
+    the V between the collar's lapels above the bow (Michael's item 4: drawn skin, ours the jacket's orange). The
+    piece only names where it's measured; its masks aren't read."""
+    from . import bodyqa, pieceqa
+    ppl = ctx['ppl']
+    co, cd = ctx.get('cls_ours'), ctx.get('cls')
+    if cd is None:
+        return None
+    if co is None:
+        return dict(value=None, why=WHY_OURS)
+    sh = co.shape
+    x0, x1, zt, zb = window
+    r0, r1 = int(round((bodyqa.WIN['top'] - zt) * ppl)), int(round((bodyqa.WIN['top'] - zb) * ppl))
+    c0, c1 = int(round((x0 + bodyqa.WIN['x']) * ppl)), int(round((x1 + bodyqa.WIN['x']) * ppl))
+    W = np.zeros(sh, bool)
+    W[max(0, r0):r1, max(0, c0):c1] = True
+    o = W & (co == bodyqa.CLASS[cls])
+    d = W & (fit(cd, sh) if cd.dtype == bool else (lambda c: c)(np.pad(cd, ((0, max(0, sh[0] - cd.shape[0])), (0, max(0, sh[1] - cd.shape[1]))), constant_values=-1)[:sh[0], :sh[1]]) == bodyqa.CLASS[cls])
+    if d.sum() < pieceqa.MIN_PX:
+        return None
+    u = (o | d).sum()
+    return dict(value=round(float((o & d).sum()) / float(u), round_), ours=round(float(o.sum()) / ppl ** 2, 4),
+                design=round(float(d.sum()) / ppl ** 2, 4))
+
+
 def position(Mo, Md, ctx, axis='both', round_=4):
     """the piece's centroid (L from the midline and the eye line: pieceqa.x_of, z_of) against the design's: the larger of
     |dx| and |dz| (axis 'both'), or one of them."""
@@ -466,10 +495,11 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
 
 
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position, ink_inside=ink_inside, area=area, top_line=top_line)
-HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
+                position=position, ink_inside=ink_inside, area=area, top_line=top_line, class_iou=class_iou)
+HIGHER = ('shape_iou', 'class_iou')                 # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
-HAIR_FAMILIES = ('top_line',)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
+HAIR_FAMILIES = ('top_line',)
+CLASS_FAMILIES = ('class_iou',)                   # families that read our model-sheet classes (inputs' classes)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
 
 
 def grade(v, limits, better='lower'):
@@ -691,7 +721,8 @@ def declared(B, design=None, out=None):
         return None, {}
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
     I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
-               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) for d in ds))
+               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) or d['family'] in CLASS_FAMILIES
+                           for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}
