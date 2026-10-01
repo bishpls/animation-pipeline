@@ -126,17 +126,46 @@ variants: `evalab.py NAME '{"path": value}'`, ~150 s), legbumps.py, tips.py, ali
 - **Box build b2** (a1bbeb7 + 09ddfa2 + 44b05dd: folds/winding, out, line): `charkit/out/hands_b2`, log
   charkit/out/hands/b2.log (render box, boards body,design).
 
+### Box build b2 (a1bbeb7 + 09ddfa2 + 44b05dd, render box, `charkit/out/hands_b2`, landed 2026-09-30 night)
+Against b1 (same tree otherwise):
+- **art_bumps_legs FAIL -> PASS (118.5 -> 0.0, every view 0): blocker cleared** by the placement (out 5.5).
+- **body_three_quarter_skirt_aline still FAIL (-0.313, unchanged): blocker remains.** The far hand (R) in 3q is still
+  43% hidden behind the skirt (visible 0.369 -> 0.566); ours leaves 46 rows free of a hand where the design's 3q has
+  none (alinerows.py), so a few odd rows decide it. body_front_skirt_width WARN 0.866 (unchanged; the short-hand
+  variant gives it too, so it isn't the hands' length).
+- Hand checks: 13 PASS, 7 WARN, 1 FAIL (profile reach -0.081, was WARN -0.062: out shortens the profile's reach),
+  3q digits R now INFO (43% hidden). hand_shape_L 0.500 -> 0.508 (FAIL: profile, the yaw choice A); views front 0.747 ->
+  0.768, 3q 0.623 -> 0.705, profile 0.500 -> 0.508, back 0.718 -> 0.762. hand_shape_R 0.207 -> 0.492 (FAIL, 3q over
+  what shows; whole 0.635); front 0.774 -> 0.775, back 0.733 -> 0.756. Reach -0.035..-0.081 L, digits within 1, cleft
+  0.88-1.37 (all PASS).
+- Guard IoUs: no shape IoU dropped: skin front 0.720 -> 0.738, 3q 0.729 -> 0.740, profile 0.731 -> 0.732, back
+  0.740 -> 0.766; piece_skirt 0.899 (views 0.926/0.953/0.776/0.874), piece_cuff_L 0.722, _R 0.583 -> 0.582,
+  shape_iou_skirt 0.867 -> 0.871, body_front_iou 0.876 -> 0.878, body_back_iou 0.888 -> 0.892; body_front_arms
+  -3.4 -> -1.9.
+- The render: both hands now face out and draw a line (ink.py fill share ours/design: front 0.92/0.93, back 0.92/0.91,
+  3q L 0.89, profile 0.86; b1 was L 0.80-0.84 with knobs, R 1.0-1.18 with no line). Tiles: charkit/out/hands/ink_b2.
+
 ## Next steps (exact)
-1. Clear the two K blockers above (art_bumps_legs, body_three_quarter_skirt_aline) and the 3q R hand; rebuild.
-2. Calibration records: copy b1 to `charkit/out/calib/cur_hands` (hard links + its qa.json), then
-   `python -m charkit calibrate 'hand_*' --build charkit/out/calib/cur_hands` (writes charkit/calib/records/hand_*.json);
-   commit them. The dry run against the mitten: all 22 CALIBRATED.
-3. Review page: `python charkit/out/hands/review.py charkit/out/calib/builds/mitten charkit/out/hands_b1 OUT` makes the
-   tiles (design | mitten | ours per view and side, the checks' grid scale) and rows.json; write OUT/index.html with the
-   summary box (Recommended: A, the joint fit; Asked of Michael: A or B on the hand's turn; Key numbers), the generated
-   sheet (charkit/refs/clawd/gen/hand_breakdown.png) with refcheck_hand_breakdown_1.png, and open it.
-4. `python -m charkit pregate`, then `python -m charkit remote gate tool/hands --into pipeline-3d` (export
-   CLOUDSDK_CONFIG=$HOME/.config/charkit/gcloud). Merge pipeline-3d first if it moved.
+1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
+   skirt's 3q flare, because our forearm hangs 6 deg steeper than drawn (tips.py: 22.5 vs 28.2-28.6 deg off vertical near
+   the cuff; that's the hull's arm chain, and pose.arm_down doesn't reach the code body). Options, in order: (a) a
+   code-body arm pose knob (the arm chain turned outward at the shoulder in her frontal plane, ~3-6 deg, as a rest-pose
+   rotation the sleeves and bands follow), checked with evalab.py (aline, body_*_arms, skin IoUs) and occl.py (the 3q
+   far hand visible), then a box build; (b) if Michael prefers the hull's arm: bodyqa.aline on the rows free in both
+   (as skirt_width's `common`) is a remeasure, but the 2x2's old measure on the new geometry still FAILs, so it needs
+   his acceptance by name (the coordinator names it). Don't loosen it.
+2. Calibration records on b2: copy it to `charkit/out/calib/cur_hands` (hard links + its qa.json), then
+   `python -m charkit calibrate 'hand_*' --build charkit/out/calib/cur_hands`; commit charkit/calib/records/hand_*.json.
+   The adapter turns our_hidden off for the label stand-ins (calib/hands.py).
+3. The review page: `python charkit/out/hands/review2.py charkit/out/hands/review_r2 mitten=charkit/out/calib/builds/mitten
+   b1=charkit/out/hands_b1 b2=charkit/out/hands_b2` (tiles at one window round each cuff, rows.json), plus
+   charkit/out/hands/review_r2/weights_fist.png (weightspic.py) and fist_report.json, the sheet
+   (charkit/refs/clawd/gen/hand_breakdown.png, refcheck_hand_breakdown_1.png). Write review_r2/index.html with the
+   summary box first (Recommended: the default hand as b2 builds it, A with out 5.5 and line 0.5; Asked of Michael:
+   the arm-angle fix (a) or acceptance (b) for the 3q aline; whether hands should hide behind the skirt in 3q; Key
+   numbers: hand_shape per view, art_bumps_legs, aline, fill share, mitten | b1 | b2), then per view design | mitten |
+   b1 | b2; `open` it.
+4. `python -m charkit pregate`, then (coordinator relaunch) `python -m charkit remote gate tool/hands --into pipeline-3d`.
 5. **(Deferred by Michael, 2026-09-30: waits for a dedicated hands/expressions session; not on this branch.)** A draft
    was started before the scope change and parked, untracked: charkit/out/hands/draft_handposes.py (the library:
    relaxed/open/fist/point, per digit curl (3 joints), spread, thumb oppose; pose() blends {name: weight}, blend(a, b,
@@ -149,7 +178,7 @@ variants: `evalab.py NAME '{"path": value}'`, ~150 s), legbumps.py, tips.py, ali
    sheet's hands are 16-19% longer and broader than the turnaround's: IoU near 0.7-0.8 is its ceiling. Still to do
    there: the Blender side (pose the finger bones from rotations() on the boards, the export and exprqa's renders),
    fist QA on the built rig (interpenetration, knuckle area), then the original plan below.
-6. Round 2 (original plan): the `hands` expression component (relaxed, fist, open, point; per finger curl, spread, thumb opposition;
+6. (Original plan, deferred with step 5) the `hands` expression component (relaxed, fist, open, point; per finger curl, spread, thumb opposition;
    per hand, blendable) on the modular expression API (charkit/expressions.py, the mouth/eyes/brows presets), using
    code_hand.curl_pose's joint convention (bend about along x -dorsal); grade per pose against hand_breakdown
    (handref.sheet_hands gives each cell's hand at the turnaround's scale; the fist's digits/cleft); fist QA on the built
