@@ -39,7 +39,9 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
                join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex',
                det=True, det_method='lm', det_step=1e-6, det_tol=1e-10, det_nfev=600, det_q_in=2.0 ** -12,
-               det_q_out=2.0 ** -12, widen_back=1.0)
+               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0)
+# (round 4) hug_free: the share of a lock's length at its tip where the depth pulls (prior_depth, view_depth) fade out
+# (a group's opts, e.g. the hem's flicks: on the mass along their body, free at their tips); 0 off.
 # (tool/hairshell3) det: the reproducible fit (the same shells on every machine): a smooth objective (the drawn
 # centrelines through cubic splines, the fields and the envelope's depth sampled by cubic splines, soft limits for the
 # containment and the skin, the widths' Gaussian weights on squared distance), its Jacobian by finite differences
@@ -427,8 +429,17 @@ class Lock:
         ppl = self.views[self.primary].ppl
         s_ = self.hull_frame[0]
         tpx = ppl / s_                                   # px per metre
+        # (round 4) hug_free: the depth pulls (prior_depth, view_depth) fade out over the last hug_free of the curve,
+        # so a lock pulled onto the mass along its body is free at its tip (the hem's flicks hang out below the curling
+        # mass: the drawn hem's tips); 0: the pulls hold the whole length (as before)
+        hf = float(self.o.get('hug_free') or 0.0)
+        if hf > 0:
+            xf = np.clip((np.linspace(0, 1, len(P)) - (1.0 - hf)) / hf, 0.0, 1.0)
+            wd = 1.0 - xf * xf * (3.0 - 2.0 * xf)
+        else:
+            wd = 1.0
         if self.target_r is not None:
-            out.append(self.o['prior_depth'] * (r - self.target_r(ph, th)) * tpx)
+            out.append(self.o['prior_depth'] * wd * (r - self.target_r(ph, th)) * tpx)
         # each view that draws the lock sees it on top there: its centreline right under the envelope's first surface
         # along that view's ray (offset and half a thickness under it)
         from scipy.ndimage import map_coordinates
@@ -446,7 +457,7 @@ class Lock:
             dep = P @ np.array([math.sin(a_), -math.cos(a_), 0.0])
             half = 0.5 * self.o['depth_ratio'] * float(np.median(d['W'])) / self.views[vn].ppl * s_
             res = dep - (de - self.offset - half)
-            out.append(self.o['view_depth'] * np.where(np.isfinite(res), res, 0.0) * tpx)
+            out.append(self.o['view_depth'] * wd * np.where(np.isfinite(res), res, 0.0) * tpx)
         # the skin: never within gap of it
         if det:
             # (the skin's field with no skin as radius 0: the clearance off there, as the bilinear's -inf made it)
