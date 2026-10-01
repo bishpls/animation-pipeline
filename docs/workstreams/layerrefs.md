@@ -91,6 +91,19 @@ quarter and profile crab), and the star, while its shape IoU passes (0.65-0.77),
 against the turnaround's 0.31 (accessories.md's three-view fit: 0.37): an equal-armed compass star, not the design's
 tall one. Only the top row (the covered layer) is registered.
 
+## 5. Registered (charkit/refs/clawd/manifest.json)
+
+- `base_body_turnaround` (take 1, `charkit/refs/clawd/gen/base_body_turnaround.png`): role, an `authority_split`
+  (shape: the body where the costume hides it; placement: body_turnaround), the refcheck per view, cautions (the
+  profile's thigh, generated reading, the bodysuit's edges are the prompt's, register by heights not eyes).
+- `hair_clips_layers` (take 1): the top row only; the clips alone recorded as unregistered with their numbers.
+- sha256 in `provenance` (as hand_breakdown's), not top-level, and the split not in the top-level authority map: the
+  manifest's tracked sha256s and the resolved spec's `ref` (with the authority map) enter every produced reference's
+  stamp (manifest.stamp), so either would rebuild the hull, the outfit masks and the hair layers. Promote both when a
+  restamp is due anyway.
+- docs/CODEMAP.md not regenerated: on pipeline-3d it is stale by ~360 lines of other branches' modules (freshness is
+  not tested); `charkit/layerref.py` is listed when it next is.
+
 ## State
 
 (updated as the round goes)

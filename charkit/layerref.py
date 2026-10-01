@@ -50,6 +50,7 @@ TOL = dict(kept_iou=0.90,           # body: the kept parts (head and hair, legs 
 HEAD_Z = -0.45                      # body: L from the eye line; above it the head, hair and buns (kept)
 LEGS_Z = -3.2                       # body: below it the legs and boots (kept); the costume's band between
 SKIRT_TOP_Z, SKIRT_BOTTOM_Z = -1.2, -3.6    # skirt: the band the layers live in on the turnaround
+NEUTRAL_RB = 0.025                  # skirt: a dark pixel this neutral (R - B) is the dress form's pole, not the trim
 HANDS = ('cuff_L', 'cuff_R')        # skirt: the 'none' components touching these are the arms and hands
 OCCLUDERS = {                       # skirt: per layer and view, what hides the layer on the turnaround
     'skirt': {'front': ('hands',), 'three_quarter': ('hands',),
@@ -394,19 +395,20 @@ def _truth_views(spec, log=print):
         names = sorted({p for s in sets for p in s})
         pieces = {p: np.isin(t, [i for i, s in enumerate(sets) if p in s]) for p in names}
         z = bodyqa.WIN['top'] - (np.arange(t.shape[0]) + 0.5) / ppl
-        # the arms and hands: the unlabelled ('none') figure pixels connected to a wrist cuff
-        none = dv['fg'] & (pieces.get('none', np.zeros_like(dv['fg'])) | (t < 0))
+        # the arms and hands: the skin (the turnaround's colour classes: the truth labels only the garments' cells)
+        # next to a wrist cuff, across its drawn line; the legs: the rest of the skin below the hips
+        none = dv['fg'] & (dv['cls'] == bodyqa.CLASS['skin'])
         lab, n = ndimage.label(none)
         cuffs = np.zeros_like(none)
         for c in HANDS:
             if c in pieces:
-                cuffs |= ndimage.binary_dilation(pieces[c], iterations=2)
+                cuffs |= ndimage.binary_dilation(pieces[c], iterations=6)
         ids = np.unique(lab[cuffs & none])
         hands = np.isin(lab, ids[ids > 0])
         for c in HANDS:
             hands |= pieces.get(c, False)
         legs = none & ~hands & (z < -2.4)[:, None]
-        pieces.update(hands=hands, legs=legs)
+        pieces.update(hands=hands, legs=legs, unscored=dv['fg'] & (t < 0))     # the truth's drawn lines: no piece
         out[v] = dict(fg=dv['fg'], pieces=pieces, ppl=ppl, z=z, rgb=dv['rgb'])
     return out
 
@@ -440,7 +442,7 @@ def _fit(R, DC, C, s0, scales=np.arange(0.84, 1.17, 0.02), shift=24, step=3):
     return best
 
 
-def check_skirt(spec, path, log=print):
+def check_skirt(spec, path, log=print, keep_masks=None):
     from charkit import bodyqa, sheetqa
     from charkit.geom import hull
     from charkit.refviews import reading_order
@@ -453,38 +455,61 @@ def check_skirt(spec, path, log=print):
     out = {'kind': 'skirt', 'path': os.path.relpath(path, ROOT), 'figures': len(figs), 'layers': {}, 'tol': TOL}
     imgs = {}
     scales = []
+
+    def setup(row, layer, k, v):
+        i = row * 4 + k
+        if i >= len(figs) or v not in TV:
+            return None
+        box, m = figs[i]
+        C = _layer_mask(garment & m, cls, rgb)
+        if keep_masks is not None:
+            keep_masks['%s_%s' % (layer, v)] = C
+        t = TV[v]
+        band = ((t['z'] <= SKIRT_TOP_Z) & (t['z'] >= SKIRT_BOTTOM_Z))[:, None]
+        R = np.zeros_like(t['fg'])
+        for p in LAYER_PIECES[layer]:
+            R |= t['pieces'].get(p, False)
+        from scipy import ndimage
+        R = ndimage.binary_closing(R, iterations=3) & t['fg'] & band     # the truth's drawn lines between cells
+        DC = np.zeros_like(R)
+        for p in OCCLUDERS[layer][v]:
+            DC |= t['pieces'].get(p, False)
+        # the truth's unscored pixels (its drawn lines, the outline round each cell) score neither way, as in
+        # outfit.score
+        DC = (ndimage.binary_closing(DC, iterations=3) | t['pieces']['unscored']) & t['fg'] & band & ~R
+        # the search on a window round the turnaround's layer and its occluders (the band, 0.5 L either side)
+        yy, xx = np.nonzero(R | DC)
+        pad = int(0.5 * t['ppl'])
+        win = (slice(max(0, yy.min() - pad), yy.max() + pad), slice(max(0, xx.min() - pad), xx.max() + pad))
+        return i, C, t, band, R, DC, win
+
+    # one scale for the sheet (its promise): from the skirt's front and three-quarter, where only the hands hide it
+    # (the heights' ratio, then fitted +-16%); every figure is then fitted within +-6% of it
+    free = []
+    for k, v in ((0, 'front'), (1, 'three_quarter')):
+        S_ = setup(0, 'skirt', k, v)
+        if S_ is None:
+            continue
+        i, C, t, band, R, DC, win = S_
+        ys, yr = np.nonzero(C.any(1))[0], np.nonzero((R | DC).any(1))[0]
+        free.append(_fit(R[win], DC[win], C, (ys[-1] - ys[0]) / max(1, yr[-1] - yr[0]))[1])
+    s_c = float(np.median(free))
+    out['scale_common'] = round(s_c, 4)
+    out['scale_free'] = [round(float(x), 4) for x in free]
     for row, layer in enumerate(('skirt', 'flaps')):
         out['layers'][layer] = {}
         for k, v in enumerate(VIEWS):
-            i = row * 4 + k
-            if i >= len(figs) or v not in TV:
+            S_ = setup(row, layer, k, v)
+            if S_ is None:
                 continue
-            box, m = figs[i]
-            C = _layer_mask(garment & m, cls)
-            t = TV[v]
-            band = ((t['z'] <= SKIRT_TOP_Z) & (t['z'] >= SKIRT_BOTTOM_Z))[:, None]
-            R = np.zeros_like(t['fg'])
-            for p in LAYER_PIECES[layer]:
-                R |= t['pieces'].get(p, False)
-            R &= band
-            DC = np.zeros_like(R)
-            for p in OCCLUDERS[layer][v]:
-                DC |= t['pieces'].get(p, False)
-            DC &= band & ~R
-            ys = np.nonzero(C.any(1))[0]
-            yr = np.nonzero((R | DC).any(1))[0]
-            s0 = (ys[-1] - ys[0]) / max(1, yr[-1] - yr[0])
-            # the search on a window round the turnaround's layer and its occluders (the band, 0.5 L either side)
-            yy, xx = np.nonzero(R | DC)
-            pad = int(0.5 * t['ppl'])
-            win = (slice(max(0, yy.min() - pad), yy.max() + pad), slice(max(0, xx.min() - pad), xx.max() + pad))
-            sc, s, Pw = _fit(R[win], DC[win], C, s0)
+            i, C, t, band, R, DC, win = S_
+            sc, s, Pw = _fit(R[win], DC[win], C, s_c, scales=np.arange(0.94, 1.061, 0.02))
             P = np.zeros_like(R)
             P[win] = Pw
             scales.append(s)
             rec = dict(sc, scale=round(float(s), 4), figure=i)
-            # the layer's lowest drawn row per column, L under the waistband's top (its hem; for the skirt at the back,
-            # the hem the flaps hide on the turnaround)
+            # the layer's lowest drawn row per column, L under its top on the turnaround (its hem; for the skirt at
+            # the back, the hem the flaps hide on the turnaround)
             top_z = t['z'][np.nonzero((P & R).any(1))[0][0]] if (P & R).any() else None
             cols = np.nonzero(P.any(0))[0]
             if top_z is not None and len(cols) > 10:
@@ -507,11 +532,21 @@ def check_skirt(spec, path, log=print):
     return out, imgs
 
 
-def _layer_mask(g, cls):
-    """a figure's garment pixels as one layer: the components of a fifth of the largest or more (not the dress form's
-    pole, not specks), holes closed."""
+def _layer_mask(g, cls, rgb=None):
+    """a figure's garment pixels as one layer: the fabric (orange, cream) and the dark trim that touches it (not the
+    dress form's dark pole), closed over the drawn lines and opened by 4 px (the pole's strip where it meets the hem),
+    the components of a fifth of the largest or more, holes filled."""
     from scipy import ndimage
-    lab, n = ndimage.label(ndimage.binary_closing(g, iterations=2))
+    from charkit.bodyqa import CLASS
+    fab = g & np.isin(cls, [CLASS['orange'], CLASS['cream']])
+    dark = g & (cls == CLASS['dark'])
+    if rgb is not None:                 # the dress form's pole is neutral grey (R - B ~ 0), the trim warm brown (~0.06)
+        dark &= (rgb[..., 0] - rgb[..., 2]) > NEUTRAL_RB
+    lab, n = ndimage.label(dark)
+    ids = np.unique(lab[ndimage.binary_dilation(fab, iterations=3) & dark])
+    g = fab | np.isin(lab, ids[ids > 0])
+    g = ndimage.binary_opening(ndimage.binary_closing(g, iterations=2), iterations=4)   # the pole's last strip
+    lab, n = ndimage.label(g)
     if not n:
         return g
     sizes = np.bincount(lab.ravel())[1:]
