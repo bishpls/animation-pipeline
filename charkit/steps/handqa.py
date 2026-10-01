@@ -6,4 +6,6 @@ MEASUREMENT_STEPS = [
     ('hand_*', 'ee2eca7', "new: each hand (the skin past its wrist cuff) against the design's drawn hand per view: its "
      "shape (IoU laid on the centroids), its reach past the cuff, the digits across its fingers (the design's ink, our "
      "seams), its deepest silhouette pocket (the thumb's cleft)"),
+    ('hand_*', '09ddfa2', "a hand partly hidden by the figure (our_hidden: the hand z-buffered alone): its shape graded "
+     "over the pixels that show, its reach the whole hand's, its digits and cleft not read below 75% visible"),
 ]
