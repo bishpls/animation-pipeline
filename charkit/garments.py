@@ -3578,6 +3578,11 @@ def collar(A, spec, normals=None, neckline=None):
         lap_p = lap.get('point', [0.0, -0.83])          # the V's point, L from the midline and the eye line
         lap_s = lap.get('shoulder', [0.40, -0.48])      # where the lapels' outer edge meets the shoulder
         ez_ = _eye_z(A)
+        if lap.get('mode') == 'project':                # the torso's front triangles, under the neck's cut
+            tri = np.array([(f[0], f[k], f[k + 1]) for f in F for k in range(1, len(f) - 1)])
+            zc_, yc_ = V[tri, 2].mean(1), V[tri, 1].mean(1)
+            hw_t = A['weights'].get('head', np.zeros(len(V)))[tri].max(1)
+            lap_T = tri[(zc_ < ez_ - 0.40 * L) & (zc_ > ez_ - 1.3 * L) & (yc_ < nb[1] + 0.05 * L) & (hw_t < 0.3)]
     grid = np.zeros((nr + 1, na, 3))
     for k in range(na):
         a = -math.pi + 2 * math.pi * (k + 0.5) / na
@@ -3590,6 +3595,26 @@ def collar(A, spec, normals=None, neckline=None):
             # a neckline below the level ring (rise) keeps the collar's outer edge where the ring's walk put it: each
             # column shorter by how much lower it starts (the back flap's square bottom stays level)
             ln = max(0.2 * ln, ln - max(0.0, z_ref - float(neckline(a))))
+        if lap and lap.get('mode') == 'project' and abs(a) <= math.radians(float(lap.get('a', 85))):
+            # the flat lapels projected: the column a straight line in the front view from its neckline point to its
+            # point on the lapels' outer edge (the line from the V's point up to the shoulder, spread by azimuth),
+            # laid on the torso from the front `off` out along its normal: no walk to crumple over the neck's flare
+            sx = 1.0 if a >= 0 else -1.0
+            Pp = np.array([nb[0] + sx * lap_p[0] * L, ez_ + lap_p[1] * L])
+            Sp = np.array([nb[0] + sx * lap_s[0] * L, ez_ + lap_s[1] * L])
+            O = Pp + (abs(a) / math.radians(float(lap.get('a', 85)))) ** float(lap.get('spread', 1.0)) * (Sp - Pp)
+            ts = np.linspace(0.0, 1.0, nr + 1)
+            Q = (1 - ts)[:, None] * np.array([p0[0], p0[2]])[None] + ts[:, None] * O[None]
+            ys, ns = front_hits(Q, V, lap_T)
+            pts = np.c_[Q[:, 0], ys, Q[:, 1]]
+            bad = ~np.isfinite(ys)
+            pts[0] = p0
+            if bad[1:].any():
+                pts[1:][bad[1:]] = p0
+            for j in range(nr + 1):
+                grid[j, k] = pts[j] + (ns[j] if np.isfinite(ns[j]).all() and j > 0 else
+                                       Nt[int(np.argmin(((Vt - pts[j]) ** 2).sum(1)))]) * off
+            continue
         if lap and abs(a) <= math.radians(float(lap.get('a', 85))):
             # the flat lapels: the column walked on past its length and cut where it crosses the lapels' outer edge
             # (the drawn line from the V's point up to the shoulder, mirrored to the column's side), so the columns'
@@ -3658,6 +3683,34 @@ def collar(A, spec, normals=None, neckline=None):
     nn = nearest(verts, V)
     W = {b: w[nn] for b, w in A['weights'].items() if w[nn].max() > 1e-4}
     return dict(verts=verts, faces=faces, weights=W, uv=uvs, edge=edge)
+
+
+def front_hits(P2, V, T, chunk=256):
+    """the body seen from the front (-y), orthographic: for each point (x, z) the frontmost triangle under it -> (y,
+    normal toward the front), NaN where none (the flat lapels laid on the chest)."""
+    P2 = np.asarray(P2, float)
+    A_, B_, C_ = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
+    nrm = np.cross(B_ - A_, C_ - A_)
+    nrm = nrm / np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-12)
+    nrm = np.where(nrm[:, 1:2] > 0, -nrm, nrm)
+    ax, az = A_[:, 0], A_[:, 2]
+    e1x, e1z, e2x, e2z = B_[:, 0] - ax, B_[:, 2] - az, C_[:, 0] - ax, C_[:, 2] - az
+    det = e1x * e2z - e2x * e1z
+    ok = np.abs(det) > 1e-14
+    ys = np.full(len(P2), np.nan)
+    ns = np.full((len(P2), 3), np.nan)
+    for i in range(0, len(P2), chunk):
+        q = P2[i:i + chunk]
+        dx, dz = q[:, 0:1] - ax[None], q[:, 1:2] - az[None]
+        u = np.where(ok, (dx * e2z - e2x * dz) / np.where(ok, det, 1), -1)
+        v = np.where(ok, (e1x * dz - dx * e1z) / np.where(ok, det, 1), -1)
+        inside = (u >= 0) & (v >= 0) & (u + v <= 1)
+        y = np.where(inside, A_[:, 1][None] + u * (B_[:, 1] - A_[:, 1])[None] + v * (C_[:, 1] - A_[:, 1])[None], np.inf)
+        k = np.argmin(y, 1)
+        hit = np.isfinite(y[np.arange(len(q)), k])
+        ys[i:i + chunk][hit] = y[np.arange(len(q)), k][hit]
+        ns[i:i + chunk][hit] = nrm[k[hit]]
+    return ys, ns
 
 
 def collar_hull(A, spec, normals, hull):
