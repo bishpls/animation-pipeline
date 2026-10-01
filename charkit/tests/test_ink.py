@@ -111,3 +111,11 @@ def test_the_render_drawing_reads_ink_primitives_as_the_ink_surface(monkeypatch)
     assert v.index[(0, False)] == 0 and v.index[(1, False)] == 1           # the cloth; the strokes: the ink surface
     assert v.index[(0, True)] == 2 and v.index[(1, True)] == 2             # the outline: the hull
 
+
+
+def test_grow_line_is_the_lowest_straight_line_over_the_rows_needs():
+    u = np.linspace(0, 1, 6)
+    gl = g.grow_line(u, [1.0, 1.0, 1.1, 1.0, 1.05, 1.0])
+    assert (gl >= np.array([1.0, 1.0, 1.1, 1.0, 1.05, 1.0]) - 1e-9).all()
+    assert np.allclose(np.diff(gl, 2), 0)                                    # straight
+    assert np.allclose(g.grow_line(u, np.ones(6)), 1.0)                      # nothing needed: no growth

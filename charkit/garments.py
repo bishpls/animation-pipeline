@@ -2498,6 +2498,22 @@ def sleeve_hull(A, spec, hull):
 
 
 # ------------------------------------------------------------------------------------------ the wrist cuff (template)
+def grow_line(u, g):
+    """the lowest straight line over the points (u, g) (least mean over u; every g at most it), floored at 1 ->
+    its value at each u. A row needing no growth (g <= 1) still sits under it."""
+    u, g = np.asarray(u, float), np.maximum(np.asarray(g, float), 1.0)
+    best, bv = np.full(len(u), g.max()), g.max()
+    for i in range(len(u)):
+        for j in range(i + 1, len(u)):
+            if u[j] - u[i] < 1e-9:
+                continue
+            b = (g[j] - g[i]) / (u[j] - u[i])
+            line = g[i] + b * (u - u[i])
+            if (line >= g - 1e-9).all() and line.mean() < bv:
+                best, bv = line, line.mean()
+    return np.maximum(best, 1.0)
+
+
 def cuff(A, spec):
     """a flared wrist cuff as a template (the design's: a cup wider at its top, the elbow's side, with a cream top band
     and a tab hanging from it at the front: sleeve_closeup's cuffs, garment_breakdown's; the hull-lofted band read as a
@@ -2545,14 +2561,16 @@ def cuff(A, spec):
     ay_ = np.where(sn >= 0, E[:, 1:2], E[:, 3:4]) - pull[:, None]
     X = ax_ * np.sign(cs) * np.abs(cs) ** (2 / n)
     Y = ay_ * np.sign(sn) * np.abs(sn) ** (2 / n)
-    # clear of the skin inside it (the wrist, the hand's base): a row whose section comes within `clear` L plus its
-    # thickness of the limb's skin at some angle grows as a whole (its shape kept, so the sides stay straight)
+    # clear of the skin inside it (the wrist, the hand's base): each row's section must stay `clear` L plus its
+    # thickness off the limb's skin at every angle; the rows grow by the lowest straight line over what each needs
+    # (grow_line), so the sides stay straight (row by row, the rows the forearm bulged into stood out as ripples)
     dom, _ = dominant(A)
     Q = A['verts'][np.isin(dom, limb_neighbours(bone))] - h
     if len(Q):
         tq = Q @ d / L
         xq, yq = Q @ o / L - sh[0], Q @ f / L - sh[1]
         need = spec.get('thick', 0.02) + spec.get('clear', 0.006)
+        gs = np.ones(len(ts))
         for i in range(len(ts)):
             k = np.abs(tq - ts[i]) < 0.5 * step + 1e-9
             if not k.any():
@@ -2560,9 +2578,10 @@ def cuff(A, spec):
             a_q = np.arctan2(yq[k], xq[k])
             r_q = np.hypot(xq[k], yq[k])
             r_row = np.interp(a_q, th, np.hypot(X[i], Y[i]), period=2 * np.pi)
-            g = float(np.max((r_q + need) / np.maximum(r_row, 1e-9)))
-            if g > 1:
-                X[i] *= g; Y[i] *= g
+            gs[i] = float(np.max((r_q + need) / np.maximum(r_row, 1e-9)))
+        if gs.max() > 1:
+            gl = grow_line(us, gs)
+            X *= gl[:, None]; Y *= gl[:, None]
     X, Y = X + sh[0], Y + sh[1]
     P = h[None, None, :] + (TT[..., None] * d + X[..., None] * o + Y[..., None] * f) * L
     nr, nc = P.shape[:2]
