@@ -19,6 +19,7 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
                (our_lines), the design's drawn masks less its line class; ours beyond the design's
   position     a piece's centroid against the design's (L from the eye line and the midline): the larger of |dx|, |dz|
                (params axis 'x', 'z' or 'both')
+  area         the piece's pixels over the drawn piece's, |ratio - 1| (a size: the wrist cuffs 1.5-2.4x the drawn)
   ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
                recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
 
@@ -265,6 +266,18 @@ def ink_between(Mo, Md, ctx, round_=4):
     return dict(value=round(max(0.0, o_len - d_len), round_), ours=round(o_len, 4), design=round(d_len, 4))
 
 
+def area(Mo, Md, ctx, round_=3):
+    """the piece's size: its pixels over the drawn piece's, less one, |.| (ours / design reported as `ratio`)."""
+    from . import pieceqa
+    Md = fit(Md, Mo.shape)
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    if Mo.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    r = float(Mo.sum()) / float(Md.sum())
+    return dict(value=round(abs(r - 1), round_), ours=int(Mo.sum()), design=int(Md.sum()), ratio=round(r, 3))
+
+
 def position(Mo, Md, ctx, axis='both', round_=4):
     """the piece's centroid (L from the midline and the eye line: pieceqa.x_of, z_of) against the design's: the larger of
     |dx| and |dz| (axis 'both'), or one of them."""
@@ -375,7 +388,7 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
 
 
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position, ink_inside=ink_inside)
+                position=position, ink_inside=ink_inside, area=area)
 HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
 

@@ -1594,12 +1594,10 @@ def skirt_hull(A, spec, hull):
         ps_ = spec['panel_shape']
         THv = panel_warp(F.th, half, VVg, ps_)
         fk = panel_fraction(F.th, half)                       # each column's share across the panel (|f| <= 1 inside)
-        zk = (np.abs(fk) > 1)[None, :] if ps_.get('depth') else 1.0       # (a box pleat's panel: no knife pleats)
-        R = _field_at(F, vs, VVg, THv) + off + depth * zig * VVg ** 0.7 * zk
+        R = _field_at(F, vs, VVg, THv) + off + depth * zig * VVg ** 0.7
         if ps_.get('depth'):
-            # an inverted box pleat: the panel's middle (|f| under `crease`) set back `depth` L (x v ** depth_power,
-            # deepening to the hem), its returns from each crease out to the orange's edge (|f| 1) coming forward again;
-            # the knife pleats left off the panel (its folds are the pleat's)
+            # a box pleat: the panel's middle (|f| under `crease`) set back `depth` L (forward when negative; x v **
+            # depth_power, deepening to the hem), its returns from each crease out to the orange's edge (|f| 1)
             R = R - box_pleat(fk, VVg, ps_) * L
         T = t0_at(THv) + VVg * (hem_at(THv) - t0_at(THv))
     nrow = VVg.shape[0] - 1

@@ -192,3 +192,20 @@ def test_a_region_of_a_piece_by_its_class_and_the_lines_along_a_region():
     assert e['value'] < 0.1                                                   # the fold found along the edge
     i = declared.ink_inside(R, R, dict(ctx, lines=ours_l), region='panel', band=0.05, faint=False)
     assert i['value'] == 1.0                                                  # the crease inside: none of ours
+
+
+def test_relative_lines_are_read_where_they_lie_within_the_region():
+    # relative: ours moved row by row from our region's span onto the drawn one's (the same share across it)
+    from charkit import bodyqa
+    Ro, Rd = rect(100, 300, 100, 200), rect(100, 300, 50, 250)              # ours half as wide as the drawn
+    m = np.zeros((H, W), bool)
+    m[100:300, 125] = True                                                   # a quarter of the way across ours
+    got = declared.remap_rows(m, Ro, Rd)
+    assert set(np.nonzero(got)[1]) == {100}                                  # a quarter across the drawn (50 + 50)
+    raw = np.zeros((H, W), int)
+    raw[100:300, 99:101] = bodyqa.CLASS['line']                               # the drawn crease a quarter across
+    cls = np.where(Ro, bodyqa.CLASS['cream'], 0)
+    ctx = dict(ppl=PPL, view='front', masks={'front__panel': Rd}, dv=dict(raw=raw, rgb=None), cls_ours=cls, lines=m)
+    a = declared.ink_inside(Ro, Rd, ctx, region='panel', band=0.05, faint=False)
+    r = declared.ink_inside(Ro, Rd, ctx, region='panel', band=0.05, faint=False, relative='cream')
+    assert a['value'] == 1.0 and r['value'] < 0.05                           # absolute: 0.25 L off; relative: found
