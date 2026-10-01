@@ -189,6 +189,12 @@ known-bad, charkit/out/calib/builds/face6_before, linked from charkit/out/calib/
    'eye_iris_fit_*,eye_lash_*,brow_*,mouth_smile_*,mouth_place_*,nose_mark_*' --build charkit/out/face6_d`); the dry
    run on face6_b read every graded one calibrated except nose_mark_three_quarter (coarse at 0.36, fixed since: 0.91).
 
+**Gate 3** (b4ac89a into 961037c, `charkit/out/gate/gate_tool-face6_b4ac89a_into_961037c.md`): **PASS** under K.
+face_preset_effort accepted by name (charkit/accepted/face_preset_effort.json, the coordinator's relay of Michael's
+call: expressions paused); eye_view_profile_flick_out's 2x2 accepted with `--accept` (the old window truncates our
+flick: the profile eye's far corner sits under the opening's middle row; Michael's question 4). Tests 79/79, CPU
+1.07x, 0 guard findings. Ready to merge; nothing else changed.
+
 ## Checkpoint (2026-09-30 night, context limit): state for the next agent
 
 Branch `tool/face6` head: see `git log -1` (2bdfc58 = the fixes; later commits notes only). Nothing gated, nothing
