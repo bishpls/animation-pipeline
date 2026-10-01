@@ -309,6 +309,16 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   0.614/0.831/0.742/0.636) L 0.620/0.751/0.688/0.857: 3q -9.6%, p -7.3%. `out` +0.015 makes every size PASS but costs
   the profile/3q IoU 16-18% vs control (13.7% vs pipeline-3d: too near the guard). In the spec (tools/garments4/
   cuffs2.json via setspec.py); box build g4_cuffs2 running (log charkit/out/garments4/build_cuffs2.log).
+- **g4_cuffs2** (76826e3f, box): sizes L f/3q/p/b 0.089/0.043/0.0/0.101 W, R f/b 0.098/0.091 (0.90-1.0x the silhouette);
+  trims back 0.045/0.043 P, front 0.094/0.093 W; flares all PASS; piece_cuff_L 0.620/0.751/0.688/0.857, R
+  0.633/0.686/0.886. Overlays (tools/cuffov.py, review/cuffs2_ov/): ours sits ~0.05 L inward and lower than the drawn
+  cuff in front: the arm's place (hands workstream), not the cuff.
+- **Cuffs gate: PASS under K** (76826e3 into pipeline-3d 1d57838, which moved: tool/hairshell2;
+  `charkit/out/gate/gate_tool-garments4-cuffs_76826e3_into_1d57838.md`): no new FAIL, no flag regression, CPU within
+  1.5x; 6 new checks calibrated; improved: trims (back FAIL -> PASS, front FAIL -> WARN), cuff_back_flare_L, the hands'
+  reach (front/back/3q WARN -> PASS), hand_shape_R F -> W, skirt_pleats W -> P; guard: piece_cuff_L 3q -10%, profile -7%
+  (the rest up). No PASS -> WARN. Review page `charkit/out/garments4/review/cuffs2/index.html` (cuffs2.json). Mergeable:
+  tool/garments4-cuffs at this notes commit.
 - Cuffs pregate (`pregate --pair tool/garments4-cuffs --into pipeline-3d`, 76826e3f into d0d6304c): PASS, 47 moved, 0
   blocking (charkit/out/pregate/pregate_tool-garments4-cuffs_76826e3f_into_d0d6304c.md).
 
