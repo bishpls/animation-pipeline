@@ -4,7 +4,11 @@
  "views": {
   "front": {
    "scope": [
-    "bangs"
+    "bangs",
+    "side_locks",
+    "lower_back",
+    "flyaways",
+    "ahoge"
    ],
    "cuts": [
     {
@@ -112,6 +116,121 @@
        198
       ]
      ]
+    },
+    {
+     "p": [
+      [
+       463,
+       131
+      ],
+      [
+       493,
+       139
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       364,
+       250
+      ],
+      [
+       348,
+       282
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       614,
+       243
+      ],
+      [
+       636,
+       284
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       647,
+       312
+      ],
+      [
+       635,
+       348
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       341,
+       299
+      ],
+      [
+       351,
+       343
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       362,
+       358
+      ],
+      [
+       386,
+       366
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       386,
+       366
+      ],
+      [
+       387,
+       373
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       622,
+       358
+      ],
+      [
+       600,
+       368
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       600,
+       368
+      ],
+      [
+       600,
+       377
+      ]
+     ]
     }
    ],
    "seeds": [
@@ -164,17 +283,106 @@
      595,
      199,
      "x"
+    ],
+    [
+     480,
+     110,
+     "ahoge/ahoge"
+    ],
+    [
+     469,
+     131,
+     "x"
+    ],
+    [
+     369,
+     192,
+     "flyaways/under_bun_R"
+    ],
+    [
+     613,
+     192,
+     "flyaways/under_bun_L"
+    ],
+    [
+     340,
+     262,
+     "flyaways/flick_R1"
+    ],
+    [
+     640,
+     262,
+     "flyaways/flick_L1"
+    ],
+    [
+     334,
+     321,
+     "flyaways/flick_R2"
+    ],
+    [
+     655,
+     328,
+     "flyaways/flick_L2"
+    ],
+    [
+     406,
+     273,
+     "side_locks/R_front"
+    ],
+    [
+     571,
+     264,
+     "side_locks/L_front"
+    ],
+    [
+     399,
+     323,
+     "side_locks/R_jaw"
+    ],
+    [
+     577,
+     323,
+     "side_locks/L_jaw"
+    ],
+    [
+     608,
+     314,
+     "x"
+    ],
+    [
+     536,
+     345,
+     "x"
+    ],
+    [
+     352,
+     366,
+     "lower_back/flick_R3"
+    ],
+    [
+     628,
+     364,
+     "lower_back/flick_L3"
+    ],
+    [
+     358,
+     300,
+     "x"
     ]
    ],
    "tips": {
     "bangs/r_out": "cut",
     "bangs/r": "cut",
     "bangs/l_clip": "hidden"
-   }
+   },
+   "note": "tool/hair5: the side locks (R_front, L_front, R_jaw, L_jaw), the ahoge, the strands under the buns, the four side flicks (flyaways), the lowest outer flicks (lower_back flick_R3, flick_L3) added; the outer masses and the under-layer by the neck unscored (x)"
   },
   "three_quarter": {
    "scope": [
-    "bangs"
+    "bangs",
+    "side_locks",
+    "flyaways",
+    "ahoge"
    ],
    "cuts": [
     {
@@ -294,6 +502,64 @@
        195
       ]
      ]
+    },
+    {
+     "p": [
+      [
+       484,
+       139
+      ],
+      [
+       511,
+       133
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       602,
+       279
+      ],
+      [
+       613,
+       291
+      ],
+      [
+       619,
+       305
+      ],
+      [
+       620,
+       322
+      ],
+      [
+       616,
+       342
+      ],
+      [
+       607,
+       353
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       412,
+       246
+      ],
+      [
+       419,
+       258
+      ],
+      [
+       428,
+       272
+      ]
+     ]
     }
    ],
    "seeds": [
@@ -331,6 +597,56 @@
      588,
      180,
      "x"
+    ],
+    [
+     500,
+     105,
+     "ahoge/ahoge"
+    ],
+    [
+     654,
+     194,
+     "flyaways/under_bun_L"
+    ],
+    [
+     568,
+     255,
+     "side_locks/L_front"
+    ],
+    [
+     440,
+     285,
+     "side_locks/R_front"
+    ],
+    [
+     440,
+     330,
+     "side_locks/R_jaw"
+    ],
+    [
+     575,
+     330,
+     "side_locks/L_jaw"
+    ],
+    [
+     640,
+     300,
+     "x"
+    ],
+    [
+     421,
+     256,
+     "side_locks/R_front"
+    ],
+    [
+     640,
+     300,
+     "x"
+    ],
+    [
+     405,
+     300,
+     "x"
     ]
    ],
    "tips": {
@@ -338,11 +654,15 @@
     "bangs/l_clip": "hidden"
    },
    "complete": false,
-   "note": "the family truth leaves the three-quarter's mass unresolved (any mass family), so the completeness test can't say which cells are bangs: every bang lock there was checked by eye"
+   "note": "the family truth leaves the three-quarter's mass unresolved (any mass family), so the completeness test can't say which cells are bangs: every bang lock there was checked by eye. tool/hair5: the side locks (R_front, R_jaw, L_front, L_jaw), the ahoge and the strand under her left bun added, checked by eye; the outer masses unscored (x), the rest of the mass out of the truth"
   },
   "profile": {
    "scope": [
-    "bangs"
+    "bangs",
+    "side_locks",
+    "lower_back",
+    "flyaways",
+    "ahoge"
    ],
    "cuts": [
     {
@@ -397,6 +717,108 @@
        194
       ]
      ]
+    },
+    {
+     "p": [
+      [
+       496,
+       141
+      ],
+      [
+       521,
+       134
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       635,
+       232
+      ],
+      [
+       596,
+       284
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       596,
+       284
+      ],
+      [
+       606,
+       305
+      ],
+      [
+       607,
+       329
+      ],
+      [
+       601,
+       343
+      ],
+      [
+       592,
+       354
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       579,
+       275
+      ],
+      [
+       596,
+       284
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       686,
+       245
+      ],
+      [
+       693,
+       273
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       701,
+       349
+      ],
+      [
+       682,
+       365
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       661,
+       382
+      ],
+      [
+       641,
+       384
+      ]
+     ],
+     "snap": false
     }
    ],
    "seeds": [
@@ -419,18 +841,341 @@
      522,
      170,
      "bangs/l_back"
+    ],
+    [
+     510,
+     110,
+     "ahoge/ahoge"
+    ],
+    [
+     628,
+     204,
+     "flyaways/under_bun_L"
+    ],
+    [
+     703,
+     256,
+     "flyaways/flick_P"
+    ],
+    [
+     551,
+     267,
+     "side_locks/L_front"
+    ],
+    [
+     580,
+     320,
+     "side_locks/L_jaw"
+    ],
+    [
+     595,
+     215,
+     "x"
+    ],
+    [
+     708,
+     358,
+     "lower_back/flick_P1"
+    ],
+    [
+     662,
+     390,
+     "lower_back/flick_P2"
+    ],
+    [
+     660,
+     300,
+     "x"
     ]
    ],
    "tips": {
     "bangs/l_back": "hidden"
    },
-   "note": "call C revised (tool/hairlocks round 2): the profile's locks renamed by the cross-view probe (tools/hairlocks/corr.py over hl_base's bangs surface): its front fringe lock is the front's l (was c), its lock with the crab the front's l_clip (was l), its lock under the part by the star l_back, a lock the front doesn't label (was l_clip)"
+   "note": "call C revised (tool/hairlocks round 2): the profile's locks renamed by the cross-view probe (tools/hairlocks/corr.py over hl_base's bangs surface): its front fringe lock is the front's l (was c), its lock with the crab the front's l_clip (was l), its lock under the part by the star l_back, a lock the front doesn't label (was l_clip). tool/hair5: the side locks (L_front, L_jaw), the ahoge, the strand under her left bun, the back flick (flyaways/flick_P) and the two hem flicks on the back edge (lower_back flick_P1, P2) added; the mass unscored (x)"
+  },
+  "back": {
+   "scope": [
+    "lower_back",
+    "flyaways",
+    "ahoge"
+   ],
+   "cuts": [
+    {
+     "p": [
+      [
+       482,
+       141
+      ],
+      [
+       513,
+       131
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       372,
+       248
+      ],
+      [
+       356,
+       275
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       608,
+       248
+      ],
+      [
+       624,
+       275
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       634,
+       300
+      ],
+      [
+       641,
+       342
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       337,
+       315
+      ],
+      [
+       341,
+       343
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       362,
+       361
+      ],
+      [
+       386,
+       361
+      ],
+      [
+       411,
+       363
+      ],
+      [
+       454,
+       375
+      ],
+      [
+       520,
+       378
+      ],
+      [
+       564,
+       363
+      ],
+      [
+       590,
+       361
+      ],
+      [
+       614,
+       348
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       386,
+       361
+      ],
+      [
+       388,
+       369
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       411,
+       363
+      ],
+      [
+       413,
+       374
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       454,
+       375
+      ],
+      [
+       454,
+       387
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       520,
+       378
+      ],
+      [
+       521,
+       388
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       564,
+       363
+      ],
+      [
+       564,
+       370
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       590,
+       361
+      ],
+      [
+       590,
+       369
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       614,
+       348
+      ],
+      [
+       616,
+       358
+      ]
+     ]
+    }
+   ],
+   "seeds": [
+    [
+     495,
+     105,
+     "ahoge/ahoge"
+    ],
+    [
+     507,
+     131,
+     "x"
+    ],
+    [
+     368,
+     193,
+     "flyaways/under_bun_L"
+    ],
+    [
+     609,
+     193,
+     "flyaways/under_bun_R"
+    ],
+    [
+     351,
+     263,
+     "flyaways/flick_L1"
+    ],
+    [
+     326,
+     322,
+     "flyaways/flick_L2"
+    ],
+    [
+     635,
+     258,
+     "flyaways/flick_R1"
+    ],
+    [
+     655,
+     322,
+     "flyaways/flick_R2"
+    ],
+    [
+     490,
+     220,
+     "x"
+    ],
+    [
+     350,
+     366,
+     "lower_back/flick_L3"
+    ],
+    [
+     400,
+     375,
+     "lower_back/flick_L2"
+    ],
+    [
+     438,
+     388,
+     "lower_back/flick_L1"
+    ],
+    [
+     489,
+     396,
+     "lower_back/flick_C"
+    ],
+    [
+     532,
+     392,
+     "lower_back/flick_R1"
+    ],
+    [
+     575,
+     375,
+     "lower_back/flick_R2"
+    ],
+    [
+     620,
+     362,
+     "lower_back/flick_R3"
+    ]
+   ],
+   "note": "tool/hair5: the back added: the ahoge, the strands under the buns, the four side flicks (flyaways, call F), the seven hem flicks (lower_back, rule 11, call I); the mass above the hem flicks unscored (x)"
   }
  },
  "provenance": {
-  "by": "annotated by Claude (claude-opus-5-5) for tool/hairlocks",
+  "by": "annotated by Claude (claude-opus-5-5) for tool/hairlocks (the bangs) and tool/hair5 (the side locks, hem flicks, strands, ahoge)",
   "date": "2026-09-30",
-  "method": "the family truth's hair cells (outfit.cells, 25 px or more) cut along the drawn lock lines (snapped to the stroke where it runs, straight across its gaps), each piece labelled by a seed; read by eye from zoomed crops of the sheet, its walls (the raw line class and the faint ridges) and the structure labeller's regions (tools/hairlocks/pic.py, raw.py, walls.py)"
+  "method": "the family truth's hair cells (outfit.cells, 25 px or more) cut along the drawn lock lines (snapped to the stroke where it runs, straight across its gaps), each piece labelled by a seed; read by eye from zoomed crops of the sheet, its walls (the raw line class and the faint ridges) and the structure labeller's regions (tools/hairlocks/pic.py, raw.py, walls.py); tool/hair5: the same, with tools/hair5truth/tpic.py (the source over a zoomed crop with its problems) and pic5.py (the sheet, the labeller's regions, the family truth)"
  },
  "rules": [
   "1. A lock is a region the drawing bounds by lock lines (strokes that run along the strands from the lock's root toward its tip) or by the hair's outline, the skin it hangs over (the eye-holes) and the clips. A short stroke inside a lock that reaches neither its root nor a side (a split tip, a strand line) doesn't part it.",
@@ -438,14 +1183,26 @@
   "3. A lock that merges into another family's lock below (the bangs into the face-framing side lock at the eyes' top) ends at the family truth's cut there; its tip is marked 'cut' and not scored for tip position or shape.",
   "4. A lock whose lower part the clips hide (the crab, the star) is scored for area and boundary, its tip marked 'hidden'.",
   "5. The strip between the outermost bang line near the star and the outline, which runs under the star into the side lock, is unscored ('x'): the star hides the join.",
-  "6. Scope per view: the families whose locks are labelled (the bangs first). A hair cell whose family-truth majority is a scope family must be labelled (a lock or 'x'); the rest is out of the lock truth, and a lock of ours spilling onto it counts against its IoU.",
-  "7. Lock names are the same physical lock across views where the drawing's correspondence is read (front r, c, l, l_clip; the three-quarter's r, c, l, l_clip; the profile's l, l_clip, l_back): see the calls."
+  "6. Scope per view: the families whose locks are labelled (the bangs first; tool/hair5: rule 8). A hair cell whose family-truth majority is a scope family must be labelled (a lock or 'x'); the rest is out of the lock truth, and a lock of ours spilling onto it counts against its IoU.",
+  "7. Lock names are the same physical lock across views where the drawing's correspondence is read (front r, c, l, l_clip; the three-quarter's r, c, l, l_clip; the profile's l, l_clip, l_back): see the calls.",
+  "8. Scope (tool/hair5): front and profile: bangs, side_locks, lower_back, flyaways, ahoge; three-quarter: bangs, side_locks, flyaways, ahoge (complete: false, as before); back: lower_back, flyaways, ahoge. A lock label may name the strands' families too (ahoge, flyaways: hairlocks.TRUTH_FAMILIES).",
+  "9. The ahoge is one lock in every view, cut straight across its base at the head's outline (the family truth's cut); the small piece under the cut at its root is unscored.",
+  "10. Each flyaway strand is its own lock: the strands under the buns (a cell each, bounded by the outline) and the flick tips at the outer silhouette that the family truth reads as flyaways-or-mass (its call A), cut straight across their base from notch to notch (the family truth's cuts, closed to the notches where they leaked).",
+  "11. A hem flick (the lower back) is the hair below the straight line through the upper ends of the notch strokes that bound it (as rule 2's cut through the lock lines' upper ends; where there is no stroke, the notch's apex); the notch strokes part neighbouring flicks. The mass above the flicks' bases is unscored ('x'): the drawing doesn't say where the hem's locks run up into it. Hem parts without a drawn tip (cut by the collar or the shoulder) are unscored.",
+  "12. The face-framing side lock (R_front, L_front) runs from the bangs' cut at the eyes' top (rule 3) or from under the star to its tip by the cheek, bounded on its outer side by the long stroke; a short stroke splitting its tip doesn't part it (rule 1). The jaw lock (R_jaw, L_jaw) is the next lock out and down, its tip at the jaw.",
+  "13. The outer masses (the family truth's side_locks|upper_back, and the shadow-tone under-layer at the sides and by the neck) are unscored ('x'): their lock lines are partial strokes that don't close (call G).",
+  "14. Sides: R and L are her right and left (front: R on the viewer's left; back: L on the viewer's left). Names are kept across views where the correspondence is read (call H); names the other views don't share end in P (the profile's)."
  ],
  "calls": [
   "A. The bangs are five locks in front (r_out, r, c, l, l_clip), four in three-quarter (r, c, l, l_clip) and three in profile (l, l_clip, l_back). The front's r_out is the thin temple strip between the outermost line and the outline on her right, below the flyaway's root; it is its own lock (two strokes bound it).",
   "B. The central lock c's short inner stroke near its tip (front 471,216-476,236; three-quarter 465,215-467,235) is a split tip, not a lock line (rule 1).",
   "C. Correspondence (revised, tool/hairlocks round 2, from the cross-view probe): the profile shows her left side, so its front fringe lock (tip at the forehead) is the front's l (over her left eye), not the central c; its lock with the crab is the front's l_clip; its lock under the part by the star is l_back, round her left beyond what the front labels (in front it sits behind the star, in the unscored strip of call E). The three-quarter keeps the front's names. Evidence (tools/hairlocks/corr.py: the drawn locks read back onto hl_base's bangs surface, each triangle the lock most of its pixels lie in per view): with the old names the views agree on 990 of 2,318 shared triangles (front~three-quarter 690/1,261, front~profile 28/399, three-quarter~profile 272/658); the best of every assignment of the three-quarter's and profile's names (brute force) is this one, 1,259 (690, 216, 353); shifting the three-quarter's names too scores lower (front~three-quarter 569). The drawn clips disagree with it: the crab sits on l in front (about 27 degrees round her left) and on the profile's l_clip (about 70 degrees): the sheet's views don't place the clips consistently, so they don't anchor the names. Our surface's misfit still confounds the probe; per-view scores don't depend on the names, only a cross-view reading does. Her right bangs (r, r_out) are hidden in profile. The three-quarter's outer sweep on her right (the lock with the flick at 388,202) is unscored: it could be the front's r_out or the side hair.",
   "D. The line between c and l (front x 505) runs straight down the gap between the eyes; the eye-holes (skin) part the lock tips below the lines.",
-  "E. The strip beside the star (front 588,184; three-quarter 588,180) is unscored (rule 5)."
+  "E. The strip beside the star (front 588,184; three-quarter 588,180) is unscored (rule 5).",
+  "F. The side flick tips (front 4, back 4, profile 1) are flyaways (the breakdown and both generated lock close-up takes draw green strands there), not the mass's locks: the family truth's call A resolved toward the strands for the lock truth.",
+  "G. The outer masses are unscored (rule 13). Cutting them into locks needs a lock-level reference: neither hair_breakdown nor the two generated close-up takes is one (tool/hair5 refcheck: their region boundaries meet the sheet's drawn lines at F 0.17-0.29 within 2.5 px, against a random partition's 0.07-0.16; 30-70% of their hair area is flat colour; the back is two flat masses).",
+  "H. Correspondence: under_bun_L and under_bun_R are the same strand in every view; the front's and the back's flick_L1/R1 (the upper side flicks, rows 262-263), flick_L2/R2 (the middle ones, rows 321-328) and lower_back flick_L3/R3 (the lowest outer flicks, rows 365-366) are the same flicks (each at the side silhouette at one height in both views). The profile's back flick (flyaways/flick_P) and hem flicks (lower_back/flick_P1, P2) sit on the silhouette's back edge, where the side flicks can't: the profile's own names. The three-quarter's and the profile's side locks keep the front's names (L_front: the face-framing lock under the star; L_jaw: the next one down to the jaw).",
+  "I. The back's hem has seven flicks (her left to her right: L3, L2, L1, C, R1, R2, R3), cut at the notch strokes' upper ends; a strand stroke inside L1 (back 426,373) and a split stroke in R1 (534,385) don't part them (rule 1).",
+  "J. The three-quarter: side locks R_front, R_jaw, L_front, L_jaw, the ahoge and the strand under her left bun (the strand under her right bun is hidden); the outer masses unscored, the rest of the mass out of the truth. L_jaw's outer side is cut along its drawn edge where the stroke has gaps (602,279 to 607,353)."
  ]
 }
