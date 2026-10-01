@@ -414,3 +414,31 @@ fits, builds and calibrations run on the boxes; local work is light (single eval
   at body.hand.line 0.5) and the finger separation lines (fingers overlap 0.215 of their width: outline hulls hidden).
 - Pregate skipped (laptop memory-critical; it runs the evaluator for both trees locally, and the box copy has no git):
   the after-build's real QA against the before stands in. Merged pipeline-3d 9be5b32 (40a0168). Gate launched.
+
+### Gate 1 of hands2 (40a0168 + notes c... into pipeline-3d 9be5b32): job gate-hands-1001-123155-2a02, log
+charkit/out/hands2/gate.log (result below when it lands)
+
+## Round 6: hands3, the structure from the hand sheet (coordinator, Michael's call 2026-10-01)
+The turnaround's hands are small with merged fingers (the canonical rule's step 2: internal structure it can't resolve),
+so the structure comes from hand_breakdown.png's OPEN pose (top row second: five digits from the back; bottom row
+second: the thumb's side); the turnaround stays the authority for overall size (reach past the cuff). Michael also saw
+three-quarter showing no finger delineation (a blur). hands2 goes to pipeline-3d as an interim if its gate passes.
+Plan: 1. measure the open pose, fit the template's structure to it per row (tip count, per-digit length and width
+profile, shape IoU); 2. validate by posing the fitted structure (LBS on the finger bones) into relaxed, fist, point,
+graded against the sheet per row; 3. the rest pose against the turnaround (IoU per view no worse than the comb's);
+4. finger delineation: an ink check against the design's lines (front, 3q at least), our renderer drawing a line where
+two fingers touch (a seam gap or inked seams, both measured), the hand's dark outline; 5. review page (sheet | comb |
+hands2 | hands3, per pose and view; 3q rest close-ups), calibrate, pregate --box auto, gate.
+- **charkit/handsheet.py (2f…):** cells() (the sheet's 8 hands, the arm straight down), digits() (tips = the contour's
+  local maxima of distance from the wrist standing 0.06 of the reach above the clefts beside them; each digit's base at
+  the level of its shallower cleft, the far edge as far from the tip; length, width profile at 0.1-0.9 of its length,
+  angle, tip roundness; palm width across the clefts, the knuckle line), draw() (the template in the sheet's rows from
+  its own frame), SheetFit, `charkit handsheet fit|show`. The template gained fan_index..fan_little and thumb_across
+  (defaults: hands2's hand exactly); code_hand.search is the DE/Powell search both fits share (spawned workers rebuild
+  the fit from fit.src = 'module:factory').
+- **The sheet's open pose (shares of the reach past the cuff):** back: little 0.385 (angle -40 deg), ring 0.446 (-22),
+  middle 0.496 (-6), index 0.454 (+8), thumb 0.320 (+47; its base 0.356 along); widths at the base 0.093-0.119, at
+  0.9 of the length 0.045-0.061 (tip roundness 0.62-0.73); palm 0.404 across the clefts; knuckle line 0.494. Side:
+  three tips (two fingers, the thumb 0.277 at +32). Relative to the middle: little 0.78, ring 0.90, index 0.92.
+- hands2's template drawn open (fan 14/0/-16/-34, thumb out 45): back IoU 0.513 (palm 0.29 vs 0.40, knuckles 0.43 vs
+  0.49), side 0.351 (2 tips vs 3). **open1** fit running on the build box (charkit/out/hands3/open1, log open1.log).
