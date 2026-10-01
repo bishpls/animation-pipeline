@@ -726,6 +726,61 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Wrap-up (2026-10-01 morning, account at 95% of weekly capacity): START HERE
+
+Every workstream stopped at a checkpoint; nothing is running. pipeline-3d f0975ad has everything merged through the
+night (the evening run below, then: hairshell r1-r2 opt-in, garments4 Part 1 (the bow's geometry with its neighbours),
+the skirt's creases, the cuffs, the layer references (base body, hair without clips, skirt layers, clips alone)). The
+final review page: `charkit/out/final/20261001/index.html`, a preview with the strokes and staircase branches merged on
+tmp/final-1001.
+
+**Unmerged branches, each with exact next steps in its notes:**
+- `tool/hands2` c6aceaa1 (`docs/workstreams/hands.md`). Why the default hand looks off-model, measured:
+  - a comb of four fanned fingers (fingertip gaps 0.11-0.18 of the hand's width against 0-0.01 drawn);
+  - square fingertips (taper 0.59-0.67 against 0.40-0.51);
+  - no thumb (the notch sits at 0.72-0.76 against 0.56-0.64);
+  - a block palm.
+
+  New checks are in, not yet calibrated. Next: rebuild the hand, then the range-of-motion measurement (Michael's
+  order).
+- `tool/garments4-stairs` 54e063ed. The staircase is squared to the pleats, with every riser on a fold:
+  - steps crossing a fold 2/1 -> 0/0;
+  - skirt corners 8.9/6.0 -> 2.9/0.5 deg past the design.
+
+  Validated locally only. Box build job `build-garments4-1001-065031-2168` is uncollected. Next: calibrate the stair
+  checks, gate, review page. Then milestone 2 in `docs/workstreams/garments4.md`:
+  1. the body's neck-chest join, on the base body reference;
+  2. the bow-less bodice and flat-collar reference;
+  3. the V to skin;
+  4. flat lapels framing the V;
+  5. re-judge art_outline_collar.
+
+  `tool/garments4-shoulders` waits for that plan.
+- `tool/hairstrokes` afc6b13 (`docs/workstreams/hairstrokes.md`). The traced hair strokes and bun lines: density FAIL
+  -> WARN, direction and bun lines PASS. Gate 1 blocked on the spec alias (fixed) plus three calibration records to
+  refresh (hair_back_lines, hair_lock_lines_*). Then the review page, the line-weight check, and the tones milestone
+  (custom shading normals, underside tone, highlight band).
+- `tool/hairshell3` da1c9ed (`docs/workstreams/hairshell.md`).
+  - Lock fits are bit-identical across machines (17/17).
+  - Still open: the back view's terminator (the hem flicks), and hair_noise. The design's own hair reads 0.216 FAIL,
+    so the measure needs redefining; recommended as a speckle measure. Its branch is `tool/hairshell3-noise`
+    aa7b3e6.
+  - The exploded lock-breakdown reference failed; the canonical rule's step 3 applies.
+  - Default switch: no for now. The whole-head extension comes after the back view.
+
+**Waiting on Michael** (decided items are already in the sections below):
+- hair strokes: accept WARN density as the cost of one 3D stroke set (recommended yes); strokes drawing lock lines on
+  the hull shell until the shells cover the head (recommended yes, per region);
+- the hand checks report-only in edge-on views;
+- garments stairs: the flap-squaring dial 2.0, the plain band crossing the side pleats, dropping the sloped treads;
+- hair_noise: redefine.
+
+**Queued, not started:** the range-of-motion measurement (after the hand); the face base-shape round (approved:
+3q-mouth default plus a per-shot override, lower-face width, forehead, profile eye); the accessories round (remake and
+place the clips from the separated references under the non-occlusion rule); the Sonnet-vs-Opus paired test (a first
+data point: a Sonnet research task was fine); softras r5; the infra gate fixes; the calibration follow-ups. The full
+gap list is "Known gaps before motion testing" under "Known issues and work items".
+
 ## Evening run (2026-09-30, 19:30-24:00 EDT, Michael reviewing): start here, then the day run below
 
 **Merged tonight** (pipeline-3d 1580f95 -> b30a7e0):
