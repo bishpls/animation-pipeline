@@ -204,6 +204,14 @@ Against b2 (qa.json; CPU 1028 s):
   hand window and arm window round each build's cuff; the arm angle table and per-view angle diagrams; the evaluator
   A/B; guard IoUs; weights and fist; calibration).
 
+- Merged pipeline-3d 342e88c (8fcf271; tool/face5, clean). **Pregate PASS** (0 blocking, 53 moved; report
+  charkit/out/pregate/pregate_tool-hands_8fcf2710_into_342e88c8.md): 3q aline 0.08 WARN -> -0.017 PASS (the base's,
+  342e88c), skin IoU up in every view, cuff edges mostly PASS. body_front_skirt_aline 0.002 PASS -> gone (not blocking):
+  bodyqa.aline uses the rows with no hand against them, and with real hands no free row is left within 0.15 L of the
+  front hem, so it returns None (gone since b1: the mitten never reached the hem). Re-reading aline's fallback (all rows
+  when the free ones miss the hem band) would be a remeasure: not done here.
+- **Box gate** launched: `python -m charkit remote gate tool/hands --into pipeline-3d`, log charkit/out/hands/gate_r3.log.
+
 ## Next steps (exact)
 1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
    skirt's 3q flare, because our forearm hangs 6 deg steeper than drawn (tips.py: 22.5 vs 28.2-28.6 deg off vertical near
