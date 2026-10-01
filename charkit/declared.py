@@ -20,6 +20,8 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   position     a piece's centroid against the design's (L from the eye line and the midline): the larger of |dx|, |dz|
                (params axis 'x', 'z' or 'both')
   area         the piece's pixels over the drawn piece's, |ratio - 1| (a size: the wrist cuffs 1.5-2.4x the drawn)
+  top_line     the upper edge of a union of pieces (the shoulder line) per column over x bands, ours against the drawn
+               silhouette's where the lower edge isn't under hair: its height (dz), slope or trough (the dip)
   ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
                recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
 
@@ -33,7 +35,9 @@ nothing imported: the gate and `calibrate` read a tree's without running it; no 
             the bow's drawn tails into the bow, as our bow object has them); round: the value's decimals; drawn: the
             drawn piece to compare against in place of `piece`'s (a region we build as part of a piece: the skirt's
             cream panel); ours_cls: our piece's pixels of that model-sheet class only (pieceqa.our_classes: 'cream',
-            the panel's material on our skirt)
+            the panel's material on our skirt); ref: 'silhouette' compares with the drawn pieces as our surfaces
+            would draw them (the drawing's lines inside the figure given to the nearest piece: bodymeasure.drawn_labels;
+            area's default) instead of the outfit's fill masks
   limits    [pass, warn] (within: PASS, WARN; beyond: FAIL), or a reference to a part's own table
             ('charkit.pieceqa.LIMITS.rows'); better 'lower' (default; shape_iou 'higher') or 'higher' (at least)
   part      the QA part that reports it: 'declared' (default: this module's part) or a part that evaluates its own
@@ -289,6 +293,60 @@ def area(Mo, Md, ctx, round_=3, ref='silhouette'):
                 fill=fill, ratio_fill=round(float(Mo.sum()) / fill, 3))
 
 
+def top_line(Mo, Md, ctx, x=((-0.7, -0.15), (0.15, 0.7)), measure='dz', min_cols=8, round_=4):
+    """the upper edge of a union of pieces (the shoulder line: the jacket, the collar and the sleeves) per column over
+    signed x bands (L from the midline, one per side), ours against the drawn pieces' silhouettes (evaluate's `ref`
+    'silhouette': the drawing's lines given to the nearest piece). A column whose lower edge of the two lies under hair
+    (the label just above it hair) is left out: a shoulder under the hair isn't seen in that view, and the hair's tips
+    resting on it are no shoulder. measure 'dz': per band the median of ours less the design's, the worse band's |.|;
+    'slope': per band a line fitted against |x| (L per L), |ours - design's|, the worse; 'trough': per band the deepest
+    trough of the edge (collarqa.trough: the water line between the higher points either side), ours beyond the
+    design's (>= 0), the worse (Michael's dip between the collar and the puff)."""
+    from . import bodyqa, collarqa, pieceqa
+    ppl = ctx['ppl']
+    Mo = np.any(Mo, 0) if isinstance(Mo, (list, tuple)) else Mo
+    Md = np.any([fit(m, Mo.shape) for m in Md], 0) if isinstance(Md, (list, tuple)) else fit(Md, Mo.shape)
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    if Mo.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    hair_o, hair_d = ctx.get('hair_ours'), ctx.get('hair_drawn')
+    to, td = collarqa.top_edge(Mo), collarqa.top_edge(Md)
+    per, vals = {}, []
+    for k, (a, b) in enumerate(x):
+        c0, c1 = sorted((collarqa._col(a, ppl), collarqa._col(b, ppl)))
+        cs = np.arange(max(0, c0), min(Mo.shape[1] - 1, c1) + 1)
+        ro, rd = to[cs], td[cs]
+        ok = np.isfinite(ro) & np.isfinite(rd)
+        lower_o = ok & (ro > rd)                  # (rows grow downward: ours lower)
+        for lower, hair, r in ((lower_o, hair_o, ro), (ok & (rd > ro), hair_d, rd)):
+            if hair is None:
+                continue
+            ri = np.clip(np.nan_to_num(r, nan=0).astype(int) - 2, 0, Mo.shape[0] - 1)
+            under = hair[ri, cs]
+            ok &= ~(lower & under)
+        if ok.sum() < min_cols:
+            per[k] = None
+            continue
+        xs = np.abs((cs[ok] + 0.5) / ppl - bodyqa.WIN['x'])
+        zo, zd = collarqa._z(ro[ok], ppl), collarqa._z(rd[ok], ppl)
+        if measure == 'dz':
+            v = float(np.median(zo - zd))
+            per[k] = dict(dz=round(v, 4), cols=int(ok.sum()))
+            vals.append(abs(v))
+        elif measure == 'slope':
+            so, sd = np.polyfit(xs, zo, 1)[0], np.polyfit(xs, zd, 1)[0]
+            per[k] = dict(slope=round(float(so), 3), slope_design=round(float(sd), 3), cols=int(ok.sum()))
+            vals.append(abs(so - sd))
+        else:
+            o_, d_ = collarqa.trough(zo), collarqa.trough(zd)
+            per[k] = dict(ours=round(o_, 4), design=round(d_, 4), cols=int(ok.sum()))
+            vals.append(max(0.0, o_ - d_))
+    if not vals:
+        return None
+    return dict(value=round(max(vals), round_), ours=per, design=None)
+
+
 def position(Mo, Md, ctx, axis='both', round_=4):
     """the piece's centroid (L from the midline and the eye line: pieceqa.x_of, z_of) against the design's: the larger of
     |dx| and |dz| (axis 'both'), or one of them."""
@@ -408,9 +466,10 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
 
 
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position, ink_inside=ink_inside, area=area)
+                position=position, ink_inside=ink_inside, area=area, top_line=top_line)
 HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
+HAIR_FAMILIES = ('top_line',)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
 
 
 def grade(v, limits, better='lower'):
@@ -489,6 +548,17 @@ def silhouette(I, view, pid):
     (bodymeasure.drawn_labels, cached on I: the drawing's lines inside the figure given to the nearest piece), or None
     when the inputs lack the outfit graph."""
     from . import bodymeasure
+    lab = drawn_lab(I, view)
+    if lab is None:
+        return None
+    idx = {n: i for i, n in enumerate(I['names'])}
+    return bodymeasure.member_mask(lab, idx, I['pm'].get(pid, []))
+
+
+def drawn_lab(I, view):
+    """the drawing as our label image in a view (bodymeasure.drawn_labels, cached on I), or None without the outfit
+    graph."""
+    from . import bodymeasure
     if I.get('graph') is None or I.get('dv') is None:
         return None
     if '_drawn' not in I:
@@ -497,10 +567,13 @@ def silhouette(I, view, pid):
         I['_drawn'] = bodymeasure.drawn_labels(I['masks'], I['graph'], I['pm'], names, I['dv'], skin,
                                                [n for n in names if n.startswith('hair')])
     got = I['_drawn'].get(view)
-    if got is None:
-        return None
-    idx = {n: i for i, n in enumerate(I['names'])}
-    return bodymeasure.member_mask(got[0], idx, I['pm'].get(pid, []))
+    return None if got is None else got[0]
+
+
+def hair_of(lab, names):
+    """the pixels of a label image that are hair (an object named hair*)."""
+    h = [i for i, n in enumerate(names) if n.startswith('hair')]
+    return (lab >= 0) & np.isin(lab % 1000, h) if h else np.zeros(lab.shape, bool)
 
 
 def fit(m, shape):
@@ -569,6 +642,14 @@ def evaluate(decls, I):
                    cls_ours=(I.get('cls_ours') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
+        ref = params.pop('ref', None) if d['family'] != 'area' else None
+        if ref == 'silhouette':                           # (the drawn pieces with the drawing's lines given to them)
+            S = [silhouette(I, view, p) for p in pieces]
+            Md = [m if s_ is None else s_ for s_, m in zip(S, Md)]
+        if d['family'] in HAIR_FAMILIES:                  # (what lies under hair in each view isn't seen)
+            dl = drawn_lab(I, view)
+            ctx['hair_ours'] = hair_of(lab, names)
+            ctx['hair_drawn'] = None if dl is None else fit(hair_of(dl, names), lab.shape)
         fam = FAMILIES[d['family']]
         if 'round' in params:
             params['round_'] = params.pop('round')
