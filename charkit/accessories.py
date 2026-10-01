@@ -290,17 +290,45 @@ class Ground:
 
     def __init__(self, meshes=()):
         self.meshes = [(np.asarray(v, float), [tuple(int(i) for i in f) for f in F]) for v, F in meshes if len(v)]
+        self._bvh = {}                                        # (venv) a mesh's BVH by its vertex array's identity
+        self._added = set()                                   # (the clips placed on it: not kept)
 
     def add(self, V, F):
-        self.meshes.append((np.asarray(V, float), [tuple(int(i) for i in f) for f in F]))
+        V = np.asarray(V, float)
+        self.meshes.append((V, [tuple(int(i) for i in f) for f in F]))
+        self._added.add(id(V))
+
+    def copy(self, n=None):
+        """a new ground on the first n surfaces (all), sharing their BVHs (a fit places the clips many times on one
+        hair)."""
+        G = Ground()
+        G.meshes = list(self.meshes[:n] if n is not None else self.meshes)
+        G._bvh = getattr(self, '_bvh', {})
+        G._added = set(getattr(self, '_added', ()))
+        return G
+
+    def _cast_one(self, V, F, O, D, R):
+        try:
+            import mathutils  # noqa: F401  (Blender: its own BVH, charkit.hair's)
+        except ImportError:
+            cache = getattr(self, '_bvh', None)
+            if cache is not None and id(V) not in getattr(self, '_added', ()):
+                key = id(V)
+                if key not in cache or cache[key][0] is not V:
+                    from .geom.bvh import BVH
+                    from .geom.mesh import Mesh
+                    cache[key] = (V, BVH(Mesh.from_polys(np.asarray(V, float), [tuple(f) for f in F])))
+                t, _ = cache[key][1].ray_cast(O, D, R)
+                return np.where(np.isfinite(t), t, np.nan)
+        from .hair import _cast_in
+        return _cast_in(V, F, O, D, R)
 
     def cast(self, O, D, R):
         """the nearest hit distance of each ray O + t D (t <= R) over every surface, NaN on a miss."""
-        from .hair import _cast_in
         O, D = np.atleast_2d(O), np.atleast_2d(D)
         best = np.full(len(O), np.nan)
         for V, F in self.meshes:
-            t = _cast_in(V, F, O, np.broadcast_to(D, O.shape).copy(), R)
+            t = self._cast_one(V, F, O, np.broadcast_to(D, O.shape).copy(), R)
             best = np.where(np.isnan(best) | (t < best), np.where(np.isnan(t), best, t), best)
         return best
 
@@ -432,7 +460,7 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
     the hair's surfaces [(verts, faces)] in world, which the clips rest on (each clip then on the ones before it too);
     centre: the head's centre ('at' placements)."""
     out = []
-    G = Ground(ground) if ground is not None else None
+    G = ground.copy() if isinstance(ground, Ground) else Ground(ground) if ground is not None else None
     nh = len(G.meshes) if G is not None else 0                   # the hair's surfaces (then the clips placed so far)
     for i, s in enumerate(specs or []):
         k = s['kind']
@@ -466,7 +494,7 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
                 rim = None
             if cf and k == 'star' and G is not None and nh:
                 # resting on the hair alone, then bent over the clips placed before it (conform())
-                gh = Ground(); gh.meshes = G.meshes[:nh]
+                gh = G.copy(nh)
                 w, Rm = place(v, s, L, V, centre, gh, frame=True)
                 lift = 0.0
                 if len(G.meshes) > nh:

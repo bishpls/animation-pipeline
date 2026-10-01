@@ -5,7 +5,7 @@ the design, the previous preview and this one at matching figure height; the hea
 QA tallied against the previous preview (FAIL -> PASS, PASS -> FAIL, the checks a measurement step between the two
 changed).
 
-    python -m charkit preview [REF] [--spec SPEC] [--box render] [--force] [--open]
+    python -m charkit preview [REF] [--spec SPEC] [--box render2] [--force] [--open]
                                              build REF (default HEAD) and write its page (run it in the background)
     python -m charkit preview --tip BRANCH   the same for BRANCH's tip as it is once the previous preview is done (the
                                              hook's form: merges in a burst preview their last commit once)
@@ -91,7 +91,7 @@ def build_worktree(sha, spec=SPEC):
     return wt
 
 
-def build(sha, spec=SPEC, box='render', log=print):
+def build(sha, spec=SPEC, box='render2', log=print):
     """sha built on the box with the preview's boards, into charkit/out/previews/<short> here -> that folder."""
     short = _short(sha)
     wt = build_worktree(sha, spec)
@@ -601,7 +601,7 @@ def hook(action, branch=None, cwd=ROOT, py=PY):
 
 
 # ------------------------------------------------------------------------------------------------------------ main
-def preview(ref='HEAD', spec=SPEC, box='render', force=False, tip=None, log=print):
+def preview(ref='HEAD', spec=SPEC, box='render2', force=False, tip=None, log=print):
     """build ref (or, with tip, that branch's tip once the lock is ours) and write its page -> the page's path."""
     os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, '.lock'), 'w') as lock:
@@ -637,7 +637,7 @@ def main(args):
     else:
         pos = [a for i, a in enumerate(args) if not a.startswith('--') and (i == 0 or args[i - 1] not in
                                                                              ('--spec', '--box', '--tip', '--page'))]
-        p = preview(pos[0] if pos else 'HEAD', spec, opt('--box', 'render'), '--force' in args, opt('--tip'))
+        p = preview(pos[0] if pos else 'HEAD', spec, opt('--box', 'render2'), '--force' in args, opt('--tip'))
     print('page', p)
     if '--open' in args:
         subprocess.run(['open', p])

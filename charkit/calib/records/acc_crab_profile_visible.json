@@ -1,0 +1,79 @@
+{
+ "check": "acc_crab_profile_visible",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T13:30:15",
+ "better": "higher",
+ "kind": "defect",
+ "shape": [
+  "acc_crab_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": "acc_r4_overlap",
+  "value": 0.618,
+  "status": "FAIL"
+ },
+ "floor": {},
+ "probes": {
+  "touching": {
+   "value": 0.987,
+   "status": "PASS"
+  }
+ },
+ "blind_to": [
+  "touching"
+ ],
+ "current": {
+  "value": 0.988,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), acc_r4_overlap reads 0.618 FAIL; a random stand-in fails it; shape guarded by acc_crab_shape",
+ "build": "charkit/out/acc5/after2",
+ "generators": {
+  "touching": "(probe) the drawn clips moved 2 px into each other, the star over the crab"
+ },
+ "seconds": 35.7
+}

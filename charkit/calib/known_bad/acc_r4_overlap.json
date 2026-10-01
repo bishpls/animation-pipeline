@@ -1,0 +1,10 @@
+{
+ "name": "acc_r4_overlap",
+ "why": "round 4's placement (pipeline-3d 00494de, accessories.md call (a)): the star bent over the crab, the crab 78/74/62% shown in front / three-quarter / profile; Michael: the crab hidden under the star is poor design",
+ "flag": "the crab hidden under the star (Michael, 2026-09-30)",
+ "commit": "00494dec",
+ "source": "~/animation-pipeline-acc5/charkit/out/acc5/base",
+ "stored": "2026-10-01",
+ "bundle": "472cf76a45336237",
+ "qa_checks": 631
+}

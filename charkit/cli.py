@@ -37,6 +37,7 @@
                                                  # the outfit component graph from the references (charkit/outfit.py)
     python -m charkit outfit score [SPEC] [--masks MASKS.npz]   # the outfit masks against the hand-labelled truth
     python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
+    python -m charkit accfit shape|place|measure ...   # the hair clips' template and placement fits (charkit/accfit.py)
     python -m charkit calibrate CHECK [--build DIR] # the calibration triple: design moved 1-2 px, known-bad, random floor
     python -m charkit sweep run DECL.json | BASE --stage S --oat PATH=[..] .. | swap A B --check C   # declared variants
                                                  # of a build rebuilt in-process and measured; attribution (charkit/sweep.py)
@@ -774,7 +775,7 @@ def figures(args):
         print('wrote', mp)
 
 
-CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep')
+CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep', 'accfit')
 
 
 def _cap(args):
@@ -852,6 +853,9 @@ def main(argv=None):
     elif cmd == 'sweep':
         from . import sweep
         sys.exit(sweep.main(rest) or 0)
+    elif cmd == 'accfit':
+        from . import accfit
+        accfit.main(rest)
     elif cmd == 'hairsplit':
         from . import hairsplit
         sys.exit(hairsplit.main(rest) or 0)
