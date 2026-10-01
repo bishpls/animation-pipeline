@@ -8,8 +8,9 @@ cuff. Ours: our skin and our cuff (the drawn cuff's object: the outfit graph's p
 design's: its skin class and its drawn cuff mask.
 
 Checks (QA part 'hands', prefix hand_; lengths in L):
-  hand_shape_{L,R}           the hand's silhouette against the drawn hand's per view, the two laid on their centroids
-                             (the hand's own shape: where the arm hangs is the build pose's, body_*_arms), plain IoU;
+  hand_shape_{L,R}           the hand's silhouette against the drawn hand's per view, ours turned to the drawn arm's
+                             direction and the two laid on their centroids (the hand's own shape and its set on the
+                             arm: where the arm hangs is the build pose's, body_*_arms), plain IoU;
                              valued by its worst view, `views` {view: IoU} (the anti-gaming guard's shape for the hand
                              checks)
   hand_{view}_reach_{L,R}    how far the hand reaches past its cuff along the arm (the cuff's far edge to the
@@ -168,8 +169,23 @@ def cleft(m, ppl):
     return float(deep.max()), int((deep >= 0.01).sum())
 
 
-def shape_iou(a, b):
-    """two masks' IoU with b moved so the centroids meet (whole pixels)."""
+def rotated(m, u_from, u_to):
+    """a mask turned about its window's centre so the direction u_from (image x, y) lies along u_to (nearest; the
+    window grown to hold it)."""
+    from scipy import ndimage
+    ang = np.degrees(np.arctan2(u_to[1], u_to[0]) - np.arctan2(u_from[1], u_from[0]))
+    if abs(ang) < 0.25:
+        return m
+    from .bodymeasure import window
+    w = window(m, pad=2)
+    return ndimage.rotate(m[w].astype(np.uint8), -ang, order=0, reshape=True).astype(bool)
+
+
+def shape_iou(a, b, ua=None, ub=None):
+    """two masks' IoU with b turned so its arm direction ub lies along a's ua (when given) and moved so the centroids
+    meet (whole pixels)."""
+    if ua is not None and ub is not None:
+        b = rotated(b, ub, ua)
     ya, xa = np.nonzero(a)
     yb, xb = np.nonzero(b)
     if not len(ya) or not len(yb):
@@ -331,7 +347,7 @@ def measure(B, design, out=None):
                         continue
                     C['%s_%s_%s' % (v, k, s)] = {'value': None, 'status': 'FAIL', 'design': fd[k], 'why': why}
                 continue
-            iou = shape_iou(hd['mask'], ho['mask'])
+            iou = shape_iou(hd['mask'], ho['mask'], hd['u'], ho['u'])
             shape[s][v] = round(iou, 4)
             T[key]['iou'] = round(iou, 4)
             for k, note in (('reach', "how far the hand reaches past its cuff along the arm (L), ours minus the "
@@ -347,7 +363,7 @@ def measure(B, design, out=None):
                                              'status': grade(k, d_, fo[k]), 'ours': fo[k], 'design': fd[k],
                                              'note': note}
             if out:
-                pics.append((key, hd['mask'], ho['mask'], iou))
+                pics.append((key, hd['mask'], rotated(ho['mask'], ho['u'], hd['u']), iou))
     for s in ('L', 'R'):
         if not shape[s]:
             continue

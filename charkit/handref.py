@@ -109,14 +109,6 @@ def sheet_hands(rgb, cuff_L, ppl):
     return out
 
 
-def rotated(m, u_from, u_to):
-    """a mask turned about its centre so its arm direction u_from (image x, y) lies along u_to (nearest)."""
-    from scipy import ndimage
-    ang = np.degrees(np.arctan2(u_to[1], u_to[0]) - np.arctan2(u_from[1], u_from[0]))
-    # (ndimage.rotate turns counter-clockwise on the screen for a positive angle; the rows run down)
-    return ndimage.rotate(m.astype(np.uint8), -ang, order=0, reshape=True).astype(bool)
-
-
 def refcheck(B, design, sheet_path, out=None):
     """the sheet's relaxed hands against the turnaround's A-pose hands at matching scale -> dict: per pairing the IoU
     (centroid-aligned, turned to the drawn arm's direction; the better of it and its mirror: the sheet draws one hand), the reach, digits and cleft beside the
@@ -154,7 +146,7 @@ def refcheck(B, design, sheet_path, out=None):
             if key not in drawn:
                 continue
             d = drawn[key]
-            hm = [rotated(h['mask'], h['u'], d['u']), rotated(h['mask'][:, ::-1], h['u'] * [-1, 1], d['u'])]
+            hm = [handqa.rotated(h['mask'], h['u'], d['u']), handqa.rotated(h['mask'][:, ::-1], h['u'] * [-1, 1], d['u'])]
             ious = [handqa.shape_iou(d['mask'], m_) for m_ in hm]
             rep['pairs'].append(dict(sheet=name, drawn='%s_%s' % key, iou=round(max(ious), 4),
                                      mirrored=bool(ious[1] > ious[0]), reach=[h['reach'], d['reach']],
@@ -173,8 +165,8 @@ def _picture(rep, S, drawn, out):
         r = ROWS.index(p['sheet'].split('_')[1])
         v, s = p['drawn'].rsplit('_', 1)
         H = S[(r, 0)]
-        h = rotated(H['mask'][:, ::-1], H['u'] * [-1, 1], drawn[(v, s)]['u']) if p['mirrored'] else \
-            rotated(H['mask'], H['u'], drawn[(v, s)]['u'])
+        h = handqa.rotated(H['mask'][:, ::-1], H['u'] * [-1, 1], drawn[(v, s)]['u']) if p['mirrored'] else \
+            handqa.rotated(H['mask'], H['u'], drawn[(v, s)]['u'])
         A, Bm = handqa.aligned_pair(drawn[(v, s)]['mask'], h)
         img = np.full(A.shape + (3,), 255, np.uint8)
         img[A] = (170, 170, 170)

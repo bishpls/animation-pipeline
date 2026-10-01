@@ -581,7 +581,8 @@ def foot_mesh(F_):
 PARTS = ('torso', 'leg_left', 'leg_right', 'arm_left', 'arm_right', 'foot_left', 'foot_right')
 UV_SLOTS = {'torso': (0.0, 0.0, 0.25, 1.0), 'leg_left': (0.25, 0.2, 0.33, 1.0), 'leg_right': (0.33, 0.2, 0.41, 1.0),
             'arm_left': (0.41, 0.2, 0.46, 1.0), 'arm_right': (0.46, 0.2, 0.5, 1.0),
-            'foot_left': (0.25, 0.0, 0.375, 0.2), 'foot_right': (0.375, 0.0, 0.5, 0.2)}
+            'foot_left': (0.25, 0.0, 0.375, 0.1), 'foot_right': (0.375, 0.0, 0.5, 0.1)}
+# (the feet, inside the boots, gave the band v 0.1-0.2 to the hands' parts: code_hand.UV_BAND)
 TOE_SHARE = 0.35                  # the front of the foot, as a share of its length, is the toes'
 HEAD_UV_BOX = (0.5, 0.0, 1.0, 1.0)
 BLEND = 0.06                      # L: a bone's weight eases into the next over this either side of their joint
@@ -640,7 +641,7 @@ def build_body_data(spec, chin, log=print):
     metres (the eye line where the code head's chin puts it: z = height - L - chin L, feet near 0), faces (quads, fan caps),
     per-face UVs (a slot per part; the head's box left free: head_uv_box), weights per VRM bone (the torso by height
     between the graph skeleton's joints, each limb along its chain), joints under MakeHuman's names (every VRM bone:
-    the fingers laid in the mitten, weightless), the torso's open top ring as the neck ring. Blender-safe (numpy)."""
+    the fingers the hand template's, weighted along each digit), the torso's open top ring as the neck ring. Blender-safe (numpy)."""
     from . import body as bodylib, mh
     Z = np.load(spec['body_code'])
     sk = {k: (tuple(a), tuple(b)) for k, (a, b) in json.loads(str(Z['skeleton'])).items()}
@@ -688,12 +689,34 @@ def build_body_data(spec, chin, log=print):
         FUV += [tuple(u + nuv for u in q) for q in fuv_]
         UVs += uv_
         nv += len(V_); nuv += len(uv_)
+    # the hands (charkit/code_hand.py): each part a capped tube of rings with its rings' weights on its bones
+    hparts = [str(x) for x in Z['hand_parts']] if 'hand_parts' in Z.files else []
+    for k, name in enumerate(hparts):
+        from .code_hand import UV_BAND
+        u0, v0, u1, v1 = UV_BAND
+        slot = (u0 + (u1 - u0) * k / len(hparts), v0, u0 + (u1 - u0) * (k + 1) / len(hparts), v1)
+        Pp = Z[name + '_P']
+        V_, F_, fuv_, uv_, row = _grid(Pp, slot, True, True)
+        Wr, bones = Z[name + '_W'], [str(b) for b in Z[name + '_B']]
+        Wv = Wr[np.clip(row, 0, len(Pp) - 1)]
+        per = {}
+        for i, b_ in enumerate(bones):
+            per[b_] = per.get(b_, 0) + Wv[:, i]
+        for b_, w in per.items():
+            if w.any():
+                W.setdefault(b_, []).append((nv, w))
+        parts[name] = (nv, nv + len(V_))
+        Vs.append(world(V_))
+        Fs += [tuple(v + nv for v in f) for f in F_]
+        FUV += [tuple(u + nuv for u in q) for q in fuv_]
+        UVs += uv_
+        nv += len(V_); nuv += len(uv_)
     V = np.concatenate(Vs)
     weights = {}
     for b, chunks in W.items():
         a = np.zeros(nv)
         for start, w in chunks:
-            a[start:start + len(w)] = w
+            a[start:start + len(w)] += w
         weights[b] = a
     J = _joints(Z, sk, world, L)
     missing = [j for pair in mh.VRM_JOINTS.values() for j in pair if j not in J]
@@ -708,8 +731,8 @@ def build_body_data(spec, chin, log=print):
 
 def _joints(Z, sk, world, L):
     """MakeHuman-named joints for every VRM bone, from the graph skeleton's front-view joints, the torso's centre depth
-    at each height and the limbs' fitted chains; the fingers laid across the hand (weightless), the toes forward of the
-    ankle on the sole."""
+    at each height and the limbs' fitted chains; the fingers the hand template's (charkit/code_hand.py; laid across the
+    old mitten when the body has none), the toes forward of the ankle on the sole."""
     zc, cy = Z['torso_z'], Z['torso_cy']
     ty = lambda z: float(np.interp(-z, -zc, cy))
     J = {}
@@ -726,17 +749,22 @@ def _joints(Z, sk, world, L):
         J['shoulder01.%s____head' % S_] = world(arm[0])
         J['lowerarm01.%s____head' % S_] = world(arm[1])
         J['wrist.%s____head' % S_] = world(arm[2])
-        hand = arm[3] - arm[2]
-        hl = np.linalg.norm(hand); hd = hand / max(hl, 1e-9)
-        across = np.array([0.0, -1.0, 0.0])                  # the fingers side by side front to back (palms inward)
-        for f in range(1, 6):
-            off = (f - 3) * 0.035                            # L: finger spacing across the hand
-            base = arm[2] + hd * hl * (0.2 if f == 1 else 0.5) + across * off
-            for seg in range(1, 4):
-                a = base + hd * hl * 0.5 * (seg - 1) / 3
-                b = base + hd * hl * 0.5 * seg / 3
-                J['finger%d-%d.%s____head' % (f, seg, S_)] = world(a)
-                J['finger%d-%d.%s____tail' % (f, seg, S_)] = world(b)
+        hk = 'hand_%s_joints' % side
+        if hk in Z.files:                                    # the hand template's digits (charkit/code_hand.py)
+            for k, p in json.loads(str(Z[hk])).items():
+                J[k] = world(np.asarray(p, float))
+        else:
+            hand = arm[3] - arm[2]
+            hl = np.linalg.norm(hand); hd = hand / max(hl, 1e-9)
+            across = np.array([0.0, -1.0, 0.0])              # the fingers side by side front to back (palms inward)
+            for f in range(1, 6):
+                off = (f - 3) * 0.035                        # L: finger spacing across the hand
+                base = arm[2] + hd * hl * (0.2 if f == 1 else 0.5) + across * off
+                for seg in range(1, 4):
+                    a = base + hd * hl * 0.5 * (seg - 1) / 3
+                    b = base + hd * hl * 0.5 * seg / 3
+                    J['finger%d-%d.%s____head' % (f, seg, S_)] = world(a)
+                    J['finger%d-%d.%s____tail' % (f, seg, S_)] = world(b)
         J['upperleg01.%s____head' % S_] = world(leg[0])
         J['lowerleg01.%s____head' % S_] = world(leg[1])
         J['foot.%s____head' % S_] = world(leg[2])
