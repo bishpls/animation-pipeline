@@ -255,10 +255,14 @@ def ref_arm_profile(fg, cls, ppl):
 def measure(build):
     B = bundle.load(build + '/bundle')
     D = qa3d.Design(B)
+    return measure_labels(D, ours_views(B, build, D), os.path.basename(build.rstrip('/')))
+
+
+def measure_labels(D, ob, name):
+    """the measures on our label images per view (ARM / TORSO / HEAD, -1 nothing) against the reference."""
     ppl = D.sheet_context()['ppl']
     bb = bb_views(D)
-    ob = ours_views(B, build, D)
-    res = dict(build=os.path.basename(build.rstrip('/')), views={})
+    res = dict(build=name, views={})
     for v in VIEWS:
         if v not in bb:
             continue

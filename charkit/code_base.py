@@ -595,6 +595,10 @@ def _torso_rings(Bm, ring_b, Vb):
     part = (Bm.get('parts') or {}).get('torso')
     if not (Bm.get('authored') and part):
         return []
+    if Bm.get('torso_rings'):
+        # the joined shoulders' torso: its rows listed (the sockets' rows partial: code_body.build_body_data)
+        rings = [list(r) for r in Bm['torso_rings']]
+        return rings if list(rings[0]) == list(ring_b) else []
     n = len(ring_b)
     rings = [list(ring_b)]
     while True:
