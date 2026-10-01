@@ -129,6 +129,18 @@ def _body(p):
     return p['parts']['knot'] | p['parts']['lobe_L'] | p['parts']['lobe_R']
 
 
+def silhouette(p):
+    """the body's silhouette: its parts' pixels with the lines next to them taken in (a line's width round them) and the
+    holes filled, less the tails: the lines drawn inside it (the knot's outline, the creases) are not its shape, and a
+    body read without them lost a share for every line the line checks ask for (tool/pieceref: the creases drawn, 0.74
+    -> 0.60, the silhouette unchanged)."""
+    from scipy import ndimage
+    lw = max(1, int(np.ceil(pqa.line_width(p['line']))))
+    b = _body(p)
+    t = p['parts']['tail_L'] | p['parts']['tail_R']
+    return ndimage.binary_fill_holes(b | (p['line'] & ndimage.binary_dilation(b, iterations=lw + 1))) & ~t
+
+
 def scaled(m, box, k, shape):
     """mask m cut at box (x0, y0, x1, y1), scaled by k and laid at the top left of a canvas of `shape`."""
     from scipy import ndimage
@@ -169,8 +181,10 @@ def compare(o, r):
     out = {}
     if No is None or Nr is None:
         return None
-    body = lambda N: N['knot'] | N['lobe_L'] | N['lobe_R']
-    out['body'] = iou(body(No), body(Nr))
+    # the body as its silhouette (silhouette(): its inner lines taken in), in the parts' frame
+    So, Sr = (normalised(dict(p, parts=dict(p['parts'], knot=silhouette(p), lobe_L=np.zeros_like(p['mask']),
+                                             lobe_R=np.zeros_like(p['mask'])))) for p in (o, r))
+    out['body'] = iou(So['knot'], Sr['knot'])
     out['tails'] = iou(No['tail_L'] | No['tail_R'], Nr['tail_L'] | Nr['tail_R'])
     ks = []
     for p in (o, r):

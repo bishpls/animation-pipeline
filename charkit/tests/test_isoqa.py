@@ -89,3 +89,18 @@ if __name__ == '__main__':
         if k.startswith('test_'):
             f()
             print('ok', k)
+
+
+def test_the_body_is_its_silhouette_lines_drawn_inside_it_cost_nothing():
+    """iso_bow_body compares silhouettes: the same bow with ink creases drawn across its lobes (lines the line checks
+    ask for) reads as itself, where the parts' pixels alone lost a share per line (tool/pieceref round 3)."""
+    rgb = _bow()
+    inked = rgb.copy()
+    y, x = np.mgrid[:rgb.shape[0], :rgb.shape[1]].astype(float)
+    s = np.sign(x - 260)
+    lobes = (abs(x - 260) > 40) & (abs(x - 260) < 150) & (abs(y - 90) < 40)
+    inked[lobes & (abs((y - 95) - 0.3 * s * (x - 260)) <= 2.5)] = 0.0         # a 5 px ink crease in each lobe
+    R, Ri = I.ref_piece(rgb), I.ref_piece(inked)
+    assert I.compare(Ri, R)['body'] > 0.97
+    parts_only = I.iou(I.normalised(Ri)['lobe_L'], I.normalised(R)['lobe_L'])
+    assert parts_only < I.compare(Ri, R)['body']
