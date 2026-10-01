@@ -169,8 +169,34 @@ Against b1 (same tree otherwise):
   piece_cuff_R_three_quarter_bottom -0.099 P -> -0.108 W (both); **5.1 makes piece_overskirt_panel_L_front_top FAIL
   (0.090 -> -0.249)**, 3.9 keeps it PASS (0.043). Sleeves and sleeve cuffs unchanged. **Chosen: elbow_out 3.9,
   elbow_fwd 0.7** (spec: body.arm, both specs).
-- **Box build b3** (render box, boards body,design): `charkit/out/hands_b3`, log charkit/out/hands/b3.log; if the
-  command died, `python -m charkit remote attach JID` (the id is in the log's start).
+### Box build b3 (4ea5d18: body.arm elbow_out 3.9, fwd 0.7; render box, `charkit/out/hands_b3`, landed)
+Against b2 (qa.json; CPU 1028 s):
+- **body_three_quarter_skirt_aline FAIL -0.313 -> PASS -0.017: the last blocker cleared.** body_front_skirt_width
+  WARN 0.866 -> PASS 0.984, skirt_pleats WARN -> PASS. **art_bumps_legs 0 (flag, PASS) kept**; art_band_lower PASS.
+- The far hand in 3q: visible 0.566 -> 0.882 (occl_b3.json; b1 0.368); hand_shape_R 3q 0.492 -> 0.588 (whole 0.618).
+- Arm (arm_b3.json): forearm line front 23.6/24.0 -> 24.8/25.2 (drawn 27.6/28.1), skin axis 23.2/23.8 -> 25.8/25.8
+  (27.8/28.5); back skin 23.3/23.9 -> 25.8/25.9 (27.4/27.3); 3q R line -21.6 -> -22.1 (-25.3); handqa's arm axis at the
+  cuff 22.5 -> 28.6/28.7 (drawn 28.2-28.6). Cuffs still 0.054 L (front) / 0.027 (back) inside the drawn, the hand tips
+  0.085 / 0.061 (b2: 0.165 / 0.10); sleeve cuffs where drawn. Fingertips -2.58/-2.59 (drawn -2.585; LEG_TOP -2.62).
+- Guard IoUs (mitten base | b2 | b3): skin front 0.738 | 0.738 | 0.813, 3q 0.726 | 0.740 | 0.767, profile 0.725 |
+  0.732 | 0.733, back 0.759 | 0.766 | 0.847; piece_skirt 0.893 | 0.899 | 0.889 (views 0.919/0.932/0.774/0.867);
+  shape_iou_skirt 0.871 -> 0.880; sleeves and sleeve cuffs unchanged (piece_sleeve_L 0.931, _R 0.835; sleeve_cuff
+  0.790 / 0.784); piece_cuff_L 0.733 | 0.722 | 0.706 (front 0.614, 3q 0.832, profile 0.743, back 0.636), piece_cuff_R
+  0.586 | 0.582 | 0.555 (front 0.604, **3q 0.428 | 0.468 | 0.325**, back 0.602). The 3q R cuff falls because it now
+  shows: our wrist cuffs are 1.5-1.6x the drawn area in every view (2.2 -> 2.4x in 3q R as it comes out from behind the
+  skirt; cuffiou.py: in place 0.416 -> 0.378, centred 0.436 -> 0.404): the cuff's size (its band's offset, thickness,
+  bell), not this workstream's; the gate's guard doesn't fire on it (no new or flag check of ours targets the cuff).
+- Moves, reported: cuff_back_flare_L PASS -> WARN (0.045 -> 0.121; the mitten 0.069), flap_front_width_R PASS -> WARN
+  (0.0386 -> 0.0409), art_bumps_skirt 7.5 -> 24.0 (the base's 24.0), art_points_top 0 -> 5.3 (INFO, grade PASS).
+- Hand checks: 13 PASS, 5 WARN, 4 FAIL (all new checks: reported, not blocking): hand_shape_L 0.492 (profile, the turn
+  A), hand_shape_R 0.588 (3q), hand_profile_reach_L -0.111, **hand_three_quarter_reach_R WARN -0.071 -> FAIL -0.087**
+  (now that the far hand shows, its reach is measured over 88% of it, not 57%); reach -0.040..-0.111 L (ours shorter).
+- **Shoulder A/B (local evaluator, ab/r3b.log; on top of elbow 3.9):** out 1.5 | 2.0 | 2.0 with elbow 3.0: skin front
+  0.834 | 0.828 | 0.836 (e4 0.812), back 0.829 | 0.808 | 0.829 (0.847), 3q 0.751 | 0.742 | 0.750 (0.767); and
+  **piece_overskirt_panel_L_front_top and _R_front_top FAIL in all three** (-0.249, -0.217: new FAILs; also at elbow
+  5.1). So the shoulder stays: the per-view costs of the remaining 2 deg are back/3q skin IoU and the panel's top edge.
+- Merged pipeline-3d 640ca7c (e94407e). Calibration of hand_* on b3: `charkit/out/calib/cur_hands` (hard links),
+  log charkit/out/hands/calib_r3.log.
 
 ## Next steps (exact)
 1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
