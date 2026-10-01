@@ -51,14 +51,16 @@ OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi
             ribbon_views=('front', 'three_quarter', 'profile'), ribbon_face=0.3, ribbon_rel=0.4, ribbon_kmax=8,
             ribbon_th0=30.0, ribbon_erode=3, ribbon_bend=8.0, ribbon_lines='anchored', ribbon_slide=3.0, ribbon_prior=0.02,
             ribbon_keep=0.0, ribbon_anchors='wedge', ribbon_prom=3.0, ribbon_nsep=4.0,
-            ahoge='fit', flyaway_root='hair', flyaway_reach=0.01, notch_piece={'lower_back': 6.0},
+            ahoge='fit', flyaway_root='hair', flyaway_reach=0.01, notch_piece={'lower_back': 3.0},
             drawn_cuts=('lower_back',), ink_fade={'upper_back': 0.0, 'lower_back': 0.25}, ink_phi=120.0)
 # (tool/hair5, Michael's flags of 2026-09-30 evening; the lab over h5_base (004efc3), docs/workstreams/hair5.md, batch
 # b5 P6 against the base: ahoge 'fit' (a 3-d Bezier fitted to the drawn strokes, their widths): hair_ahoge_shape
 # 0.371 -> 0.689, hair_ahoge_bend 108 -> 19 PASS, hair_piece_ahoge front/profile/back 0.29/0.35/0.33 -> 0.60/0.55/0.75;
 # flyaway_root 'hair' (each root carried 0.01 L into the nearest drawn hair, buns included): hair_attached 0.029 ->
 # 0 PASS, flyaways front/back 0.222/0.131 -> 0.221/0.170; the hem (the lower back cut at its drawn notches, its tips the
-# drawing's, notch 6): hair_back_hem 5 -> 2 PASS (6 tips, drawn 8); ink_fade (no line where the back's locks meet but
+# drawing's, notch 3): hair_back_hem 5 -> 3 (5 tips, drawn 8; notch 5-10 reach 2 but leave a few-pixel island of neck
+# skin between the hem and the collar in profile: art_speckle_neck 0.833 PASS -> 1.68 WARN, a flag; notch 3 0.836,
+# art_terminator_hair 1.752: batches b8, b9, tools/hair5/labart.py); ink_fade (no line where the back's locks meet but
 # at the lower back's last quarter): hair_back_lines 3.77 -> 0.55, at a cost in profile: hair_lock_lines_profile 0.162
 # -> 0.088 (FAIL both; ink_phi 135 with keep 0.15 / 0.35 holds it at 0.158 with the back's ink at 2.02);
 # hair_lock_lines_three_quarter 0.205 -> 0.195; the other families' IoUs within 0.01 in every view; builder folds 4 -> 6)

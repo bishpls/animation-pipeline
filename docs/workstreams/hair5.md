@@ -303,6 +303,11 @@ cuts_nofine's lower 0.609):
 
 b9 (notch 4, 5) running: the deepest notch that keeps the neck clean.
 
+b9: notch 4: neck 0.836, hem 3, art_fragments_hair 1.515 WARN; notch 5: hem 2, neck 1.68 WARN. **Default now notch 3**
+(cuts kept): art_speckle_neck back to 0.836, art_terminator_hair 1.752, hem 2 -> 3 (5 tips against the drawn 8: one
+tip fewer than notch 6; hair_back_hem is new, WARN doesn't block). Render builds `charkit/out/hair5_b3` (A),
+`charkit/out/hair5_bB3` (B), and the gate, launched together.
+
 ## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
 
 Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed
