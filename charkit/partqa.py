@@ -25,7 +25,8 @@ Checks (qa3d part 'bow_parts'; flagged: the gate blocks on their regressions):
                                          part, the worst view (and lobe); the lobes' a guard, not a flag check (the
                                          pillow lobes are sized to the drawn ones and pass it); the knot graded on the
                                          front only (GRADED: the turnaround's three-quarter knot is drawn face-on),
-                                         its other views reported ('info')
+                                         its other views reported ('info'), on its own tighter lines (LIMITS
+                                         'knot_iou': at the grid's scale it reads the knot's placement)
   bow_part_knot_line                     the knot's outlined share against the lobes, the design's less ours (front)
   bow_part_knot_rect                     the knot's rectangle (front): the larger of |ours / design - 1| of its height
                                          over width and its fill of its box short of the design's over FILL_SPAN
@@ -57,8 +58,14 @@ EDGE_BAND = 0.018                   # L: lines this close inside a lobe's silhou
 CREASE_MIN = 0.02                   # L: less crease than this (skeleton length) reads as none
 LINE_PPL = 400                      # px per L of the pictures with lines (the head frame's, the design's line scale)
 LINE_WIN = (0.7, -0.3, 1.1)         # L round the eye line: the chest frame the bow is drawn in
-LIMITS = {                          # (pass, warn): at least for iou, within for the rest
+LIMITS = {                          # (pass, warn): at least for the IoUs, within for the rest
     'iou': (0.6, 0.45),
+    # the knot's, tightened from its calibration triple (round 5; harness kcal.py): at the grid's 212 px/L the
+    # drawn knot is 18 x 25 px against iou_tol's 4.25 px band, so it reads placement, not shape (x1.5 wide, an
+    # ellipse in its box, scaled 0.8-1.2 all read 1.0: knot_rect and knot_line carry its shape). The design moved
+    # 1-4 px reads 0.94-1.0 (PASS), 5 px (0.024 L) 0.83 (WARN), 6 px (0.028 L, a third of its width) 0.62; the
+    # flagged knots: pipeline-3d's 0.536 and g3_render3's 0.467 (FAIL; under 'iou' both read WARN: blind)
+    'knot_iou': (0.9, 0.7),
     'knot_line': (0.15, 0.3),       # the design's outlined share less ours
     'knot_rect': (0.15, 0.3),       # |ours / design - 1| of the knot's height over width
     'crease_len': (0.35, 0.6),      # |ours / design - 1| of a lobe's crease length over its width
@@ -70,7 +77,7 @@ FLAG = ("the bow's knot has never been defined and its lobes read as pillows: ea
 
 def grade(key, v):
     p, w = LIMITS[key]
-    if key == 'iou':
+    if key in ('iou', 'knot_iou'):
         return 'PASS' if v >= p else 'WARN' if v >= w else 'FAIL'
     return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
 
@@ -349,11 +356,11 @@ def measure(B, design):
                 worst[k] = (x, v, part)
     for k in ('knot', 'lobe'):
         w = worst[k]
-        c = _check('iou', None if w is None else w[0], worst=None if w is None else w[1:],
-                                          views=T['iou'],
-                                          note="the bow's %s against the drawn part (outfit's VIEW__bow.PART), per "
-                                               "view its outline agreement (bodymeasure.iou_tol); the worst view%s" % (
-                                                   'knot' if k == 'knot' else 'lobes', k == 'lobe' and ' and lobe' or ''))
+        c = _check('knot_iou' if k == 'knot' else 'iou', None if w is None else w[0],
+                   worst=None if w is None else w[1:], views=T['iou'],
+                   note="the bow's %s against the drawn part (outfit's VIEW__bow.PART), per view its outline "
+                        "agreement (bodymeasure.iou_tol); the worst view%s" % (
+                            'knot' if k == 'knot' else 'lobes', k == 'lobe' and ' and lobe' or ''))
         if k == 'knot':
             info = {v: T['iou'][v]['knot'] for v in T['iou'] if 'knot' in T['iou'][v] and v not in GRADED['knot']}
             c['info'] = info

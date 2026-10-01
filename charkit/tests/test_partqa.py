@@ -57,6 +57,13 @@ def test_the_checks_carry_the_flag_but_the_lobes_guard():
     assert registry.is_flag(P._check('crease_dir', 30.0)) and P._check('iou', 0.7)['status'] == 'PASS'
 
 
+def test_the_knot_is_graded_on_tighter_lines():
+    # round 5: the knot's IoU reads placement at the grid's scale; the design moved 1-4 px reads 0.94-1.0, the flagged
+    # knots (pipeline-3d's 0.536, g3_render3's 0.467) must FAIL; never looser than the lobes'
+    assert P.LIMITS['knot_iou'][0] >= P.LIMITS['iou'][0] and P.LIMITS['knot_iou'][1] >= P.LIMITS['iou'][1]
+    assert [P.grade('knot_iou', x) for x in (1.0, 0.938, 0.833, 0.536, 0.467)] == ['PASS', 'PASS', 'WARN', 'FAIL', 'FAIL']
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
