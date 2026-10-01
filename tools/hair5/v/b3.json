@@ -1,0 +1,8 @@
+{"base": {},
+ "A2": {"opts": {"ahoge": "fit", "flyaway_root": "hair"}},
+ "A2_r01": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "flyaway_reach": 0.01}},
+ "H2": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.15, "lower_back": 0.35}}},
+ "H3": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.0, "lower_back": 0.25}}},
+ "H1": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6}}},
+ "H2_hem6": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.15, "lower_back": 0.35}, "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 6}}},
+ "H3_hem6": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.0, "lower_back": 0.25}, "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 6}}}}

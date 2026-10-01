@@ -246,3 +246,34 @@ if __name__ == '__main__':
         if name.startswith('test_'):
             fn()
             print('ok', name)
+
+
+def _uv_sphere(r, n=16):
+    th, ph = np.meshgrid(np.linspace(0.1, np.pi - 0.1, n), np.linspace(0, 2 * np.pi, n, endpoint=False), indexing='ij')
+    V = np.c_[(r * np.sin(th) * np.cos(ph)).ravel(), (r * np.sin(th) * np.sin(ph)).ravel(), (r * np.cos(th)).ravel()]
+    T = []
+    for i in range(n - 1):
+        for j in range(n):
+            a, b, c, d = i * n + j, i * n + (j + 1) % n, (i + 1) * n + j, (i + 1) * n + (j + 1) % n
+            T += [(a, c, b), (b, c, d)]
+    V = np.r_[V, [[0, 0, r]], [[0, 0, -r]]]
+    top, bot = len(V) - 2, len(V) - 1
+    T += [(top, j, (j + 1) % n) for j in range(n)] + [(bot, (n - 1) * n + (j + 1) % n, (n - 1) * n + j) for j in range(n)]
+    return V, np.array(T)
+
+
+def test_strand_tone_root_shades_the_ahoge_in_one_tone():
+    """(tool/hair5) the ahoge is a strand: under strand_tone 'root' it shades in its root's tone, as the flyaways do (the
+    envelope's normal turns along a strand standing out of the mass: a staircase shadow patch)."""
+    V, T = _uv_sphere(0.5)
+    t = np.linspace(0, 1, 8)
+    line = np.c_[0.15 * np.sin(2 * t), np.zeros(8), 0.45 + 0.3 * t]          # out of the crown, curling
+    for tone, one in (('root', True), ('surface', False)):
+        bl = hp.blade(line, np.linspace(0.08, 0.01, 8))
+        P = {'mass': dict(family='upper_back', V=V, T=T, lock=np.zeros(len(V), int), chains=[[[0, 0, 0.5]]]),
+             'ahoge': dict(family='ahoge', V=bl['V'], T=bl['T'], lock=np.zeros(len(bl['V']), int),
+                           chains=[line.tolist()])}
+        hp.shade_normals(P, 1.0, dict(strand_tone=tone, shade_close=0.1, shade_blur=0.1))
+        N = P['ahoge']['vn_shade']
+        spread = float(np.linalg.norm(N - N[0], axis=1).max())
+        assert (spread < 1e-9) == one, (tone, spread)

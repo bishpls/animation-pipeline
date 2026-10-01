@@ -1,0 +1,122 @@
+{
+ "check": "hair_lock_lines_profile",
+ "part": "hair_flags",
+ "adapter": "HairFlags",
+ "module": "charkit.calib.hairflags",
+ "at": "2026-09-30T20:39:42",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_side_locks",
+  "hair_piece_upper_back",
+  "hair_piece_lower_back",
+  "hair_piece_bangs"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9965,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.9827,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.9993,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.9913,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9965,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.9834,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.9993,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.9905,
+    "PASS"
+   ]
+  },
+  "min": 0.9827,
+  "max": 0.9993,
+  "spread": 0.0166,
+  "median": 0.9939
+ },
+ "known_bad": {
+  "name": "hair5_1580f95",
+  "value": 0.1638,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_lines": {
+   "values": [
+    0.0613,
+    0.128,
+    0.037,
+    0.1737,
+    0.0346
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0613,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "solid": {
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "stripes": {
+   "value": 0.5619,
+   "status": "WARN"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 0.162,
+  "status": "FAIL",
+  "margin": 0.136
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0166), hair5_1580f95 reads 0.1638 FAIL, the floor voronoi_lines FAIL, solid FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/h5_base",
+ "generators": {
+  "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
+  "solid": "no ink inside the mass (a solid orange mass)",
+  "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
+ },
+ "seconds": 143.5
+}
