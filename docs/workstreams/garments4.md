@@ -360,3 +360,19 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
 - **The jacket's shoulder pad** (garments.shoulder_pad, a shell's `pad` {lift [[|x|, dz]], nz, smooth}; also on the
   hull collar): the body untouched (no neck_crease or hair refit), the jacket's (and collar's) upward faces raised to a
   level shoulder. Sweep k13 (base g4_cuffs2, hull collar; tools/garments4/k13.json) running.
+- k13 (pad on the hull collar, base g4_cuffs2): the dips go (front 0.052 -> 0.014, back 0.042 -> 0.005 at lift x1.0),
+  collar_back_lay (flag) 0.061 F -> 0.024 P, shoulder_back_slope W -> P (x1.3); but art_outline_collar 1.45 P -> 3-3.9 F
+  (the padded jacket shows round the hull collar's edges, review: sweeps/k13 boards) and piece_top front -15%.
+  shoulder_front_top stays 0.033 F: the puffs' outer slope (|x| 0.55-0.75) is 0.03-0.05 L under the drawn one.
+- k14 (+ the hull collar draped over the padded jacket, + the puff's upper stations' `out` +0.03/0.05): the drape
+  wrecks the hull collar (front -28%, 3q -33%, corners 4-4.8 F); the puffs' `out` +0.03 takes the front/back top to
+  0.014 / 0.005 PASS but tilt 0.20 -> 0.30-0.33 F and sleeve_R 3q -15%.
+- k15 (hybrid template collars on base g4_shA3: E2's lapel table without the stand, H1-H5) running (log sweeps/k15.log;
+  started detached, no notification: read the log).
+- **Item 4 (the neck-to-bow V), measured:** declared family `class_iou` (fed2ef44): neck_v_front_skin (skin IoU in
+  x +-0.2, z -0.45..-0.75; draft charkit/out/garments4/drafts/neckv.json) 0.476 FAIL on g4_cuffs2 (ours 0.028 L^2 of
+  skin there, drawn 0.060), shE2 0.415, shA3 0.424. Drawn V: skin half-width 0.15 at -0.475 tapering to 0.06 at -0.70;
+  ours ends at -0.55 (the jacket's opening starts at -0.72). Box builds g4_nv1 (top.opening + the drawn V rows),
+  g4_nv2 (x0.85) running (specs charkit/out/garments4/specs/nv*.json, overrides tools/garments4/nv*.json).
+- Plan: item 4 gates first on its own branch (tool/garments4-neckv from the cuffs head + the declared families,
+  without shoulderqa's checks, which FAIL until the shoulders land).
