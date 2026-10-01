@@ -414,6 +414,10 @@ def main(args):
     over = json.loads(opt('--over')) if opt('--over') else None
     if args and args[0] == 'joint':
         return joint_main(args)
+    if args and args[0] == 'palm':
+        rep = palm_compare(opt('--build'), spec_path, json.loads(opt('--variants')), opt('--out'))
+        print(json.dumps(rep, indent=1))
+        return 0
     F = SheetFit(spec_path, opt('--pose', 'open'), over=over)
     if not args or args[0] == 'show':
         c, full = F.score(F.base, detail=True)
@@ -434,3 +438,155 @@ def main(args):
     if opt('--png'):
         print(picture(F, P, opt('--png')))
     return 0
+
+
+# ------------------------------------------------------------------------------- the palm-width comparison (Michael)
+KNUCKLE = 0.494          # the knuckle line's share of the reach past the cuff: the sheet's open hand's clefts (open3)
+PANEL_REACH = 320        # px: every panel drawn at this reach past the cuff (handref's scaling: the same reach)
+OUTLINE_COLORS = [(214, 39, 40), (31, 119, 180), (44, 160, 44), (148, 103, 189)]
+
+
+def palm_line(h, share=KNUCKLE):
+    """a hand's width across the arm at a share of its reach past the cuff (the run through the hand's middle there)
+    -> (width as a share of the reach, (x0, y0), (x1, y1)) in the mask's px, or None."""
+    m, c, u = h['mask'], np.asarray(h['c'], float), np.asarray(h['u'], float)
+    ppl = h['ppl']
+    r = handqa.reach(h, ppl)
+    s, t = handqa.coords(m.shape, c, u, ppl)
+    band = m & (np.abs(s - (h['end'] + share * r)) <= 0.75 / ppl)
+    if not band.any():
+        return None
+    tt = t[band]
+    lo, hi = float(tt.min()), float(tt.max())
+    a = h['end'] + share * r
+    nrm = np.array([-u[1], u[0]])
+    p0 = c + (u * a + nrm * lo) * ppl
+    p1 = c + (u * a + nrm * hi) * ppl
+    return (hi - lo) / r, tuple(p0), tuple(p1)
+
+
+def _panel(rgb, h, ours, title, lines):
+    """a drawing's crop round its hand at PANEL_REACH px of reach, our outlines (laid as the IoU lays them) over it,
+    its palm line, the labels -> an RGB array."""
+    from PIL import Image, ImageDraw
+    from scipy import ndimage
+    from .bodymeasure import window
+    k = PANEL_REACH / (handqa.reach(h, h['ppl']) * h['ppl'])
+    w = window(h['mask'], pad=int(0.12 * PANEL_REACH / k))
+    crop = np.asarray(rgb)[w]
+    im = Image.fromarray(crop.astype(np.uint8)).resize((int(crop.shape[1] * k), int(crop.shape[0] * k)), Image.LANCZOS)
+    im = im.convert('RGB')
+    dr = ImageDraw.Draw(im)
+    oy, ox = w[0].start, w[1].start
+    ya, xa = np.nonzero(h['mask'])
+    for i, (lab, mo) in enumerate(ours):
+        yb, xb = np.nonzero(mo)
+        if not len(yb):
+            continue
+        dy, dx = ya.mean() - yb.mean(), xa.mean() - xb.mean()
+        edge = mo & ~ndimage.binary_erosion(mo)
+        ey, ex = np.nonzero(edge)
+        col = OUTLINE_COLORS[i % len(OUTLINE_COLORS)]
+        for y_, x_ in zip((ey + dy - oy) * k, (ex + dx - ox) * k):
+            dr.rectangle([x_ - 1, y_ - 1, x_ + 1, y_ + 1], fill=col)
+    pl = palm_line(h)
+    if pl:
+        (x0, y0), (x1, y1) = pl[1], pl[2]
+        P0, P1 = ((x0 - ox) * k, (y0 - oy) * k), ((x1 - ox) * k, (y1 - oy) * k)
+        dr.line([P0, P1], fill=(0, 0, 0), width=3)
+        dr.text((max(P0[0], P1[0]) + 6, (P0[1] + P1[1]) / 2 - 6), 'palm %.3f of reach' % pl[0], fill=(0, 0, 0))
+    canvas = Image.new('RGB', (max(im.size[0], 330), im.size[1] + 16 + 14 * len(lines)), 'white')
+    canvas.paste(im, (0, 16))
+    d2 = ImageDraw.Draw(canvas)
+    d2.text((4, 2), title, fill=(0, 0, 0))
+    for i, (txt, col) in enumerate(lines):
+        d2.text((4, im.size[1] + 18 + 14 * i), txt, fill=col)
+    return np.asarray(canvas), (pl[0] if pl else None)
+
+
+def palm_compare(build, spec_path, variants, out, open_over=None):
+    """Michael's question (2026-10-01): which reference sets the palm's width. The drawings at one reach past the cuff
+    (the hand sheet's relaxed back of the hand; the turnaround's profile L, the back of her left hand at rest, and its
+    front and back views), each with its palm width across the knuckle line, our template at each variant (label,
+    knobs over the spec: the rest angles and the palm) outlined over each as its IoU lays it -> dict of numbers; the
+    panels saved under out."""
+    import json
+    from PIL import Image
+    from . import code_hand
+    os.makedirs(out, exist_ok=True)
+    F = code_hand._fit_only(build, spec_path)
+    dv = F_design_views(F)
+    S = cells()
+    sheet_rgb = np.asarray(Image.open(SHEET).convert('RGB'))
+    rep = dict(variants=[v[0] for v in variants], panels={})
+    # the sheet's relaxed back (ours: the rest hand drawn in the sheet's back row at the sheet's reach)
+    cell = S[('relaxed', 'back')]
+    b = cell['box']
+    rgb_cell = sheet_rgb[b[1]:b[3], b[0]:b[2]]
+    ours, lines = [], []
+    for i, (lab, over) in enumerate(variants):
+        P = code_hand.params(json.load(open(spec_path)), **over)
+        H_ = code_hand.hand(CHAIN, 'left', P)
+        W, R = H_['frame']
+        V, _, _ = code_hand.mesh(H_)
+        reach = float(np.percentile((V - W) @ R[:, 0], 99.9)) - CUFF_END
+        Dd = digits(cell)
+        ppl = Dd['reach'] * cell['ppl'] / max(reach, 1e-6)
+        ho = draw(H_, 'back', ppl, CUFF_END)
+        iou = handqa.shape_iou(cell['mask'], ho['mask'])
+        plo = palm_line(ho)
+        ours.append((lab, ho['mask']))
+        lines.append(('%s: IoU %.3f, palm %.3f of reach' % (lab, iou, plo[0] if plo else float('nan')),
+                      OUTLINE_COLORS[i % len(OUTLINE_COLORS)]))
+        rep['panels'].setdefault('sheet_relaxed_back', {})[lab] = dict(iou=round(iou, 4),
+                                                                       palm=round(plo[0], 4) if plo else None)
+    img, pd = _panel(rgb_cell, cell, ours, 'hand sheet: relaxed, back of the hand', lines)
+    rep['panels']['sheet_relaxed_back']['drawn_palm'] = round(pd, 4) if pd else None
+    Image.fromarray(img).save(os.path.join(out, 'palm_sheet_relaxed_back.png'))
+    # the turnaround's views (ours: the Fit's silhouettes, turned to the drawn arm, as hand_shape lays them)
+    for key in (('profile', 'L'), ('front', 'L'), ('back', 'L'), ('front', 'R'), ('back', 'R')):
+        if key not in F.drawn:
+            continue
+        d = F.drawn[key]
+        h = dict(mask=d['mask'], c=d['c'], u=d['u'], end=d['end'], ppl=F.ppl)
+        ours, lines = [], []
+        for i, (lab, over) in enumerate(variants):
+            P = code_hand.params(json.load(open(spec_path)), **over)
+            side = 'left' if key[1] == 'L' else 'right'
+            got = F.silhouettes(P, side)
+            m, r, uf, c = got[key[0]]
+            iou = handqa.shape_iou(d['mask'], m, d['u'], uf)
+            mo = handqa.rotated(m, uf, d['u'])
+            ours.append((lab, mo))
+            ho = dict(mask=m, c=c, u=uf, end=0.0, ppl=F.ppl)
+            plo = palm_line(ho)
+            lines.append(('%s: IoU %.3f, palm %.3f of reach' % (lab, iou, plo[0] if plo else float('nan')),
+                          OUTLINE_COLORS[i % len(OUTLINE_COLORS)]))
+            rep['panels'].setdefault('turnaround_%s_%s' % key, {})[lab] = dict(iou=round(iou, 4),
+                                                                               palm=round(plo[0], 4) if plo else None)
+        img, pd = _panel(dv[key[0]]['rgb_u8'], h, ours, 'turnaround: %s %s' % key, lines)
+        rep['panels']['turnaround_%s_%s' % key]['drawn_palm'] = round(pd, 4) if pd else None
+        Image.fromarray(img).save(os.path.join(out, 'palm_turnaround_%s_%s.png' % key))
+    json.dump(rep, open(os.path.join(out, 'palm.json'), 'w'), indent=1)
+    return rep
+
+
+def F_design_views(F):
+    """the design's views with their pictures as 8-bit RGB on the QA's grids (the Fit's design)."""
+    from . import calibrate, qa3d
+    dv = F.design.design_views()
+    for v, d in dv.items():
+        rgb = d.get('rgb')
+        if rgb is not None:
+            a = np.asarray(rgb, float)
+            d['rgb_u8'] = (np.clip(a, 0, 1) * 255).astype(np.uint8) if a.max() <= 1.0 + 1e-6 else a.astype(np.uint8)
+    return dv
+
+
+def _cuff_c(d):
+    """a drawn hand's cuff point (the Fit keeps the mask, reach and direction): the mask's top along the arm."""
+    m, u = d['mask'], d['u']
+    ys, xs = np.nonzero(m)
+    s = xs * u[0] + ys * u[1]
+    i = np.argmin(s)
+    return np.array([xs[i], ys[i]], float)

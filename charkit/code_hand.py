@@ -375,6 +375,7 @@ class Fit:
         from .bodyqa import CLASS
         from .code_body import Hull, limb_joints, pose_arm, skeleton
         self.ctx = design.sheet_context()
+        self.design = design
         self.ppl, self.az3 = self.ctx['ppl'], self.ctx['az3']
         masks, graph, _ = bodymeasure.piece_masks(B.spec)
         dv = design.design_views()
@@ -392,7 +393,8 @@ class Fit:
                     continue
                 h = handqa.hand_mask(fg & (cls == CLASS['skin']), m[:cls.shape[0], :cls.shape[1]], self.ppl)
                 if h is not None:
-                    self.drawn[(v, s)] = dict(mask=h['mask'], reach=handqa.reach(h, self.ppl), u=h['u'],
+                    self.drawn[(v, s)] = dict(mask=h['mask'], reach=handqa.reach(h, self.ppl), u=h['u'], c=h['c'],
+                                              end=h['end'],
                                               W=handqa.bands_across(h, self.ppl, handqa.PROFILE_BANDS)[0],
                                               **self.structure(h))
         self.base = params(spec)
