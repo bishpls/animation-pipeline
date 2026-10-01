@@ -123,6 +123,19 @@ unchanged by construction.
   face_contour_three_quarter 0.775 and brow_len_closeup_profile 0.721 (items 2 and 3, open); 34 parts' "measuring code
   changed" with no check read differently (bundle.py's Bundle.keyed). Sent to the coordinator (SendMessage main).
 
+- **sw10** (base now with the wrap; the mouth block's columns kept by outward rounding): the cheek refit at 0.75 reads
+  face_contour_three_quarter 0.775 -> 0.925 W, mouth 3/4 0.075 -> 0.050, profile -0.046 -> -0.029 P, nose 3/4 0.034 ->
+  0.003 P, tq_cheek_hollow 0.0057 W -> 0.0034 P, chin_angle 1.5 W -> 1.4 P, but jaw_line_bend 4.7 -> 42 FAIL, chin_tip
+  0.83 -> 0.21 FAIL, tq_jaw_notch 0 -> 0.057 FAIL, eye_hollow 0.012 -> 0.06 FAIL, smile curve -0.025 W -> -0.039 F,
+  mouth front IoU 0.47 -> 0.32. Diagnosis (`an/cagecmp2.py`, cage only): the faces are the base's, the eye and mouth
+  rings barely move, but 458 'face' cage vertices of the jaw's side pocket (UnderJaw parts 0-2, z -0.38..-0.16) move
+  up to 0.17 L (one at (0.081, 0.222, -0.19) goes to (0.116, 0.292, -0.338)): the jaw's envelope (headgeom.jaw_envelope:
+  the design's jaw edge against the sections) reads the cheek's refit as a new jaw edge and drops the pocket's raised
+  top. Item 2 needs the jaw band to read the jaw edge independently of the cheek term (a head-fit round with face5's
+  jaw): not ready for this round's gates. The fh2c forehead with the wrap: brow_arch_closeup_profile 0.009 P (gate 1
+  improved it) -> -0.02 W and the profile spikes 0.75 P -> 0.5 W: two flag regressions; sw11 tries a tighter band (dz
+  0.08) and the middle bump stronger, and the override's slide on the rigid head (0.16 overshoots: lead 0.20 vs 0.173).
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
