@@ -169,3 +169,21 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   is charkit/out/calib/builds/g4_before, local).
 - Box build g4_ink1 (ink1.json: Part 1's spec + the traced skirt and bow strokes): job build-garments4-1001-005337-96fd,
   out `charkit/out/g4_ink1`, log `charkit/out/garments4/build_ink1.log`.
+- **g4_ink1 built** (box, 904 CPU s). Findings:
+  1. The QA's render drawing (qarender.view) mapped the export's `*_ink` primitives to the cloth surface, so our_lines
+     never saw the strokes (the numpy drawing did): skirt creases read 0.998 with the strokes there. Fixed
+     (qarender: ink primitives -> the ink surface; `qa3d.is_ink`). Re-read on g4_ink1: skirt front 0.005 P, **3q 1.0 F**;
+     bow front 0.044 P, 3q 0.372 W: front-traced strokes pass only in the view they were traced from.
+  2. **The cream panel's shape is off** (not measured before: piece_skirt_panel INFO, "no object builds it"): ours a band
+     as wide at the waist as at the hem, the drawn one a triangle (an inverted box pleat). New declared checks
+     (creaseqa.py): `skirt_panel_{front,three_quarter,profile}_shape` (shape_iou, close, our skirt's cream pixels vs the
+     drawn panel: declared params `drawn` + `ours_cls`) 0.695 / 0.689 / 0.232; `skirt_panel_{front,three_quarter}_edges`
+     (ink_inside `edge`: the folds bounding the panel) 0.806 / 0.825 on g4_before.
+  3. Two-view triangulation (tools/tri.py): the drawn 3q panel is as wide as the front one (cos 35.5 would make it 0.81x):
+     the 3q draws the panel more face-on than any rigid 3D panel can be (its right edge implies a depth 0.33 L behind
+     ours, its left edge agrees with ours): the views disagree there (rule 2/3: view-dependent drawing).
+  4. sweep's garment splice dropped material slots (all slot 0: no panel, band or ink): fixed (bodyeval bundle pmat).
+- Fix in progress: `skirt_hull` `panel_shape` {top, power, scale} (a column warp: the panel tapers to `top` at the waist,
+  its edge a clean vertex column); crease strokes in `space: 'panel'` (f across the panel, v down: ride with its shape).
+  Sweep k1 (tools/garments4/k1.json, out sweeps/k1): top/power/scale and panel-space creases (+ edge strokes t15e).
+- Tools: charkit/out/garments4/tools/side.py (design vs builds side by side round a drawn piece), paneliou.py, tri.py.
