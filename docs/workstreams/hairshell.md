@@ -680,3 +680,36 @@ ell_sw1 (scratch branch, base ell_pilot100 = the pilot with shade_ellipsoid 1.0)
 10 + contain 5) 1.78, under the hull's 1.87 (the hull with the ellipsoid 1.77: a tie), with the lower back's profile
 0.639 (hull 0.665, -3.9%), back_lines 0.531 W (hull 0.894 W), hem 3 (= hull), peeks 18 / 17.7 (hull 17 / 17.5). So the
 merge order strokes first, then the shells with their flicks pulled onto the hem, closes the back view; neither alone.
+
+## (5) Regions: the whole hem and the bangs (sweeps on r4b_pilot; six placements)
+**Whole hem, both sides** (r4sw4: groups hem_L phi [90, 180], hem_R [-180, -90], laid over; no ellipsoid):
+
+| row | term mean (back) | peeks | back_lines | hem (ours/drawn 8) | lower back F / P / B | upper back P |
+|---|---|---|---|---|---|---|
+| pilot pd10 + c5 | 1.782 (2.31) | 18 / 17.7 | 0.531 W | 3 | 0.502 / 0.639 / 0.706 | 0.672 |
+| hem2 (defaults) | 2.061 (2.79) | 24 / 25.2 | -0.129 P | 3 | 0.511 / 0.597 / 0.748 | 0.627 |
+| hem2 pd10 + c5 | 1.908 (2.56) | 19 / 18.7 | 0.217 P | 4 | 0.500 / 0.655 / 0.733 | 0.674 |
+| hem2 pd3 + vd3 + c5 | 1.854 (2.48) | 19 / 19.3 | 0.010 P | **5 F** | 0.502 / 0.663 / 0.736 | 0.674 |
+| hem2 pd10 + c5 + ink 0.2 | 2.089 (2.83) | 19 / 18.7 | 0.012 P | 4 | = | = |
+
+The whole hem takes the back's stripes off (back_lines 0.894 -> 0.01-0.22) and the lower back's back-view IoU up
+(0.672 -> 0.73-0.75), the profile to the hull's (0.663), but pulled onto the curling mass the flicks' tips no longer
+hang below it: the hem's tips 5 (hull) -> 3 of the drawing's 8 (hair_back_hem 5 FAIL). Hence `hug_free` (lockshell,
+opt-in): the depth pulls fade out over the last share of the lock, the tip free (sweep r4sw6 / ell_sw3).
+
+**Bangs** (r4sw5: families + bangs; all rows with the pilot's flicks pd10 + c5):
+
+| row | term mean (front) | peeks | bangs F / P | fringe_low | lock lines 3q / P |
+|---|---|---|---|---|---|
+| control | 1.782 (5.37) | 17.7 | 0.847 / 0.636 | P | 0.245 / 0.123 |
+| bangs as shells (replace) | 1.795 (5.80) | 20.0 | **0.548 / 0.298** (guard) | F | 0.232 / 0.128 |
+| + primary front, profile | 1.796 (5.82) | 21.0 | 0.561 / 0.591 | F | 0.233 / 0.110 |
+| + widen 4 | 1.717 (4.96) | 20.0 | 0.665 / 0.336 (guard) | F | 0.245 / 0.125 |
+| + front, profile, widen 4 | 1.719 (4.92) | 20.0 | 0.658 / 0.599 | F | 0.240 / 0.115 |
+| **over the bangs' wedges (under: [bangs])** | **1.706 (4.72)** | 17.7 | **0.854 / 0.640** | P | **0.256 / 0.138** |
+
+Reading: the bangs as shells in place of the hull's bangs lose their coverage (the hull's bangs piece is the best
+family, 0.85 front); laid over their own wedges they keep it and add the locks' structure (front terminator 5.37 ->
+4.72, lock lines up), so the bangs region is `under: ["bangs"]`.
+Infra note: since ~11:00 the laptop's python3 (python.org 3.11) fails TLS verification on the bucket pulls
+(bucketsync); `CHARKIT_PY=~/animation-pipeline/.venv/bin/python` works (used from here).
