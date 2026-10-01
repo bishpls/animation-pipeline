@@ -231,3 +231,7 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   tool/garments4-cuffs (b5997d73 = part2 + garments.cuff's grow_line) carries the cuffs work; cuffqa.py stays in
   charkit/out/garments4/defer/ until the cuffs milestone. Cuff sweep k8 (tools/garments4/k8.json, base g4_cuff0) running.
 - Review page JSON: charkit/out/garments4/review/creases.json.
+- pipeline-3d 6620113d (tool/hairshell, opt-in) merged (639339a3). Pregate (639339a3 into 6620113d): PASS, 49 moved,
+  0 blocking (`charkit/out/pregate/pregate_tool-garments4-part2_639339a3_into_6620113d.md`; evaluator-only row
+  piece_overskirt_panel_L_three_quarter_left -0.151 W -> -0.330 F, not in the gate's QA). Box gate running (log
+  charkit/out/garments4/gate_creases.log).
