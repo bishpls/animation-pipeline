@@ -636,3 +636,24 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - **Stairs gate 2: PASS under K** (0425973b into 00494dec; charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md):
   nothing blocks, CPU 1.04x, 6 new checks calibrated, art_band_lower 1.185 -> 1.111, guard flat or up. pipeline-3d
   ff41ca2 (the neck merged) merged in afterwards (notes and CODEMAP conflicts resolved, CODEMAP regenerated).
+
+## The motion QA fix (branch tool/garments4-motionfix from pipeline-3d ad081524; coordinator's priority)
+- Cause (confirmed from the builds' qa.json): motion read SKIPPED "skirt: not a grid" since the creases milestone
+  (g4_creases 5108 vertices, g4_cuffs2 5110, g4_stairs1 5398 at stride 144), not the staircase: garments.with_ink
+  appends the crease strokes to the skirt object (their faces on 'skirt_ink', their 70 vertices after the grid's); the
+  stairs' fourth step added 2 grid rows. The gates reported motion SKIPPED, not blocking.
+- Fix at the cloth's grid reader (charkit/sim): drape.ink_slots / grid_polys (the cloth's own faces), grid_of reads the
+  grid from them; cage.of_piece builds on the grid and carries the strokes (Cage.attach: the nearest template vertex's
+  block and weights, their own residual); piece_cloth pins them inert; motion's stretch edges and penetration surface
+  leave the strokes out (with them in, the stroke edges set the stretch p99: kick 0.36, squat 0.93). Test test_sim
+  (a grid with strokes: grid_of, carried exactly at rest and with a rigid move).
+- Readings: the calibration build hands_b4 (pre-creases): kick inside 0.0024, kick stretch 0.063, squat stretch 0.104
+  (all PASS). Being re-measured on the box: g4_stairs1 (ink + stairs) and g4_part1 (no ink) with the fix.
+- **Motion readings with the fix (box QA):** g4_part1 (no ink) kick inside 0.00244 P, kick stretch 0.06346 P, squat
+  stretch 0.10404 P: the calibration build's exactly (the fix is neutral without ink); g4_cuffs2 (creases + cuffs, no
+  stairs) 0.00235 P / 0.0790 P / 0.1272 P; g4_stairs1 (pipeline-3d's skirt: + the staircase) 0.0071 **WARN** / 0.0796 P /
+  0.1338 P (squat inside 0.0171 INFO). **The staircase raised the kick's penetration 0.0024 -> 0.0071** (WARN; hidden while
+  motion read SKIPPED during the stairs gates): a follow-up (the fourth step's rows at the hem).
+- **Motion gate: PASS under K** (tool/garments4-motionfix 4da79555 into pipeline-3d ad081524;
+  charkit/out/gate/gate_tool-garments4-motionfix_4da79555_into_ad081524.md): CPU 1.04x; the four motion checks back
+  (records calibrated); motion's measurement steps registered after the gate (charkit/steps/motionqa.py), carried.

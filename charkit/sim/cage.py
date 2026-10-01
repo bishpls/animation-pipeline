@@ -106,6 +106,22 @@ class Cage:
         e2 = np.cross(e3, e1)
         return np.stack([e1, e2, e3], 1)                           # (n, 3, 3): rows e1, e2, e3
 
+    def attach(self, Vx):
+        """extra vertices (a piece's ink strokes, which ride on its surface) carried as the template vertex nearest each
+        is: its block and weights, with their own residual in that block's frame. carry() returns them after the
+        template's."""
+        from scipy.spatial import cKDTree
+        Vx = np.asarray(Vx, float)
+        if not len(Vx):
+            return
+        T0 = self.carry(self.V)
+        nn = cKDTree(T0).query(Vx)[1]
+        self.idx = np.concatenate([self.idx, self.idx[nn]])
+        self.w = np.concatenate([self.w, self.w[nn]])
+        B0 = self._bilinear(self.V)[-len(Vx):]
+        F0 = self._frames(self.V)[-len(Vx):]
+        self.res = np.concatenate([self.res, np.einsum('nki,ni->nk', F0, Vx - B0)])
+
     def carry(self, X):
         """the template's vertices carried by cage positions X."""
         return self._bilinear(X) + np.einsum('nki,nk->ni', self._frames(X), self.res)
@@ -114,11 +130,11 @@ class Cage:
 def of_piece(o, spacing, keep_rows=(0, 1)):
     """the cage of a recorded grid-built garment (charkit.sim.drape.grid_of's layout; a ring when a face joins its last
     column to its first)."""
-    from .drape import grid_of
+    from .drape import grid_of, grid_polys
     NR, NC = grid_of(o)
     Fm = np.zeros((NR - 1, NC), bool)
     periodic = False
-    for f in o['polys']:
+    for f in grid_polys(o):
         f = np.asarray(f, np.int64)
         cols = set((f % NC).tolist())
         j = f.min() // NC
@@ -129,4 +145,8 @@ def of_piece(o, spacing, keep_rows=(0, 1)):
             Fm[j, f.min() % NC] = True
     if not periodic:
         Fm = Fm[:, :NC - 1]
-    return Cage(o['V'], NR, NC, Fm, spacing, keep_rows=keep_rows, periodic=periodic)
+    V = np.asarray(o['V'], float)
+    K = Cage(V[:NR * NC], NR, NC, Fm, spacing, keep_rows=keep_rows, periodic=periodic)
+    if len(V) > NR * NC:
+        K.attach(V[NR * NC:])                                  # (the piece's ink strokes, after its grid)
+    return K
