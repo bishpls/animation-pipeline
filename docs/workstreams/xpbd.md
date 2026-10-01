@@ -352,3 +352,12 @@ Harness scripts and outputs: `charkit/out/xpbd/r3/`.
   (LBS across the chest joint). The cost lands on the skinned skirt (VRM's real-time path): its top stays on the hips
   while the band follows the spine, exposed 0.17 -> 0.65 at the squat. Its fix is the same transfer for the skirt's top
   rows (or the chains rooted on the skin, item 5): asked of Michael.
+- **Calibration** (calib.log; the first records kept in `charkit/out/xpbd/r3/calib1/`): kick stretch and squat stretch
+  CALIBRATED (design 0.056..0.070 / 0.096..0.135, known-bad skinned 1.99 / 0.87 FAIL, floor (shuffled rig) 47 FAIL).
+  Kick inside BLIND: the pelvis-carried skirt reads 0.012 WARN at the kick, not a FAIL; the known-bad is now the style's
+  cloth with no body colliders (`motion_nocol`: the thigh through the skirt; recalibration calib2.log). **Squat inside
+  MISCALIBRATED**: the held solve's nudges read 0.0027..0.0149 (WARN at substeps 16, ramp 0.45 s, hold 0.85; PASS <=
+  0.01): not robust to nuisance settings. Not loosened: it is now ungraded (INFO, in the table; motionqa.UNGRADED) and
+  its CALIBRATION entry removed. To grade it again: make the squat's waist robust (the nudges' spread), then re-run.
+- The waist pictures (`charkit.sim.waist`, `python -m charkit.sim waist BUILD --out DIR`): `charkit/out/xpbd/r3/waist/`,
+  framed on the band; numbers identical to wb2.json.

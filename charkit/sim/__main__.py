@@ -3,6 +3,7 @@ python -m charkit.sim motion BUILD [--out DIR] [--poses kick,...]
 python -m charkit.sim tune BUILD [--out DIR] [--poses kick,squat] [--root hips|skin] [--stiffness 4,8,16,..]
 python -m charkit.sim review BUILD REST_DIR|- MOTION_DIR|- OUT_DIR [INTRO.html]
 python -m charkit.sim bake BUILD --clip kick [--out DIR] [--method M] [--pc2] [--replay [--blender PATH]]
+python -m charkit.sim waist BUILD [--out DIR]        the waistband's weights at motion QA's poses (charkit.sim.waist)
 python -m charkit.sim qa BUILD [--method M]           motion QA (charkit.sim.motionqa) on a build, printed"""
 import sys
 
@@ -33,6 +34,10 @@ def main(a):
     if a[0] == 'bake':
         from . import bake
         return bake.main(a[1:])
+    if a[0] == 'waist':
+        from . import waist
+        waist.run(a[1], opt('--out', a[1] + '/sim_waist'))
+        return 0
     if a[0] == 'qa':
         import json as _j
         from .. import bundle as bl

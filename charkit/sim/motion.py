@@ -467,6 +467,8 @@ def method(S, name, style='anime', hold_shape=None, log=print, **over):
         return Skinned(S)
     if name == 'springs_tuned':                 # (the chains with a tuning's settings: over['tuned'] {piece: {...}})
         return Springs(S, colliders=True, caps='body', settings=over.get('tuned'))
+    if name == 'springs_tuned_skin':            # (the same, each chain's first joint riding the skin: round 3)
+        return Springs(S, colliders=True, caps='body', settings=over.get('tuned'), root='skin')
     if name == 'springs_body':                  # (the graph's settings against the body colliders: the tuning's before)
         return Springs(S, colliders=True, caps='body')
     if name.startswith('springs'):
@@ -522,7 +524,7 @@ class Rigid:
 
 
 # ------------------------------------------------------------------------------------------------------------ the run
-def run(build, out, poses=LEG_POSES, methods=METHODS, every=6, style='anime', tuned=None, log=print):
+def run(build, out, poses=LEG_POSES, methods=METHODS, every=6, style='anime', tuned=None, tuned_skin=None, log=print):
     from ..evalmesh import POSES
     os.makedirs(out, exist_ok=True)
     S = Scene(build, log=log)
@@ -535,7 +537,8 @@ def run(build, out, poses=LEG_POSES, methods=METHODS, every=6, style='anime', tu
         rep['poses'][pose] = {}
         for m in methods:
             t0 = time.time()
-            M = method(S, m, style=style, log=log, **({'tuned': tuned} if m == 'springs_tuned' else {}))
+            M = method(S, m, style=style, log=log, **({'tuned': tuned} if m == 'springs_tuned' else
+                                                      {'tuned': tuned_skin} if m == 'springs_tuned_skin' else {}))
             rows, last = [], None
             skin_ref = None
             for k, f in enumerate(fs):
@@ -587,12 +590,11 @@ def markdown(rep):
 def main(a):
     opt = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     build = a[0]
-    tuned = opt('--tuned')
-    if tuned:
-        tuned = {n: {k: r['best'][k] for k in ('stiffness', 'gravity', 'drag')}
-                 for n, r in json.load(open(tuned))['pieces'].items() if 'best' in r}
+    best = lambda p: p and {n: {k: r['best'][k] for k in ('stiffness', 'gravity', 'drag')}
+                            for n, r in json.load(open(p))['pieces'].items() if 'best' in r}
     run(build, opt('--out', os.path.join(build, 'sim_motion')), poses=tuple(opt('--poses', ','.join(LEG_POSES)).split(',')),
-        methods=tuple(opt('--methods', ','.join(METHODS)).split(',')), every=int(opt('--every', 6)), tuned=tuned)
+        methods=tuple(opt('--methods', ','.join(METHODS)).split(',')), every=int(opt('--every', 6)),
+        tuned=best(opt('--tuned')), tuned_skin=best(opt('--tuned-skin')))
     return 0
 
 
