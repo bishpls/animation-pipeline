@@ -593,6 +593,37 @@ def _boxes():
     return out
 
 
+def box_slots(env=None):
+    """a box's build slots now (env: its infra/gcp/NAME.env; default the chosen box) -> dict(name, status, count, held,
+    waiting, free), or with status only when it isn't running or can't say. Read over ssh as `remote jobs` reads its
+    jobs (charkit/boxjob.py's `slots`), so nothing is synced or started."""
+    from charkit import boxjob
+    if env:
+        BOX['env'] = env
+    name = os.path.basename(BOX['env'])[:-4]
+    st = _box_status()
+    if st != 'RUNNING':
+        return dict(name=name, status=st or 'unknown')
+    cfg, vm = _cfg()
+    r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - slots'], input=open(boxjob.__file__, 'rb').read(),
+                       capture_output=True)
+    line = next((l for l in r.stdout.decode(errors='replace').splitlines() if l.startswith('{')), None)
+    if r.returncode or not line:
+        return dict(name=name, status='unreadable', why=r.stderr.decode(errors='replace')[-200:])
+    s = json.loads(line)
+    count = int(_env('SLOTS') or s.get('count') or 0)      # (the env file's: what a job sets the box to)
+    return dict(name=name, status=st, count=count, held=s.get('held', 0), waiting=s.get('waiting', 0),
+                free=max(0, count - s.get('held', 0) - s.get('waiting', 0)))
+
+
+def box_has(path):
+    """does the chosen box's copy of this worktree hold path (worktree-relative)?"""
+    cfg, vm = _cfg()
+    r = subprocess.run(['ssh', '-F', cfg, vm, 'test -e %s' % shlex.quote('/srv/work/%s/%s' % (
+        os.path.basename(ROOT), path))], capture_output=True)
+    return r.returncode == 0
+
+
 def jobs(args):
     """every box's jobs (running, and finished in the last --days, default 1)."""
     from charkit import boxjob

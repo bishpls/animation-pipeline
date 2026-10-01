@@ -44,7 +44,8 @@ The declaration is a sweep's (base, stage, spec, set, parts, checks, objects, bo
   method      'cma' (default; CMA-ES, our own: charkit.optimize.CMA) or 'random' (uniform in the bounds: a baseline)
   seed        0; every generation's draw is seeded from (seed, generation): a run is reproducible and resumable
   sigma0      0.2 (the search's first spread, as a share of each knob's range)
-  popsize     'auto' (default): the workers (the free build slots, less --reserve), at least 4 + 3 ln(knobs)
+  popsize     'auto' (default): whole waves of the workers (the free build slots, less --reserve) reaching at least
+              4 + 3 ln(knobs): 16 workers and 7 knobs: 16; 6 workers: 12
   budget      {evals 300, minutes 120, generations 60}: whichever comes first (evaluations run, cache hits free;
               minutes from the first worker ready: a wait for build slots doesn't count)
   stop        {tolfun 1e-3, stall 8, tolx 1e-3, target}: stop when the best feasible objective improved by less than
@@ -76,6 +77,10 @@ sweep's `set` form, and the spec with it applied); history.md (the table); sensi
 the OAT probe's effect, the effect across its range fitted on every feasible point and near the best, the rank
 correlation, the search's final spread); convergence.png; sweep.json (control, references, best and the top
 candidates in the sweep's own form: `charkit sweep table`, review pages); confirm.json; review/ (the review page).
+
+Boxes: `--box NAME` runs on that box (build, render, render2: infra/gcp/NAME.env); `--box auto` reads every running
+box's free slots and takes the build box while it has MIN_FREE beyond the reserve, else the box with the most free
+(overflow rather than wait). The base build is pushed to the chosen box when its copy of this worktree lacks it.
 
 Resume: `--resume` (or the same command again on an OUT holding state.json) carries on from the last finished
 generation; the history is the cache, so a generation cut short reruns only what it hadn't evaluated. The
@@ -1180,11 +1185,13 @@ class Run:
             report(self.out, log=self.log)
             return json.load(open(self.path('opt.json')))
         W = self.n_workers(lam_default)
-        lam = int(st['lam']) if st else (int(P.popsize) if str(P.popsize).isdigit() else max(lam_default, W))
+        lam = int(st['lam']) if st else (int(P.popsize) if str(P.popsize).isdigit() else W * -(-lam_default // W))
         W = min(W, lam)
         self.log('optimize: %d knobs, population %d, %d workers, method %s, seed %d, budget %s' % (
             n, lam, W, P.method, P.seed, P.budget))
         self.scorer = None
+        if d.get('stage') != 'python':                  # (the produced references made once, here, before the
+            sw.produce(spec)                            # workers: a fresh box's copy would have each make them at once)
         E = self.evaluator(W)
         self.t_ready = time.time()                      # (the minutes budget counts from here: not the slot wait)
         meta = dict(st or {}, hash=P.hash(), lam=lam, workers=E.n, context_seconds=E.context_seconds,
@@ -1421,7 +1428,7 @@ class Run:
         P = self.P
         total, free = free_slots()
         W = self.n_workers(lam_default)
-        lam = int(P.popsize) if str(P.popsize).isdigit() else max(lam_default, W)
+        lam = int(P.popsize) if str(P.popsize).isdigit() else W * -(-lam_default // W)
         rows = ['knob | path | lo | hi | int | x0 | step', '---|---|---|---|---|---|---']
         rows += ['%s | %s | %s | %s | %s | %s | %s' % (k.name, k.path, k.lo, k.hi, k.int, k.value(k.x0),
                                                       k.step if k.step is not None else '%.3g' % (P.sigma0 * (k.hi - k.lo)))
@@ -2118,8 +2125,36 @@ def main(args):
     return 0
 
 
+PREFER = 'build'               # --box auto: the build box while it has room; render boxes take the overflow
+MIN_FREE = 4                   # ... room: at least this many free slots beyond the reserve
+
+
+def pick_box(reserve=1, log=print):
+    """--box auto: every running box's free slots (charkit.remote.box_slots), the build box when it has MIN_FREE beyond
+    the reserve, else the box with the most free (overflow rather than wait) -> (name, [slot readings])."""
+    from . import remote
+    got = []
+    for env in remote._boxes():
+        try:
+            got.append(remote.box_slots(env))
+        except Exception as e:                      # (a box we can't read is skipped)
+            got.append(dict(name=os.path.basename(env)[:-4], status='unreadable', why=str(e)[:200]))
+    for g in got:
+        log('optimize: box %-8s %s' % (g['name'], '%d of %d slots free (%d held, %d waiting)' % (
+            g['free'], g['count'], g['held'], g['waiting']) if 'free' in g else g['status']))
+    up = [g for g in got if 'free' in g]
+    if not up:
+        raise SystemExit('optimize: --box auto: no running box could be read')
+    pref = next((g for g in up if g['name'] == PREFER), None)
+    if pref and pref['free'] - reserve >= MIN_FREE:
+        return pref['name'], got
+    best = max(up, key=lambda g: (g['free'], g['name'] == PREFER))
+    return best['name'], got
+
+
 def _box(args):
-    """--box [NAME]: the run on the box (remote run --fetch OUT), then its reports made here from the fetched folder."""
+    """--box [NAME | auto]: the run on that box (remote run --fetch OUT; auto: pick_box), its base build pushed there
+    first when that box's copy of this worktree lacks it, then its reports made here from the fetched folder."""
     from . import remote
     i = args.index('--box')
     name = args[i + 1] if i + 1 < len(args) and not args[i + 1].startswith('-') else None
@@ -2133,6 +2168,23 @@ def _box(args):
     if drel.startswith('charkit/out/') and not drel.startswith('charkit/out/remote/'):
         raise SystemExit('sweep optimize --box: the declaration must reach the box: put it under charkit/out/remote/ '
                          '(synced) or a tracked folder, not %s' % drel)
+    if name == 'auto':
+        name, _ = pick_box(int(_opt(rest, '--reserve', 1)))
+        print('optimize: --box auto: %s' % name)
+    env = os.path.join(ROOT, 'infra', 'gcp', (name or 'build') + '.env')
+    if not os.path.exists(env):
+        raise SystemExit('optimize: no box %r (infra/gcp/%s.env)' % (name, name))
+    d = json.load(open(sw._abs(decl)))
+    base = d.get('base')
+    if base and d.get('stage') != 'python':
+        brel = os.path.relpath(sw._abs(base, ROOT), ROOT)
+        remote.BOX['env'], remote.BOX['chosen'] = env, True
+        remote.up()
+        if not brel.startswith('..') and not remote.box_has(brel + '/bundle'):
+            if not os.path.isdir(os.path.join(ROOT, brel, 'bundle')):
+                raise SystemExit('optimize: the base %s is neither on the %s box nor here to push' % (brel, name))
+            print('optimize: pushing the base %s to the %s box (its copy lacks it)' % (brel, name or 'build'))
+            remote.put(os.path.join(ROOT, brel), '/srv/work/%s/%s' % (os.path.basename(ROOT), os.path.dirname(brel)))
     rest = [drel if x == decl else rel if x == out else x for x in rest]
     code = remote.main((['--box', name] if name else []) + ['run', '--fetch', rel, 'sweep', 'optimize'] + rest)
     if os.path.exists(os.path.join(sw._abs(out), 'history.jsonl')):
