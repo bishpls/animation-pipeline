@@ -82,7 +82,7 @@ STAGES = ('qa', 'garments', 'hair', 'face')
 SHAPE_PARTS = ('sheet_pieces', 'hair_pieces')          # every piece's shape IoU per view: the guard's measure
 SHAPE_CHECK = re.compile(r'^(piece_|hair_piece_)')      # the shape checks (their `views`: IoU per view)
 KEEP = ('value', 'status', 'grade', 'graded_as', 'flag', 'views', 'iou', 'ratio', 'per_view', 'worst', 'ours',
-        'design', 'ref', 'median', 'per_side', 'count', 'why')
+        'design', 'ref', 'median', 'per_side', 'count', 'why', 'weights')
 RANK = {'PASS': 0, 'WARN': 1, 'FAIL': 2}
 QA_PATCH = 'qa:'
 STYLE = 'style.'
@@ -634,8 +634,8 @@ class FaceStage(QAStage):
     def bundle(self, objs):
         rep, drop = {}, []
         sk = objs.get(self.SKIN)
-        if sk is not None and sk['V'].shape != self.reference()['V1'].shape:
-            rep, drop = self._replaced(sk)
+        if sk is not None and (sk['V'].shape != self.reference()['V1'].shape or self.decl.get('face_replace')):
+            rep, drop = self._replaced(sk)          # (face_replace: always, to check the replacement against a splice)
         elif sk is not None:
             R = self.reference()
             D = sk['V'] - R['V1']

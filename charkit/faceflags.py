@@ -1154,7 +1154,15 @@ def view_override(B, az3):
     w = {k: v for k, v in mouthlib.view_weights(MK, view_az('three_quarter', az3), 1.0).items() if k in have}
     if not any(w.values()):
         return None
-    return B.keyed(w), w
+    Bk = B.keyed(w)
+    moved = {}                                      # (each object's largest move by the keys, L: the override's reach)
+    for o in B.objects(visible=False):
+        for vn in ('bare', 'eval'):
+            if o.has(vn) and Bk.has('o/%s/%s/V' % (o.name, vn)):
+                d = np.abs(np.asarray(Bk.array('o/%s/%s/V' % (o.name, vn)), float) - np.asarray(o.V(vn), float)).max()
+                if d > 0:
+                    moved['%s/%s' % (o.name, vn)] = round(float(d) / float(B.assembly['L']), 4)
+    return Bk, dict(w, moved=moved)
 
 
 def measure_reads(B, design=None, picture=False):
