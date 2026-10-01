@@ -15,6 +15,16 @@ accqa.design) as our label images, scored by accqa.evaluate itself (its `labels`
                     covers must read hidden (no build hides the star, so this stands for its known-bad)
   compass           (floor, arms) the clips-alone sheet's star (an equal-armed compass star: side arms 0.48 of its height)
   four_point        (floor, minor) the star template without its minor points (the round-1 placeholder's structure)
+The crab's parts face-on (tool/accessories6: acc_crab_legs, _leg_reach, _leg_roots, _claw_fingers, _claw_notch,
+_stalks; the declared FACE view): the stand-in is the clips-alone sheet's crab: for a design move (dy, dx) redrawn at
+1 + 0.015 dy its scale and moved (dy, dx) / 2 px (each move a different raster of the same drawing), and each floor the
+sheet's crab with one part spoiled (charkit.limbs.spoil):
+  legless           (floor, legs) its legs cut to stubs at the body
+  short_legs        (floor, reach) its legs cut to 45% of their reach
+  bottom_legs       (floor, roots) its legs turned under the body (55 degrees down round it)
+  solid_claws       (floor, fingers and notch) its claws' notches filled
+  no_stalks         (floor, stalks) its eye stalks cut
+Known-bad acc_a3_crab: pipeline-3d 25ff0f25 (round 5's crab, A3: short legs under the body, solid round pincers).
 Known-bad: acc_r4_overlap (pipeline-3d 00494de, round 4's placement: the star bent over the crab, the crab 62-78% shown)
 for the crab's visible share; it passes the other checks in some views, so those take floors (their verdict: guard).
 """
@@ -64,6 +74,20 @@ def _affine(m, s=1.0, deg=0.0, shift=(0.0, 0.0)):
     return ndimage.map_coordinates(m.astype(float), Q, order=0, mode='constant').reshape(m.shape) > 0.5
 
 
+def _resample(m, s=1.0, shift=(0.0, 0.0)):
+    """a mask redrawn at scale s about its centroid and moved shift px (rows, columns), bilinear then halved: a
+    different raster of the same drawing."""
+    from scipy import ndimage
+    ys, xs = np.nonzero(m)
+    c = np.array([ys.mean(), xs.mean()])
+    pad = int(abs(s - 1) * max(m.shape)) + 4
+    M = np.pad(m, pad).astype(float)
+    yy, xx = np.mgrid[0:M.shape[0], 0:M.shape[1]]
+    c = c + pad
+    return ndimage.map_coordinates(M, [(yy - c[0] - shift[0]) / s + c[0], (xx - c[1] - shift[1]) / s + c[1]], order=1,
+                                   mode='constant') >= 0.5
+
+
 def _onto(m, target, d=None):
     """mask m moved d px toward target's centroid (d None: onto it)."""
     from ..accqa import _centroid
@@ -86,7 +110,13 @@ class Clips:
         'star_under_crab': 'the drawn crab moved 0.05 L onto the star, over it',
         'compass': "the clips-alone sheet's star (side arms 0.48 of its height) as ours face-on",
         'four_point': 'the star template without its minor points as ours face-on',
+        'legless': "the clips-alone sheet's crab with its legs cut to stubs at the body (charkit.limbs.spoil)",
+        'short_legs': "the clips-alone sheet's crab with its legs cut to 45% of their reach",
+        'bottom_legs': "the clips-alone sheet's crab with its legs turned under the body (55 degrees down)",
+        'solid_claws': "the clips-alone sheet's crab with its claws' notches filled",
+        'no_stalks': "the clips-alone sheet's crab with its eye stalks cut",
     }
+    face_floors = ('legless', 'short_legs', 'bottom_legs', 'solid_claws', 'no_stalks')
 
     def __init__(self, B, design):
         from .. import accqa
@@ -103,6 +133,8 @@ class Clips:
         cache = {}
 
         def labels(sname, v, dv, kinds):
+            if sname == accqa.FACE_SHEET:
+                return self._face(kind, arg, kinds)
             if not D.get(sname, {}).get('graded'):
                 return None
             ppl = D[sname]['ppl']
@@ -146,6 +178,25 @@ class Clips:
             return lab, ms
         return labels
 
+    def _face(self, kind, arg, kinds):
+        """the FACE view's stand-in for ours: the clips-alone sheet's clips (design: redrawn at a slightly different scale
+        and sub-pixel place; a floor: the crab spoiled one way) as face_labels -> (label image, None) or None."""
+        from .. import accqa, limbs
+        if kind not in ('design',) + self.face_floors:
+            return None
+        ms = []
+        for k in kinds:
+            m = self.alone.get(k)
+            if m is None:
+                ms.append(np.zeros((8, 8), bool))
+                continue
+            if kind == 'design':
+                m = _resample(m, 1 + 0.015 * arg[0], (0.5 * arg[0], 0.5 * arg[1]))
+            elif k == 'crab':
+                m = limbs.spoil(m, kind)
+            ms.append(m)
+        return accqa.face_labels(ms), None
+
     def _arms(self, kind, arg):
         """acc_star_arms and acc_star_minor on a stand-in star (design: each view's drawn star, the worst; a floor: one
         face-on star) -> {check: dict}."""
@@ -185,7 +236,8 @@ class Clips:
         from .. import accqa
         C = {}
         if self.got and kind not in ('compass', 'four_point'):
-            _, C, _ = accqa.evaluate(self.B, self.got[0], self.got[1], labels=self._labels(kind, arg))
+            _, C, _ = accqa.evaluate(self.B, self.got[0], self.got[1], labels=self._labels(kind, arg),
+                                     alone=self.alone or None)
         if kind in ('design', 'compass', 'four_point'):
             C.update(self._arms(kind, arg))
         return C

@@ -38,6 +38,13 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   visible      the share of the piece's own silhouette (its objects each drawn alone: the inputs' `alone`, {view:
                {object: mask}}) that shows with everything drawn (Michael's non-occlusion rule, 2026-09-30: pieces
                don't hide each other); measured where the design draws the piece (higher is better)
+  limbs        a piece's parts read from its silhouette, upright (charkit.limbs: the core, the lobes joined to it, the
+               limbs standing off it; tool/accessories6, the crab clip's legs, pincers and eye stalks): measure 'count'
+               (legs per side, the largest difference), 'reach' (the legs' reach off the core over its width, |ours /
+               design - 1|), 'root' (where they leave the core: the elliptical angle, 0 at the side, |ours - design|
+               degrees), 'fingers' (per lobe, 1 + its notches: the largest difference), 'notch' (the lobes' deepest
+               notch over their size, |ours - design|), 'stalks' (the stalks' reach, |ours / design - 1|; one missing
+               reads 1). Scale-free: ours and the drawing may be on different grids (a face-on view of the piece)
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -1017,9 +1024,36 @@ def visible(Mo, Md, ctx, round_=3):
     return dict(value=round(float((Mo & A).sum()) / float(A.sum()), round_), ours=int(Mo.sum()), alone=int(A.sum()))
 
 
+_LIMBS = {}
+
+
+def limbs(Mo, Md, ctx, measure='count', round_=3):
+    """the piece's parts (charkit.limbs.read: legs per side, their reach and roots, the lobes' fingers and notches, the
+    stalks) ours against the drawing's, one measure (charkit.limbs.compare)."""
+    from . import limbs as lb, pieceqa
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    if Mo.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+
+    def rd(m):                                    # (memoised by the mask's bits: every measure reads the same two)
+        k = (m.shape, hash(np.packbits(m).tobytes()))
+        if k not in _LIMBS:
+            if len(_LIMBS) > 64:
+                _LIMBS.clear()
+            _LIMBS[k] = lb.read(m)
+        return _LIMBS[k]
+    r = lb.compare(rd(Mo), rd(Md), measure)
+    if r is None:
+        return None
+    if r.get('value') is not None and measure not in ('count', 'fingers'):
+        r['value'] = round(float(r['value']), round_)
+    return r
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
                 position=position, ink_inside=ink_inside, area=area, strokes=strokes, line_weight=line_weight,
-                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, visible=visible)
+                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, visible=visible, limbs=limbs)
 HIGHER = ('shape_iou', 'tones', 'class_iou', 'visible')    # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside', 'strokes', 'stair')     # families that read our drawn lines (inputs' lines)
 HAIR_FAMILIES = ('top_line',)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)

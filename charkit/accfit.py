@@ -44,12 +44,19 @@ ANGLE_OK, ANGLE_W = 8.0, 0.05         # a clip's axis off the drawn past this ma
 # height, of the crab's body width; degrees)
 SHAPE_KNOBS = {
     'star': {'up': 0.03, 'down': 0.03, 'side': 0.04, 'minor': 0.04, 'inner': 0.02, 'curve': 0.03, 'minor_at': 6.0},
-    'crab': {'body_h': 0.06, 'claw': 0.06, 'claw_at.0': 0.05, 'claw_at.1': 0.05, 'claw_up': 10.0, 'claw_notch': 10.0,
-             'arm': 0.02, 'leg': 0.04, 'leg_r': 0.008, 'leg_span.0': 8.0, 'leg_span.1': 8.0, 'eye_at.0': 0.04,
-             'eye_at.1': 0.04, 'eyes': 0.015},
+    # the crab remade from the clips-alone sheet (tool/accessories6): legs off the body's sides, notched pincers, eyes on
+    # stalks (charkit.accessories.crab)
+    'crab': {'body_h': 0.04, 'body_d': 0.04, 'claw': 0.04, 'claw_at.0': 0.04, 'claw_at.1': 0.04, 'claw_long': 0.05,
+             'claw_up': 8.0, 'claw_notch': 8.0, 'claw_cut': 0.06, 'claw_d': 0.06, 'arm': 0.01, 'eyes': 0.01,
+             'eye_at.0': 0.03, 'eye_at.1': 0.03, 'stalk': 0.06, 'leg': 0.04, 'leg_r': 0.008, 'leg_at.0': 8.0,
+             'leg_at.1': 8.0, 'leg_dir.0': 8.0, 'leg_dir.1': 8.0, 'leg_bend': 8.0},
 }
-BOUNDS = {'leg': (0.15, 0.6), 'claw': (0.2, 0.8), 'body_h': (0.5, 1.1), 'side': (0.2, 0.6), 'minor': (0.1, 0.45),
-          'inner': (0.08, 0.3), 'curve': (0.0, 0.3), 'arm': (0.03, 0.2), 'leg_r': (0.015, 0.07), 'eyes': (0.03, 0.12)}
+BOUNDS = {'leg': (0.1, 0.45), 'claw': (0.35, 0.8), 'body_h': (0.55, 0.95), 'side': (0.2, 0.6), 'minor': (0.1, 0.45),
+          'inner': (0.08, 0.3), 'curve': (0.0, 0.3), 'arm': (0.03, 0.1), 'leg_r': (0.03, 0.08), 'eyes': (0.035, 0.09),
+          'body_d': (0.2, 0.5), 'claw_long': (0.8, 1.3), 'claw_up': (-10.0, 60.0), 'claw_notch': (15.0, 80.0),
+          'claw_cut': (0.2, 0.8), 'claw_d': (0.2, 0.7), 'stalk': (0.2, 0.6), 'leg_bend': (-10.0, 40.0)}
+W_SIDE = 0.15                          # the template fit's weight on the edge-on IoU against the clips-alone side drawing
+W_PARTS = 1.0                          # ... and on each FACE parts check's distance from PASS (its warn bands)
 
 
 # ------------------------------------------------------------------------------------------------------------ design
@@ -148,6 +155,78 @@ def score_shape(kind, shape, poses, D, w_alone=0.0, views=VIEWS, w_arms=W_ARMS):
         loss += w_arms * sum(abs(a.get(k, 0.0) - accqa.STAR_ARMS[k][0]) for k in ('side', 'minor'))
     out['loss'] = round(loss, 5)
     return out
+
+
+def face_decls(kind):
+    """accqa's declared checks on the FACE view for a clip kind (its parts face-on against the clips-alone sheet)."""
+    from . import accqa
+    pid = accqa.PIECE[kind]
+    return [d for d in accqa.DECLARED_CHECKS if accqa.FACE in (d.get('views') or ()) and d['piece'] == pid]
+
+
+def shape_checks(kind, shape, poses, D, views=VIEWS):
+    """a template (one shape, a pose per view) measured as the QA measures the built clip -> checks: per view
+    acc_KIND_VIEW_iou (as the drawing shows it: accqa.as_drawn), piece_pin_KIND (those per view: the guard's), acc_KIND_
+    alone and acc_KIND_side (face-on and edge-on against the clips-alone sheet), and the clip's declared FACE checks
+    (accqa.DECLARED_CHECKS: the crab's legs, pincers and stalks, read by charkit.limbs through charkit.declared as the QA
+    reads them; graded by their limits)."""
+    from . import accqa, declared
+    V, F = template(kind, shape)
+    C, vs = {}, {}
+    for v in views:
+        md = D['views'].get(v, {}).get(kind)
+        if md is None or md.sum() < accqa.MIN_PX or v not in poses:
+            continue
+        mo = silhouette(posed(V, *poses[v]), F)
+        mo_d, _ = accqa.as_drawn(mo, md, occluder(D, v, kind), lw=2)
+        vs[v] = round(accqa.shape_iou(mo_d, md) or 0.0, 4)
+        C['acc_%s_%s_iou' % (kind, v)] = dict(value=vs[v], status=accqa._grade('iou', vs[v]), part='accfit')
+    C['piece_' + accqa.PIECE[kind]] = dict(value=round(float(np.mean(list(vs.values()))), 4) if vs else None,
+                                           views=vs, status='INFO', part='sheet_pieces')
+    al = D.get('alone') or {}
+    if al.get(kind) is not None:
+        C['acc_%s_alone' % kind] = dict(value=round(accqa.shape_iou(silhouette(V, F), al[kind]) or 0.0, 4),
+                                        status='INFO', part='accfit')
+    if al.get(kind + '_edge') is not None:
+        e = accqa.face_on(V, F, np.eye(3), ppl=240 / max(np.ptp(V[:, 1]), 1e-9), edge=True)[:, ::-1]
+        C['acc_%s_side' % kind] = dict(value=round(accqa.shape_iou(e, accqa.edge_body(al[kind + '_edge'])) or 0.0, 4),
+                                       status='INFO', part='accfit')
+    ds = face_decls(kind)
+    if ds and al.get(kind) is not None:
+        pid = accqa.PIECE[kind]
+        m = accqa.face_masks([(V, F)], [np.eye(3)], [al[kind]])[0]
+        I = dict(O={accqa.FACE: {'lab': accqa.face_labels([m])}}, names=['-', kind], pm={pid: [(kind, None)]},
+                 masks={'%s__%s' % (accqa.FACE, pid): al[kind]}, ppl=D['ppl'], dv={accqa.FACE: {}})
+        _, Cd = declared.evaluate(ds, I)
+        for k, c in Cd.items():
+            C[k] = dict(c, part='accessories')
+    return C
+
+
+def shape_loss(C, kind, w_alone=0.5, w_side=W_SIDE, w_parts=W_PARTS):
+    """shape_checks() as one number: per view (1 - IoU) (WEIGHT), (1 - IoU) face-on times w_alone and edge-on times
+    w_side, and each graded FACE check's distance from PASS in its warn bands (a missing reading: 2) times w_parts."""
+    from . import declared
+    loss = 0.0
+    for v in VIEWS:
+        c = C.get('acc_%s_%s_iou' % (kind, v))
+        if c is not None:
+            loss += WEIGHT[v] * (1 - (c['value'] or 0.0))
+    for key, w in (('alone', w_alone), ('side', w_side)):
+        c = C.get('acc_%s_%s' % (kind, key))
+        if c is not None:
+            loss += w * (1 - (c['value'] or 0.0))
+    for d in face_decls(kind):
+        c = C.get(d['check'].format(view='face'))
+        if c is None:
+            continue
+        if c.get('value') is None:
+            loss += 2 * w_parts
+            continue
+        p, w_ = declared.limits_of(d)
+        span = max(1e-9, float(w_) - float(p)) if w_ != p else 1.0
+        loss += w_parts * max(0.0, float(c['value']) - float(p)) / span
+    return round(loss, 5)
 
 
 def _nm(f, x0, steps, minutes, log=print, every=50, tol=1e-5):
