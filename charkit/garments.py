@@ -4004,6 +4004,8 @@ def collar_hull(A, spec, normals, hull):
     G['verts'] = V + vertex_normals(V, G['faces']) * spec.get('lift', 0.005) * L
     if spec.get('pad'):                       # (the jacket's shoulder pad under it: the same lift, so it lies on it)
         G['verts'] = shoulder_pad(A, G['verts'], G['faces'], spec['pad'])
+    if isinstance(spec.get('over'), (list, tuple)):   # (lying over the layers under it: collar_drape)
+        G['verts'] = collar_drape(A, G['verts'], G['faces'], dict(spec, thick=spec.get('thick', 0.012)), hull)
     return G
 
 
@@ -4248,7 +4250,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 if v not in border and v not in ks_:
                     hide[v] = True
         elif k == 'collar' and s.get('source') == 'hull':
-            G = collar_hull(A, s, nrm, hull)
+            G = collar_hull(A, dict(s, _spec=spec_all), nrm, hull)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
             _thick(ob, 0.012 * L)
