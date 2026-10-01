@@ -119,6 +119,48 @@ swap.json, read only). When the side locks are templated, their partition and ti
 truth, not the hull labels; and a stability check: a face-only edit (the face5 swap) leaves the side locks put
 (their lock bounds and tips within a tolerance). face5 will likely land first with that terminator WARN accepted.
 
+## State at the checkpoint (context limit; relaunch lean from here)
+
+Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Every new builder path is behind a setting:
+the default build is unchanged (`ahoge` '2d', `flyaway_root` 'mass', no `ink_fade`, no per-piece overrides), so a gate
+now would land the 7 new flag checks (all FAIL on 004efc3: new FAILs block under K unless accepted) — land them with the
+fix, not alone, or have the coordinator accept them by name as the measurement-only gate.
+
+Local builds: `charkit/out/h5_base` (box, 004efc3 default spec; qa.json has the hair flags added by
+tools/hair5/addqa.py), known-bad `hair5_1580f95` stored (charkit/out/calib/builds). Tools: tools/hair5/ (ctx, pic,
+flags, ahogepic, ahogemask, linepic, lab, table, review, addqa, v/*.json).
+
+**Running at the checkpoint (mine):**
+- sub-agent (step 2, truth granularity), writing `docs/workstreams/hair5-truth.md`, `tools/hair5truth/`,
+  `charkit/out/hair5truth/`, `charkit/refs/clawd/hair_locks_truth.json/.npz`, `charkit/refs/clawd/gen/prompts.json`
+  (`hair_lock_closeup`), maybe `charkit/refs/clawd/gen/hair_lock_closeup.png`, `charkit/hairlocks.py` (a small scorer
+  extension), `tools/ledger.jsonl` (its paid call). It was told not to run git: commit its files after reading its notes
+  (`git status`: those paths only).
+- a laptop lab, the ahoge fitted to single views (front / profile / back / front+back / front+profile) ->
+  `charkit/out/hair5/lab3.json` (the standing rule's step 1: is the joint fit limited by the drawings disagreeing?).
+- box batches b1 (charkit/out/hair5/b1/lab.json) and b2 (b2/lab.json): see the table above when filled.
+
+**Next, in order:**
+1. Read b1/b2 (`python tools/hair5/table.py charkit/out/hair5/b1/lab.json charkit/out/hair5/b2/lab.json`), then run b3
+   (`tools/hair5/v/b3.json`: base, the fix candidates with the thin-ink measure) on the box the same way. Pick the
+   defaults: ahoge 'fit' + flyaway_root 'hair' (b1: ahoge F 0.37 -> 0.52, bend 108 -> 6.6 PASS, attached 0.029 -> 0
+   PASS), ink_fade for the back (choose keep by back_lines vs the lock lines in 3q/profile: removing seam ink must
+   not drop lines the drawing has there), the hem (fine_tips lower_back + notch_piece) by hair_back_hem and the
+   lower back's IoU. Guard: every hair_piece_* per view within 15% (anti-gaming), hair_noise, folds.
+2. Set the chosen settings in `hairpieces.OPTS` (with the measured numbers in the comment block above OPTS), then a
+   render-box build with the previews' boards: `python -m charkit remote --box render build charkit/spec/clawd.json
+   --out charkit/out/h5_fix --boards views,body,design --no-blend` (art_terminator_hair < 2.5, art_peeks_hair,
+   hair_noise, folds from its qa.json; the base's: 1.804 PASS, 18, 0.0716, 4).
+3. Step 2's results into these notes; the review page: `python tools/hair5/review.py charkit/out/hair5/review
+   charkit/out/h5_fix --summary SUMMARY.json` (summary box: Recommended / Asked of Michael / Key numbers).
+4. `python -m charkit pregate`, then `python -m charkit remote gate tool/hair5 --into pipeline-3d` (merge pipeline-3d
+   first if it moved). The flag checks are new: they need their calibration records (done: charkit/calib/records/
+   hair_*.json; rerun `python -m charkit calibrate 'hair_ahoge_*,hair_attached,hair_back_*,hair_lock_lines_*' --build
+   charkit/out/h5_base` if the measuring code changes, and move the steps' commit in charkit/steps/hairflagqa.py).
+5. Then the layering (step 3's second half): side locks and lower-back flicks as templates from the drawing / the
+   extended lock truth (not the hull labels: the coordinator's stability item below), the ribbons pilot's lock model,
+   the envelope-depth test queued from hairlocks round 3.
+
 ## Jobs
 
-(none running)
+See "Running at the checkpoint".
