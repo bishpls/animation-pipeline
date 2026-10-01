@@ -81,9 +81,31 @@ taken out by as_drawn; `work/drawn_hidden.py`): crab 0.722 / 0.827 / 0.745, star
 three-quarter / profile). The drawn arrangement fails the non-occlusion check for the crab: the reference's placement
 is the rule's known-bad, as Michael said.
 
-## 3. Placement (accfit place on the box, from the baseline build's hair; running)
+## 3. Placement (accfit place on the box, from the baseline build's hair)
 Three starts (the fitted shapes, the crab moved off the star): A crab at +(0, -0.07, -0.05) (forward and down), B
-+(0, 0, -0.10) (down), C +(0, +0.05, -0.08) (back and down); `charkit/out/remote/acc5_start_{A,B,C}.json`, 25 min
-each, outputs `charkit/out/acc5/place_{A,B,C}` (logs `charkit/out/acc5/logs/place_*.log`).
-Local exploration (one-off moves of the crab from round 4's place, the new shapes): moving the crab 0.10 L down shows
-it 0.89 / 0.92 / 0.95 at a position cost (crab pos 0.18 / 0.16 / 0.29 L); moving the star back shows it from behind.
++(0, 0, -0.10) (down), C +(0, +0.05, -0.08) (back and down); 25 min each (A 2,135 evaluations, B 1,885, C 1,546),
+`charkit/out/acc5/place_{A,B,C}`. All three move the crab down under the star's lower tip rather than forward toward the
+face. Each measured under the QA's measure and the plain one (as_drawn off: the gate's old measure on the new geometry;
+`accfit measure --starts`, `charkit/out/acc5/measure_abc`). Front / three-quarter / profile:
+
+| placement | crab visible | crab iou (QA / plain) | crab size plain | crab pos L | star iou | star front pos | back px | loss |
+|---|---|---|---|---|---|---|---|---|
+| round 4 (new shapes) | 0.78 / 0.74 / 0.62 | 0.72/0.74/0.50 / 0.72/0.73/0.49 | 0.99/1.07/0.88 | 0.10/0.07/0.26 | 0.57/0.76/0.76 | 0.018 | 39 | 24.1 |
+| **A (chosen)** | **1.00 / 0.985 / 0.985** | 0.64/0.76/0.72 / 0.62/0.67/0.66 | 1.02/1.19/1.13 | 0.18/0.18/0.30 | 0.52/0.80/0.82 | 0.032 | 20 | 5.49 |
+| B | 0.986 / 0.992 / 0.985 | 0.71/0.78/0.70 / 0.66/0.61/0.65 | 1.12/**1.27 F**/1.15 | 0.22/0.19/0.26 | 0.56/0.83/0.82 | 0.031 | 18 | 5.66 |
+| C | 0.985 / 0.993 / 0.986 | 0.71/0.75/0.72 / **0.59 F/0.56 F**/0.61 | 1.16/**1.33 F**/1.21 | 0.22/0.19/0.26 | 0.54/0.82/0.84 | 0.037 W | 17 | 5.89 |
+
+Seats 0.0000 for every clip in every placement; the star never bends (conform lift 0.000-0.001). **Michael (through the
+coordinator, 2026-10-01): moving the crab is fine; weight full visibility and good seating over closeness to the drawn
+spot; pick the best visibility and seating (C acceptable unless A or B match it with less movement).** A: the best
+visibility (the crab whole in front), the same seats, the least movement in front and three-quarter (0.18 L against
+0.19-0.22) and the lowest loss; the only one with no new FAIL under the old measure (B's crab size 1.27 and C's crab
+IoU 0.56-0.59 there would block in the gate's 2x2). Its cost: the crab's front IoU 0.726 -> 0.640 (-12%, WARN; plain
+0.728 -> 0.624, -14%), its profile position 0.26 -> 0.30 L. Specs: A's clips (the fitted shapes, at / facing / tilt /
+size) in all six specs (`work/specs.py`: only the accessories block's text changes).
+
+**The deviation from the drawn placement** (A, the crab's centroid against the drawn crab's, L): front 0.183, three-
+quarter 0.176, profile 0.301 (round 4: 0.103 / 0.070 / 0.260); the crab sits under the star's lower tip instead of
+beside its left arm. The star: front 0.032, three-quarter 0.090, profile 0.332 (round 4: 0.018 / 0.096 / 0.345).
+In 3D: the crab's anchor moved from (0.342, -0.366, 0.266) to (0.365, -0.423, 0.145) L (0.135 L: down 0.12, forward
+0.06); the star's from (0.339, -0.324, 0.373) to (0.411, -0.343, 0.379) (0.075 L, outward).
