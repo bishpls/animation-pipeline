@@ -406,7 +406,8 @@ def band_rows(Mo, Md, ctx, z=(-0.47, -0.75), measure='width', occluders=('bow',)
     each with its inner edge (toward the other) and its outer edge; a side whose edge touches an occluder (the bow:
     ours' or the drawing's own) is left out of that row. measure 'width': the RMS over the rows and sides both show of
     the band's width, ours less the design's (L); 'inner': of the inner edge's x (the V's line); 'outer': of the outer
-    edge's x. ours / design: the band's mean width per side over those rows (L)."""
+    edge's x. ours / design: the band's mean width per side over those rows (L). occluders: outfit pieces, or 'hair'
+    (the drawing's hair class, our hair objects)."""
     from . import bodyqa, pieceqa
     ppl, view = ctx['ppl'], ctx['view']
     Md = fit(Md, Mo.shape)
@@ -416,6 +417,12 @@ def band_rows(Mo, Md, ctx, z=(-0.47, -0.75), measure='width', occluders=('bow',)
     od = np.zeros(Mo.shape, bool)
     oo = np.zeros(Mo.shape, bool)
     for o in occluders or ():
+        if o == 'hair':                     # (the hair: the drawing's hair class, our hair objects)
+            if ctx.get('cls') is not None:
+                od |= fit(ctx['cls'] == bodyqa.CLASS['hair'], Mo.shape)
+            if ctx.get('lab') is not None and ctx.get('names'):
+                oo |= hair_of(ctx['lab'], ctx['names'])
+            continue
         m = (ctx.get('masks') or {}).get('%s__%s' % (view, o))
         if m is not None:
             od |= fit(m, Mo.shape)
