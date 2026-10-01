@@ -471,3 +471,13 @@ hands2 | hands3, per pose and view; 3q rest close-ups), calibrate, pregate --box
   0.70 of the open hand vs the sheet's 0.80); point 0.714 / 0.685 (0.95 vs 1.01). Fitted angles: fist MCP 31, PIP 98,
   DIP 24, thumb oppose 79; point index -1, others 69/105/62. The side row now drawn at the sheet's turn (handsheet.TURN
   side -13.4, open3's fit) for every pose.
+- **rest2** (FAIL_COST on): fit-scale IoU front 0.748/0.762, 3q 0.798/0.705, back 0.754/0.749, profile 0.584; every
+  graded term out of FAIL but back L cleftpos (0.665 vs drawn 0.565; the drawing's L/R differ by 0.05: a cleft at
+  0.56-0.62 keeps both backs within WARN, hands2's 0.619). Front/back 2-4% under the comb's QA.
+- **The references disagree on the palm's width** (single evaluations, rest2's angles; fit-scale turnaround IoU | the
+  sheet's open back IoU, its palm): palm_w 0.281 (the sheet's fit) front 0.75/0.76, back 0.75/0.75 | 0.640, 0.387 vs
+  0.404; 0.26: 0.776/0.795, 0.780/0.774, profile 0.556 | 0.622, 0.358; 0.245: 0.795/0.812, 0.798/0.793, profile 0.537 |
+  0.598, 0.340. The sheet's hand is ~15% wider for its reach than the turnaround's. The canonical rule's step 3: the
+  base takes the best fit across both: **JointFit** (`charkit handsheet joint`: structure shared, the sheet's open
+  angles 'open.*' and the rest angles separate, costs summed, the comb's floors kept). **joint1** running (build box,
+  charkit/out/hands3/joint1, log joint1.log).
