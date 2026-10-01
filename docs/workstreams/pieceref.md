@@ -287,9 +287,11 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      the sag sliver, the strips' ragged ends), collar_front_torn 0.0031 -> 0.0033 (3 fragments), sleeve_front_spikes_L/R
      0 -> 0.029/0.019; flag regression art_outline_collar 1.379 P -> 2.096 W.
    - Calibration records (856e536, from pr3): CALIBRATED bow_part_knot_line/rect/crease_*, bow_profile_ribbon (rerun,
-     remeasured), bow_profile_tail_*/loop_*, iso_bow_body, iso_bow_knot_line; GUARD bow_part_lobe_iou; **BLIND
-     bow_part_knot_iou** (front only, the known-bad g3_render3's front knot reads 0.467 WARN). iso_bow_crease_* not yet:
-     `calibrate 'iso_bow_crease_*' --build charkit/out/pr3` (a list of names doesn't match the registry's pattern).
+     remeasured), bow_profile_tail_*/loop_*, iso_bow_body, iso_bow_knot_line, iso_bow_crease_* (4466d2f: pr3's qa.json given the
+     un-prefixed iso_bow_* names, as the fixed QA names them); GUARD bow_part_lobe_iou; **BLIND bow_part_knot_iou**
+     (front only, the known-bad g3_render3's front knot reads 0.467 WARN).
+   - Tests ok (partqa, isoqa, spec_alias, manifest); pregate 3ae7e5e into 640ca7c PASS, 0 blocking. Gate launched
+     (4466d2f; log charkit/out/pieceref/harness/gate1.log): expected FAIL on the new FAILs above.
    - Fixes for the coordinator's findings: isoqa lost its doubled part prefix (17106263: the box named them
      iso_iso_bow_*); QA part orders unique (e9319b8: bow_profile 1767, bow_parts 1772, iso_pieces 1776; with tool/hands
      merged (merge-tree) the registry loads, 31 parts, no shared orders); pipeline-3d 640ca7c merged (e9a670a);
@@ -303,7 +305,7 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
    art_outline_collar's front. Then the bleed without folding (options in State 13).
 2. bow_part_knot_iou BLIND under front-only grading: the coordinator/Michael choose (keep 3q graded, or let knot_line +
    knot_rect carry the front knot and record the IoU as a guard).
-3. Calibrate iso_bow_crease_*; rerun the gate when pipeline-3d's blockers are cleared.
+3. Rerun the gate when this branch's new FAILs are cleared.
 
 ## Round 3's next steps (done but as noted in State 13)
 1. **bow_front_bleed on w4** (flag; baseline b2_before 0.0 P: must PASS, <= 0.03): add u (along the lobe) to
