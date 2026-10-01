@@ -9,4 +9,7 @@ MEASUREMENT_STEPS = [
      "(declared's `truth`: the bow's objects left out of the z-buffer), the windows down to z -0.90 (the V's point, "
      "-0.88 in front); was the turnaround's skin above the knot (z -0.45..-0.75), where the bow hid the V's lower half "
      "on both sides"),
+    ('neck_v_three_quarter_skin', 'a1480b81', "grading for the new measure: limits [0.8, 0.6] -> [0.75, 0.6] (the "
+     "V's narrow point in three-quarter: the design moved 2 px across reads 0.794; g4_v0 0.298 and g8_lapels0 0.505 "
+     "FAIL either way)"),
 ]
