@@ -134,4 +134,20 @@ MEASUREMENT_STEPS = [
     ('hair_piece_*', '9bfbc8b', "the hair layers without the drawn clips (qa3d.hair_layers_masks: ours are occluders): "
      "bangs 0.792 -> 0.772, side_locks 0.534 -> 0.526, ahoge 0.318 -> 0.322, upper_back 0.768 -> 0.769"),
     ('hair_bun_*', '9bfbc8b', "the hair layers without the drawn clips: hair_bun_outline 0.456 -> 0.458"),
+    # tool/hairtruth: the hair checks read the hair WITHOUT its clips (the manifest's shape_truth.hair: hair_clips_layers'
+    # top row repainted into the turnarounds under the drawn clips, qa3d.Design.shape_views; ours drawn without our
+    # clips, Design.hidden). Measured on pipeline-3d cd1c327f's default build (old measure -> new, the same geometry)
+    ('body_*_iou_hair', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): the drawing's hair with its clips repainted from the redraw, ours without our "
+     "clips (the rest of the figure as drawn): iou_hair 0.827 -> 0.862 (front), 0.743 -> 0.777 (three-quarter), 0.797 "
+     "-> 0.852 (profile), back 0.927 unchanged"),
+    ('body_*_hair_*', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): the hair's lowest row and width from the hair without its clips, both sides: "
+     "unchanged on cd1c327f's build (the clips sit high on the head)"),
+    ('hair_piece_*', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): the hair layers' families under the drawn clips from the nearest drawn family "
+     "(shapetruth.fill_labels), ours without our clips: bangs 0.758 -> 0.833 (profile 0.629 -> 0.789, front 0.832 -> "
+     "0.857), side_locks 0.505 -> 0.536, upper_back 0.772 -> 0.770, buns 0.862 -> 0.865, ahoge 0.624 -> 0.625, "
+     "flyaways 0.209 -> 0.210, lower_back unchanged"),
+    ('hair_bun_*', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): the buns' layers and ours without the clips: hair_bun_outline 0.458 -> 0.468 (front "
+     "0.520 -> 0.538), hair_bun_corners 21 -> 19"),
+    ('hair_fringe_*', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): the bangs' layer and ours without the clips: unchanged on cd1c327f's build"),
+    ('hair_tips_*', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): the hair's layers and ours without the clips: unchanged on cd1c327f's build"),
 ]
