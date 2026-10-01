@@ -1287,3 +1287,12 @@ the targets (g7_base, pipeline-3d's default before the switch; builds g7_base / 
   0.62 -> 1.06, rom_top_body 0.036 -> 0.10 (INFO, report-only). Build CPU 1.01x; 107 test files, 0 failing.
   Options for the coordinator: make motion_kick_skirt_inside ungraded as its squat sibling was in round 3
   (charkit.sim.motionqa.UNGRADED: a registered remeasure), or a decision on the record; then `gate --carry`.
+- **Option A done** (the coordinator's decision): motion_kick_skirt_inside report-only (INFO): charkit.sim.motionqa.UNGRADED
+  (ffefc509), out of charkit/calib/motion.py's entries (test_sim updated), the measurement step in
+  charkit/steps/motionqa.py (58a1b373: "miscalibrated on the current staircase skirt: the design stand-in reads WARN in
+  7 of 8 moves; ungraded like its squat sibling in round 3; recalibration belongs to tool/motion1"), the record noting it.
+- **Carry refused** (58a1b373 into ae865afc, `gate --carry ... --args "--cache refresh"` to match gate 4's options; a
+  carry without --args picked gate 3's report instead): "the candidate reads charkit/sim/motionqa.py (the build read
+  it)": the ungrading changed a file gate 4's build read, so its verdict can't be carried. Stopped there as instructed;
+  the next step is a fresh gate (with --args "--cache refresh" and charkit/out/garments7/accept_list.txt as --accept),
+  in the coordinator's batch.
