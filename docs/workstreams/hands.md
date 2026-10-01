@@ -68,10 +68,30 @@ skeletal, not shape keys), docs/ROADMAP.md item 7:
   hand checks to a build's qa.json for calibrate), `dbg_digits.py`.
 - `charkit/out/calib/cur_mitten`: the mitten bundle (hard links) + a qa.json with the hand checks, for the dry run.
 
+## Box build b1 (5d18d38 + ef298e0, render box, `charkit/out/hands_b1`, landed 2026-09-30 night)
+Compared with 004efc3 (the mitten build's qa.json with the batch gate's candidate rows: charkit/out/hands/compare_b1.py).
+- **Hand checks (22):** 13 PASS, 6 WARN, 3 FAIL. hand_shape_L FAIL: front 0.747, 3q 0.623, profile 0.500, back 0.718;
+  hand_shape_R FAIL: front 0.774, **3q 0.207**, back 0.733. Reach -0.03 to -0.06 L (PASS/WARN; the mitten -0.35 to
+  -0.38). Digits PASS except back_L WARN (+2) and **three_quarter_R FAIL (-3)**. Cleft all PASS (1.05-1.61). The far
+  hand in 3q (R) reads worst: the fit had it at 0.72 alone; check what our 3q z-buffer cuts it to (the skirt, the cuff).
+- **Non-hand checks moved (the K blockers to clear before the gate):**
+  - **art_bumps_legs PASS -> FAIL (0 -> 118.5): a flag check, blocks.** Probably the fingertips near the thighs read as
+    leg bumps (the hands now reach 0.65 L, the mitten 0.25), or the skirt's clear_hands moving; look at its overlay.
+  - **body_three_quarter_skirt_aline WARN -> FAIL (0.08 -> -0.313): a new FAIL, blocks.** body_front_skirt_width
+    PASS -> WARN (0.984 -> 0.866); hemband_skirt_step 0.052 -> 0.223; shape_iou_skirt 0.876 -> 0.867; art_bumps_skirt
+    24.0 -> 7.5; piece_skirt 0.893 -> 0.899. The skirt's `clear_hands: 0.05` now clears the longer hands (and the
+    aline/width rows exclude rows "a hand touches": the longer hands remove rows from those measures). Fix options for
+    round 2: the skirt's hand clearance against the hand's real surface (or off where the hand hangs in front), and
+    bodyqa's hand-row exclusion read again for real hands.
+  - Improved: cuff flare front L/R WARN -> PASS, back R FAIL -> PASS.
+  - body_*_iou_skin: front 0.738 -> 0.720, back 0.759 -> 0.740, profile 0.725 -> 0.731, 3q 0.727 -> 0.729 (the arms' angle
+    body_front_arms -2.0 -> -3.4: the hands' mass out past the drawn arm line); piece_cuff_L 0.733 -> 0.722, _R 0.586 ->
+    0.583 (noise-level); body_front_iou 0.884 -> 0.876, body_back_iou 0.896 -> 0.888.
+- Decision routed by the coordinator: the hand's turn goes to Michael with recommendation A (the joint fit); round 2
+  proceeds on A unless he says otherwise.
+
 ## Next steps (exact)
-1. When b1 lands: `python charkit/out/hands/run_handqa.py charkit/out/hands_b1/bundle` (or read qa.json's hand_*);
-   compare body_*_iou_skin, piece_cuff_*, piece_skirt*, skirt_* and the art_* flags against the mitten's
-   (charkit/out/calib/builds/mitten/qa/qa.json) -- the default build's other checks must not move beyond noise.
+1. Clear the two K blockers above (art_bumps_legs, body_three_quarter_skirt_aline) and the 3q R hand; rebuild.
 2. Calibration records: copy b1 to `charkit/out/calib/cur_hands` (hard links + its qa.json), then
    `python -m charkit calibrate 'hand_*' --build charkit/out/calib/cur_hands` (writes charkit/calib/records/hand_*.json);
    commit them. The dry run against the mitten: all 22 CALIBRATED.
