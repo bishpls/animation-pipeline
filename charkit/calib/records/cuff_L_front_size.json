@@ -1,0 +1,92 @@
+{
+ "check": "cuff_L_front_size",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T03:09:59",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_cuff_L"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "g4_before",
+  "value": 0.295,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.137,
+    null,
+    1.365,
+    0.838,
+    0.299
+   ],
+   "statuses": [
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.5685,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.196,
+  "status": "WARN",
+  "margin": 0.655
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), g4_before reads 0.295 FAIL; a random stand-in fails it; shape guarded by piece_cuff_L",
+ "build": "charkit/out/g4_cuffs_q",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 46.7
+}

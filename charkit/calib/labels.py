@@ -132,53 +132,17 @@ class Garments:
         self.az = bodyqa.azimuths(self.az3)
         masks, graph, _ = bodymeasure.piece_masks(B.spec)
         pm = bodymeasure.piece_map(graph, B.spec)
-        up = bodymeasure.built_parent(graph, pm)
         _, names = qa3d.scene_objects(B)
         self.names = list(names)
-        idx = {n: i for i, n in enumerate(self.names)}
         self.dv = design.design_views()
-        CL = bodyqa.CLASS
-        skin = [o.name for o in B.objects(groups=('skin',)) if o.name in idx]
+        skin = [o.name for o in B.objects(groups=('skin',))]
         hair = [n for n in self.names if n.startswith('hair')]
-        over = {p['id']: (p.get('layer') or {}).get('over') or [] for p in graph['pieces']}
-        depth = {}
-
-        def dep(p, seen=()):
-            if p not in depth:
-                depth[p] = 1 + max([dep(q, seen + (p,)) for q in over.get(p, ()) if q not in seen] or [0])
-            return depth[p]
-        order = sorted(over, key=dep)
+        # our surfaces meet with no ink between them: the drawing's lines (and the masks' rough edges) inside the
+        # figure go to the nearest labelled pixel, as the QA's classes absorb them (a gap along a drawn line read as
+        # a 0.12 L trough in the shoulder line): bodymeasure.drawn_labels
         self.lab, self.cls, self.pieces, self.garment = {}, {}, {}, {}
-        for v, d in self.dv.items():
-            cls = d['cls']
-            lab = np.full(cls.shape, -1, np.int32)
-            if skin:
-                lab[d['fg'] & (cls == CL['skin'])] = idx[skin[0]]
-            if hair:
-                lab[d['fg'] & (cls == CL['hair'])] = idx[hair[0]]
-            garment = np.zeros(cls.shape, bool)
-            px = {}
-            for pid in order:
-                m = masks.get('%s__%s' % (v, pid))
-                members = pm.get(pid) or pm.get(up.get(pid)) or []
-                if m is None or not m.any() or not members or members[0][0] not in idx:
-                    continue
-                name, sgn = members[0]
-                code = idx[name] + (1000 if sgn is not None and sgn < 0 else 0)
-                m = m[:cls.shape[0], :cls.shape[1]]
-                lab[m] = code
-                garment |= m
-                px[code] = px.get(code, 0) + int(m.sum())
-            # our surfaces meet with no ink between them: the drawing's lines (and the masks' rough edges) inside the
-            # figure go to the nearest labelled pixel, as the QA's classes absorb them (a gap along a drawn line read as
-            # a 0.12 L trough in the shoulder line)
-            from scipy import ndimage
-            gap = d['fg'] & (lab < 0)
-            if gap.any() and (lab >= 0).any():
-                _, (iy, ix) = ndimage.distance_transform_edt(lab < 0, return_indices=True)
-                lab[gap] = lab[iy[gap], ix[gap]]
-                garment = np.isin(lab, list(px)) if px else garment
-            self.lab[v], self.cls[v], self.pieces[v], self.garment[v] = lab, cls, px, garment
+        for v, (lab, px, garment) in bodymeasure.drawn_labels(masks, graph, pm, self.names, self.dv, skin, hair).items():
+            self.lab[v], self.cls[v], self.pieces[v], self.garment[v] = lab, self.dv[v]['cls'], px, garment
 
     # -------------------------------------------------------------------------------------------- the stand-ins for ours
     def labels(self, kind, arg):

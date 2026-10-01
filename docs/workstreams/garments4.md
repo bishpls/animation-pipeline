@@ -249,3 +249,73 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   1.5x; 8 new checks calibrated/guard, 4 remeasured calibrated. PASS -> WARN: flap_profile_iou_R, flap_profile_sweep_R,
   skirt_pleats. Review page `charkit/out/garments4/review/creases/index.html` (creases.json). Mergeable: tool/garments4-part2
   at the notes commit after 312d83d.
+
+## Milestone 2: cuffs (branch tool/garments4-cuffs = part2 + the cuff work)
+- garments.cuff: rows grow by the lowest straight line over each row's clearance need (grow_line; row by row made
+  ripples where rows caught a ring of forearm vertices). Review pages: close-ups drawn from the bundle when a build has
+  no boards. declared `area` counts piece_<id>'s pixels (same-colour layers left out: the drawn far cuff in 3q lies over
+  the orange skirt; raw masks read it 0.7-1.0 FAIL in every row).
+- Sweeps k8 (one knob at a time on g4_cuff0) and k9 (combinations): row F = span [0.48, 0.72], top [.17,.14,.17,.14],
+  bottom [.13,.115,.12,.115], band 0.3, tab [0.08, 0.5], thick 0.012, clear 0.003: sizes 0.008-0.056 P, trim front
+  0.086 W / back 0.029 P, flare back 0.06 / front 0.079 P, piece_cuff_L 0.665/0.869/0.753/0.874, R 0.676/0.741/0.905
+  (pipeline-3d: L 0.614/0.831/0.742/0.636, R 0.604/0.305/0.602). In the spec (tools/garments4/cuffs.json); box build
+  g4_cuffs running. Next: calibrate cuff_*_area_* (known-bad g4_before), pregate, gate tool/garments4-cuffs (after the
+  creases gate's result; merge pipeline-3d first if it moved).
+- Cuffs branch: part2 merged (e39cb1a7, notes conflict resolved by keeping both). The size checks renamed
+  cuff_<side>_<view>_size (01eab65c: calib/details.py's cuff_*_L / cuff_*_R entries matched cuff_*_area_L first).
+  calibrate filters names by the build's qa.json part_checks, so the QA is rerun locally on g4_cuffs under the new names
+  (charkit/out/g4_cuffs_q: symlinks to g4_cuffs + qa/ rerun; log charkit/out/garments4/qa_cuffs_q.log), then
+  `calibrate 'cuff_L_*_size,cuff_R_*_size' --build charkit/out/g4_cuffs_q` (log calib_cuffs.log). Then pregate, gate
+  tool/garments4-cuffs. Review JSON: charkit/out/garments4/review/cuffs.json.
+- **Cuff size: the measure's reference is wrong, the fit overshot (stop point of this round).** Calibrating
+  cuff_*_size: the design moved 1-2 px reads 0.234-0.243 against itself (MISCALIBRATED front/back) because the stand-in
+  (calib/labels.Garments) hands the drawing's lines to the nearest piece: the drawn cuff's silhouette (outline split) is
+  ~1.23x its fill mask, and our geometry's silhouette (the renderer's hull sits on it) compares with the silhouette,
+  not the fill. Against the silhouette: g4_before 1.24-1.33x (3q R 1.85x), g4_cuffs 0.79-0.83x (too small now); the
+  hands round's "1.5-2.4x" was against the fill. piece_cuff (fill masks, iou_tol) prefers the smaller cuffs.
+- **Cuffs next steps:** (1) `area` against the drawn silhouette (the masks with the drawing's lines given to the nearest
+  piece, as labels.Garments builds them; unit test); re-measure g4_before / g4_cuffs; calibrate (expect before
+  1.24-1.33x: set limits from the defect, e.g. FAIL over 20%, and say so); (2) refit the template to ~1.0x silhouette
+  (k8: top21 reads 1.21-1.29x fill; k9 F 0.95-1.0x fill) with piece_cuff per view as the guard and the trim/flare
+  checks; (3) box build, calibrate on it, pregate, gate tool/garments4-cuffs (it carries part2: merge pipeline-3d first).
+  Keep: grow_line (straight sides), the trim band + front tab (back trim 0.03 P, front 0.09 W), cuff_R 3q ungraded
+  (the drawing's skirt covers the far cuff: Michael's "far cuff shows in 3q", an arm-placement matter).
+- Items 3 (shoulders + the back collar's cream section) and 4 (the neck-to-bow V) not started this round.
+
+## Milestone 2: cuffs, relaunch (2026-10-01, lean agent 2)
+- tool/garments4-cuffs 918aad4f + pipeline-3d d0d6304 (creases merged) = 9f471f7d.
+- **The size remeasured against the drawn silhouette** (bffdfe4a): `declared.area` ref 'silhouette' (default) reads the
+  drawn piece from `bodymeasure.drawn_labels` (the drawing as our label image: the lines inside the figure given to the
+  nearest piece; calib.labels.Garments now builds its stand-in with the same function); `ratio`, `fill`, `ratio_fill`
+  carried into qa.json. Unit test test_declared.test_area_against_the_drawn_silhouette. Limits [0.1, 0.2] from the
+  defect. Step registered (charkit/steps/cuffqa.py: cuff_*_size, bffdfe4a).
+- **Calibrated** (log charkit/out/garments4/calib_cuffs2.log, records 79c99706): all six CALIBRATED: design 0 every
+  move, g4_before 0.237-0.331 FAIL, voronoi floor FAIL. g4_cuffs reads 0.168-0.214 (0.79-0.83x: WARN/FAIL).
+- Readings (tools/cuffm2.py; cuffdim.py, pcent.py: extents): ours sits medial and short of the drawn silhouette: front
+  cuff_L x [0.818, 1.190] vs drawn [0.851, 1.256], top z -1.766 vs -1.724 (bottom -2.10 vs -2.11); back/3q: inner edge
+  as drawn, outer 0.033-0.037 short; profile: ours 0.334 tall x 0.268 wide vs drawn 0.301 x 0.311.
+- Refit sweep k10 (tools/garments4/k10.json, base g4_cuffs, box; out sweeps/k10): `out` radius +0.03/+0.04, shift out
+  0.01, front/back radii +0.02, span [0.45, 0.73], scale 1.1, combinations.
+- **k10** (648 s; sweeps/k10/sweep.md): sizes (L f/3q/p/b, R f/b) and the guard (piece_cuff_L f/3q/p/b, R f/3q/b):
+  control 0.196/0.168/0.177/0.206, 0.214/0.208 | L 0.665/0.869/0.753/0.874, R 0.676/0.741/0.905. **span [0.45, 0.73]**:
+  0.057/0.033/0.054/0.066, 0.079/0.072 all PASS | L 0.620/0.761/0.667/0.841 (3q -12%, p -11% vs control; vs pipeline-3d
+  0.614/0.831/0.742/0.636: -8%/-10%), R 0.635/0.687/0.873; trim front 0.092 W, flare front 0.089 W (was 0.079 P).
+  `out` +0.03 cost the profile IoU 16-36% (guard), `fb` +0.02 alone fixes the profile size (0.059) but front/back
+  sizes worsen (0.22-0.24). The views disagree on the cuff's top: front's drawn top -1.724, profile's -1.79 (ours
+  -1.766 in both): the longer span is the compromise. k11 running: span x fb {0, .01} x out {0, .015}.
+- **k11** (span x fb x out; sweeps/k11): pick **s45_730_f1_o0** (span [0.45, 0.73], front/back radii +0.01): sizes
+  0.089/0.043/0.0/0.101 (L f/3q/p/b), 0.098/0.091 (R f/b); flares all PASS (back R 0.096 W -> 0.069 P), trim front
+  0.094 W, back 0.045 P; guard vs control worst -13.6% (cuff_L 3q 0.869 -> 0.751), vs pipeline-3d's cuffs (L
+  0.614/0.831/0.742/0.636) L 0.620/0.751/0.688/0.857: 3q -9.6%, p -7.3%. `out` +0.015 makes every size PASS but costs
+  the profile/3q IoU 16-18% vs control (13.7% vs pipeline-3d: too near the guard). In the spec (tools/garments4/
+  cuffs2.json via setspec.py); box build g4_cuffs2 running (log charkit/out/garments4/build_cuffs2.log).
+- **g4_cuffs2** (76826e3f, box): sizes L f/3q/p/b 0.089/0.043/0.0/0.101 W, R f/b 0.098/0.091 (0.90-1.0x the silhouette);
+  trims back 0.045/0.043 P, front 0.094/0.093 W; flares all PASS; piece_cuff_L 0.620/0.751/0.688/0.857, R
+  0.633/0.686/0.886. Overlays (tools/cuffov.py, review/cuffs2_ov/): ours sits ~0.05 L inward and lower than the drawn
+  cuff in front: the arm's place (hands workstream), not the cuff.
+- **Cuffs gate: PASS under K** (76826e3 into pipeline-3d 1d57838, which moved: tool/hairshell2;
+  `charkit/out/gate/gate_tool-garments4-cuffs_76826e3_into_1d57838.md`): no new FAIL, no flag regression, CPU within
+  1.5x; 6 new checks calibrated; improved: trims (back FAIL -> PASS, front FAIL -> WARN), cuff_back_flare_L, the hands'
+  reach (front/back/3q WARN -> PASS), hand_shape_R F -> W, skirt_pleats W -> P; guard: piece_cuff_L 3q -10%, profile -7%
+  (the rest up). No PASS -> WARN. Review page `charkit/out/garments4/review/cuffs2/index.html` (cuffs2.json). Mergeable:
+  tool/garments4-cuffs at this notes commit.
