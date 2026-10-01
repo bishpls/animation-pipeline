@@ -267,3 +267,17 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   (charkit/out/g4_cuffs_q: symlinks to g4_cuffs + qa/ rerun; log charkit/out/garments4/qa_cuffs_q.log), then
   `calibrate 'cuff_L_*_size,cuff_R_*_size' --build charkit/out/g4_cuffs_q` (log calib_cuffs.log). Then pregate, gate
   tool/garments4-cuffs. Review JSON: charkit/out/garments4/review/cuffs.json.
+- **Cuff size: the measure's reference is wrong, the fit overshot (stop point of this round).** Calibrating
+  cuff_*_size: the design moved 1-2 px reads 0.234-0.243 against itself (MISCALIBRATED front/back) because the stand-in
+  (calib/labels.Garments) hands the drawing's lines to the nearest piece: the drawn cuff's silhouette (outline split) is
+  ~1.23x its fill mask, and our geometry's silhouette (the renderer's hull sits on it) compares with the silhouette,
+  not the fill. Against the silhouette: g4_before 1.24-1.33x (3q R 1.85x), g4_cuffs 0.79-0.83x (too small now); the
+  hands round's "1.5-2.4x" was against the fill. piece_cuff (fill masks, iou_tol) prefers the smaller cuffs.
+- **Cuffs next steps:** (1) `area` against the drawn silhouette (the masks with the drawing's lines given to the nearest
+  piece, as labels.Garments builds them; unit test); re-measure g4_before / g4_cuffs; calibrate (expect before
+  1.24-1.33x: set limits from the defect, e.g. FAIL over 20%, and say so); (2) refit the template to ~1.0x silhouette
+  (k8: top21 reads 1.21-1.29x fill; k9 F 0.95-1.0x fill) with piece_cuff per view as the guard and the trim/flare
+  checks; (3) box build, calibrate on it, pregate, gate tool/garments4-cuffs (it carries part2: merge pipeline-3d first).
+  Keep: grow_line (straight sides), the trim band + front tab (back trim 0.03 P, front 0.09 W), cuff_R 3q ungraded
+  (the drawing's skirt covers the far cuff: Michael's "far cuff shows in 3q", an arm-placement matter).
+- Items 3 (shoulders + the back collar's cream section) and 4 (the neck-to-bow V) not started this round.
