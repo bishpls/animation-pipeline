@@ -1551,34 +1551,17 @@ def skirt_hull(A, spec, hull):
                                                                                      # widened a percentile to 58 deg)
     else:
         half = spec.get('panel', 0.0)
-    anchor = None
-    if spec.get('pleat_anchor') and half > 0:
-        # the pleats anchored on the front panel's edge (tool/garments4, the staircase): a valley fold on the edge, a
-        # whole number of folds from it to the back and to the front's middle, so the stepped band's risers can sit on
-        # folds from the edge out (band.stair_unit 'fold'); the counts as near the uniform zigzag's as their parities
-        # allow (the cream's ridges and the orange's keep their numbers)
-        zig_a, anchor = anchored_zig(F.th, half, pleats)
-        zig = zig_a[None, :]
-        R = F.R + off + depth * zig * VV ** 0.7
     band = None
     VVg = np.broadcast_to(VV, R.shape)
     if spec.get('band'):
         # the dark hem band as geometry: rows placed per column on its top edge's levels, its faces a third material
-        bs_, lenc_ = spec['band'], hem_at(F.th) - t0_at(F.th)
-        top_idx = None
-        if anchor and bs_.get('stair') and bs_.get('stair_unit') == 'fold':
-            VVg, hb, top_idx = stair_on_folds(bs_, F.th, half, lenc_, vs, L, anchor['step'])
-        else:
-            VVg, hb = band_rows(bs_, F.th, half, lenc_, vs, L, pleats)
+        VVg, hb = band_rows(spec['band'], F.th, half, hem_at(F.th) - t0_at(F.th), vs, L)
         R = np.array([np.interp(VVg[:, k], vs, F.R[:, k]) for k in range(n)]).T + off + depth * zig * VVg ** 0.7
         T = t0_at(TH) + VVg * (hem_at(TH) - t0_at(TH))
         lenc = hem_at(F.th) - t0_at(F.th)
         vb = 1 - hb / np.maximum(1e-9, lenc)                                     # per face column: the band's top (v)
-        if top_idx is not None:                       # (stair_on_folds: each face column's band from its row)
-            band = [int(hb[k] > 0 and i >= top_idx[k]) for i in range(VVg.shape[0] - 1) for k in range(n)]
-        else:
-            band = [int(hb[k] > 0 and VVg[i, k] >= vb[k] - 1e-9 and abs(F.th[k]) >= half)
-                    for i in range(VVg.shape[0] - 1) for k in range(n)]
+        band = [int(hb[k] > 0 and VVg[i, k] >= vb[k] - 1e-9 and abs(F.th[k]) >= half)
+                for i in range(VVg.shape[0] - 1) for k in range(n)]
     THv = np.broadcast_to(TH, R.shape)
     warped = bool(spec.get('panel_shape')) and half > 0
     if warped:
@@ -1622,8 +1605,6 @@ def skirt_hull(A, spec, hull):
         out['panel_u'] = ((kp.min() + 0.5) / n, (kp.max() + 1.5) / n)
     if band is not None:
         out['band'] = band
-    if anchor:
-        out['fold_u'] = anchor['valley_u']                 # (the texture's fold lines on the anchored valleys)
     if tuck:
         out['tuck'] = tuck
     return out
@@ -1672,48 +1653,18 @@ def tuck_pull(R, T, tk, dr=0.0, A=None):
     return np.where(d < 0, np.minimum(R, cap + dr), R)
 
 
-def anchored_zig(th, half, pleats):
-    """the pleats' zigzag (+0.5 a ridge, -0.5 a valley) per column angle th, anchored on the front panel's edge `half`
-    (radians): a ridge at the front's middle and a valley on the edge, n_in half-pleats between (the odd count nearest
-    half's share of the uniform zigzag's 180 / pleats degrees), and from the edge to the back n_out half-pleats (the odd
-    count nearest the rest's share: a ridge at the back, as the uniform zigzag has) -> (zig per column, dict(step (the
-    folds' spacing beyond the edge, radians), n_in, n_out, valley_u (the valleys' u round the skirt, for the texture's
-    fold lines)))."""
-    f = math.pi / float(pleats)
-    odd = lambda x: max(1, 2 * int(math.floor(x / 2.0)) + 1)
-    n_in = odd(half / f)
-    n_out = odd((math.pi - half) / f)
-    h_in, h_out = half / n_in, (math.pi - half) / n_out
-    a = np.abs(np.angle(np.exp(1j * np.asarray(th, float))))
-    x = np.where(a < half, a / h_in, n_in + (a - half) / h_out)
-    fm = np.mod(x, 2.0)
-    zig = np.where(fm <= 1.0, 0.5 - fm, fm - 1.5)
-    va = [h_in * k for k in range(1, n_in + 1, 2)] + [half + h_out * k for k in range(2, n_out + 1, 2)]
-    va = np.array(va)
-    va = np.concatenate([va, -va])
-    return zig, dict(step=h_out, n_in=n_in, n_out=n_out, valley_u=sorted(((va + np.pi) / (2 * np.pi)).tolist()))
-
-
-def band_rows(bs, th, half, lenc, vs, L, pleats=None):
+def band_rows(bs, th, half, lenc, vs, L):
     """a skirt's dark hem band as rows: its height per column (`height` L, or from `stair`: knots [degrees out from the
     front panel's edge, height L], a step function: the band's top climbing in steps toward the panel, as drawn; none on
     the panel), and the rows per column: the loft's rows above the tallest band, then one row on each of the band's
     levels (v = 1 - height / the column's length) and one between each two, then the hem. -> (v per row and column,
-    height per face column (L)).
-    `stair_unit` 'fold' (tool/garments4, Michael 2026-10-01: "a fold bends a step that spans it"): the knots count the
-    pleats' folds out from the panel's edge (every 180 / pleats degrees from the front): knot 0 the edge, knot k the
-    k-th fold beyond it; with the pleats anchored on the edge (skirt pleat_anchor) the skirt uses stair_on_folds."""
+    height per column (L))."""
     n = len(th)
     thc = th + np.pi / n                                                         # each face column's centre
     d = np.degrees(np.abs(np.angle(np.exp(1j * thc)))) - np.degrees(half)
     hb = np.full(n, float(bs.get('height', 0.14)))
     if bs.get('stair'):
         K = sorted(bs['stair'])
-        if bs.get('stair_unit') == 'fold':
-            f = 180.0 / float(pleats or 24)
-            h0 = np.degrees(half)
-            first = math.ceil((h0 + 1.0) / f) * f - h0                       # the first fold beyond the edge (deg)
-            K = [(0.0 if k == 0 else first + (k - 1) * f, h) for k, h in K]
         for k, (d0, h) in enumerate(K):
             d1 = K[k + 1][0] if k + 1 < len(K) else np.inf
             hb[(d >= d0) & (d < d1)] = h
@@ -1732,87 +1683,6 @@ def band_rows(bs, th, half, lenc, vs, L, pleats=None):
         rows_.append(lv[i])
     rows_ += [0.5 * (lv[-1] + 1), np.ones(n)]
     return np.array(rows_), hb
-
-
-def stair_heights(bs, count):
-    """the stepped band's height per fold-to-fold face out from the panel's edge (face s between folds s and s + 1):
-    `stair` [[fold, height L], ..] for the first, then (`beyond`: drop L a fold down to floor L, then floor and
-    floor + jog alternating, so every fold has its riser and no tread spans one), else the last height on -> (count,)."""
-    K = sorted(bs['stair'])
-    H = np.zeros(count)
-    for s_ in range(count):
-        h = None
-        for k, h_ in K:
-            if s_ >= k:
-                h = h_
-        H[s_] = h if h is not None else K[0][1]
-    by = bs.get('beyond')
-    if by:
-        last = int(K[-1][0])
-        drop, floor_, jog = float(by.get('drop', 0.02)), float(by.get('floor', 0.1)), float(by.get('jog', 0.02))
-        h = float(K[-1][1])
-        alt = None
-        for s_ in range(last + 1, count):
-            if alt is None:
-                h = h - drop
-                if h <= floor_ + 1e-9:
-                    h, alt = floor_, 0
-            else:
-                alt += 1
-                h = floor_ + (jog if alt % 2 else 0.0)
-            H[s_] = h
-    return H
-
-
-def stair_on_folds(bs, th, half, lenc, vs, L, fold_step):
-    """band_rows' stair on the anchored pleats' folds (stair_unit 'fold' with skirt pleat_anchor): face s from the panel's
-    edge (fold s to fold s + 1, fold_step radians apart) one tread at stair_heights' height. As band_rows, every level
-    is a row in every column (a riser is a vertex column's edge between two levels' rows: crisp, on the fold; no
-    degenerate rows for the subdivision surface to round), one row between each two and the loft's rows above. `lean`
-    (L per degree): a stair level's row rises across its own face toward the face's outer end, flat either side of it
-    (a tread square to the fold's riser where the view shows the fold leaning with the flare); the levels `beyond` the
-    stair stay flat. -> (v per row and vertex column, height per face column (L, at its middle), the row each face
-    column's band starts at)."""
-    n = len(th)
-    step = np.degrees(fold_step)
-    h0 = np.degrees(half)
-    lean = float(bs.get('lean', 0.0))
-    dv = np.degrees(np.abs(np.angle(np.exp(1j * th)))) - h0                    # each vertex column, out from the edge
-    thc = th + np.pi / n
-    dc = np.degrees(np.abs(np.angle(np.exp(1j * thc)))) - h0                   # each face column's middle
-    count = int(math.ceil((180.0 - h0) / step)) + 1
-    H = stair_heights(bs, count)
-    nst = int(sorted(bs['stair'])[-1][0]) + 1                                  # the stair's own faces (they lean)
-    sface = np.where(dc >= 0, np.clip(np.floor(dc / step).astype(int), 0, count - 1), -1)
-    # the levels: one per stair face (its own row, leaning across it), then the distinct heights beyond
-    keys = [('s', s_) for s_ in range(min(nst, count))]
-    beyond = sorted({round(float(h), 6) for h in H[nst:]}, reverse=True)
-    keys += [('b', h) for h in beyond]
-
-    def level_h(key, d):
-        if key[0] == 's':
-            s_ = key[1]
-            return H[s_] + lean * np.clip(d - s_ * step, 0.0, step)
-        return np.full_like(d, key[1])
-    face_key = [None if s_ < 0 else (('s', s_) if s_ < nst else ('b', round(float(H[s_]), 6))) for s_ in sface]
-    hb = np.array([0.0 if k_ is None else float(level_h(k_, np.array([dc[i]]))[0]) for i, k_ in enumerate(face_key)]) * L
-    # rows: each level's v per vertex column, ordered tallest first (their order holds in every column when each
-    # stair step drops more than lean x step and the levels beyond lie below the stair's)
-    lv = np.array([1 - level_h(k_, dv) * L / np.maximum(1e-9, lenc) for k_ in keys])
-    order = np.argsort(lv.mean(1))
-    lv, keys = lv[order], [keys[i] for i in order]
-    lv = np.maximum.accumulate(lv, axis=0)                                      # (never crossing)
-    vtop = float(lv.min()) - 0.03
-    top = vs[vs < vtop]
-    rows_ = [np.tile(v_, n) for v_ in top]
-    idx = {}
-    for i, k_ in enumerate(keys):
-        rows_.append(0.5 * ((lv[i - 1] if i else (top[-1] if len(top) else lv[0] - 0.03)) + lv[i]))
-        idx[k_] = len(rows_)
-        rows_.append(lv[i])
-    rows_ += [0.5 * (lv[-1] + 1), np.ones(n)]
-    top_idx = np.array([10 ** 6 if k_ is None else idx[k_] for k_ in face_key])
-    return np.array(rows_), hb, top_idx
 
 
 ARM_BONES = ('LowerArm', 'Hand', 'Thumb', 'Index', 'Middle', 'Ring', 'Little')
@@ -2086,7 +1956,7 @@ def flap_template(A, spec, hull):
     the hem), the mesh's rows and columns set on the stair's corners and the band's edges, so it is as crisp as drawn
     in the render and exactly what the QA reads (it labels faces at their UV centre: a texture's steps were quantised
     to faces). Not subdivided (a subdivision surface rounds the stair's corners): `rows` rows over the skirt, `cols`
-    columns across at least, `tail_rows` down the tail at least. `square` (0..1): the treads turned toward
+    columns across at least, `tail_rows` down the tail at least. `square` (0..1+): the treads turned toward
     perpendicular to the columns' hang (0: along the hem, as before). The chain and weights as flap()'s.
     -> flap()'s dict, with band (per face: 1 on the band) and subdiv 0."""
     L = A['head']['L']
@@ -2286,7 +2156,7 @@ def panel_hull(A, spec, hull):
 
 
 def stepped_hem(n=1024, band=0.16, steps=6, step_h=0.045, repeat=10, panel=None, colors=((0.86, 0.42, 0.24),
-                (0.28, 0.20, 0.18)), pleats=0, dark=True, fold_u=None):
+                (0.28, 0.20, 0.18)), pleats=0, dark=True):
     """RGBA texture for a skirt: the body colour with a dark band along the hem (v = 1) whose top edge rises and falls in
     pixel steps (a stair pattern repeated `repeat` times round the skirt); panel: optional (u0, u1) where no band is drawn."""
     u = (np.arange(n) + 0.5) / n
@@ -2300,13 +2170,7 @@ def stepped_hem(n=1024, band=0.16, steps=6, step_h=0.045, repeat=10, panel=None,
         dark &= ~((U > panel[0]) & (U < panel[1]))
     img = np.empty((n, n, 4))
     img[..., :3] = np.where(dark[..., None], np.array(colors[1]), np.array(colors[0]))
-    if fold_u is not None and len(fold_u):
-        # the fold lines at given u (the anchored pleats' valleys: skirt_hull's fold_u), as wide as the uniform ones
-        fu = np.asarray(fold_u, float)
-        d_ = np.abs((U[..., None] - fu + 0.5) % 1.0 - 0.5).min(-1)
-        line = np.clip(1 - d_ * (pleats or 24) * 2 / 0.06, 0, 1) * np.clip((1 - Vv) / 0.5, 0, 1) ** 0.7
-        img[..., :3] *= (1 - 0.28 * line)[..., None]
-    elif pleats:
+    if pleats:
         # a fold line at each pleat's outer edge, fading up toward the waist
         fp = (U * pleats) % 1.0
         line = np.clip(1 - np.abs(fp - 0.5) * 2 / 0.06, 0, 1) * np.clip((1 - Vv) / 0.5, 0, 1) ** 0.7
@@ -3998,8 +3862,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             G = skirt_hull(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'hull' else skirt(A, s)
             pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * math.pi)
             tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), panel=(0.5 - pw, 0.5 + pw),
-                              repeat=s.get('repeat', 8), pleats=s.get('pleats', 24), dark='band' not in G,
-                              fold_u=G.get('fold_u'))
+                              repeat=s.get('repeat', 8), pleats=s.get('pleats', 24), dark='band' not in G)
             img = eyetex.to_blender_image(nm + '_tex', tex)
             mats = [_toon_tex(nm, img, sh), _toon(nm + '_panel', s.get('panel_color', col), sh)]
             midx = G['panel']
