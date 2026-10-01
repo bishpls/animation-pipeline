@@ -3,7 +3,7 @@
  "part": "motion",
  "adapter": "Motion",
  "module": "charkit.calib.motion",
- "at": "2026-09-30T20:38:30",
+ "at": "2026-09-30T22:27:15",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -20,7 +20,7 @@
     "PASS"
    ],
    "+1,+0": [
-    0.00216,
+    0.00225,
     "PASS"
    ],
    "+2,+0": [
@@ -47,7 +47,7 @@
   "min": 0.00169,
   "max": 0.00394,
   "spread": 0.0022,
-  "median": 0.002255
+  "median": 0.0023
  },
  "known_bad": {
   "name": "motion_nocol",
@@ -80,13 +80,13 @@
  "current": {
   "value": 0.00244,
   "status": "PASS",
-  "margin": 0.996
+  "margin": 0.997
  },
  "verdict": "calibrated",
  "why": "a defect detector: the design passes every move (spread 0.0022), motion_nocol reads 0.01248 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
- "build": "charkit/out/xpbd/r2/build",
+ "build": "charkit/out/hands_b4",
  "generators": {
   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
  },
- "seconds": 203.6
+ "seconds": 217.9
 }

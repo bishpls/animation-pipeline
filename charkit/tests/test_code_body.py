@@ -67,6 +67,28 @@ def test_the_collars_back_flap_holds_the_torso_behind_it():
     assert 0 < i_st < nz - 1 and np.isinf(B[i_st]).all()             # the stray label below the flap doesn't count
 
 
+def test_the_arm_pose_turns_the_forearm_out_and_mirrors():
+    """body.arm (code_body.pose_arm): no knobs leave the hull's chain as it is; elbow_out turns the forearm and hand away
+    from her side about the elbow in her frontal plane (the shoulder and elbow stay, the bones keep their lengths, the
+    forearm's angle off vertical grows by the knob), the right arm mirroring the left; elbow_fwd swings them toward her
+    front (-y); out turns the whole arm at the shoulder."""
+    import math
+    JL = np.array([[0.54, 0.1, -0.89], [0.75, 0.1, -1.38], [1.01, 0.1, -2.02], [1.13, 0.1, -2.30]])
+    JR = JL * np.array([-1, 1, 1])
+    assert np.allclose(cb.pose_arm(JL, 'left', None), JL) and np.allclose(cb.pose_arm(JL, 'left', {}), JL)
+    off = lambda J: math.degrees(math.atan2(abs(J[2, 0] - J[1, 0]), J[1, 2] - J[2, 2]))
+    L_ = cb.pose_arm(JL, 'left', {'elbow_out': 5.0})
+    R_ = cb.pose_arm(JR, 'right', {'elbow_out': 5.0})
+    assert np.allclose(L_[:2], JL[:2])
+    assert np.allclose(np.linalg.norm(np.diff(L_, axis=0), axis=1), np.linalg.norm(np.diff(JL, axis=0), axis=1))
+    assert abs(off(L_) - off(JL) - 5.0) < 1e-6 and L_[2, 0] > JL[2, 0]
+    assert np.allclose(R_ * np.array([-1, 1, 1]), L_)
+    F = cb.pose_arm(JL, 'left', {'elbow_fwd': 4.0})
+    assert F[2, 1] < JL[2, 1] and np.allclose(F[:2], JL[:2])
+    S = cb.pose_arm(JL, 'left', {'out': 3.0})
+    assert np.allclose(S[0], JL[0]) and S[1, 0] > JL[1, 0] and S[3, 0] > JL[3, 0]
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

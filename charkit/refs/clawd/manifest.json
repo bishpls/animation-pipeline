@@ -436,6 +436,77 @@
    },
    "sha256": "005768b30a8f7f550f2d47ecdbb7ad8f6be7622513e16271a929d5fa427a7441"
   },
+  "hand_breakdown": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-30",
+    "size": "2560x1440",
+    "quality": "high",
+    "n": 2,
+    "chosen": "candidate 1 of 2 by charkit.handref's refcheck (the other: relaxed back 0.75, side 0.69-0.72)",
+    "inputs": [
+     "body_turnaround",
+     "a 3x crop montage of body_turnaround's A-pose hands with their cuffs (front, profile, back)"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "hand_breakdown",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "approved": "Michael, 2026-09-30 (docs/ROADMAP.md item 7)",
+    "sha256": "9faafca49c28bfb0ba08fae3d92e55c67a80708addf582c905d8c628ee2c5569"
+   },
+   "path": "charkit/refs/clawd/gen/hand_breakdown.png",
+   "role": "the hand's poses for the pose library and its QA (docs/ROADMAP.md item 7): her hand coming out of the wrist cuff, fingers down, in four poses (columns: relaxed, open, fist, point) from the back of the hand (top row) and from the thumb's side (bottom row), one scale; the turnaround draws the hands only in the A-pose",
+   "refcheck": {
+    "command": "python -m charkit.handref --build BUILD charkit/refs/clawd/gen/hand_breakdown.png",
+    "scale": "per figure from its cuff's widest across the arm against the turnaround's cuffs' (0.315 L)",
+    "relaxed_back~profile_L": {
+     "iou": 0.839,
+     "reach": [
+      0.683,
+      0.589
+     ],
+     "digits": [
+      4,
+      4
+     ],
+     "cleft": [
+      0.055,
+      0.054
+     ]
+    },
+    "relaxed_side~front_L/R": {
+     "iou": [
+      0.725,
+      0.739
+     ],
+     "reach": [
+      0.73,
+      0.612
+     ],
+     "digits": [
+      3,
+      3
+     ]
+    },
+    "relaxed_side~back_L/R": {
+     "iou": [
+      0.708,
+      0.716
+     ]
+    },
+    "relaxed_side~three_quarter_L": {
+     "iou": 0.639
+    }
+   },
+   "cautions": [
+    "its hands reach 16-19% further past the cuff than the turnaround's (0.68-0.73 L against 0.59-0.62): take the hand's length and size from the turnaround, the poses' structure (curl, spread, the thumb) from here",
+    "the bottom row is a three-quarter edge view more than a true thumb-side profile (its relaxed hand matches the turnaround's front and back views, which see the hand turned toward the viewer, at 0.71-0.74)",
+    "the cuff is drawn larger and plainer than the turnaround's; the scale is taken from it all the same (the cuff is the one shared, measurable object)"
+   ],
+   "sha256_note": "the file's sha256 is in provenance.sha256, not top-level: a top-level sha256 enters every produced reference's stamp (manifest.stamp: the hull, the outfit masks, the hair layers), and none of them reads this sheet; promote it when a restamp is due anyway"
+  },
   "hull": {
    "kind": "generated_mesh",
    "tracked": false,
