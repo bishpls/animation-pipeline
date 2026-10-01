@@ -2069,10 +2069,7 @@
    "kind": "band",
    "name": "wrist_L",
    "bone": "leftLowerArm",
-   "t": 0.77484,
-   "width": 0.31793,
-   "offset": 0.035,
-   "thick": 0.025,
+   "thick": 0.012,
    "color": [
     0.8274,
     0.4667,
@@ -2083,18 +2080,41 @@
     0.6891,
     0.6762
    ],
-   "source": "hull",
+   "source": "template",
    "piece": "cuff_L",
-   "bell": 0.015
+   "span": [
+    0.48,
+    0.72
+   ],
+   "top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "band": 0.3,
+   "tab": [
+    0.08,
+    0.5
+   ],
+   "clear": 0.003,
+   "trim_color": [
+    0.97,
+    0.9,
+    0.72
+   ]
   },
   {
    "kind": "band",
    "name": "wrist_R",
    "bone": "rightLowerArm",
-   "t": 0.77484,
-   "width": 0.31793,
-   "offset": 0.035,
-   "thick": 0.025,
+   "thick": 0.012,
    "color": [
     0.8274,
     0.4667,
@@ -2105,9 +2125,35 @@
     0.6891,
     0.6762
    ],
-   "source": "hull",
+   "source": "template",
    "piece": "cuff_R",
-   "bell": 0.015
+   "span": [
+    0.48,
+    0.72
+   ],
+   "top": [
+    0.17,
+    0.14,
+    0.17,
+    0.14
+   ],
+   "bottom": [
+    0.13,
+    0.115,
+    0.12,
+    0.115
+   ],
+   "band": 0.3,
+   "tab": [
+    0.08,
+    0.5
+   ],
+   "clear": 0.003,
+   "trim_color": [
+    0.97,
+    0.9,
+    0.72
+   ]
   },
   {
    "kind": "collar",
