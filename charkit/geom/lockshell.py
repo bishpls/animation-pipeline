@@ -35,7 +35,7 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'), facing=0.2,
                assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0, frag_L2=0.008, frag_reach=4,
                widen_lw=1.0, contain=1.0, dedup=0.5, unit='locks', over=0.004,
-               contain_family=True, view_depth=0.3)
+               contain_family=True, view_depth=1.0)
 VIEWS_AZ = None
 
 
