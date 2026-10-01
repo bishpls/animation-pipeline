@@ -212,3 +212,13 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   cuffqa.py moved to charkit/out/garments4/defer/ until the cuffs milestone (its checks FAIL until fixed).
 - Box build g4_creases running (log charkit/out/garments4/build_creases.log). Next: calibrate the crease checks
   (`calibrate 'skirt_panel_*,bow_*_creases' --build charkit/out/g4_creases`), pregate, remote gate.
+- g4_creases (e3891817, box): skirt panel creases front 0.002 P / 3q 0.734 F (relative), edges 0.105 / 0.341 P, shape
+  0.894 P / 0.698 W; bow 0.337 P / 0.379 W; guard: no piece over 15% (piece_cuff_R 3q -6.2% the most); PASS -> WARN
+  flap_profile_iou_R, flap_profile_sweep_R, skirt_pleats (0.5 -> 2.5: it reads strokes as pleat lines).
+- Calibration (log charkit/out/garments4/calib_creases.log): bow front/3q, panel front creases, both edges CALIBRATED;
+  3q creases MISCALIBRATED (the design 0.41 against itself: the drawn 3q mask, closed, took in 1621 dark px the class
+  region lacks) -> fixed (relative mode: the drawn span by the same class rule); panel shapes BLIND (g4_before 0.69
+  WARN) -> declared as the panel's shape guard (no_known_bad, as the piece_* IoUs).
+- k7 (crease placement under the fixed measure): f 0.65 -> 0.5 by mid-skirt (t65m50b50) front 0.059 P, 3q 0.597 W.
+  Spec updated; box build g4_creases2 running. Then: calibrate the 8 checks on it, pregate, gate.
+- Cuff template seed build g4_cuff0 (charkit/out/garments4/specs/cuff0.json) also running.
