@@ -746,6 +746,13 @@ def character_parts(A, hide=None, spec=None):
                            ('mouth_line', 'line', spec.get('mouth_line_color', (0.36, 0.16, 0.14)), CL['line'])):
         q = Mo[key][1]
         out.append(Part(nm, 'mouth', Mo[key][0], q, *_flat(len(q), c), np.full(len(q), cl)))
+    if Mo.get('nose') is not None:                       # the nose's mark (charkit.nose): its ink a line, its highlight white
+        from . import nose as noselib
+        NK = noselib.knobs(spec)
+        v, q, sl = Mo['nose']
+        sl = np.asarray(sl)
+        cols = np.where(sl[:, None] == 0, np.asarray(NK['color'], float), np.asarray(NK['high_color'], float))
+        out.append(Part('nose', 'mouth', v, q, cols, cols, np.where(sl == 0, CL['line'], CL['white'])))
     return out
 
 

@@ -185,6 +185,9 @@ def features(G, keys=True, cache=None):
     Mo['line'] = mouthlib.line(F, MK, L, Mo['c'], **au)
     Mo['line_keys'] = {sh: mouthlib.line(F, MK, L, Mo['c'], sh, **au)[0] - Mo['line'][0] for sh in Mo['keys']}
     Mo['tongue_keys'] = {sh: mouthlib.tongue(F, MK, L, Mo['c'], sh, **au)[0] - Mo['tongue'][0] for sh in Mo['keys']}
+    from . import nose as noselib                       # the nose's drawn mark (front and three-quarter), when the head
+    tip = noselib.tip_of(H, centre)                     # knows its nose tip
+    Mo['nose'] = noselib.mark(F, noselib.knobs(spec), L, tip) if tip is not None and 'nose' in spec else None
     hw = B['head_w']
     fmat = [1 if hw[list(f)].mean() > 0.5 else 0 for f in B['faces']]
     inside = set(Mo['m']['cavity'])
@@ -402,6 +405,16 @@ def build_eyes(A, arm, skin, spec, look=None):
             _key(o, f'mouth_{sh}', d)
         _to_head(o, arm)
         mouth_parts[part] = o
+    if Mo.get('nose') is not None:                      # the nose's mark: ink and highlight, riding the head, no keys
+        from . import nose as noselib
+        NK = noselib.knobs(spec)
+        v, q, sl = Mo['nose']
+        o = _mesh('nose', v, q, None, [look.get('nose') or shade.flat('nose', NK['color']),
+                                      look.get('nose_high') or shade.flat('nose_high', NK['high_color'])])
+        for p_, mi in zip(o.data.polygons, sl):
+            p_.material_index = mi
+        _to_head(o, arm)
+        mouth_parts['nose'] = o
     # the skin's lid keys: each side, and both
     names = list(A['eyes'][0]['keys'])
     for name in names:

@@ -1,0 +1,92 @@
+{
+ "check": "mouth_smile_curve",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "face_piece_mouth"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.002,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.002,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.008,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.008,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.002,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.002,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.008,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.008,
+    "PASS"
+   ]
+  },
+  "min": -0.008,
+  "max": 0.002,
+  "spread": 0.01,
+  "median": -0.003
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": 0.055,
+  "status": "FAIL"
+ },
+ "floor": {
+  "mouth_warped": {
+   "values": [
+    -0.093,
+    0.324,
+    -0.067,
+    -0.062,
+    0.262
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.062,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.055,
+  "status": "FAIL",
+  "margin": 1.983
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.01), face6_before reads 0.055 FAIL, the floor mouth_warped FAIL",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "mouth_warped": "the mouth rebuilt 0.5-0.75 as wide, 2.5-4x as thick, its curve x (0-0.4 | 1.8-2.5)"
+ },
+ "seconds": 62.9
+}

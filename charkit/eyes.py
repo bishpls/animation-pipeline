@@ -32,6 +32,10 @@ DEFAULT_EYE = {
     'lash_inner': 0.35,  # lash thickness at the inner corner (share)
     'flick': 0.16,       # outer flick length, in widths
     'flick_angle': 22.0, # degrees above the lid line
+    'spikes': (),        # the upper lash line's separate lashes (Michael's flag, 2026-09-30: a solid block; the design's
+                         # lash line has spikes, flicks and separation): each (t along the lid 0 inner .. 1 outer, length in
+                         # eye widths, angle from the lid's normal in degrees (+ toward the outer corner), width at its root
+                         # in L, curl: its end bent further outward, degrees), drawn off the band's outer edge, tapering
     'lower_lash': 0.6,   # lower lash extent from the outer corner (share of the width)
     'lower_lash_w': 0.36,  # lower lash thickness (share of the upper)
     'crease': 0.10,      # the double-lid crease line above the lash, in widths (0 = none)
@@ -44,6 +48,8 @@ DEFAULT_EYE = {
                                   # side) nasal of the fold, just past it, and at the outer corner (linear between)
     'fold_at': 0.0,      # the fold from the iris's nasal edge, in eye widths (+ outward)
     'fold_soft': 0.03,   # the fold's rounding, half-width in eye widths
+    'fold_shape': 1.0,   # how far the fold follows the iris's nasal outline row by row (1) or runs straight down at its
+                         # middle row's x (0)
     'fold_reach': 0.035, # L: how far outside the opening the skin follows the surface (fading to the face's own)
     'fold_follow': 0.0,  # each row's fold at one depth (0: the profile's front edge upright) or at the face's depth
                          # there (1: the edge follows the iris's outline as the face recedes)
@@ -294,6 +300,7 @@ class Surface:
         rx, rz, cz, conv = K['iris']
         self.iris = (rx, rz, cz, conv)
         self.at, self.soft = float(K['fold_at']), max(1e-3, float(K['fold_soft']))
+        self.shape = float(K.get('fold_shape', 1.0))
         self.follow = float(K.get('fold_follow', 0.0))
         tn, tf, tc = (math.radians(a) for a in K['turn'])
         # G(u): the surface's depth (eye widths, + back) at u eye widths outward of the row's fold, 0 at the fold
@@ -330,7 +337,7 @@ class Surface:
         """the fold's x (eye widths) on rows z (eye widths): the iris's nasal outline, fold_at outward of it."""
         rx, rz, cz, conv = self.iris
         q = np.clip(1 - ((np.asarray(z, float) - cz) / rz) ** 2, 0.05, 1)
-        return -(conv + rx * np.sqrt(q)) + self.at
+        return -(conv + rx * (self.shape * np.sqrt(q) + (1 - self.shape))) + self.at
 
     def _raw(self, x, z):
         """the surface's depth (eye widths, + back) relative to the frontal plane through its middle row's fold."""
@@ -544,7 +551,8 @@ def outline_polygon(K, L, n=24):
 
 def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias=0.0):
     """the eye plate behind the opening: a patch shaped like the outline (rings out to `reach` times it), recessed and bending
-    back at its rim so it never shows through the skin; UV in eye units (u = x / W + 0.5, outward; v = z / W + 0.5).
+    back at its rim so it never shows through the skin; UV in eye units (u = x / (SPAN W) + 0.5, outward; v = z / (SPAN W)
+    + 0.5; charkit.eyetex.SPAN).
     shift: move it in the eye plane (gaze). -> (verts, faces, uvs per vertex)."""
     W = K['width'] * L
     poly = outline_polygon(K, L)
@@ -570,7 +578,8 @@ def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias
     depth = D0 + 0.004 * L * np.clip((rho_of - 0.92) / (reach - 0.92), 0, 1) ** 2
     pts = _world(F, ex, ez, side, loc[:, 0] + shift[0], loc[:, 1] + shift[1], surf=surface(F, K, L, side, eye_c))
     pts[:, 1] += depth
-    uvs = [(x / W + 0.5, z / W + 0.5) for x, z in loc]
+    from .eyetex import SPAN
+    uvs = [(x / (SPAN * W) + 0.5, z / (SPAN * W) + 0.5) for x, z in loc]
     faces = []
     for k in range(na):                                         # the centre fan
         f = (0, 1 + k, 1 + (k + 1) % na)
@@ -625,6 +634,48 @@ def _flick_depth(F, S, eye_c, side, xc, zc, fx, fz, h=0.05, turn=None):
     return yc + slope * (fx - xc) - F.y(ex + side * fx, ez + fz)
 
 
+SPIKE_ROOT = 0.3        # a spike's root inside the lash band, a share of the band's thickness from the lid line (at
+                        # 0.55 the inner spikes, where the band tapers, floated clear of it in the render)
+
+
+def spike_lines(K, L, upper_fn, m=8):
+    """each spike's centre line and thickness (eye-local): off the lash band's outer edge at its t, `angle` from straight up
+    toward the outer corner, curling a further `curl` over its length -> [(pts (m, 2), th (m,))]."""
+    W = K['width'] * L
+    out = []
+    for t0, ln, ang, w, curl in K.get('spikes') or ():
+        tt = np.clip(np.array([t0 - 0.01, t0, t0 + 0.01]), 0.0, 1.0)
+        x, z = upper_fn(tt)
+        tan = np.array([x[2] - x[0], z[2] - z[0]]); tan /= max(np.linalg.norm(tan), 1e-12)
+        nrm = np.array([-tan[1], tan[0]])
+        if nrm[1] < 0:
+            nrm = -nrm
+        th0 = K['lash'] * L * (K['lash_inner'] + (1 - K['lash_inner']) * min(t0 / 0.45, 1.0) ** 0.7)
+        base = np.array([x[1], z[1]]) + nrm * th0 * SPIKE_ROOT  # (rooted inside the band, short of its outer edge)
+        s = np.linspace(0.0, 1.0, m)
+        a = np.radians(ang + curl * s)                         # (from straight up; +: toward the outer corner, +x)
+        d = np.stack([np.sin(a), np.cos(a)], 1)
+        step = ln * W / (m - 1)
+        pts = base + np.concatenate([[0.0 * d[0]], np.cumsum(d[:-1] * step, 0)])
+        out.append((pts, w * L * (1 - s) ** 0.8 + 1e-5))
+    return out
+
+
+def spikes(F, K, L, side, eye_c, upper_fn, S):
+    """the lash line's spikes as ribbons on the face (rigid, at their root's depth on a turned surface, as the lashes)
+    -> (verts, quads) of them all, or None."""
+    parts = []
+    for pts, th in spike_lines(K, L, upper_fn):
+        at = np.full(len(pts), float(S(pts[:1, 0], pts[:1, 1])[0])) if S.on else None
+        parts.append(_ribbon(F, side, eye_c, pts, th, 1.0, tuck=0.5, surf=S, at=at))
+    if not parts:
+        return None
+    V, Q, o = [], [], 0
+    for v, q in parts:
+        V.append(v); Q += [tuple(i + o for i in f) for f in q]; o += len(v)
+    return np.vstack(V), Q
+
+
 def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     """upper lash line (thick, tapering in toward the inner corner, a flick past the outer corner) and a lower lash (the
     outer part), along the outline or along given lid curves (functions t -> eye-local (x, z), for the shape keys).
@@ -650,6 +701,9 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
         at = np.concatenate([S(x, z), np.minimum(fl, S(fx, fz))])        # (the flick never behind the skin either)
     up = _ribbon(F, side, eye_c, np.stack([np.concatenate([x, fx]), np.concatenate([z, fz])], 1),
                  np.concatenate([th, fth]), 1.0, surf=S, at=at)
+    sp = spikes(F, K, L, side, eye_c, upper_fn, S)
+    if sp is not None:                                 # (one ribbon with the band: the lash's material slot)
+        up = (np.vstack([up[0], sp[0]]), list(up[1]) + [tuple(i + len(up[0]) for i in q) for q in sp[1]])
     t2 = np.linspace(1 - K['lower_lash'], 1.0, 16)
     x2, z2 = lower_fn(t2)
     th2 = K['lash'] * L * K['lower_lash_w'] * np.sin(np.pi * 0.5 * (t2 - t2[0]) / (t2[-1] - t2[0])) ** 0.8 + 1e-5
@@ -686,6 +740,15 @@ def chevron_lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40, C=N
         return _ribbon(F, side, eye_c, np.stack([x, z], 1), th, sign, tuck=0.5, surf=S, at=S(x, z) if S.on else None,
                        tip=tip)
     out = [stroke('upper', n + 10, 1.0), stroke('lower', 16, -1.0)]
+    m = len(spike_lines(K, L, lambda t: outline(K, L, t, 'upper')))
+    if m:                                           # lashes()' spikes, folded flat onto the upper stroke (the same
+        v, q = out[0]                               # vertices as the rest key's, nothing of them showing)
+        k = len(v) // 2
+        sv = np.repeat(v[k:k + 1], m * 16, 0)
+        sq = [tuple(len(v) + j * 16 + i for i in f) for j in range(m) for f in ((0, 1, 9, 8), (1, 2, 10, 9), (2, 3, 11, 10),
+                                                                               (3, 4, 12, 11), (4, 5, 13, 12), (5, 6, 14, 13),
+                                                                               (6, 7, 15, 14))]
+        out[0] = (np.vstack([v, sv]), list(q) + sq)
     if K.get('crease', 0) > 0:                      # (behind the skin: at the strokes' depth it z-fought with the
         x, z = chevron_stroke(K, L, np.linspace(0.1, 0.9, 24), 'upper', C)       # upper one, a dashed line on the board)
         out.append(_ribbon(F, side, eye_c, np.stack([x, z], 1), np.full(24, 1e-5), 1.0, lift=0.002, tuck=0.5, surf=S,
@@ -814,10 +877,11 @@ IRIS_SCALE = {'shock': 0.33}
 
 
 def iris_scale(verts, uvs, cz, s):
-    """offsets (N, 3) scaling an iris plate by s about the iris's centre (uv (0.5, 0.5 + cz)): the plate's point there,
-    interpolated from its nearest vertices in uv."""
+    """offsets (N, 3) scaling an iris plate by s about the iris's centre (uv (0.5, 0.5 + cz / SPAN)): the plate's point
+    there, interpolated from its nearest vertices in uv."""
+    from .eyetex import SPAN
     V, U = np.asarray(verts, float), np.asarray(uvs, float)
-    d = np.linalg.norm(U - np.array([0.5, 0.5 + cz]), axis=1)
+    d = np.linalg.norm(U - np.array([0.5, 0.5 + cz / SPAN]), axis=1)
     k = np.argsort(d)[:4]
     w = 1 / np.maximum(d[k], 1e-6)
     c = (V[k] * w[:, None]).sum(0) / w.sum()

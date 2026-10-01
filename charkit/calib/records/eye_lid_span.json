@@ -1,0 +1,97 @@
+{
+ "check": "eye_lid_span",
+ "part": "eyes",
+ "adapter": "Eyes",
+ "module": "charkit.calib.eyeviews",
+ "at": "2026-09-30T21:03:21",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "face_piece_lash"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.011,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.011,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.011,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.011,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.011,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.011,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.011,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.011,
+    "PASS"
+   ]
+  },
+  "min": 1.011,
+  "max": 1.011,
+  "spread": 0.0,
+  "median": 1.011
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "no stored build has a wrong lid span (1580f95 and the builds before it read 1.33 against 1.30)",
+ "floor": {
+  "lid_cut": {
+   "values": [
+    0.824,
+    0.792,
+    0.802,
+    0.802,
+    0.792
+   ],
+   "statuses": [
+    "WARN",
+    "FAIL",
+    "WARN",
+    "WARN",
+    "FAIL"
+   ],
+   "median": 0.802,
+   "status": "WARN",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "lid_long": {
+   "value": 1.138,
+   "status": "WARN"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 0.959,
+  "status": "PASS",
+  "margin": 0.751
+ },
+ "verdict": "guard",
+ "why": "no known-bad (no stored build has a wrong lid span (1580f95 and the builds before it read 1.33 against 1.30)); the design passes and the floor does not",
+ "build": "charkit/out/face6_a",
+ "generators": {
+  "lid_cut": "the front eye's upper lid line past both corners cut back to 0-30% of its reach",
+  "lid_long": "the front eye's upper lid line past both corners stretched outward 2.2-3x"
+ },
+ "seconds": 2.7
+}

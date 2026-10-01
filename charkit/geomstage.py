@@ -464,7 +464,8 @@ def blender_bytes(rgba):
 
 
 # ---------------------------------------------------------------------------------------------------- the assembly
-ASM_KEYS = ('base', 'body', 'body_code', 'brows', 'eyes', 'head', 'head_code', 'head_detail', 'iris', 'mouth', 'style')
+ASM_KEYS = ('base', 'body', 'body_code', 'brows', 'eyes', 'head', 'head_code', 'head_detail', 'iris', 'mouth', 'nose',
+            'style')
 """the spec sections character.assemble reads (measured with charkit.cache's tracked dicts on both gate specs;
 charkit/tests/test_geomstage.py fails if it reads another), plus hair.shape.eye_depth (the code head's depth), and
 `ref` when there is no code head file (code_base then reads the face sheet)."""
