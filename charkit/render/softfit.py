@@ -134,7 +134,7 @@ class Flaps:
     PARAMS, STARTS, NAMES, ORDER = PARAMS, STARTS, {'L': FLAPS[0], 'R': FLAPS[1]}, \
         ('front', 'three_quarter', 'profile', 'profile_R', 'back')
 
-    def __init__(self, path=os.path.join(OUT, 'flap_scene.pkl'), params=None, weights='g', dist=0.0):
+    def __init__(self, path=os.path.join(OUT, 'flap_scene.pkl'), params=None, weights='g', dist=0.0, occlusion='hard'):
         from charkit import garments as gm
         from charkit.render import softras
         self.gm, self.sr = gm, softras
@@ -147,6 +147,7 @@ class Flaps:
         self.views = {v: softras.SheetView(d['az'], d['origin'], S['L'], 1.0 / S['ppl'], S['win'])
                       for v, d in S['views'].items()}
         self.weights, self.dist, self._outlines, self.last_chamfer = weights, float(dist), {}, {}
+        self.occlusion = occlusion                          # 'soft': the depth-order edges differentiated too
         self.terms = self.make_terms(S, WEIGHTS.get(weights, VW))   # (name, view drawn, side, view seen in, mask, w)
         self.n = dict(builds=0, hard=0, soft=0, grad=0, build_s=0.0, render_s=0.0)
         self.setup(gm)
@@ -251,7 +252,8 @@ class Flaps:
             for side in set(t_[1] for t_ in ts):
                 other = 'R' if side == 'L' else 'L'
                 V, T = geo[side]
-                sil[side] = self.sr.silhouette(V, T, self.views[ov], s=s, occ=np.minimum(st, z[other]), soft=soft)
+                sil[side] = self.sr.silhouette(V, T, self.views[ov], s=s, occ=np.minimum(st, z[other]), soft=soft,
+                                               **(self.occ_args(ov, z[other]) if soft else {}))
             for name, side, m, w in ts:
                 S_ = sil[side]
                 iou, g = S_.iou(m, None if soft else S_.hard.astype(float))
@@ -276,11 +278,29 @@ class Flaps:
         self.n['render_s'] += time.time() - t
         return J, ious, dV
 
+    def occ_args(self, ov, z_other):
+        """softras.silhouette's occlusion settings in view ov: soft, the occluder's surfaces labelled (the frozen scene's
+        objects; the other piece, -2, where it is nearer: its depth isn't differentiated, it isn't this piece's knob
+        path's occluder anywhere in these pilots, docs/workstreams/softras.md round 4)."""
+        if self.occlusion != 'soft':
+            return {}
+        d = self.S['views'][ov]
+
+        def lab(y0, y1, x0, x1):                            # (on the silhouette's crop only)
+            out = d['lab'][y0:y1, x0:x1].copy()
+            out[z_other[y0:y1, x0:x1] < d['depth'][y0:y1, x0:x1]] = -2
+            return out
+        return dict(occlusion='soft', occ_lab=lab)
+
     def measure(self, x):
         """the QA's J (hard IoUs, this fit's weights), the IoUs, and the outline chamfers (L) with their weighted sum."""
         geo = self.build(x)
         J, ious, _ = self.render(geo, soft=False)
-        self.render(geo, s=0.5, chamfer=True)
+        mode, self.occlusion = self.occlusion, 'hard'       # (the chamfer read the same way for every fit)
+        try:
+            self.render(geo, s=0.5, chamfer=True)
+        finally:
+            self.occlusion = mode
         ch = dict(self.last_chamfer)
         wt = {t[0]: t[5] for t in self.terms}
         return J, ious, ch, float(sum(wt[k] * v for k, v in ch.items()))
@@ -493,11 +513,11 @@ def gradient_fit(F, x0, s=0.5, log=print, maxiter=60, anneal=()):
 
 
 def run_fit(method, start='g', out=OUT, s=0.5, anneal=(), sweeps=12, log=print, template='flap', weights='g',
-            dist=0.0):
+            dist=0.0, occlusion='hard'):
     """one fit from a named start, its record written to OUT/fit_[TEMPLATE_]METHOD..._START.json. weights: the view
     weights ('g' fit G's, 'a' Michael's call A); dist: the gradient fit's distance term (LAMBDA, per L of chamfer)."""
     F = TEMPLATES[template][0](os.path.join(out, '%s_scene.pkl' % template), weights=weights,
-                               dist=dist if method != 'cd' else 0.0)
+                               dist=dist if method != 'cd' else 0.0, occlusion=occlusion if method != 'cd' else 'hard')
     x0 = F.start(start)
     F.hard(x0)                                              # (warm: numba's compile, the skirt's memo)
     F.value_and_grad(x0, s=s)
@@ -513,13 +533,14 @@ def run_fit(method, start='g', out=OUT, s=0.5, anneal=(), sweeps=12, log=print, 
     n = dict(F.n)
     J1, i1, c1, C1 = F.measure(x)
     rec = dict(method=method, start=start, s=s, anneal=list(anneal), sweeps=sweeps if method == 'cd' else None,
-               template=template, weights=weights, dist=F.dist, chamfer0=c0, chamfer=c1, C0=C0, C=C1,
+               template=template, weights=weights, dist=F.dist, occlusion=F.occlusion, chamfer0=c0, chamfer=c1, C0=C0,
+               C=C1,
                wall=wall, counts=n,
                knobs=[p[0] for p in F.params], x0=x0.tolist(), x=x.tolist(), J0=J0, J=J1, iou0=i0, iou=i1,
                pieces0=F.pieces(x0), pieces=F.pieces(x), history=hist, spec=F.spec_at(x))
     tag = method + ('_s%g' % s if method != 'cd' else ('' if sweeps else '_full')) + ('_anneal' if anneal else '')
     tag = ('' if template == 'flap' else template + '_') + tag + ('_d%g' % F.dist if F.dist else '') + \
-        ('_w%s' % weights if weights != 'g' else '')
+        ('_w%s' % weights if weights != 'g' else '') + ('_occ' if F.occlusion == 'soft' else '')
     p = os.path.join(out, 'fit_%s_%s.json' % (tag, start))
     json.dump(rec, open(p, 'w'), indent=1, default=float)
     log('%s %s from %s: J %.4f -> %.4f, chamfer %.4f -> %.4f L, in %.1f s; %s -> %s' % (
@@ -621,6 +642,112 @@ def scan(F, x, span=1.0, n=41, s=0.5, log=print):
     return out
 
 
+def boundary_kinds(S, occ, lab, z_other, static):
+    """where one term's visible outline runs (hard, the QA's pixels): 4-neighbour pairs of a visible pixel and one that
+    isn't, split into free (the piece doesn't cover the other pixel: its own contour), depth-order (the occluder covers
+    both on one surface, continuous in depth: where the piece passes into or behind it), occluder edge (the occluder's
+    own outline over the piece: fixed while only the piece moves) and other piece. -> {kind: pairs}."""
+    y0, y1, x0, x1 = S.box
+    cov, vis = S.cov_hard, S.hard
+    so, lb, zo = static[y0:y1, x0:x1], lab[y0:y1, x0:x1], z_other[y0:y1, x0:x1]
+    H, W = cov.shape
+    out = dict(free=0, depth_order=0, occluder_edge=0, other_piece=0)
+    for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+        ys, xs = np.nonzero(vis)
+        qy, qx = ys + dy, xs + dx
+        ok = (qy >= 0) & (qy < H) & (qx >= 0) & (qx < W)
+        ys, xs, qy, qx = ys[ok], xs[ok], qy[ok], qx[ok]
+        k = ~vis[qy, qx]
+        ys, xs, qy, qx = ys[k], xs[k], qy[k], qx[k]
+        free = ~cov[qy, qx]
+        out['free'] += int(free.sum())
+        ys, xs, qy, qx = ys[~free], xs[~free], qy[~free], qx[~free]
+        oth = zo[qy, qx] <= so[qy, qx]
+        out['other_piece'] += int(oth.sum())
+        ys, xs, qy, qx = ys[~oth], xs[~oth], qy[~oth], qx[~oth]
+        same = np.isfinite(so[ys, xs]) & (lb[ys, xs] == lb[qy, qx])
+        cont = same & (np.abs(so[ys, xs] - so[qy, qx]) < 4 * np.maximum(np.abs(S.zbuf[ys, xs] - S.zbuf[qy, qx]),
+                                                                          1e-3 * S.view.px_world() * 100))
+        out['depth_order'] += int(cont.sum()); out['occluder_edge'] += int((~cont).sum())
+    return out
+
+
+def agreement(S):
+    """a soft silhouette against the hard one it approximates (the QA's z-buffered visible pixels): the IoU of
+    cov >= 0.5 with it, the mean symmetric distance (px) between their outlines, the area bias (soft sum / hard sum -
+    1) and the soft-occlusion band's pixels."""
+    from scipy import ndimage
+    h, c = S.hard, S.cov >= 0.5
+    iou = float((h & c).sum() / max(1, (h | c).sum()))
+    bh, bc = h & ~ndimage.binary_erosion(h), c & ~ndimage.binary_erosion(c)
+    if bh.any() and bc.any():
+        ed = 0.5 * (ndimage.distance_transform_edt(~bh)[bc].mean() + ndimage.distance_transform_edt(~bc)[bh].mean())
+    else:
+        ed = float('nan')
+    band = int(np.isfinite(S.d_occ).sum()) if getattr(S, 'd_occ', None) is not None else 0
+    return dict(iou=iou, edge_px=float(ed), bias=float(S.cov.sum() / max(1, h.sum()) - 1), occ_band=band)
+
+
+def occ_measure(F, x, ss=(0.25, 0.5, 1.0), log=print, steps=(0.01,), hard_steps=(0.1, 0.3, 1.0)):
+    """soft occlusion measured before it is built on (round 4): at x, per term, where the visible outline runs
+    (boundary_kinds), each softness's agreement with the hard z-buffered masks, hard and soft occlusion
+    (agreement), and the soft IoU against the hard one; then per knob the chain's dJ/dstep, hard and soft occlusion,
+    against differences of the soft J (each mode, 0.01 step) and of the hard J (0.1, 0.3, 1 step). -> a record."""
+    geo = F.build(x)
+    rec = dict(x=list(map(float, x)), terms={}, grad={})
+    mode0 = F.occlusion
+    for name, view, side, ov, m, w in F.terms:
+        z = F._depths(geo, ov)
+        other = 'R' if side == 'L' else 'L'
+        d = F.S['views'][ov]
+        V, T = geo[side]
+        occ = np.minimum(d['depth'], z[other])
+        S0 = F.sr.silhouette(V, T, F.views[ov], s=0.5, occ=occ)
+        r = dict(kinds=boundary_kinds(S0, occ, d['lab'], z[other], d['depth']), hard_iou=float(S0.iou(m, S0.hard.astype(float))[0]))
+        for s_ in ss:
+            for mode in ('hard', 'soft'):
+                F.occlusion = mode
+                S_ = F.sr.silhouette(V, T, F.views[ov], s=s_, occ=occ, **F.occ_args(ov, z[other]))
+                a = agreement(S_)
+                a['soft_iou'] = float(S_.iou(m)[0])
+                r['s%g_%s' % (s_, mode)] = a
+        rec['terms'][name] = r
+        k = r['kinds']; tot = max(1, sum(k.values()))
+        log('  %-26s outline %4d pairs: free %3.0f%%, depth-order %3.0f%%, occluder edge %3.0f%%, other piece %3.0f%%;'
+            ' s 0.5 hard/soft occlusion: IoU %.4f / %.4f, edge %.3f / %.3f px, bias %+.4f / %+.4f, soft IoU - hard'
+            ' %+.4f / %+.4f' % (name, tot, *(100 * k[q] / tot for q in ('free', 'depth_order', 'occluder_edge',
+                                                                        'other_piece')),
+                                r['s0.5_hard']['iou'], r['s0.5_soft']['iou'], r['s0.5_hard']['edge_px'],
+                                r['s0.5_soft']['edge_px'], r['s0.5_hard']['bias'], r['s0.5_soft']['bias'],
+                                r['s0.5_hard']['soft_iou'] - r['hard_iou'], r['s0.5_soft']['soft_iou'] - r['hard_iou']))
+    for mode in ('hard', 'soft'):
+        F.occlusion = mode
+        rec['grad']['chain_' + mode] = F.value_and_grad(x, s=0.5)[1].tolist()
+        for h in steps:
+            g = []
+            for k, p in enumerate(F.params):
+                yp, ym = x.copy(), x.copy(); yp[k] += h * p[2]; ym[k] -= h * p[2]
+                g.append((F.render(F.build(yp), s=0.5)[0] - F.render(F.build(ym), s=0.5)[0]) / (2 * h))
+            rec['grad']['soft_fd%g_%s' % (h, mode)] = g
+    F.occlusion = mode0
+    for h in hard_steps:
+        g = []
+        for k, p in enumerate(F.params):
+            yp, ym = x.copy(), x.copy(); yp[k] += h * p[2]; ym[k] -= h * p[2]
+            g.append((F.hard(yp)[0] - F.hard(ym)[0]) / (2 * h))
+        rec['grad']['hard_fd%g' % h] = g
+    G = rec['grad']
+    log('  %-7s %9s %9s | %9s %9s | %9s %9s %9s | ratio chain/own fd hard, soft' % (
+        'knob', 'chain hd', 'chain sf', 'fd sf hd', 'fd sf sf', 'hard .1', 'hard .3', 'hard 1'))
+    for k, p in enumerate(F.params):
+        rh = G['chain_hard'][k] / G['soft_fd0.01_hard'][k] if G['soft_fd0.01_hard'][k] else float('nan')
+        rs = G['chain_soft'][k] / G['soft_fd0.01_soft'][k] if G['soft_fd0.01_soft'][k] else float('nan')
+        log('  %-7s %+9.4f %+9.4f | %+9.4f %+9.4f | %+9.4f %+9.4f %+9.4f | %.2fx %.2fx' % (
+            p[0], G['chain_hard'][k], G['chain_soft'][k], G['soft_fd0.01_hard'][k], G['soft_fd0.01_soft'][k],
+            G['hard_fd0.1'][k], G['hard_fd0.3'][k], G['hard_fd1'][k], rh, rs))
+    return rec
+
+
 def silhouettes(F, x):
     """each view's visible flaps at x (hard, the QA's): {view: bool (H, W)} over both flaps, profile and profile_R apart
     (each shows its near flap), and the drawn ones the same way."""
@@ -640,8 +767,9 @@ def fit_label(r):
     w = ' [weights %s]' % r['weights'] if r.get('weights', 'g') != 'g' else ''
     if r['method'] == 'cd':
         return ('cd (12 sweeps)' if r.get('sweeps') else 'cd (to convergence)') + w
-    return 'l-bfgs s%g%s%s%s' % (r['s'], ' anneal ' + ','.join('%g' % a for a in r['anneal']) if r['anneal'] else '',
-                                 ' + chamfer x%g' % r['dist'] if r.get('dist') else '', w)
+    return 'l-bfgs s%g%s%s%s%s' % (r['s'], ' anneal ' + ','.join('%g' % a for a in r['anneal']) if r['anneal'] else '',
+                                   ' + chamfer x%g' % r['dist'] if r.get('dist') else '',
+                                   ' + soft occlusion' if r.get('occlusion') == 'soft' else '', w)
 
 
 PAGE_CSS = ('body{font:13px system-ui;margin:16px;background:#f4f4f6;color:#222}.row{display:flex;flex-wrap:wrap;'
@@ -753,15 +881,90 @@ def page(out=OUT, open_it=True, template='flap'):
                               ' '.join(f(t, y) for t, y in zip(d['t'], d['soft'])), name, 100 * d['hard_flat'],
                               d['grad']['chain'], d['grad']['hard_0.01'], d['grad']['hard_0.1'], d['grad']['hard_1']))
         sc = '<h2>The objective along each knob, round fit G\'s start</h2><div class="row">%s</div>' % ''.join(blocks)
-    doc = ('<!doctype html><meta charset="utf-8"><title>Softras flap pilot</title><style>%s</style>'
-           '<h1>Differentiable silhouettes: the flap template fitted by gradients against coordinate descent</h1>'
-           '<p>J = sum over the flap\'s QA IoUs (flap_VIEW_iou_SIDE) of VW[view] (1 - IoU); VW back 1, profile 1, front '
-           '0.7, three-quarter 0.4 (fit G\'s). J and every IoU are read on the QA\'s hard pixels; piece_* is qa3d\'s graded '
-           'piece IoU (bodymeasure.piece_shapes) over the views. Starts: g = fit G\'s own start (skirt_scratch/t8.json), '
-           'far = every knob 2-6 steps off it. Panels: rows z -1.2 .. -3.6 L; drawn only blue, ours only red, both dark. '
-           'Data: charkit/out/softras/fit_*.json, scan.json.</p><table>%s%s</table><h2>J against wall time</h2>%s%s'
-           '<h2>The fits, view by view</h2>%s' % (PAGE_CSS, th, ''.join(tr), svg, sc, ''.join(rows)))
+    wts = ', '.join('%s %g' % (t[0].replace('_iou', ''), t[5]) for t in F.terms)
+    doc = ('<!doctype html><meta charset="utf-8"><title>Softras %s pilot</title><style>%s</style>'
+           '<h1>Differentiable silhouettes: the %s template fitted by gradients against coordinate descent</h1>'
+           '<p>J = sum over the piece\'s QA IoUs (one per view and side) of its weight (1 - IoU); weights: %s. J and '
+           'every IoU are read on the QA\'s hard pixels; piece_* is qa3d\'s graded piece IoU (bodymeasure.piece_shapes) '
+           'over the views. Starts: g = the template\'s own start, far = every knob several steps off it. Panels: drawn '
+           'only blue, ours only red, both dark. Data: %s/fit_*.json.</p><table>%s%s</table><h2>J against wall time</h2>'
+           '%s%s<h2>The fits, view by view</h2>%s' % (template, PAGE_CSS, template, wts, os.path.relpath(out, ROOT), th,
+                                                       ''.join(tr), svg, sc, ''.join(rows)))
     path = os.path.join(out, 'index.html' if template == 'flap' else 'index_%s.html' % template)
+    open(path, 'w').write(doc)
+    if open_it:
+        os.system('open "%s"' % path)
+    return path
+
+
+def occ_page(out=OUT, summary='', open_it=True, templates=(('sleeve', 'g'), ('flap', 'a'))):
+    """the soft-occlusion review (OUT/occ.html): the summary box, then per template the measurement (occ_*_g.json:
+    where each term's outline runs, soft against hard occlusion's agreement with the QA's z-buffered masks, the chain
+    against differences per knob) and the fits (fit_*.json: J, evaluations, wall time, the piece IoUs in every view),
+    linking each template's view-by-view page (page()). -> path."""
+    import glob, html
+    css = PAGE_CSS + ('.box{background:#fff;border:2px solid #0072b2;padding:8px 14px;margin:0 0 14px;max-width:1100px}'
+                      '.box h2{margin:4px 0}td.l,th.l{text-align:left}.good{background:#dff3e4}.bad{background:#fbe3e0}')
+    parts = ['<div class="box">%s</div>' % summary]
+    for tmpl, w in templates:
+        mp = os.path.join(out, 'occ_%s_g.json' % tmpl)
+        if not os.path.exists(mp):
+            continue
+        M = json.load(open(mp))
+        F = TEMPLATES[tmpl][0](os.path.join(out, '%s_scene.pkl' % tmpl), weights=w)
+        wt = {t[0]: t[5] for t in F.terms}
+        rows = []
+        for name, r in M['terms'].items():
+            k = r['kinds']; tot = max(1, sum(k.values()))
+            h, sft = r['s0.5_hard'], r['s0.5_soft']
+            rows.append('<tr><td class="l">%s</td><td>%g</td><td>%d</td>%s<td>%.4f / %.4f</td><td>%.3f / %.3f</td>'
+                        '<td>%+.2f%% / %+.2f%%</td><td>%d</td><td>%+.4f / %+.4f</td></tr>' % (
+                            name, wt.get(name, 0), tot, ''.join('<td>%.0f%%</td>' % (100 * k[q] / tot) for q in (
+                                'free', 'depth_order', 'occluder_edge', 'other_piece')),
+                            h['iou'], sft['iou'], h['edge_px'], sft['edge_px'], 100 * h['bias'], 100 * sft['bias'],
+                            sft['occ_band'], h['soft_iou'] - r['hard_iou'], sft['soft_iou'] - r['hard_iou']))
+        G = M['grad']
+        grows = []
+        for i, p in enumerate(F.params):
+            rh = G['chain_hard'][i] / G['soft_fd0.01_hard'][i] if G['soft_fd0.01_hard'][i] else float('nan')
+            rs = G['chain_soft'][i] / G['soft_fd0.01_soft'][i] if G['soft_fd0.01_soft'][i] else float('nan')
+            cls = lambda r_: 'good' if abs(r_ - 1) <= 0.1 else 'bad'
+            grows.append('<tr><td class="l">%s</td><td>%+.4f</td><td>%+.4f</td><td class="%s">%.2fx</td><td>%+.4f</td>'
+                         '<td>%+.4f</td><td class="%s">%.2fx</td><td>%+.4f</td><td>%+.4f</td><td>%+.4f</td></tr>' % (
+                             p[0], G['chain_hard'][i], G['soft_fd0.01_hard'][i], cls(rh), rh, G['chain_soft'][i],
+                             G['soft_fd0.01_soft'][i], cls(rs), rs, G['hard_fd0.1'][i], G['hard_fd0.3'][i],
+                             G['hard_fd1'][i]))
+        recs = [json.load(open(q)) for q in sorted(glob.glob(os.path.join(out, 'fit_*.json')))]
+        recs = [r for r in recs if r.get('template', 'flap') == tmpl]
+        frows = []
+        for r in sorted(recs, key=lambda r: (r['start'], r['method'] != 'cd', r.get('occlusion', 'hard'), r['s'])):
+            pc = '<br>'.join('%s %.3f %s: %s' % (pn, v[0], v[1], ' '.join('%s %.3f' % kv for kv in sorted(v[2].items())))
+                             for pn, v in sorted(r['pieces'].items()))
+            pc0 = {pn: v[0] for pn, v in r['pieces0'].items()}
+            frows.append('<tr><td>%s</td><td class="l">%s</td><td>%.1f</td><td>%d</td><td>%d</td><td>%.4f</td>'
+                         '<td><b>%.4f</b></td><td class="l" style="font-size:11px">%s<br>(start %s)</td></tr>' % (
+                             r['start'], html.escape(fit_label(r)), r['wall'], r['counts']['hard'] + r['counts']['grad'],
+                             r['counts']['builds'], r['J0'], r['J'], pc,
+                             ', '.join('%s %.3f' % kv for kv in sorted(pc0.items()))))
+        link = 'index.html' if tmpl == 'flap' else 'index_%s.html' % tmpl
+        parts.append(
+            '<h2>%s</h2><h3>1. The measurement at the start (g): where the outline runs, and soft occlusion against the '
+            'QA\'s hard z-buffered masks (s 0.5; hard / soft occlusion)</h3><table><tr><th class="l">term</th><th>weight'
+            '</th><th>outline pairs</th><th>free</th><th>depth-order</th><th>occluder edge</th><th>other piece</th>'
+            '<th>IoU(cov &ge; 0.5, hard)</th><th>outline distance px</th><th>area bias</th><th>soft-occlusion band px'
+            '</th><th>soft IoU - hard IoU</th></tr>%s</table>'
+            '<h3>2. dJ/dstep at g: the chain against differences of the soft J (0.01 step), hard and soft occlusion, and '
+            'of the QA\'s hard J (0.1, 0.3, 1 step)</h3><table><tr><th class="l">knob</th><th>chain, hard occl.</th>'
+            '<th>soft J fd</th><th>ratio</th><th>chain, soft occl.</th><th>soft J fd</th><th>ratio</th><th>hard J 0.1'
+            '</th><th>hard J 0.3</th><th>hard J 1</th></tr>%s</table>'
+            '<h3>3. The fits (J on the QA\'s hard pixels; piece IoUs in every view beside each)</h3><table><tr><th>start'
+            '</th><th class="l">fit</th><th>wall s</th><th>evaluations</th><th>builds</th><th>J start</th><th>J end</th>'
+            '<th class="l">piece IoU (qa3d) and per view</th></tr>%s</table><p>View by view (drawn only blue, ours only '
+            'red, both dark): <a href="%s">%s</a>. Data: %s, fit_*.json.</p>' % (
+                tmpl, ''.join(rows), ''.join(grows), ''.join(frows), link, link, os.path.basename(mp)))
+    doc = ('<!doctype html><meta charset="utf-8"><title>Soft occlusion review</title><style>%s</style>'
+           '<h1>Soft occlusion: the edge where a piece passes behind the body, differentiated</h1>%s' % (css, ''.join(parts)))
+    path = os.path.join(out, 'occ.html')
     open(path, 'w').write(doc)
     if open_it:
         os.system('open "%s"' % path)
@@ -782,16 +985,23 @@ if __name__ == '__main__':
     ap.add_argument('--template', default='flap', choices=sorted(TEMPLATES))
     ap.add_argument('--weights', default='g', choices=sorted(WEIGHTS))
     ap.add_argument('--dist', type=float, default=0.0, help='the distance term (LAMBDA %g: per L of chamfer)' % LAMBDA)
+    ap.add_argument('--occ', default='hard', choices=('hard', 'soft'), help='the gradient fit: soft occlusion')
     a = ap.parse_args()
     if a.cmd == 'scene':
         build_scene(a.spec, a.out, pieces=TEMPLATES[a.template][1], name=a.template)
     elif a.cmd == 'fit':
         run_fit(a.method, a.start, a.out, a.s, tuple(float(v) for v in a.anneal.split(',') if v), a.sweeps or None,
-                template=a.template, weights=a.weights, dist=a.dist)
+                template=a.template, weights=a.weights, dist=a.dist, occlusion=a.occ)
     elif a.cmd == 'fitkit':
         run_fitkit(a.start, a.method == 'grad', a.out, a.s)
     elif a.cmd == 'scan':
         F = Flaps(os.path.join(a.out, 'flap_scene.pkl'))
         json.dump(scan(F, F.start(a.start), s=a.s), open(os.path.join(a.out, 'scan.json'), 'w'), default=float)
+    elif a.cmd == 'occ':
+        F = TEMPLATES[a.template][0](os.path.join(a.out, '%s_scene.pkl' % a.template), weights=a.weights)
+        x = F.start(a.start) if not a.method else np.array(json.load(open(a.method))['x'])
+        r = occ_measure(F, x)
+        tag = a.start if not a.method else os.path.basename(a.method)[:-5]
+        json.dump(r, open(os.path.join(a.out, 'occ_%s_%s.json' % (a.template, tag)), 'w'), default=float)
     elif a.cmd == 'page':
         print(page(a.out, template=a.template))
