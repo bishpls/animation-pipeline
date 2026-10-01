@@ -68,8 +68,22 @@ Star arms 0.349 (WARN, -0.041), minor 0.284 PASS; star back 17 px; seats 0.0000 
 ## 2. Templates (accfit shape on the box)
 - Star (`charkit/out/acc5/fit_star`, 1,064 evaluations): as-drawn IoU 0.757 / 0.771 / 0.876 -> 0.817 / 0.853 / 0.871
   (the current shape unposed -> fitted with a pose per view), clips-alone 0.773 -> 0.771; but its tips short (side
-  0.347 against the drawn 0.36-0.40): refit with the tips' reach term (`fit_star2`, running).
+  0.347 against the drawn 0.36-0.40): refit with the tips' reach term (`fit_star2`, 1,540 evaluations): 0.813 / 0.853
+  / 0.859, clips-alone 0.765, arms side 0.384 / minor 0.311 (on the drawn 0.385 / 0.311). Shape: up 0.550, down 0.487,
+  side 0.394, minor 0.320, inner 0.167, curve 0.038, minor_at 43.1 (height 1.037 in its own units).
 - Crab (`charkit/out/acc5/fit_crab`, 1,057 evaluations): 0.770 / 0.668 / 0.725 -> 0.848 / 0.797 / 0.768, clips-alone
   0.717 -> 0.725; legs at their 0.15 bound (the turnaround draws short legs), claw notch 18 deg.
 - Edge-on (the clips-alone sheet): star depth 0.10, thick 0.03 (front relief 47 px of 465, tips 14 px); crab body_d
   0.34 (was 0.42).
+
+**How much of each clip the turnaround itself shows** (the fitted templates posed per view, the drawn cover's share
+taken out by as_drawn; `work/drawn_hidden.py`): crab 0.722 / 0.827 / 0.745, star 0.918 / 0.960 / 0.962 (front /
+three-quarter / profile). The drawn arrangement fails the non-occlusion check for the crab: the reference's placement
+is the rule's known-bad, as Michael said.
+
+## 3. Placement (accfit place on the box, from the baseline build's hair; running)
+Three starts (the fitted shapes, the crab moved off the star): A crab at +(0, -0.07, -0.05) (forward and down), B
++(0, 0, -0.10) (down), C +(0, +0.05, -0.08) (back and down); `charkit/out/remote/acc5_start_{A,B,C}.json`, 25 min
+each, outputs `charkit/out/acc5/place_{A,B,C}` (logs `charkit/out/acc5/logs/place_*.log`).
+Local exploration (one-off moves of the crab from round 4's place, the new shapes): moving the crab 0.10 L down shows
+it 0.89 / 0.92 / 0.95 at a position cost (crab pos 0.18 / 0.16 / 0.29 L); moving the star back shows it from behind.
