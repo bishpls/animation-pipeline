@@ -883,3 +883,9 @@ pieces_hair 313.7, garments 17.9); Blender and QA read 722.5 -> 617.2 s. Cold ag
 r7_cpu.sh` (--no-cache, build box: r7_hull_cold = today's default without the shells, r7_shells_cold = the default).
 For the coordinator: the gate's CPU rule reads a cached baseline against a cold candidate whenever the merge changes
 what the early steps read.
+**Cold against cold** (build box, `--no-cache`, one after the other, this branch's code at 5d6d2048):
+r7_hull_cold (the default without the shells) 1668.5 s CPU (1006 s wall), r7_shells_cold (the default) 1652.5 s CPU (1007
+s wall): **0.99x** (pieces_hair 90 -> 246 s wall; the rest within the boxes' noise). Merged pipeline-3d 27a4b6c3 (the
+crab placement A, infra B: the clips are placed on the build's hair, accfit's Ground, so the crab seats on the shells;
+the gate's acc_crab_* rows say whether that moves). Re-gate 5, both sides cold: `python -m charkit remote gate
+tool/hairshell3 --into pipeline-3d --accept hair_noise --args "--cache refresh"` (box auto).
