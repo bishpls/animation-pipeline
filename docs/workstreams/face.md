@@ -1289,3 +1289,15 @@ WARN for tool/face5 by name (2026-09-30: the side locks' partition, tool/hair5's
   tq_cheek_hollow 0.0056 WARN (unchanged). Findings for Michael: face5's V opening, its rise and its taper's shape
   sit about halfway between the design and an 8-15% sloppy fit (margins 0.69, -0.07, 0.43).
 - Merged pipeline-3d 640ca7c (tool/xpbd rounds 2-3).
+
+**The re-gate** (ad0e28e into pipeline-3d 640ca7c, `--accept jaw_taper_shape`, still applies: the old measure reads
+the new geometry 0.0411 FAIL; `charkit/out/gate/gate_tool-face5_ad0e28e_into_640ca7c.md`; pregate PASS first):
+**FAIL under K, one blocker: art_terminator_hair 1.804 PASS -> 2.111 WARN**, Michael's accepted reading exactly. The
+report carries the acceptance (`accepted` read from the merged tree), but the gate judges with pipeline-3d's gate.py
+(remote gate runs BASE's code unless `--code REF`), whose judge honours a recorded acceptance only for a new FAIL or a
+guard block. face5's 4dda46b extends it to a flag check's regression at the recorded reading (gate.py
+`_accepted_reading`, test_calibrate). To honour it: land 4dda46b's gate.py and test (not the record) in pipeline-3d
+first and re-gate or carry face5, or gate with `--code tool/face5` (the branch's own judge: the coordinator's call).
+- All 15 calibration records pass the gate's rule. The 2x2's drops (not blocking): chin_angle new measure 1.4 PASS
+  (base) -> 1.5 WARN; jaw_taper_shape accepted; tq_cheek_hollow 0.005 PASS -> 0.0052 / 0.0056 WARN both measures.
+- CPU 1.31x; 76 test files, 0 failing.
