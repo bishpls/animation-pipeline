@@ -142,6 +142,31 @@ Fixed on the way: `--box auto` picked render2, whose copy lacked the python stag
 it (as a sweep's base). Michael's placement build: charkit/out/remote/clawd_michael.json -> charkit/out/acc6/michael
 (ring_M's solve: bearing 127 not 135, cost 0.61), running.
 
+## Part B: the pick and the builds
+opt_place2 (A3's star kept; crab knobs; starts the three best crabs; 2,402 evaluations): sb180_g45_11 f 5.77 but the
+crab faced front (profile size 0.784, angle 50 FAIL, profile IoU 0.533: -18% against pipeline-3d's build, the gate's
+guard). The optimizer's guard compares with its control (A3's placement with the new crab: profile 0.584), not the gate's
+base build; so the pick takes the best f among rows that hold the gate's rules against pipeline-3d's build (crab IoU per
+view >= max(0.60, 0.85 x 0.724 / 0.769 / 0.650), |angle| <= 20, |size - 1| <= 0.25, no relational FAIL):
+**sb180_g16_11** (f 6.44). In the six specs (commit "the crab placed by its relations").
+
+Builds (box): `charkit/out/acc6/after` (the fit), `charkit/out/acc6/michael` (Michael's placement, clawd_michael.json).
+QA (base A3 -> after; Michael's):
+- parts: every acc_crab parts check FAIL -> PASS (both new-crab builds).
+- relations: bearing 66 / 58 / 64 F -> 12.4 / 5.4 / 9.4 PASS (Michael 60 / 57 / 71 F); turn 65 / 63 / 82 F -> 20.0 /
+  0.4 / 2.3 PASS (Michael 107 / 103 / 67 F); flow 9 / 5 / 32 -> 6.1 / 3.7 / 7.2 PASS (Michael 29 / 39 / 31 W); gap 0.
+- crab IoU 0.724 / 0.769 / 0.650 -> 0.728 / 0.677 / 0.705 (three-quarter -12%; Michael 0.57 / 0.41 / 0.54 F);
+  visible 0.997 / 0.988 / 0.988 -> 1.0 / 0.997 / 0.980; pos front 0.193 F -> 0.059 W; angle 10.4 W / -1.1 / 10.6 W ->
+  -0.2 / -13.1 W / 13.8 W; acc_crab_alone 0.585 -> 0.769; no new FAIL.
+- art_terminator_hair (flag): single 2.432 -> **2.509, grade WARN -> FAIL** (Michael 2.482 WARN); six placements A3
+  2.204 +- 0.151, fit 2.254 +- 0.151, Michael 2.246 +- 0.148. Attribution (`sweep swap base after --groups accessory
+  --drop`, charkit/out/acc6/swap_term): the crab carries 100%; without any crab the hair reads 2.49 (base) / 2.49
+  (after): round 5's crab under the star's tip was hiding torn shadow patches (2.493 -> 2.432); at the drawn spot it
+  hides none (and adds 0.02). Screening placements for it: tools/acc6/termscreen.py (the crab substituted into the
+  after bundle, the artifacts part with the numpy drawing: it reproduces the real 2.432 / 2.509), 40 candidates that
+  hold the gate's rules, four box jobs (charkit/out/acc6/termscreen_*).
+- Calibration (box, records committed): 13 calibrated against acc_a3_crab, 6 guard (flow, gap: floors only).
+
 ## Next steps
 1. opt_crab3 -> the crab shape; CRAB_AXIS from its poses; the specs (tools/acc6/specs.py).
 2. tools/acc6/ring.py on the box (starts round the star, Michael's and the drawn-nudged placements); sweep optimize
