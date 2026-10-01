@@ -85,6 +85,31 @@ side locks, lower-back flicks, flyaways and the ahoge)
 | 2-d pairing (today) | 0.363 | 104 | profile 0.0086 | 0.29 / 0.35 / 0.33 |
 | fit | 0.506 (0.516 / 0.555 / 0.701 / 0.506) | 6.8 PASS | 0 | 0.48 / 0.50 / 0.65 |
 
+### The lines are our ink (31e6654)
+
+The hair flags' lines now read our ink as the render draws it (`hairflagqa.our_ink`): each hair object's surface
+pulled in by its outline (the bundle's per-vertex shrink, which carries the outline's vertex-group widths) and its hull
+on the original surface, flipped and back-face culled per view, z-buffered on the design grids among the QA's other
+surfaces; the hull's pixels drawn at least a pixel wide. For rebuilt pieces (the lab) the shrink is made from the
+angle-weighted normals, LINE_W 0.0014 m and the piece's `outline_w`. Recalibrated (eeafe0e): all 7 calibrated;
+h5_base reads back_lines 3.77, lock lines 0.205 / 0.162 (3q / profile), known-bad 3.76 / 0.202 / 0.164.
+
+### The stripes and the hem: settings measured in the lab (hairlab --batch on the build box)
+
+- `ink_fade {piece: keep}` (31e6654): a piece's locks draw no line where they meet, down to the last `keep` of their
+  length (the part's `outline_w`, the Blender stage's `outline_w` vertex group, read by the outline's SOLIDIFY;
+  scene.hair_pieces_objects). As the design draws its back: one smooth mass, the locks parting at the hem.
+- `lock_min_piece`, `notch_piece` (per-piece lock width and notch), `fine_tips` with lower_back (the drawn hem's tips).
+- `flyaway_root 'hair'`: each flyaway's root carried to the nearest drawn hair (buns included) and 0.02 L into it, its
+  depth from the buns' built surfaces too.
+
+`python -m charkit remote run --fetch charkit/out/hair5/bN hairlab charkit/out/h5_base --batch tools/hair5/v/bN.json
+charkit/out/hair5/bN` (variants files must be tracked: charkit/out isn't synced). Results: charkit/out/hair5/b1/lab.json
+(b1 ran at 57a1c83: the ink measure before the thin ink, so its lines aren't comparable with b2's), b2/lab.json (at
+31e6654). Per variant: NAME.npz (label images), NAME.pieces.npz (the rebuilt pieces).
+
+(RESULTS TABLE: filled below at the checkpoint)
+
 ### Coordinator's item for the layering (2026-09-30)
 
 The side locks' partition is unstable under a face edit: tool/face5's jaw moves the hull labels near the cheek (front

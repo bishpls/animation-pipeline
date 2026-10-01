@@ -1,0 +1,5 @@
+{"base": {},
+ "A_fit_fly": {"opts": {"ahoge": "fit", "flyaway_root": "hair"}},
+ "H_ink": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6}}},
+ "I_ink_hem6": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6}, "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 6}}},
+ "L_ink_hem10": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6}, "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 10}, "lock_min_piece": {"lower_back": 5}}}}
