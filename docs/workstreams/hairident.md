@@ -53,6 +53,46 @@ masses). A view passes when all hold (three-quarter, profile, back; front report
    redraw, >= 5 of the 7 in different regions; the turnaround's drawn lock lines recalled >= 0.5 within 2.5 px.
 Registered (structure only; placement stays the turnaround's) for the views that pass; else reported, not registered.
 
+
+### The lock map reference: result (3 of ~4 calls; 1 left, kept: no materially different approach for the back)
+Refcheck `tools/hairident/lockmap.py` (registration of a head-sheet take on the design grids by the hair's silhouette;
+its locks as regions: `lines` the flat orange's components, `colours` flat colour fields; `--sheet body` for a take
+drawn on the body sheet's canvas; `--swap A:B` the known-bad: views mislaid FAIL in the swapped views).
+| take | 3q / profile / back hair IoU | back: flicks inside one lock (distinct) | profile back-mass locks | lines recalled 3q / P / B (floor) | pass |
+|---|---|---|---|---|---|
+| lines 1 (head sheet) | 0.90 / 0.93 / 0.93 | 3 (3) of 7 | 12 | 0.70 / 0.71 / 0.65 (0.29-0.38) | 3q, P |
+| **lines 2 (registered)** | 0.90 / 0.93 / 0.93 | 2 (2) | 9 | 0.74 / 0.76 / 0.63 (0.31-0.40) | 3q, P |
+| colours 1 (flat fields) | 0.85 / 0.92 / 0.92 | 7 (7) | 11 | 0.41 / 0.47 / 0.34 (0.26-0.29) | none |
+| colours 2 | heads not found | | | | none |
+| body sheet in place 1-2 | 0.68-0.71 / 0.73-0.75 / 0.83-0.87 | 2-5 | 6-7 | 0.05-0.11 (0.07-0.13) | none |
+The colour take's first reading (k-means) passed 3q/P/B, but its fragments made boundaries dense (floor 0.34-0.48):
+read as flat fields it fails the 0.50 line recall. Ceiling: head_turnaround's own ink recalls only 0.42-0.46 of the
+body turnaround's drawn lock lines. Registered: `hair_lock_map` (lines take 2) for the three-quarter and profile
+(manifest, structure only; sha in provenance: no produced reference restamped). The back: not registered.
+
+### Michael's second pass (12 locks, 18 views, 4 min): no points used; S52.1 / S57.1 profile -> the lock map's M:8.5;
+flick_R1 / R2 / under_bun_R back -> the truth's names (pass 1 said hidden); S55.1 3q -> S:44; flick_L2 back -> flick_L2.
+Folded: `charkit/refs/clawd/hair_lock_links.json` (tools/hairident/truth.py: 21 items, 63 views: 32 regions, 31 not
+visible; polygons on the design grids; held out, scoring only).
+
+### Step 1: the ribbon test (`charkit/out/hairident/rib1/ribbon.md`, hi_hull's context, 16 locks Michael's pass 1 accepted)
+| template | locks all views <= 4 px | pairs <= 4 px | 3+ views <= 4 px | home view's rise px | other views joint / alone px | joint IoU |
+|---|---|---|---|---|---|---|
+| tube (the pilot's) | 1 | 5 / 32 | 0 / 5 | 4.05 | 11.5 / 4.6 | 0.381 |
+| flat ribbon (depth 0.15) | 0 | 3 / 32 | 0 / 5 | 4.10 | 11.8 / 4.6 | 0.372 |
+| twist along the lock | 1 | 5 / 32 | 0 / 5 | 4.23 | 11.6 / 4.6 | 0.384 |
+| tip curl | 1 | 4 / 32 | 0 / 5 | 4.28 | 11.7 / 4.5 | 0.368 |
+| ribbon (all three) | 1 | 4 / 32 | 0 / 5 | 4.17 | 11.7 / 4.6 | 0.372 |
+| **tube, envelope depth freed** | 6 | 14 / 32 | 0 / 5 | 2.17 | 8.3 / 3.4 | 0.454 |
+| ribbon, depth freed | 6 | 15 / 32 | 0 / 5 | 2.15 | 8.2 / 3.5 | 0.442 |
+Reading (canonical rule step 1): the template's shape is not what fails (flat / twist / curl change nothing); the
+envelope's depth pull is ours (each view's lock pulled onto the hull's first surface: freed, pairs fitting 5 -> 14 of
+32, the home view's rise 4.1 -> 2.2 px). No template fits three views: the three-quarter is drawn view-dependently
+(`charkit/out/hairident/az1/az3scan.md`, depth freed: the ahoge fits front + 3q + profile best at a 25-30 deg turn
+(1.2 px), the bangs at 20-30, but the side locks need 55-65 (L_jaw 1.9 px at 65, 10 px at the sheet's 35.5) and the
+strand under the bun 60): step 2 (the reference is view-dependent there), so step 3 (compromise: the three-quarter
+weighted down, per-view costs reported).
+
 ## Plan (the brief's order)
 1. `python -m charkit label serve TASK.json` (charkit/label.py, generic) + the hair identity task (~20 locks: side locks,
    back flicks; tools/hairident/mktask.py) -> hand the page to the coordinator.
@@ -61,4 +101,7 @@ Registered (structure only; placement stays the turnaround's) for the views that
 4. Review page, the default switch (shells from the cross-view fit) with every hair check, pregate, gate.
 
 ## Jobs
-None.
+- Box builds on render2: `charkit/out/hi_hull` (today's default), `charkit/out/hi_pilot` (tools/hairident/pilot_spec.json),
+  `charkit/out/hi_torn` (tools/hairident/torn_spec.json: the torn-shadow known-bad; running).
+- Joint-fit grid `charkit/out/hairident/grid2` (tools/hairident/grid2.json on hi_hull, holdout of A; running).
+- Label servers (laptop): pass 1 port 8770, pass 2 port 8772 (PIDs in charkit/out/hairident/label*/server.pid).
