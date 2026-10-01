@@ -228,6 +228,33 @@ when at least one view passes and its scale holds):
 - one scale: the four views' S within 5%.
 If no view passes: stop generating, and the canonical rule's step 3 (compromise) holds for the bulk's lock structure.
 
+**Outcome: fails in every view; generation stopped.** The call (ledger 2026-09-30T21:04:49, gpt-image-2.5-sunburst,
+2560x1440, high, n=2, `--ref` body_turnaround only; prompt `charkit/refs/clawd/gen/prompts.json` `hair_lock_lineart`,
+also `charkit/out/hair5truth/prompt_lineart.txt`; the `.env` symlink made and removed in the same command) gave two
+clean line-art sheets: `charkit/out/hair5truth/gen/hair_lock_lineart_{1,2}.png`. Refcheck
+(`charkit/out/hair5truth/refcheck/lineart{1,2}.json`, pictures alongside) and score5
+(`charkit/out/hair5truth/scores/scores_lineart.{json,log}`):
+
+| take | view | S px/L | hair IoU | line F 2.5 px (P / R) / floor | lock IoU / within-family floor | pass |
+|---|---|---|---|---|---|---|
+| 1 | front | 386 | 0.857 | 0.310 (0.72 / 0.20) / 0.105 | 0.241 / 0.522 | no |
+| 1 | three-quarter | 387 | 0.871 | 0.229 (0.53 / 0.15) / 0.096 | 0.292 / 0.552 | no |
+| 1 | profile | 380 | 0.917 | 0.106 (0.26 / 0.07) / 0.098 | 0.177 / 0.661 | no |
+| 1 | back | 383 | 0.914 | 0.086 (0.21 / 0.05) / 0.059 | 0.072 / 0.495 | no |
+| 2 | front | 393 | 0.882 | 0.306 (0.65 / 0.20) / 0.106 | 0.241 / 0.522 | no |
+| 2 | three-quarter | 390 | 0.905 | 0.254 (0.66 / 0.16) / 0.098 | 0.254 / 0.552 | no |
+| 2 | profile | 388 | 0.923 | 0.170 (0.38 / 0.11) / 0.097 | 0.242 / 0.661 | no |
+| 2 | back | 388 | 0.932 | 0.150 (0.45 / 0.09) / 0.063 | 0.114 / 0.495 | no |
+
+The silhouette (0.86-0.93, the best of any sheet) and the scale (within 3.4%) pass; the locks don't. The takes draw the
+turnaround's lock strokes as open strokes, as the turnaround itself does (the hem's notches, the side masses'
+partial lines): few closed regions (10-22 per view), so the line F's recall is 0.05-0.20 and the locks score below the
+random split (all 0.19 / 0.21 against 0.39; bangs 0.06, lower back 0.01). They hold no lock structure the turnaround
+lacks. Nothing registered; no more calls. **Under the canonical rule, step 3 (compromise) holds for the bulk's lock
+structure**: the base model takes the best fit across views with per-view costs; the outer masses stay unscored
+(call G); the lock-lines checks are judged against their intent (the drawn lines) rather than a closed-lock truth.
+Pictures with the truth: `charkit/out/hair5/truthpics/VIEW.png` (sheet | lock truth | take 1 | take 2).
+
 ## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
 
 Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed
