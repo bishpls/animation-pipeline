@@ -12,8 +12,8 @@ kept in charkit/out/pregate/base_COMMIT_SPEC.json; each iteration then evaluates
     python -m charkit pregate --rejudge PREGATE_REPORT.json         judged again from the checks it holds
     python -m charkit pregate --box [NAME | auto] [--into BASE]     this branch's committed tip merged into BASE, on a
                                                                     box (charkit.remote.pregate: the laptop is shared;
-                                                                    auto: the build box while it has room, else the
-                                                                    box with the most free slots)
+                                                                    auto, or --box alone: the box with the most
+                                                                    free CPU: charkit.remote.pick_box)
 
 K blocks only on checks the gate's QA names (gate_names: every check in this repository's gate reports); the
 evaluator's own rows (bodymeasure's per-view, per-side pieces) that would block are listed apart.
@@ -332,11 +332,10 @@ def main(args):
         i = args.index('--box')
         name = args[i + 1] if i + 1 < len(args) and not args[i + 1].startswith('-') else None
         rest = args[:i] + args[i + (2 if name else 1):]
-        if name == 'auto':
+        if name in (None, 'auto'):          # (--box alone: auto, as remote's default)
             name, _ = remote.pick_box()
             print('pregate --box auto: %s' % name)
-        remote.BOX['env'] = os.path.join(ROOT, 'infra', 'gcp', (name or 'build') + '.env')
-        remote.BOX['chosen'] = True
+        remote.use(name)
         return remote.pregate(rest)
     if opt('--rejudge'):
         rep = rejudge(opt('--rejudge'))
