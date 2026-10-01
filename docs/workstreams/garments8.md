@@ -124,3 +124,17 @@ Truth checks on fetched builds (tools/garments8/truthlab.py, the views front/3q/
 - Then on build2: `calibrate store g8_lapels0 charkit/out/g8_base --why ...` (and locally for the JSON), then
   `remote run --box build2 --fetch charkit/calib/records python -m charkit calibrate
   'collar_*_truth,top_*_truth,neck_v_*_skin' --build charkit/out/g8_base`.
+
+### The lapels read off the collar truth (front, L from the midline and the eye line; for step 2's template)
+- inner edge (the V): z -0.49 x 0.156, -0.60 0.125, -0.72 0.08, the V's point (0, -0.88) (neck_v's lowest skin -0.881).
+- outer edge: the shoulder (0.40, -0.49), -0.60 0.34, -0.72 0.26-0.28, -0.79 0.20: convex, reaching the middle only
+  under the knot. In the flat lapels' terms (garments.collar lapel project + inner/bottom_a): shoulder ~[0.40, -0.49],
+  point (the outer edge's low end) ~[0.20, -0.80], inner (the V's point) ~[0.0, -0.88]. Round 7's settings stopped at
+  the bow's top edge (point [0.2, -0.66], inner [0.02, -0.68]): nothing defined the lapels under the bow.
+- Caution: the truth's lapel tips z -0.83..-0.90 (111 px) went to bodice_panel (layer_pieces: the tip is cut from the
+  lapel by the 2 px erosion and shares more border with the panel); the V truth carries the point.
+- Box: g8_base built (build2; CPU 1397 s, the declared part 109 s wall / 306 s CPU against g7_base's 79 / 79: the
+  truth z-buffers cost 0.2 s each locally, the rest a fresh clone's caches/JIT). Its QA matches truthlab exactly.
+- Known-bad g8_lapels0 stored (622f6344; locally and on build2). Calibration running on build2 -> fetched
+  charkit/out/g8_base/qa/cal_g8.json (log charkit/out/garments8/cal_g8.log); then write the records locally
+  (calibrate._write_json into charkit/calib/records/) and set the collar truth's limits from the triple.
