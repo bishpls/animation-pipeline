@@ -337,6 +337,5 @@ Dry calibration (`calibrate ... --build charkit/out/calib/cur_comb --no-write`, 
    charkit/out/calib/cur_hands2` (all 42 records).
 4. Box build (render, boards body,design), review page (design | before hands_b4 | after, per view and the hands
    close-ups), pregate, `python -m charkit remote gate tool/hands2 --into pipeline-3d`.
-- Box build `charkit/out/hands2_base` (pipeline-3d 71a2f0e, the before): launched, reached code_body when the box's ssh
-  started failing; check `python -m charkit remote jobs` / `remote attach` before relaunching. hands_b4 serves as the
-  before (the same hand).
+- Box build `charkit/out/hands2_base` (pipeline-3d 71a2f0e, the before): **landed** after wrap-up (exit 0, boards
+  body,design fetched; log charkit/out/hands2/base.log). Use it as the review page's before (hands_b4 has the same hand).
