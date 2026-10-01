@@ -7,11 +7,12 @@ own, charkit.geom.hairpieces.locks: phi wedges cut at the lower edge's notches) 
 
   truth   the source (hair_locks_truth.json: per view cuts and seeds, as hair_truth.json's) -> the npz
           (charkit-hair-locks-truth/1): per view an index image into `locks` (-1 not in the truth, -2 unscored hair: the
-          crown above the drawn lines, a lock the drawing doesn't close)
+          crown above the drawn lines, a lock the drawing doesn't close). Lock labels 'family/name' over the mass
+          families and the strands (TRUTH_FAMILIES: the ahoge and each flyaway a lock too; tool/hair5)
   score   a lock label image per view (0 none) against it: per view the lock count per family, the Hungarian-matched
           locks' IoU, their boundary distance (all and along the drawn lock lines), tip position and tip shape (the
           width profile over the last 20% of the lock's height), and the purity of each labelled region (the share in
-          its dominant drawn lock: a region straddling a drawn lock line is impure)
+          its dominant drawn lock: a region straddling a drawn lock line is impure); per family (the truth lock's) too
   ours    a build's hair pieces z-buffered lock by lock on the design grids (the QA's scene: skin, eyes, mouth,
           garments and accessories occlude)
 
@@ -25,6 +26,9 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FORMAT = 'charkit-hair-locks-truth/1'
 LOCK_FAMILIES = ('bangs', 'side_locks', 'upper_back', 'lower_back')
+# the families a lock label may name (tool/hair5: the strands too, each flyaway and the ahoge a lock); the buns aren't
+# cut into locks and occlude as hair
+TRUTH_FAMILIES = LOCK_FAMILIES + ('ahoge', 'flyaways')
 UNSCORED = 'x'
 WALL_FILL = 2             # px: the drawn lines between locks (unlabelled) go to the nearest lock within this
 MIN_PX = 30               # px: a labelled region smaller than this in a view is not a candidate lock there
@@ -38,7 +42,7 @@ def _p(path):
 
 
 def is_label(q):
-    return q == UNSCORED or ('/' in q and q.split('/', 1)[0] in LOCK_FAMILIES and len(q.split('/', 1)[1]) > 0)
+    return q == UNSCORED or ('/' in q and q.split('/', 1)[0] in TRUTH_FAMILIES and len(q.split('/', 1)[1]) > 0)
 
 
 def family_of(label):
@@ -272,8 +276,17 @@ def score_view(ours, truth, labels, hair, ppl, names=None, tips=None):
         f = family_of(names[c]) if names and c in names else 'regions'
         fam_o[f] = fam_o.get(f, 0) + 1
     n_t = len(tl)
+    # per family (the truth lock's family): the mean lock IoU over its locks (unmatched 0), the partition alone, the
+    # matched count, ours by family
+    fams = {}
+    for f in fam_t:
+        lk = [labels[i] for i in tl if family_of(labels[i]) == f]
+        fams[f] = dict(truth_locks=len(lk), ours=fam_o.get(f, 0),
+                       matched=sum(1 for q in lk if per[q].get('ours') is not None),
+                       lock_iou=round(float(np.mean([per[q]['iou'] for q in lk])), 3),
+                       lock_iou_in=round(float(np.mean([per[q].get('iou_in', 0.0) for q in lk])), 3))
     return dict(
-        truth_locks=n_t, candidates=len(cand), matched=len(pairs), count_truth=fam_t, count_ours=fam_o,
+        truth_locks=n_t, candidates=len(cand), matched=len(pairs), count_truth=fam_t, count_ours=fam_o, families=fams,
         lock_iou=round(float(sum(ious) / max(1, n_t)), 3),            # unmatched truth locks count 0
         lock_iou_in=round(float(sum(ins) / max(1, n_t)), 3),
         lock_iou_area=round(float(sum(p[2] * area_t[p[0]] for p in pairs) / max(1, sum(area_t.values()))), 3),
@@ -304,6 +317,16 @@ def score(ours, truth, hair, ppl, names=None, views=None):
                           lock_iou=round(sum(r['lock_iou'] * r['truth_locks'] for r in vs) / max(1, n), 3),
                           lock_iou_in=round(sum(r['lock_iou_in'] * r['truth_locks'] for r in vs) / max(1, n), 3),
                           purity=round(float(np.mean([r['purity'] for r in vs])), 3))
+        fa = {}
+        for r in vs:
+            for f, x in r.get('families', {}).items():
+                a = fa.setdefault(f, dict(truth_locks=0, matched=0, s=0.0, s_in=0.0))
+                a['truth_locks'] += x['truth_locks']; a['matched'] += x['matched']
+                a['s'] += x['lock_iou'] * x['truth_locks']; a['s_in'] += x['lock_iou_in'] * x['truth_locks']
+        out['all']['families'] = {f: dict(truth_locks=a['truth_locks'], matched=a['matched'],
+                                          lock_iou=round(a['s'] / max(1, a['truth_locks']), 3),
+                                          lock_iou_in=round(a['s_in'] / max(1, a['truth_locks']), 3))
+                                  for f, a in fa.items()}
     return out
 
 
@@ -374,11 +397,11 @@ def build_locks(build):
     B = bl.load(os.path.join(build, 'bundle'))
     D = qa3d.Design(B)
     pdir = os.path.join(build, 'geom', 'hair_pieces')
-    locks = pieces_locks(pdir)
+    locks = pieces_locks(pdir, TRUTH_FAMILIES)
     P = json.load(open(os.path.join(pdir, 'pieces.json')))
     other = []
     for pc in P['pieces']:
-        if pc['family'] not in LOCK_FAMILIES:
+        if pc['family'] not in TRUTH_FAMILIES:
             Z = np.load(os.path.join(pdir, pc['file']))
             other.append((Z['V'], Z['F']))
     img, names = lock_labels(B, D, locks, hair_other=other)
@@ -417,6 +440,12 @@ def score_main(args):
         print('%-14s locks %d (ours %s) matched %d  lock IoU %.3f  boundary %s L  lines %s L  tip %s L  tip width %s L  '
               'purity %.3f' % (v, x['truth_locks'], x['count_ours'], x['matched'], x['lock_iou'], x['boundary_L'],
                                x['line_L'], x['tip_L'], x['tip_width_L'], x['purity']))
+        for f, y in x.get('families', {}).items():
+            print('    %-11s locks %d (ours %d) matched %d  lock IoU %.3f  within the truth %.3f' % (
+                f, y['truth_locks'], y['ours'], y['matched'], y['lock_iou'], y['lock_iou_in']))
+    for f, y in r.get('all', {}).get('families', {}).items():
+        print('all %-11s locks %d matched %d  lock IoU %.3f  within the truth %.3f' % (
+            f, y['truth_locks'], y['matched'], y['lock_iou'], y['lock_iou_in']))
     if '--json' in args:
         json.dump(r, open(_p(args[args.index('--json') + 1]), 'w'), indent=1)
     return r

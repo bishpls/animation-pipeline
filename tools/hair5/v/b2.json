@@ -1,0 +1,5 @@
+{"G_ink0": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.0}}},
+ "H_ink": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6}}},
+ "I_ink_hem": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6}, "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 6}}},
+ "J_ink_ub40": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6}, "lock_min_piece": {"upper_back": 40}}},
+ "K_ink_all": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "ink_fade": {"upper_back": 0.3, "lower_back": 0.6, "side_lock_L": 0.6, "side_lock_R": 0.6}}}}

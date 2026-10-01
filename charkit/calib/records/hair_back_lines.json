@@ -1,0 +1,117 @@
+{
+ "check": "hair_back_lines",
+ "part": "hair_flags",
+ "adapter": "HairFlags",
+ "module": "charkit.calib.hairflags",
+ "at": "2026-09-30T20:39:42",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "hair_piece_upper_back",
+  "hair_piece_lower_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.022,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.022,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.022,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.022,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.022,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.022,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.022,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.022,
+    "PASS"
+   ]
+  },
+  "min": -0.022,
+  "max": -0.022,
+  "spread": 0.0,
+  "median": -0.022,
+  "views": {
+   "back": [
+    -0.022,
+    -0.022
+   ],
+   "front": [
+    -0.023,
+    -0.023
+   ],
+   "profile": [
+    -0.024,
+    -0.024
+   ],
+   "three_quarter": [
+    -0.152,
+    -0.152
+   ]
+  }
+ },
+ "known_bad": {
+  "name": "hair5_1580f95",
+  "value": 3.761,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_lines": {
+   "values": [
+    -0.634,
+    -0.571,
+    -0.344,
+    -0.117,
+    -0.392
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": -0.392,
+   "status": "PASS",
+   "passing": 5
+  }
+ },
+ "probes": {
+  "stripes": {
+   "value": 8.304,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 3.766,
+  "status": "FAIL",
+  "margin": 11.238
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), hair5_1580f95 reads 3.761 FAIL; a random stand-in passes it (voronoi_lines); shape guarded by hair_piece_upper_back, hair_piece_lower_back",
+ "build": "charkit/out/h5_base",
+ "generators": {
+  "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
+  "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
+ },
+ "seconds": 143.5
+}
