@@ -1,0 +1,197 @@
+{
+ "base": "charkit/out/g4_cE2",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts"
+ ],
+ "checks": [
+  "shoulder_*",
+  "collar_*",
+  "art_outline_collar",
+  "art_outline_neck",
+  "art_fragments_collar",
+  "piece_top",
+  "piece_collar",
+  "piece_sleeve_*",
+  "piece_bow",
+  "sleeve_*_spikes_*",
+  "puff_*"
+ ],
+ "boards": {
+  "az": [
+   0,
+   35,
+   180
+  ],
+  "crop": "collar",
+  "pad": 0.2
+ },
+ "variants": {
+  "padA": {
+   "garments.top.pad": {
+    "lift": [
+     [
+      0.1,
+      0.0
+     ],
+     [
+      0.2,
+      0.04
+     ],
+     [
+      0.3,
+      0.08
+     ],
+     [
+      0.4,
+      0.1
+     ],
+     [
+      0.45,
+      0.1
+     ],
+     [
+      0.52,
+      0.0
+     ]
+    ]
+   },
+   "garments.collar.over_cap": 0.15
+  },
+  "padB": {
+   "garments.top.pad": {
+    "lift": [
+     [
+      0.1,
+      0.0
+     ],
+     [
+      0.2,
+      0.028
+     ],
+     [
+      0.3,
+      0.056
+     ],
+     [
+      0.4,
+      0.07
+     ],
+     [
+      0.45,
+      0.07
+     ],
+     [
+      0.52,
+      0.0
+     ]
+    ]
+   },
+   "garments.collar.over_cap": 0.15
+  },
+  "padC": {
+   "garments.top.pad": {
+    "lift": [
+     [
+      0.1,
+      0.0
+     ],
+     [
+      0.2,
+      0.052
+     ],
+     [
+      0.3,
+      0.104
+     ],
+     [
+      0.4,
+      0.13
+     ],
+     [
+      0.45,
+      0.13
+     ],
+     [
+      0.52,
+      0.0
+     ]
+    ]
+   },
+   "garments.collar.over_cap": 0.15
+  },
+  "padAn": {
+   "garments.top.pad": {
+    "lift": [
+     [
+      0.1,
+      0.0
+     ],
+     [
+      0.2,
+      0.04
+     ],
+     [
+      0.3,
+      0.08
+     ],
+     [
+      0.4,
+      0.1
+     ],
+     [
+      0.45,
+      0.1
+     ],
+     [
+      0.52,
+      0.0
+     ]
+    ],
+    "nz": [
+     0.0,
+     0.5
+    ]
+   },
+   "garments.collar.over_cap": 0.15
+  },
+  "padAs": {
+   "garments.top.pad": {
+    "lift": [
+     [
+      0.1,
+      0.0
+     ],
+     [
+      0.2,
+      0.04
+     ],
+     [
+      0.3,
+      0.08
+     ],
+     [
+      0.4,
+      0.1
+     ],
+     [
+      0.45,
+      0.1
+     ],
+     [
+      0.52,
+      0.0
+     ]
+    ],
+    "smooth": 10
+   },
+   "garments.collar.over_cap": 0.15
+  },
+  "cap15": {
+   "garments.collar.over_cap": 0.15
+  }
+ }
+}
