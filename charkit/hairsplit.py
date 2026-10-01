@@ -43,6 +43,7 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FORMAT = 'charkit-hair-split/1'
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
+PIECE_MIN = 0.02           # L^2: a head piece in the hair's colour this large is a hair piece (a bun), else a clip
 AZ_NOMINAL = {'front': 0.0, 'profile': 90.0, 'back': 180.0}
 
 # every length below is in L (the sheet's head length) or in line widths (LW: the sheet's own outline width, measured)
@@ -62,12 +63,24 @@ P = dict(
     ext_momentum=0.6,      # the extension's direction: this share of its own, the rest the flow's
     ext_min_lw=4.0,        # strokes shorter than this (line widths) are texture, not lock lines: not extended
     ball_lw=3.0,           # the trapped ball's largest radius (line widths)
+    protrusion_r=0.0,      # L: the opening that finds the hair's protrusions (0: off)
+    protrusion_len=1.0,    # a protrusion is at least this many base widths long
     cell_min=0.0012,       # L^2: a cell smaller than this joins its neighbour
     tip_scales=(0.02, 0.04, 0.07),   # L: the outline's curvature scales
     tip_prom=0.02,         # L: a tip (notch) stands out from the outline's distance to the crown by at least this
     tip_acute=75.0,        # deg: a convex corner sharper than this is a tip whatever its direction (a curled flick)
     seed_len=0.05,         # L: a tip's seed runs up its axis at most this far
+    frag_min=0.0,        # L^2: a region smaller than this is a fragment: it joins its longest-edged neighbour
     lock_min=0.003,        # L^2: a tipless region this large that flows out of the hair is a lock of its own
+    pieces=False,          # the hair pieces (buns) apart from the lock split (on: their removal cuts the strands under them)
+    occ_tips=True,         # no tip where the outline is an occluder's (a clip) edge ('pieces': a hair piece's too)
+    region_tips='multi',   # a region holding tips' seeds is theirs: True any, 'multi' only several (split between
+                           # them), False none (every region tipless: own or merged)
+    merge_by='vall',       # a tipless region joins: 'vall' the tips' Voronoi's majority, 'decided' the nearest decided
+                           # lock (own or tips') along the flow, 'exits' the lock it flows into
+    notch_lines=False,      # a lock line traced up from each notch of the outline
+    tones=False,
+    stroke_min=0.0,        # L: an interior stroke shorter than this is texture: not a lock wall (0: every stroke is)            # the cel tones' edges cut the cells (and, along the flow, the locks)
     closure_along=0.7,     # a trapped ball's closure whose direction . the flow is at least this continues a lock line
     tip_sep=0.025,         # L: tips closer than this along the outline are one
     aniso=4.0,             # the anisotropic metric: a step across the flow costs this much more than along it
@@ -103,26 +116,39 @@ def inputs(spec, cache=None, log=print):
     views, info = hull.views_from_sheet(rgb_b, (spec.get('eyes') or {}).get('x', 0.168), -1)
     Z = np.load(manifest.produced(spec, 'outfit_masks'))
     om = {k: Z[k] for k in Z.files}
-    out = dict(ppl=ppl, views={}, info=info)
+    # the outfit graph's pieces on the head: drawn in the hair's colour they are hair pieces of their own (buns: not cut
+    # into locks), else occluders over the hair (clips: a lock's end under one is hidden, not a tip)
+    graph = json.load(open(_p(R['outfit_graph']['path']))) if 'outfit_graph' in R else {'pieces': []}
+    head = [pc['id'] for pc in graph.get('pieces', []) if (pc.get('attach') or {}).get('bone') == 'head']
+    out = dict(ppl=ppl, views={}, info=info, head_pieces=head)
     for name in VIEWS:
         if name not in views or name not in dv:
             continue
         v = views[name]
         us, zs, shape, x0y0 = hl.design_grid(v, v.ppl)
         hair = (v.sample(v.labels, us, zs).T == 2) & (v.sample(v.mask.astype(np.uint8), us, zs).T > 0)
-        buns = np.zeros(shape, bool)
-        for b in ('bun_L', 'bun_R'):
-            k = '%s__%s' % (name, b)
-            if k in om and om[k].shape == shape:
-                buns |= om[k]
-        keep = ndimage.binary_dilation(buns, iterations=hl.BUN_RIM) if buns.any() else np.zeros(shape, bool)
+        pieces, occ = {}, np.zeros(shape, bool)
+        for pid in head:
+            m = om.get('%s__%s' % (name, pid))
+            if m is None or m.shape != shape or not m.any():
+                continue
+            if (hair & m).sum() >= 0.5 * m.sum() and m.sum() >= PIECE_MIN * ppl ** 2:
+                pieces[pid] = m
+            else:
+                occ |= m
+        keep = np.zeros(shape, bool)
+        for m in pieces.values():
+            keep |= ndimage.binary_dilation(m, iterations=hl.BUN_RIM)
+        # the hair as the lock truth reads it (tools/hairlocks/ctx.py): every other outfit piece out of it, except
+        # within the hair pieces' rim
         for k, m in om.items():
-            if k.startswith(name + '__') and k.split('__', 1)[1] not in ('bun_L', 'bun_R') and m.shape == shape:
+            if k.startswith(name + '__') and k.split('__', 1)[1] not in pieces and m.shape == shape:
                 hair &= ~(m & ~keep)
         d = dv[name]
         rgb = np.asarray(d['rgb'], float)
         out['views'][name] = dict(rgb=rgb / 255 if rgb.max() > 1.5 else rgb, raw=d['raw'], hair=hair, az=float(v.az),
-                                  col_axis=float(v.axis - x0y0[0]), row_eye=float(v.eye_y - x0y0[1]), ppl=float(v.ppl))
+                                  col_axis=float(v.axis - x0y0[0]), row_eye=float(v.eye_y - x0y0[1]), ppl=float(v.ppl),
+                                  pieces=pieces, occ=occ & ~hair)
     if cache:
         os.makedirs(os.path.dirname(_p(cache)), exist_ok=True)
         pickle.dump(out, open(_p(cache), 'wb'))
@@ -205,6 +231,8 @@ class Split:
         self.full_shape = hair.shape
         cr = lambda a: a[r0:r1, c0:c1]
         self.rgb, self.raw, self.hair0 = cr(V['rgb']), cr(V['raw']), cr(hair)
+        self.pieces = {k: cr(m) for k, m in (V.get('pieces') or {}).items()}
+        self.occ = cr(V['occ']) if V.get('occ') is not None else np.zeros(self.hair0.shape, bool)
         self.col_axis, self.row_eye = V['col_axis'] - c0, V['row_eye'] - r0
         self.az = V['az']
         self.report = {}
@@ -232,12 +260,33 @@ class Split:
         # the hair region: the hair and the ink that bounds it
         H = self.hair0 | (ink & ndimage.binary_dilation(self.hair0, iterations=2))
         H = ndimage.binary_closing(H, iterations=1) | H
+        # the hair pieces (buns) are pieces of their own, not cut into locks: out of the lock region, outline and all
+        self.piece_mask = np.zeros(H.shape, bool)
+        for m in (self.pieces.values() if self.P['pieces'] else ()):
+            self.piece_mask |= ndimage.binary_dilation(m, iterations=int(round(lw)) + 1) & H
+        self.H_all = H.copy()
+        H = H & ~self.piece_mask
         lab, n = ndimage.label(H)
         if n > 1:
             area = np.bincount(lab.ravel()); area[0] = 0
             H = np.isin(lab, np.nonzero(area >= 0.002 * self.ppl ** 2)[0])
         self.lw, self.contrast, self.H, self.ink = lw, contrast, H, ink & H
         self.tophat = th
+        # the cel tones: the hair's fill split in two by Otsu on its value (the lit and the shadow tone), specks
+        # under a line width opened away; their edges (off the ink) are the shading's shapes, which follow the locks
+        from skimage import filters
+        inner = H & ~self.ink
+        self.tone_edges = np.zeros(H.shape, bool)
+        self.dark = np.zeros(H.shape, bool)
+        if inner.sum() > 100:
+            dark = (val < filters.threshold_otsu(val[inner])) & inner
+            r = max(1, int(round(lw / 2)))
+            dark = ndimage.binary_opening(dark, structure=_disk(r))
+            light = ndimage.binary_opening(inner & ~dark, structure=_disk(r))
+            e = (ndimage.binary_dilation(dark, iterations=1) & light) | (ndimage.binary_dilation(light, iterations=1) & dark)
+            self.dark = dark
+            self.tone_edges = e & ~self.ink
+        self.report.update(dark_share=round(float(self.dark.sum() / max(1, inner.sum())), 3))
         self.report.update(line_width_px=round(lw, 2), fill_value=round(v_fill, 3), ink_value=round(v_ink, 3),
                            contrast=round(contrast, 3), hair_px=int(H.sum()), ink_px=int(self.ink.sum()))
 
@@ -403,8 +452,30 @@ class Split:
                 rr, cc = draw.line(int(round(r0)), int(round(c0)), int(round(r1)), int(round(c1)))
                 ext[rr, cc] = True
             self.extensions.append(dict(start=e['rc'], how=how, pts=a[::4].round(1).tolist(), length=len(pts) * P['axis_step']))
+        # the notches: a lock line runs up from each notch of the outline between two tips (the animator's move where
+        # the drawing draws only the notch): traced upstream along the flow until ink, an extension or the outline
+        if P['notch_lines']:
+            hits['notch'] = 0
+            for t in self.notch_list:
+                o = np.array(t['out'])                     # from the chord to the notch: out of the hair at a notch
+                f = self.f_at(t['rc'])
+                up = -f
+                start = (t['rc'][0] + 1.5 * up[0], t['rc'][1] + 1.5 * up[1])
+                pts, how = self.trace(start, up, self.ink | ext, skip_px=P['ext_skip_lw'] * lw)
+                if how == 'cap' and not P['ext_keep_cap']:
+                    continue
+                a = np.array([t['rc']] + pts)
+                for (r0, c0), (r1, c1) in zip(a[:-1], a[1:]):
+                    rr, cc = draw.line(int(round(r0)), int(round(c0)), int(round(r1)), int(round(c1)))
+                    ext[rr, cc] = True
+                hits['notch'] += 1
+                self.extensions.append(dict(start=[round(t['rc'][0], 1), round(t['rc'][1], 1)], how='notch:' + how,
+                                            pts=a[::4].round(1).tolist(), length=len(pts) * P['axis_step']))
         self.ext = ext & self.H
-        walls = self.ink | self.ext
+        self.bases = self.protrusions() if P['protrusion_r'] else np.zeros(self.H.shape, bool)
+        walls = self.ink | self.ext | self.bases
+        if P['tones']:
+            walls = walls | self.tone_edges
         free = self.H & ~walls
         # trapped balls: from the largest radius down, the components a ball of that radius can roam become cells
         R = max(1, int(round(P['ball_lw'] * lw)))
@@ -428,6 +499,40 @@ class Split:
         cells = self._merge_small(cells, amin)
         self.walls, self.cells = walls, cells
         self.report.update(extensions=hits, cells=int(len(np.unique(cells[cells > 0]))), ball_px=R)
+
+    def protrusions(self):
+        """the hair's protrusions (an ahoge, a strand, a flick): what an opening of the hair by a disk of protrusion_r
+        L removes, kept where it is elongated (at least as long as its base is wide) and lock-sized; each is cut at its
+        base, where it leaves the opened mass (the truth's rules 9-11: the ahoge cut across its base, a strand or flick
+        across its base notch to notch). -> the base lines (bool image)."""
+        from scipy import ndimage
+        P, ppl = self.P, self.ppl
+        rad = max(1, int(round(P['protrusion_r'] * ppl)))
+        body = ndimage.binary_opening(self.H, structure=_disk(rad))
+        pro = self.H & ~body
+        lab, n = ndimage.label(pro)
+        bases = np.zeros(self.H.shape, bool)
+        ring = ndimage.binary_dilation(body, iterations=1) & ~body
+        kept = 0
+        for j, sl in enumerate(ndimage.find_objects(lab), 1):
+            m = lab == j
+            area = int(m.sum())
+            if area < P['cell_min'] * ppl ** 2:
+                continue
+            base = ndimage.binary_dilation(m, iterations=1) & ring & self.H
+            if not base.any():
+                continue                                   # a separate piece: its own region already
+            br, bc = np.nonzero(base)
+            width = math.hypot(br.max() - br.min(), bc.max() - bc.min()) + 1
+            # length: the furthest pixel of the protrusion from its base
+            d = ndimage.distance_transform_edt(~base)
+            length = float(d[m].max())
+            if length < P['protrusion_len'] * width:
+                continue
+            bases |= ndimage.binary_dilation(base, iterations=1) & self.H
+            kept += 1
+        self.report.update(protrusions=kept)
+        return bases
 
     def _grow(self, lab, mask, it=None):
         from scipy import ndimage
@@ -534,6 +639,15 @@ class Split:
             for i in nk:
                 found.append(dict(rc=(float(Q[i, 0]), float(Q[i, 1])), sharp=float(best[i]), kind=-1, why='radial',
                                   out=outd[i].tolist(), scale=float(scl[i]), contour=ci, s=int(i)))
+        # one tip per place: across outlines too (a hole's edge next to the outer edge), the sharper kept
+        sepL = sep
+        keep = []
+        for t in sorted(found, key=lambda t: (t['kind'] < 0, -t['sharp'])):
+            if any(q['kind'] == t['kind'] and math.hypot(q['rc'][0] - t['rc'][0], q['rc'][1] - t['rc'][1]) < sepL
+                   for q in keep):
+                continue
+            keep.append(t)
+        found = keep
         tips, notches = [], []
         for t in found:
             if t['kind'] < 0:
@@ -548,6 +662,16 @@ class Split:
                 o = v / max(1e-9, np.hypot(*v))
                 t['out'] = o.tolist()
             t['down'] = float(o[0] * f[0] + o[1] * f[1])
+            # beyond the tip: an occluder (a clip) or a hair piece (a bun) means the outline there is the edge of
+            # something over the hair, not a lock's end
+            k = self.lw + 3
+            r_, c_ = int(round(t['rc'][0] + k * o[0])), int(round(t['rc'][1] + k * o[1]))
+            if 0 <= r_ < self.H.shape[0] and 0 <= c_ < self.H.shape[1]:
+                win = (slice(max(0, r_ - 1), r_ + 2), slice(max(0, c_ - 1), c_ + 2))
+                if self.P['occ_tips'] and (self.occ[win].any() or self.piece_mask[win].any() or
+                                           (self.P['occ_tips'] == 'pieces' and
+                                            any(m[win].any() for m in self.pieces.values()))):
+                    continue
             tips.append(t)
         self.tip_list, self.notch_list = tips, notches
         self.report.update(tips=len(tips), notches=len(notches),
@@ -628,12 +752,18 @@ class Split:
             a = t['axis']
             seg = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(a, axis=0).T))]) if len(a) > 1 else np.zeros(1)
             m = np.zeros(self.H.shape, bool)
+            started = False
             for (r, c), L_ in zip(a, seg):
                 r, c = int(round(r)), int(round(c))
                 if not (0 <= r < m.shape[0] and 0 <= c < m.shape[1]) or not self.H[r, c]:
                     continue
-                if L_ > lim or (self.walls[r, c] and L_ > 2):
+                if L_ > lim + (seg[0] if False else 0) and started:
                     break
+                if self.walls[r, c]:
+                    if started:
+                        break                              # the next wall: the seed stops
+                    continue                               # the outline's ink at the tip: step over it
+                started = True
                 m[r, c] = True
             if not m.any():
                 r, c = int(round(t['rc'][0])), int(round(t['rc'][1]))
@@ -677,8 +807,56 @@ class Split:
             else:
                 ncr += 1
         along = ndimage.binary_dilation(along, iterations=1) & free
-        self.lockwalls = walls | along
+        lw_ = walls
+        if P['tones']:
+            # the tone edges judged per pixel: an edge along the flow (a shadow between two locks) is a lock wall,
+            # one across it (a lock's shaded underside) is not
+            g = ndimage.gaussian_filter(self.dark.astype(float), max(1.0, self.lw))
+            gy, gx = np.gradient(g)
+            n = np.hypot(gy, gx) + 1e-9
+            cosn = np.abs(gy * self.down[0] + gx * self.down[1]) / n
+            te_along = self.tone_edges & (cosn <= math.sqrt(1 - P['closure_along'] ** 2))
+            lw_ = (walls & ~self.tone_edges) | te_along
+            self.report.update(tone_edge_px=int(self.tone_edges.sum()), tone_edge_along_px=int(te_along.sum()))
+        if P['stroke_min']:
+            # a short interior stroke (its ink apart from the outline shorter than stroke_min L) is texture, a strand
+            # or a split tip's line, not a lock line (the truth's rule 1): it cuts the cells, not the locks
+            from skimage import morphology
+            band = ndimage.binary_dilation(~self.H, iterations=int(round(self.lw)) + 2)
+            inner = self.ink & ~band
+            lab, n = ndimage.label(inner, structure=np.ones((3, 3)))
+            if n:
+                sk = morphology.skeletonize(inner)
+                length = np.bincount(lab[sk], minlength=n + 1)
+                short = np.isin(lab, np.nonzero(length < P['stroke_min'] * self.ppl)[0]) & (lab > 0)
+                lw_ = lw_ & ~short
+                self.report.update(short_strokes=int(np.sum((length[1:] > 0) & (length[1:] < P['stroke_min'] * self.ppl))),
+                                   long_strokes=int(np.sum(length[1:] >= P['stroke_min'] * self.ppl)))
+        self.lockwalls = lw_ | along
         self.report.update(closures_along=nal, closures_across=ncr)
+
+    def _merge_fragments(self, regions, amin):
+        """regions smaller than amin (slivers between strokes, fragments a stroke's gaps leave) join the neighbour
+        they share the most edge with across the walls, the smallest first -> relabelled regions (1..n)."""
+        from scipy import ndimage
+        R = regions.copy()
+        for _ in range(4):
+            ids, cnt = np.unique(R[R > 0], return_counts=True)
+            small = ids[cnt < amin][np.argsort(cnt[cnt < amin])]
+            if not len(small):
+                break
+            for i in small:
+                m = R == i
+                if not m.any():
+                    continue
+                ring = ndimage.binary_dilation(m, iterations=int(round(self.lw)) + 2) & ~m & (R > 0)
+                if not ring.any():
+                    continue
+                nb, nc = np.unique(R[ring], return_counts=True)
+                R[m] = nb[np.argmax(nc)]
+        ids = np.unique(R[R > 0])
+        lut = np.zeros(R.max() + 1, np.int32); lut[ids] = np.arange(1, len(ids) + 1)
+        return lut[R]
 
     def _exits(self, m, labels):
         """a region's downstream exits: from each of its pixels a step of exit_lw line widths downstream, carried on
@@ -720,12 +898,19 @@ class Split:
         self.closures()
         free = self.H & ~self.lockwalls
         regions, nreg = ndimage.label(free)
+        if P['frag_min']:
+            regions = self._merge_fragments(regions, P['frag_min'] * self.ppl ** 2)
+            nreg = int(regions.max())
         V_free = self._voronoi(free, seeds)
         owners = {}
         for ti, m in seeds.items():
             for c in np.unique(regions[m]):
-                if c:
+                if c and P['region_tips']:
                     owners.setdefault(int(c), set()).add(ti)
+        if P['region_tips'] == 'multi':
+            # only a region holding several tips is theirs (split between them); one with a single tip is read as a
+            # tipless one: its own lock where it flows out of the hair, else merged along the flow
+            owners = {c: t for c, t in owners.items() if len(t) >= 2}
         out = np.zeros(regions.shape, np.int32)
         nxt = len(self.tip_list) + 1
         amin = P['lock_min'] * self.ppl ** 2
@@ -742,21 +927,77 @@ class Split:
                 out[m] = self._grow(sub, m)[m]; n_split += 1
             else:
                 tipless.append(c)
-        # tipless regions, largest first: own locks, or merged whole along the flow
-        tipless.sort(key=lambda c: -int((regions == c).sum()))
+        # tipless regions: a lock of its own when it flows out of the hair; else it joins the lock it flows into (its
+        # downstream exits, resolved downstream first; split between two when each takes split_share), or by
+        # merge_by 'vall' the lock that reaches it most along the flow (the tips' Voronoi through the walls)
+        ex = {}
+        lock_of = {c: None for c in tipless}
         for c in tipless:
             m = regions == c
             n_out, into = self._exits(m, regions)
+            ex[c] = (n_out, into, int(m.sum()))
             tot = n_out + sum(into.values())
             if m.sum() >= amin and (tot == 0 or n_out >= (1 - P['exit_hair']) * tot):
-                out[m] = nxt; nxt += 1; n_own += 1
-                continue
-            v = V_all[m]
+                out[m] = nxt; lock_of[c] = nxt; nxt += 1; n_own += 1
+        if P['merge_by'] == 'exits':
+            for _ in range(len(tipless) + 1):
+                changed = False
+                for c in tipless:
+                    if lock_of[c] is not None:
+                        continue
+                    n_out, into, area = ex[c]
+                    tot = sum(into.values())
+                    if not tot:
+                        continue
+                    # the downstream regions' locks (decided ones; an undecided tipless one waits)
+                    tl = {}
+                    wait = False
+                    for r_, n_ in into.items():
+                        if n_ < P['split_share'] * tot * 0.5:
+                            continue
+                        if r_ in lock_of and lock_of[r_] is None:
+                            wait = True
+                            break
+                        L_ = lock_of.get(r_) if r_ in lock_of else int(np.bincount(out[regions == r_]).argmax())
+                        if L_:
+                            tl[L_] = tl.get(L_, 0) + n_
+                    if wait or not tl:
+                        continue
+                    m = regions == c
+                    strong = [L_ for L_, n_ in tl.items() if n_ >= P['split_share'] * tot]
+                    if len(strong) >= 2:
+                        seeds_ = {}
+                        for r_, n_ in into.items():
+                            L_ = lock_of.get(r_) if r_ in lock_of else int(np.bincount(out[regions == r_]).argmax())
+                            if L_ in strong:
+                                nb = ndimage.binary_dilation(regions == r_, iterations=int(P['exit_lw'] * self.lw) + 2) & m
+                                seeds_[L_] = seeds_.get(L_, np.zeros(m.shape, bool)) | nb
+                        vor = self._grow(self._voronoi(m, seeds_), m)
+                        out[m] = vor[m]
+                        lock_of[c] = -1
+                    else:
+                        L_ = max(tl, key=tl.get)
+                        out[m] = L_; lock_of[c] = L_
+                    n_merge += 1
+                    changed = True
+                if not changed:
+                    break
+        rest = [c for c in tipless if lock_of[c] is None]
+        if rest and P['merge_by'] == 'decided':
+            # the regions not yet decided join the decided lock that reaches them most cheaply (the anisotropic metric,
+            # walls dear): its neighbour along the flow line rather than across it
+            dec = {}
+            for L_ in np.unique(out[out > 0]):
+                dec[int(L_)] = out == L_
+            V_dec = self._voronoi(self.H, dec) if dec else np.zeros(out.shape, np.int32)
+        for c in rest:
+            m = regions == c
+            v = V_dec[m] if P['merge_by'] == 'decided' else V_all[m]
             ids, cnt = np.unique(v[v > 0], return_counts=True)
             if len(ids):
-                out[m] = ids[np.argmax(cnt)]; n_merge += 1
+                out[m] = ids[np.argmax(cnt)]; lock_of[c] = int(ids[np.argmax(cnt)]); n_merge += 1
             else:
-                out[m] = nxt; nxt += 1; n_own += 1
+                out[m] = nxt; lock_of[c] = nxt; nxt += 1; n_own += 1
         out = self._grow(out, self.H)
         self.regions = regions
         self.locks = out

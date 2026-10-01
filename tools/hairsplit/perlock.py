@@ -23,5 +23,7 @@ if __name__ == '__main__':
         if views and v not in views:
             continue
         print('==', v)
+        if v not in res[stages[0]]:
+            continue
         for q in T[1][v]:
             print('  %-24s %s' % (q, '  '.join('%s %.2f' % (st[:5], res[st][v]['locks'][q]['iou']) for st in stages)))

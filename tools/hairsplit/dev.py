@@ -43,6 +43,18 @@ def draw_view(S, T, labels, out):
     d2 = pics.colour(S.locks_tips, rgb, 0.7, seed=5)
     d2[pics.edges(S.locks_tips) & S.H] = [0, 0, 0]
     Image.fromarray(pics.zoom(d2, 2)).save(out.replace('.png', '_tipsstage.png'))
+    # 4c: the regions (cut by the lock walls) with the tips' seeds
+    if hasattr(S, 'regions'):
+        g = pics.colour(S.regions, rgb, 0.7, seed=9)
+        g[pics.edges(S.regions) & S.H] = [0, 0, 0]
+        for m in S.seed_masks.values():
+            g[m] = [255, 255, 255]
+        g = Image.fromarray(pics.zoom(g, 2))
+        dg = ImageDraw.Draw(g)
+        for t_ in S.tip_list:
+            r, cc = t_['rc']
+            dg.ellipse([(cc * 2 - 4, r * 2 - 4), (cc * 2 + 4, r * 2 + 4)], outline=(255, 0, 0), width=2)
+        g.save(out.replace('.png', '_regions.png'))
     # 5: truth
     t = T[box[0]:box[1], box[2]:box[3]]
     tt = np.where(t >= 0, t + 1, 0)
@@ -114,7 +126,7 @@ if __name__ == '__main__':
         print(name, json.dumps(S.report), '%.1fs' % (time.time() - t0))
         if '--no-pics' not in a:
             draw_view(S, T[0][name], T[1][name], os.path.join(out, '%s.png' % name))
-    np.savez_compressed(os.path.join(out, 'stages.npz'), **{'%s__%s' % (st, v): im for st, x in res.items() for v, im in x.items()})
+    if not views: np.savez_compressed(os.path.join(out, 'stages.npz'), **{'%s__%s' % (st, v): im for st, x in res.items() for v, im in x.items()})
     tabs = {}
     for st, imgs in res.items():
         r = hs.score(imgs, T)
