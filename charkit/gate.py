@@ -3,7 +3,8 @@ branch moves: throwaway worktrees at the integration head take the baseline and,
 candidate; the tests run, each side is built when it has to be, and the two builds' QA and traces are compared.
 
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--accept PATTERN,...] [--keep]
-                                  [--build]
+                                  [--build] [--batch BRANCH,...]
+        # --batch: BRANCH is a batch merge of these workstream branches; their recorded acceptances apply
     python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
     python -m charkit gate --accept-fail CHECK --by NAME --why TEXT [--branch BRANCH] [--value V] [--status S]
         # the coordinator records Michael's acceptance of a named new FAIL (charkit/accepted/CHECK.json: commit it on
@@ -39,7 +40,9 @@ The verdict: Michael's policy K (2026-09-30). The merge is blocked (FAIL) only b
     registry `shape`, per view) drops by more than 15% in a view.
 A new FAIL (or a guard block) Michael has accepted by name (charkit/accepted/CHECK.json, `gate --accept-fail`) is
 reported with who, when and why instead; so is a flag check's regression he accepted at a named reading (`--status`,
-`--value`: the candidate's status that one, its value within ACCEPT_TOL of it).
+`--value`: the candidate's status that one, its value within ACCEPT_TOL of it). A record covers a gate of the branch it
+names; a batch merge (the integrator's branch merging several workstreams) names them with --batch, and their records
+cover it too (rep['batch']; calibrate.covers).
 Everything else (a PASS going WARN, a value moving, a check going or new, the 2x2's drops short of those) is reported,
 not enforced: the report's "Report" section and its summary (REPORT.summary.json: the verdict, what blocks, and each
 reported move, for the integrator's morning report). PASS otherwise.
@@ -666,7 +669,7 @@ def _cand_reference(gdir, tip, suffix, opts, head, wc):
 
 
 def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=False, accept=(), force_build=False,
-         parallel=None):
+         parallel=None, batch=()):
     from . import closure, history, trace
     clock = Clock()
     head = _git('rev-parse', '--short', into).stdout.strip()
@@ -684,7 +687,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         v = os.environ.get('CHARKIT_GATE_PARALLEL')
         parallel = (os.cpu_count() or 1) >= 16 if v is None else v != '0'
     rep = {'branch': branch, 'tip': tip, 'into': into, 'head': head, 'spec': spec, 'args': list(args),
-           'suffix': suffix, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'accept': list(accept), 'policy': 'K',
+           'suffix': suffix, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'accept': list(accept), 'batch': list(batch),
+           'policy': 'K',
            'hard': [], 'phases': clock.rows, 'build': {}, 'parallel': parallel}
     if _free_gb(tempfile.gettempdir()) < 5:
         raise SystemExit('gate: only %.1f GB free on disk; free some before gating' % _free_gb(tempfile.gettempdir()))
@@ -1519,9 +1523,9 @@ def judge(rep, qa_a, qa_b):
         keep = []
         for b in block:
             a = acc.get(b.get('check'))
-            if b.get('kind') in ('new FAIL', 'anti-gaming guard') and calibrate.covers(a, rep.get('branch')) or \
-                    b.get('kind') == 'flag check regressed' and calibrate.covers(a, rep.get('branch')) and \
-                    _accepted_reading(a, b.get('cand')):
+            cov = calibrate.covers(a, rep.get('branch'), rep.get('batch') or ())
+            if b.get('kind') in ('new FAIL', 'anti-gaming guard') and cov or \
+                    b.get('kind') == 'flag check regressed' and cov and _accepted_reading(a, b.get('cand')):
                 R['accepted'].append(dict(b, accepted={k: a.get(k) for k in ('by', 'at', 'why', 'value', 'branch',
                                                                               'recorded_by')}))
             else:
@@ -1611,8 +1615,8 @@ def summary(rep, md=None):
     """the machine-readable summary (REPORT.summary.json): the verdict under K, what blocks, the report by kind."""
     t = rep.get('tests') or {}
     return dict(branch=rep['branch'], tip=rep['tip'], into=rep['into'], head=rep['head'], spec=rep['spec'],
-                t=rep['t'], policy='K', verdict=rep['verdict'], verdict_pre_k=rep.get('verdict_pre_k'),
-                why=rep.get('why'), blocking=rep.get('blocking') or [],
+                batch=rep.get('batch') or [], t=rep['t'], policy='K', verdict=rep['verdict'],
+                verdict_pre_k=rep.get('verdict_pre_k'), why=rep.get('why'), blocking=rep.get('blocking') or [],
                 report={k: v for k, v in (rep.get('report') or {}).items() if v},
                 counts={k: len(v) for k, v in (rep.get('report') or {}).items() if v},
                 build=dict(rep.get('build') or {}, base=_brief(rep.get('base_build')), cand=_brief(rep.get('cand_build'))),
@@ -1690,6 +1694,8 @@ def _write(rep, gdir, tag):
     if rep.get('verdict_pre_k') and rep['verdict_pre_k'] != rep['verdict']:
         line += ' (Before K: %s.)' % rep['verdict_pre_k']
     L.append('\n' + line)
+    if rep.get('batch'):
+        L.append('\nA batch merge of %s: their recorded acceptances (charkit/accepted/) apply.' % ', '.join(rep['batch']))
     if rep.get('why'):
         L.append('\n' + rep['why'])
     L.append('\n## Blocking (policy K)\n')
@@ -1721,6 +1727,7 @@ def _write(rep, gdir, tag):
         if key == 'accepted':
             L += _table(rows, [('check', lambda r: r['check']), ('what', lambda r: r.get('kind')),
                                ('candidate', lambda r: _cell(r.get('cand') or r.get('to'))),
+                               ('branch', lambda r: r['accepted'].get('branch') or '-'),
                                ('by', lambda r: r['accepted'].get('by')), ('when', lambda r: r['accepted'].get('at')),
                                ('why', lambda r: r['accepted'].get('why'))])
             L.append('')
@@ -1919,5 +1926,6 @@ def main(args):
         return
     rep = gate(args[0], into=opt('--into', 'HEAD'), spec=opt('--spec', 'charkit/spec/clawd.json'),
                args=shlex.split(opt('--args', '')), keep='--keep' in args,
-               accept=[a for a in opt('--accept', '').split(',') if a], force_build='--build' in args)
+               accept=[a for a in opt('--accept', '').split(',') if a], force_build='--build' in args,
+               batch=[b for b in opt('--batch', '').split(',') if b])
     raise SystemExit(0 if rep['verdict'] != 'FAIL' else 1)
