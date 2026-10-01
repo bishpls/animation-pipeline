@@ -253,6 +253,14 @@ parts. Its message's "22" counts every failed calibrate job; 9 were this error.
    0 failed (283 s). (One pytest process: charkit/out/infra5s/pytest_all.log.)
 2. Pre-gate (`pregate --box auto`, build2 box): PASS, 0 moved, 0 blocking, 588 s (dda8d629 into 59c93f38;
    charkit/out/pregate/pregate_tool-infra5-s_dda8d629_into_59c93f38.md).
-3. The gate: `python -m charkit remote gate tool/infra5-s --into pipeline-3d` launched on dda8d629 (log
-   charkit/out/infra5s/gate.log; its job id is in that log: `remote attach JID` if this session ends). Read it under K. Expected under K: no check moves (no QA code changed: codediff 0 parts;
+   One pytest process: 740 passed, 2 failed, both known order-dependent (test_optimize qa stage, test_registry
+   order; each passes alone); test_procs' slots one passes now (tool/build2's isolation).
+3. **The gate: PASS under K** (gate-infra5s-1001-162808-eb53, build2 box): tool/infra5-s 1a1f1e5e into pipeline-3d
+   59c93f38. Nothing blocks, 0 items reported (no check moved), all tests ok, build CPU 1316.0 -> 1083.3 s (0.82x:
+   the baseline came from another gate's build, so the difference is the box's load, not this branch). Report
+   charkit/out/gate/gate_tool-infra5-s_1a1f1e5e_into_59c93f38.md.
+4. Left for integration: regenerate docs/CODEMAP.md (charkit/cow.py, test_slotprio); `git stash drop` the stopped
+   agent's WIP once nobody wants it. Later: after a day of samples, `remote jobs --silences --days 1` on both boxes
+   to check STALL_MIN per kind against the measured longest silences (the limits now rest on durations and line
+   counts). Expected under K: no check moves (no QA code changed: codediff 0 parts;
    no geometry change), CPU ~1.0x (the cow hook isn't installed in a gate's clone; procs' wait-file scan is per poll).
