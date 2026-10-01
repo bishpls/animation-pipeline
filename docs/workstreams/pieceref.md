@@ -266,8 +266,20 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      0.076 F, lean 20 F, knot_iou 0.536 W (front), lobe 0.702, knot_line 0.904 F, rect 0.359 F, crease 1.0 F / None F,
      iso body 0.679 F, iso knot line 0.904 F, iso creases F.
 
+   - **The clearance folds** (coordinator's bound reached; db98f8a): every gap tried flips the strips' triangles against
+     the bake alone (`flips.py x0 RUN`; x0 = bake, gap -1): x6 110, x7 137, x8 199, x9 297 flipped (z 0.19-0.38 L below the
+     bow's top), and in front the lower outer corners read crumpled (x9's tiles, probe_x9_front.png). So the default spec
+     is w4 WITHOUT clear (bleed 0.25 FAIL, for the coordinator to judge); `clear` stays a knob. Options: (a) a column push
+     (every lobe vertex at (x, z) by one smoothed vector: no squeeze, but the panels' fronts come forward where the strips'
+     backs are buried, up to ~0.05 L: the profile); (b) a depth-weighted floor (deep vertices left as they are, only the
+     ones within ~0.01 L of the jacket cleared) with a smoothed normal field; (c) the strip built shallower behind the
+     panel at its lower edge (step/thin per u), so less is buried. The cause is measured: the strips' backs sit 0.004-0.03 L
+     inside the jacket's rendered surface (the subdivided render up to 0.007 L in front of its cage), and the bust below
+     the lower edge comes toward the camera, so the outline's lower band needs ~0.015 L clear along the normal.
+   - The x9 box build (build-pieceref-0930-210737-312d) was killed when the spec went back to w4.
+
 ## Next steps, in order (round 4, after the bleed fix)
-1. Box build of f506933+ (`remote build charkit/spec/clawd.json --out charkit/out/pr3`), then calibration records:
+1. Box build of db98f8a+ (`remote build charkit/spec/clawd.json --out charkit/out/pr3`), then calibration records:
    `python -m charkit calibrate 'bow_part_*,iso_bow_*,bow_profile_*' --build charkit/out/pr3` (bow_profile_ribbon's
    record is for the old measure: rerun; bow_part_knot_iou remeasured), commit charkit/calib/records/*.json.
 2. Review page (tiles.py on b2_before and pr3, review.py with summary.json; the three compromises as yes/no), then the
