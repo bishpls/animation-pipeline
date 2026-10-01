@@ -384,3 +384,8 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   hair, the lapels' corners at the neck and the bow) and art_outline_neck (3q: the collar's top edge meeting the neck).
   Best candidate: body.shoulder + H1 (spec: sh0.json + k15's H1 collar). Next: corners.py on an H1 box build, round the
   lapels' neck corners and the outer ends (the front table's first rows; the top edge easing down into the puff).
+- **The V:** g4_nv2 (top.opening's V rows x0.85): neck_v_front_skin 0.476 F -> 0.765 W, art_outline_neck 1.684 W ->
+  1.472 P; but neck_crease 26.9 W -> 55.3 F (column -25): the opened V shows the body's own join, which reads 40-45
+  degrees all round on the whole skin (neck_crease_all 44.7 on every build): the neck turns into the chest within
+  ~0.02 L under the cut (NECK_BASE 0.12 L loft). New knob body.neck_join (code_base; default unchanged): builds
+  g4_nv2j18 / g4_nv2j24 (neck_join 0.18 / 0.24) running.
