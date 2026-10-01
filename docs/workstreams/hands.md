@@ -366,3 +366,12 @@ fits, builds and calibrations run on the boxes; local work is light (single eval
   now track the drawn; a 9 deg turn gives 0.79-0.82 (the hand's angle: dev 0 gives front 0.79, dev -4 0.81).
 - Next: fit2 on the render box (DE + Powell, floors at 0.9 x the before's QA hand_shape views), then the spec, tests,
   the box build, calibrate 'hand_*' on it (42 records minus the 3 INFO-only), review page, pregate, gate.
+- **fit2 on the old render box (job hand-hands-1001-081934-0f97): killed at 110 min with no generation done.** A pool
+  forked after the parent's first evaluation hung (fork after threads). Now: DE workers spawned, each building its own
+  fit (Fit.src), thread counts 1, a per-generation progress line (generation, best cost, per-view IoU); smoke-tested
+  locally (2 workers, 1 generation). Fits run on the build box (no --box), which has no build of this worktree:
+  **s1** = a QA-only build there of the start knobs (fit1's with dev 0, committed in the spec), `charkit/out/hands2_s1`,
+  log charkit/out/hands2/s1.log: the real QA's first reading of the new template and the refit's --build.
+  Next: `remote run --fetch charkit/out/hands2/box_fit3 hand fit --build charkit/out/hands2_s1 --floors ... --method de
+  --workers 16 --maxiter 30 --rounds 1 --maxfev 300 --png/--json charkit/out/hands2/box_fit3/...`, then setknobs.py,
+  the after-build on --box render2 (boards body,design), calibrate on the build box.

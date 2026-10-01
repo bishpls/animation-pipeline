@@ -470,7 +470,8 @@ class Fit:
             return float(np.mean(costs)), full
         return float(np.mean(costs)), per
 
-    def run(self, knobs=FIT_KNOBS, rounds=3, log=print, method='powell', workers=1, seed=0, maxiter=40):
+    def run(self, knobs=FIT_KNOBS, rounds=3, log=print, method='powell', workers=1, seed=0, maxiter=40, popsize=12,
+            maxfev=400):
         """Powell's method over the knobs within BOUNDS (scaled to their ranges), from the spec's knobs, `rounds` times
         from the best so far; or method 'de': differential evolution over the box (scipy; `workers` processes, forked
         with this fit), then Powell from its best -> (P, cost, per)."""
@@ -491,17 +492,29 @@ class Fit:
         c0 = f(x0)
         log('start %.4f %s' % (c0, best['per']))
         if method == 'de':
+            # (workers spawned, each building its own fit from self.src: a pool forked after this process has
+            # evaluated once hung on the old render box, fit2 at 110 min with no generation done)
             from scipy.optimize import differential_evolution
             global _DE
             _DE = (self, to_P)
-            pool = None
+            pool, gen = None, [0]
             if workers > 1:
                 import multiprocessing as mp
-                pool = mp.get_context('fork').Pool(workers)
+                for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS'):
+                    os.environ[k] = '1'
+                pool = mp.get_context('spawn').Pool(workers, initializer=_de_init,
+                                                    initargs=(self.src, self.floors, P0, list(knobs), lo, hi))
+
+            def progress(xk, convergence=None):
+                gen[0] += 1
+                c, per = self.score(to_P(xk))
+                log('de generation %d: best %.4f (convergence %.3f) iou %s' % (
+                    gen[0], c, convergence or 0.0, ' '.join('%s %.3f' % (k, v[0]) for k, v in per.items())))
             try:
                 res = differential_evolution(_de_cost, [(0, 1)] * len(knobs), x0=x0, seed=seed, maxiter=maxiter,
-                                             popsize=12, tol=1e-4, polish=False, init='sobol',
-                                             workers=pool.map if pool else 1, updating='deferred' if pool else 'immediate')
+                                             popsize=popsize, tol=1e-4, polish=False, init='sobol',
+                                             workers=pool.map if pool else 1, callback=progress,
+                                             updating='deferred' if pool else 'immediate')
             finally:
                 if pool:
                     pool.close()
@@ -510,7 +523,7 @@ class Fit:
         for r in range(rounds):
             xs = (np.array([best['P'][k] for k in knobs]) - lo) / (hi - lo)
             res = minimize(f, xs, method='Powell', bounds=[(0, 1)] * len(knobs),
-                           options=dict(xtol=0.01, ftol=1e-4, maxfev=400))
+                           options=dict(xtol=0.01, ftol=1e-4, maxfev=maxfev))
             log('round %d %.4f (%d evaluations) %s' % (r, best['c'], res.nfev,
                                                         {k: round(best['P'][k], 4) for k in knobs}))
         return best['P'], best['c'], best['per']
@@ -519,8 +532,17 @@ class Fit:
 _DE = None
 
 
+def _de_init(src, floors, P0, knobs, lo, hi):
+    """a spawned worker's fit (src: _fit_for's arguments), its knobs' mapping as the parent's."""
+    global _DE
+    F, _ = _fit_for(*src)
+    F.floors = floors
+    _DE = (F, lambda x: dict(P0, **{k: float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1))
+                                    for i, k in enumerate(knobs)}))
+
+
 def _de_cost(x):
-    """differential evolution's cost (module level, so forked workers reach the fit through _DE)."""
+    """differential evolution's cost (module level: a worker reaches its fit through _DE)."""
     F, to_P = _DE
     return F.score(to_P(x))[0]
 
@@ -534,7 +556,9 @@ def _fit_for(build, spec_path, over=None):
         spec.setdefault('body', {}).setdefault('hand', {}).update(over)
     hull = manifest.produced(B.spec, 'hull')
     masks = manifest.produced(B.spec, 'outfit_masks')
-    return Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json')), spec
+    F = Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json'))
+    F.src = (build, spec_path, over)
+    return F, spec
 
 
 def show(F, P, out):
@@ -594,7 +618,8 @@ def main(args):
         F.floors = json.loads(opt('--floors'))
     P, c, per = F.run(knobs=knobs, rounds=int(opt('--rounds', 3)), log=lambda *a, **k: print(*a, flush=True),
                       method=opt('--method', 'powell'), workers=int(opt('--workers', 1)), seed=int(opt('--seed', 0)),
-                      maxiter=int(opt('--maxiter', 40)))
+                      maxiter=int(opt('--maxiter', 40)), popsize=int(opt('--popsize', 12)),
+                      maxfev=int(opt('--maxfev', 400)))
     c, full = F.score(P, detail=True)
     res = dict(cost=round(c, 4), per=full, knobs={k: (round(v, 4) if isinstance(v, float) else v) for k, v in P.items()},
                fist=fist_report(hand(F.J['left'], 'left', P)))
