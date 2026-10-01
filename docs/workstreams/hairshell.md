@@ -145,6 +145,48 @@ row's folder given a `bundle` link to the base's):
   most 31 deg), max-curvature clamps, smoothness prior 0.02 -> 1.0 (ls13: folds 2, fit IoU mean 0.665, coverage front
   0.610 / profile 0.537).
 
+**Then:** the family's region as containment (a side lock shows where side locks are drawn, not over the lower back),
+and each drawing view's envelope depth (the lock on top along that view's ray: `view_depth`).
+
+**Sweep 5** (`charkit/out/hairshell/sw5`, `keys.txt`; lock scores `lp5`; base hs_base, numpy drawing):
+
+| row | lock IoU all / side / lower | side locks front / profile | lower back front / profile / back | upper back profile / back | terminator | peeks | noise | lock lines 3q / profile | hem | folds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| hull shell (control) | 0.355 / 0.394 / 0.304 | 0.560 / 0.469 | 0.514 / 0.665 / 0.672 | 0.621 / 0.889 | 2.126 | 17 | 0.072 | 0.176 / 0.120 | 3 | 9 |
+| sides, depth 0 | 0.375 / 0.501 / 0.292 | 0.611 / 0.517 | 0.483 / **0.544** / 0.669 | 0.698 / 0.891 | 1.686 | 24 | 0.093 | 0.290 / 0.160 | 3 | 9 |
+| sides, depth 0.3 | 0.381 / 0.533 / 0.292 | 0.651 / 0.516 | 0.501 / **0.547** / 0.669 | 0.705 / 0.891 | 2.089 | 23 | 0.092 | 0.245 / 0.145 | 3 | 8 |
+| sides, depth 1 | 0.379 / 0.529 / 0.293 | 0.589 / 0.629 | 0.474 / 0.654 / 0.669 | 0.704 / 0.891 | 1.894 | 30 | 0.095 | 0.265 / 0.154 | 3 | 14 |
+| pilot (+ back flicks over), depth 0.3 | 0.393 / 0.530 / 0.347 | 0.651 / 0.516 | 0.504 / **0.515** / 0.724 | 0.652 / 0.899 | 2.278 | 26 | 0.094 | 0.251 / 0.197 | 2 | 11 |
+| **pilot, depth 1 (chosen)** | **0.387 / 0.522 / 0.334** | **0.589 / 0.614** | 0.481 / 0.608 / 0.718 | 0.666 / 0.898 | **2.018** | 37 | 0.096 | **0.269 / 0.203** | **2** | 14 |
+
+Bold lower-back profile: the anti-gaming guard trips (> 15% down). The chosen row trips nothing: every piece within
+-9% in every view (lower back front -6%, profile -9%), the side locks +5% / +31%, the back's lower back +7%.
+Its costs: art_peeks_hair 17 -> 37 (WARN both: the shells leave gaps the hull's one shell didn't), hair_noise 0.072 ->
+0.096 (WARN -> FAIL: more tone edges), folds 9 -> 14 (WARN band). On the build (rows are the numpy drawing): see the
+render builds `charkit/out/hs_hull_r` (default) and `charkit/out/hs_shells_r` (`tools/hairshell/clawd_shells.json`).
+The fit (`charkit/out/hairshell/ls_final`): 17 shells (12 side locks, 4 hem flicks + 1), 18 views fitted, IoU against
+their drawn locks mean 0.650; only 1 lock fitted jointly in two views (the identity across views is the open problem).
+
+## Step 6: extending lock shells to the whole head (exact next steps, for a lean relaunch)
+
+1. **Identity across views first** (the pilot's weak point: 1 of 17 locks fitted in two views). Associate by the
+   splitter's tip matches (`hairsplit.json` `tip_matches`, call H's links: 0.03 L) before centreline proximity; a
+   target joins the lock whose tip it shares. Measure: locks fitted in 2+ views, the 3q's side-lock IoU (0.424 -> ?).
+2. **Gaps (peeks 17 -> 37):** shells of one family overlap their neighbours by a line width at their drawn
+   boundaries (widen toward the neighbouring target only), or an under-mass: keep the family's hull piece inset a
+   further `inset` L under the shells (`replace: false` for families, as the hem group does). Gate on art_peeks_hair
+   back to <= 17.
+3. **Noise (0.072 -> 0.096):** the shells' shading normals: lock_shading 0.2 blends each tube's own roundness; try 0 for
+   shells, measured on hair_noise and art_terminator_hair.
+4. **Bangs** (`families: ["bangs", "side_locks"]`, primary front then profile): the splitter's bangs are its best
+   family (0.719 profile, 0.584 front); the hull's bangs piece scores 0.769 IoU, so guard every view.
+5. **Upper back** (primary back, phi 100-260): the stripes from the crown; replace: false first (over the cap).
+6. **Lower back, whole hem** (both sides, phi 90-270): needs a hooked-flick template (the drawn flicks curl: a Bezier
+   tube can't follow a hook; add a curl angle at the tip) and the cell targets (`unit: 'cells'`).
+7. **Ahoge and flyaways:** keep their fitted templates (ahoge_fit, flyaways); only re-root them on the shells.
+8. Each step: `python -m charkit.geom.lockshell BUILD --opts ...` (fit, coverage, picture), then `charkit sweep` rows
+   against the hull (the guard per view), `tools/hairshell/lockpics.py` for the truth, then Michael's call on the page.
+
 ## Jobs
 
 - sweep 4 (laptop, background): `charkit/out/hairshell/sw4` (sides, pilot, pilot_over) + lock scores `lp4`.
