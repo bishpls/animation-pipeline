@@ -235,7 +235,45 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      recommended, asked, key_cols, key, checks); `charkit/out/pieceref/review/` has design_*.png, b2_before_*.png (drawn
      before tiles.py's frame fix: redo) and closeup_front.png.
 
-## Next steps, in order (round 4; plan steps 1-3 of round 3 done but bleed)
+13. **Round 4 (2026-09-30, relaunched lean; coordinator: knot graded front only, w4's shear, bottom .30).**
+   - **bow_front_bleed fixed** (f506933): garments.bow_hull `clear` -> `clear_of`: the lobes (panels, strips, almonds;
+     not the knot or tails) pushed out along the jacket's normal to >= `gap` L in front of the jacket's rendered surface
+     (the 'top' shell rebuilt from `_spec`, subdivided level 1 as it renders: the render sits up to 0.007 L in front of
+     the cage under the lobes), by a monotone soft floor (gap + soft log(1 + e^((d - gap)/soft))); the bow's Subdivision
+     baked first (`bake`, default; the piece then built with subdiv 0), since clearing the cage left the subdivided
+     strip 0.0016 L into the jacket. Harness: `jgap.py SRC` (per-vertex gap by part; at the bleed pixels), `section.py
+     SRC X..` (vertical section, env SC/Z0/Y0), `cagecmp.py`, `topcmp.py`, `xbatch.sh NAME CLEAR_JSON..` (w4 + clear).
+     The remaining bleed after a normal gap is the view direction: the bust below the lobes' lower edge comes toward the
+     camera (slope ~0.6), hiding the outline's lower band, so the gap had to grow past the line's width x that slope.
+
+     | run (w4 + clear) | bleed | piece_bow F/3q/P | lobes F L/R, 3q L/R, P | thick | lean | iso body |
+     |---|---|---|---|---|---|---|
+     | w4 | 0.25 F | 0.951/0.852/0.685 | .989/.980, .834/.887, .894 | 0.046 W | 4.2 | 0.811 W |
+     | x1-x3 cage gap .006/.012 | 0.225/0.105 F | | | | | |
+     | x4/x5 limit surface .006/.010 | 0.215/0.105 F | | | | | |
+     | x6/x7 baked .006/.010 | 0.208 F / 0.053 W | | | | | |
+     | x8 baked .014 soft .004 | 0.028 P | 0.951/0.851/0.685 | .990/.987, .846/.889, .923 | 0.031 W | 2.2 | 0.834 W |
+     | **x9 baked .018 soft .004 (default)** | **0.018 P** | 0.952/0.851/0.685 | .990/.989, .847/.895, .923 | 0.030 P | 2.8 P | 0.834 W |
+
+     x9 also: loop_end 0.123 P, knot line/rect P, crease len 0.15 / dir 10.7 P, iso creases P, ribbon 0 P, tail_reach
+     0.034 W, hang 0. `xs` (the spec, no sets) reproduces x9 exactly.
+   - **bow_part_knot_iou graded on the front only** (2a71baf, step 021a8f0; partqa.GRADED; 3q/profile in the check's
+     `info`). Reads 1.0 PASS on x9 (was the worst view 0.0 FAIL).
+   - Pregate (f506933's tree): PASS, 0 blocking. Regressions to WARN (not flag, not blocking): body_profile_chest
+     0.0023 P -> 0.0438 W (b2_before 0.0023, v0/b2_close 0.0245, w4 and x9 0.0438: the pleat's thinner loops in profile,
+     not the clearance), piece_collar_front_bottom 0.028 P -> -0.127 W.
+   - pipeline-3d's bow (b2_before) for the review: loop_end 0.121 P, bleed 0 P, tail_reach 0.109 F, hang 12.6 F, thick
+     0.076 F, lean 20 F, knot_iou 0.536 W (front), lobe 0.702, knot_line 0.904 F, rect 0.359 F, crease 1.0 F / None F,
+     iso body 0.679 F, iso knot line 0.904 F, iso creases F.
+
+## Next steps, in order (round 4, after the bleed fix)
+1. Box build of f506933+ (`remote build charkit/spec/clawd.json --out charkit/out/pr3`), then calibration records:
+   `python -m charkit calibrate 'bow_part_*,iso_bow_*,bow_profile_*' --build charkit/out/pr3` (bow_profile_ribbon's
+   record is for the old measure: rerun; bow_part_knot_iou remeasured), commit charkit/calib/records/*.json.
+2. Review page (tiles.py on b2_before and pr3, review.py with summary.json; the three compromises as yes/no), then the
+   gate `python -m charkit remote gate tool/pieceref --into pipeline-3d`.
+
+## Round 3's next steps (done but as noted in State 13)
 1. **bow_front_bleed on w4** (flag; baseline b2_before 0.0 P: must PASS, <= 0.03): add u (along the lobe) to
    bleeddepth.py's touching pixels to confirm where; then try, one knob at a time with collar_flags in EXTRA: the strip
    ending earlier or closing sooner (`close` .3-.4), `tilt` 2-3, the strip's step smaller only toward the end; or the
