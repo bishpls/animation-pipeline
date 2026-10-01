@@ -216,10 +216,12 @@ def test_resume_reproduces_the_uninterrupted_run():
 def test_pool_matches_in_process():
     with tempfile.TemporaryDirectory() as d:
         decl = syn(budget=dict(generations=3), stop=dict(stall=0))
+        decl['args'] = dict(sleep=0.05)                             # (rows that take time: both workers serve)
         R1, _ = run(decl, os.path.join(d, 'a'))
         R2, o = run(decl, os.path.join(d, 'b'), workers=2, inproc=False)
-        assert o['workers'] == 2
-        assert [(h['key'], h['f']) for h in R1.H] == [(h['key'], h['f']) for h in R2.H]
+        assert o['workers'] == 2, o['workers']
+        # (the pool records rows as they finish: the same rows and values, in completion order)
+        assert sorted((h['name'], h['key'], h['f']) for h in R1.H) == sorted((h['name'], h['key'], h['f']) for h in R2.H)
         assert {h.get('worker') for h in R2.H if not h.get('cached')} == {0, 1}
 
 

@@ -97,6 +97,7 @@ DEFAULTS = dict(method='cma', seed=0, sigma0=0.2, popsize='auto', probe=True,
                 stop=dict(tolfun=1e-3, stall=8, tolx=1e-3, target=None),
                 constraints=dict(guard=None, flags=True, no_new_fail=True, keep=[], proxy_real=True))
 MAX_WORKERS = 16
+MIN_QUEUED = 4                # workers queued for slots when a busy machine has fewer free
 INT_FLOOR = 0.4               # an integer knob's spread kept at least this many integer steps (it can't stall on a value)
 STALL_SPREAD = 0.05           # the stall rule's narrowed search: every continuous knob's spread under this share of its range
 MIN_IOU = 0.05                # the guard reads a piece-view whose control IoU is above this (sweep.guard's)
@@ -796,94 +797,150 @@ class InProc:
         pass
 
 
+class _Batch:
+    """one run()'s rows: their replies as they come, and a wait that ends when every row has one."""
+
+    def __init__(self, n, on_result):
+        self.res, self.left, self.on_result = [None] * n, n, on_result
+        self.cv = threading.Condition()
+
+    def done(self, i, msg):
+        with self.cv:
+            if self.res[i] is not None:
+                return
+            self.res[i] = msg
+        try:
+            if self.on_result:                          # (recorded before the row counts as done: run() returns
+                self.on_result(i, msg)                  # only once every row's entry is written)
+        finally:
+            with self.cv:
+                self.left -= 1
+                self.cv.notify_all()
+
+
 class Pool:
-    """n persistent workers (`sweep worker`), each in a build slot with its own context, fed from one queue: run(reqs)
-    returns the replies in order. A worker that dies fails its row (and leaves the pool smaller)."""
+    """n persistent workers (`sweep worker`), each a fresh interpreter (fork+exec, so no fork-after-threads hazard) in a
+    build slot with its own context, all fed from one queue. A worker joins as soon as it has its slot and context (on
+    a busy box the pool starts with those ready and grows as slots free up); one that dies has its row run again once
+    by another (a row that kills two fails)."""
+
+    RETRIES = 1
 
     def __init__(self, decl_path, out, n, log=print, env=None):
-        self.log = log
-        self.procs, self.logs = [], []
+        self.log, self.out = log, out
+        self.procs, self.logs, self.threads = [], [], []
+        self.jobs = queue.Queue()
+        self.state = {}                                  # worker -> 'starting' | 'ready' | 'failed' | 'dead'
+        self.secs = {}
+        self.cv = threading.Condition()
         os.makedirs(os.path.join(out, 'workers'), exist_ok=True)
-        # (each worker a fresh interpreter, fork+exec by subprocess before any thread here starts: no fork-after-threads
-        # hazard, as a multiprocessing pool forked from a threaded parent has)
         cmd = [sys.executable, '-m', 'charkit', 'sweep', 'worker', decl_path, '--out', out]
-        log('optimize: starting %d workers (each takes a build slot and makes the stage\'s context; logs %s)' % (
-            n, os.path.join(out, 'workers')))
+        log('optimize: starting %d workers (each takes a build slot, then makes the stage\'s context; the pool starts '
+            'with the first ready and grows; logs %s)' % (n, os.path.join(out, 'workers')))
         for i in range(n):
             lf = open(os.path.join(out, 'workers', 'worker_%d.log' % i), 'a')
             p = subprocess.Popen(cmd + ['--id', str(i)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=lf,
                                  text=True, bufsize=1, cwd=ROOT, env=dict(os.environ, **(env or {})))
             self.procs.append(p)
             self.logs.append(lf)
-        self.ready, secs = [], []
-        for i, p in enumerate(self.procs):
-            line = p.stdout.readline()
-            try:
-                msg = json.loads(line) if line else dict(ready=False, error='exited')
-            except ValueError:
-                msg = dict(ready=False, error='bad line %r' % line[:200])
-            if msg.get('ready'):
-                self.ready.append(i)
-                secs.append(msg.get('seconds') or 0)
-                log('optimize: worker %d ready (pid %s, context %s s)' % (i, msg.get('pid'), msg.get('seconds')))
-            else:
-                log('optimize: worker %d failed to start: %s (%s)' % (i, msg.get('error'),
-                                                                    os.path.join(out, 'workers', 'worker_%d.log' % i)))
-        if not self.ready:
+            self.state[i] = 'starting'
+        for i in range(n):
+            t = threading.Thread(target=self._serve, args=(i,), daemon=True)
+            t.start()
+            self.threads.append(t)
+        t0 = time.time()
+        with self.cv:
+            while not any(s == 'ready' for s in self.state.values()) and \
+                    any(s == 'starting' for s in self.state.values()):
+                self.cv.wait(30)
+                if time.time() - t0 > 300 and not any(s == 'ready' for s in self.state.values()):
+                    t0 = time.time()
+                    log('optimize: no worker ready yet (waiting for build slots: `python -m charkit ps`)')
+        if not any(s == 'ready' for s in self.state.values()):
             self.close()
             raise SystemExit('optimize: no worker started (see %s)' % os.path.join(out, 'workers'))
-        self.n = len(self.ready)
-        self.context_seconds = round(max(secs), 1) if secs else None
+
+    @property
+    def n(self):
+        return max(1, sum(1 for s in self.state.values() if s == 'ready'))
+
+    @property
+    def context_seconds(self):
+        return round(max(self.secs.values()), 1) if self.secs else None
+
+    def _set(self, w, s):
+        with self.cv:
+            self.state[w] = s
+            self.cv.notify_all()
+
+    def _serve(self, w):
+        p = self.procs[w]
+        line = p.stdout.readline()
+        try:
+            msg = json.loads(line) if line else dict(ready=False, error='exited before it was ready')
+        except ValueError:
+            msg = dict(ready=False, error='bad line %r' % line[:200])
+        if not msg.get('ready'):
+            self.log('optimize: worker %d failed to start: %s (%s)' % (
+                w, msg.get('error'), os.path.join(self.out, 'workers', 'worker_%d.log' % w)))
+            self._set(w, 'failed')
+            return
+        self.secs[w] = msg.get('seconds') or 0.0
+        self._set(w, 'ready')
+        self.log('optimize: worker %d ready (pid %s, context %s s; %d ready)' % (w, msg.get('pid'), msg.get('seconds'),
+                                                                               self.n))
+        while True:
+            item = self.jobs.get()
+            if item is None:
+                return
+            batch, i, req, tries = item
+            try:
+                p.stdin.write(json.dumps(dict(req, id=i)) + '\n')
+                p.stdin.flush()
+                line = p.stdout.readline()
+                reply = json.loads(line) if line else None
+            except (OSError, ValueError):
+                reply = None
+            if reply is None:
+                self.log('optimize: worker %d died on row %s (%s)' % (w, req['row']['name'], os.path.join(
+                    self.out, 'workers', 'worker_%d.log' % w)))
+                self._set(w, 'dead')
+                if tries < self.RETRIES and self._alive():
+                    self.jobs.put((batch, i, req, tries + 1))
+                else:
+                    batch.done(i, dict(error='worker %d died' % w, worker=w))
+                return
+            reply.pop('id', None)
+            reply['worker'] = w
+            batch.done(i, reply)
+
+    def _alive(self):
+        return any(s in ('ready', 'starting') for s in self.state.values())
 
     def run(self, reqs, on_result=None):
-        q = queue.Queue()
+        batch = _Batch(len(reqs), on_result)
         for i, r in enumerate(reqs):
-            q.put((i, r))
-        res = [None] * len(reqs)
-        dead = set()
-
-        def drive(w):
-            p = self.procs[w]
+            self.jobs.put((batch, i, r, 0))
+        with batch.cv:
+            while batch.left:
+                batch.cv.wait(15)
+                if batch.left and not self._alive():
+                    break
+        if batch.left:                                   # (every worker gone: what's left fails)
             while True:
                 try:
-                    i, r = q.get_nowait()
+                    b, i, r, _ = self.jobs.get_nowait()
                 except queue.Empty:
-                    return
-                try:
-                    p.stdin.write(json.dumps(dict(r, id=i)) + '\n')
-                    p.stdin.flush()
-                    line = p.stdout.readline()
-                    msg = json.loads(line) if line else None
-                except (OSError, ValueError, BrokenPipeError):
-                    msg = None
-                if msg is None:
-                    res[i] = dict(error='worker %d died' % w, worker=w)
-                    dead.add(w)
-                    if on_result:
-                        on_result(i, res[i])
-                    return
-                msg.pop('id', None)
-                msg['worker'] = w
-                res[i] = msg
-                if on_result:
-                    on_result(i, msg)
-        ts = [threading.Thread(target=drive, args=(w,), daemon=True) for w in self.ready]
-        for t in ts:
-            t.start()
-        for t in ts:
-            t.join()
-        if dead:
-            self.ready = [w for w in self.ready if w not in dead]
-            self.n = len(self.ready)
-            self.log('optimize: workers %s died; %d left' % (sorted(dead), self.n))
-        for i, r in enumerate(res):                     # (rows left when every worker died)
-            if r is None:
-                res[i] = dict(error='no worker left')
-                if on_result:
-                    on_result(i, res[i])
-        return res
+                    break
+                b.done(i, dict(error='no worker left'))
+            for i, x in enumerate(batch.res):
+                if x is None:
+                    batch.done(i, dict(error='no worker left'))
+        return batch.res
 
     def close(self):
+        for _ in self.threads:
+            self.jobs.put(None)
         for p in self.procs:
             try:
                 if p.poll() is None:
@@ -1003,8 +1060,12 @@ class Run:
         if isinstance(self.workers_req, int) or (isinstance(self.workers_req, str) and self.workers_req.isdigit()):
             return max(1, int(self.workers_req))
         total, free = free_slots()
-        n = max(1, min(MAX_WORKERS, free - int(self.reserve)))
-        self.log('optimize: %d build slots, %d free: %d workers (reserve %d)' % (total, free, n, self.reserve))
+        # the free slots less the reserve; on a busy machine at least MIN_QUEUED (they wait for slots and join the
+        # pool as they get them)
+        floor = max(1, min(MIN_QUEUED, total - int(self.reserve)))
+        n = max(floor, min(MAX_WORKERS, free - int(self.reserve)))
+        self.log('optimize: %d build slots, %d free: %d workers (reserve %d%s)' % (
+            total, free, n, self.reserve, '; queued for slots' if n > free else ''))
         return n
 
     # -- evaluating candidates
@@ -1196,6 +1257,7 @@ class Run:
                 meta['mean_hist'] = list(meta.get('mean_hist') or []) + [[round(float(x), 6) for x in reflect(O.m)]]
                 self.write_state(meta, O)
             meta['stop'] = stop
+            meta['workers'] = max(meta.get('workers') or 0, E.n)
             self.log('optimize: stopped: %s' % stop)
             if d.get('boards'):
                 self.boards(E, objects)
@@ -1986,7 +2048,7 @@ class Synthetic:
       keep_toy    a check that WARNs when n > args.keep_at"""
 
     def __init__(self, decl):
-        self.args = dict(dict(opt=[0.8, 0.3, 0.6, 3], cliff=0.6, flag_at=0.75, keep_at=5, noise=0.0),
+        self.args = dict(dict(opt=[0.8, 0.3, 0.6, 3], cliff=0.6, flag_at=0.75, keep_at=5, noise=0.0, sleep=0.0),
                          **(decl.get('args') or {}))
         self.n = 0
 
@@ -1998,6 +2060,8 @@ class Synthetic:
             raise KeyboardInterrupt('the test\'s interrupt')         # (test_optimize's resume: a run cut short)
         bowl = (a - o[0]) ** 2 + (b - o[1]) ** 2 + 0.5 * (c - o[2]) ** 2 + 0.01 * (n - o[3]) ** 2
         self.n += 1
+        if A.get('sleep'):
+            time.sleep(A['sleep'])
         if A.get('noise'):
             bowl += A['noise'] * float(np.random.default_rng(int(1e6 * (a + 2 * b + 3 * c + 5 * n))).normal())
         front = 0.9 if a <= A['cliff'] else max(0.0, 0.9 - 2.0 * (a - A['cliff']))
