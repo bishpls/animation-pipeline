@@ -596,3 +596,10 @@ palm_line, JointFit's silhouette-IoU structure fit (kept as tools, not the struc
 7. What's left beyond: the hands-only ink colour (a per-vertex outline ink through the Blender line material, the export,
    charkit/render and look.js); c3's hand sheet (handsheet.cells needs a cuff for the wrist line: the uncuffed path,
    the narrowest run, exists in landmarks(cuffed=False); scale by wrist width: palm_len_over_wrist).
+- **ratio4 landed, degenerate** (charkit/out/hands3/ratio4): the DE ran to curl 29.7 (its bound), dev -19, overlap 0.33,
+  palm_len 0.369 (the fingers curled shut to close the gaps): fit-scale IoU front 0.551/0.558, back 0.573/0.566, 3q
+  0.675/0.522, profile 0.659. Worse than the single evaluation at ratio3's angles with the prior thumb (front 0.707/0.727,
+  back 0.723/0.717, 3q 0.780/0.751, profile 0.602; ratio_start4.json with thumb_down 10). **Next rest fit:** start there,
+  Powell only (no DE), the curl bounded to about [-10, 12], overlap and dev fixed (0, ratio3's -2.2), knobs palm_len,
+  curl, spread, thumb_out, thumb_down, bend; if front/back still sit ~5% under the comb's QA, report the per-view costs
+  (the sheet's landmark structure vs the turnaround's rest silhouette) to the coordinator before going further.
