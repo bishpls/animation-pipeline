@@ -89,27 +89,52 @@
    {
     "check": "art_outline_neck",
     "toward": "pass",
-    "weight": 4
+    "weight": 4,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
    },
    {
     "check": "art_outline_collar",
     "toward": "pass",
-    "weight": 2
+    "weight": 2,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
    },
    {
     "check": "art_mirror_waist",
     "toward": "pass",
-    "weight": 2
+    "weight": 2,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
    },
    {
     "check": "art_speckle_neck",
     "toward": "pass",
-    "weight": 2
+    "weight": 2,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
    },
    {
     "check": "bow_front_bleed",
     "toward": "pass",
-    "weight": 3
+    "weight": 3,
+    "limits": [
+     0.03,
+     0.06
+    ],
+    "better": "lower"
    },
    {
     "check": "neck_v_front_skin",
@@ -119,7 +144,12 @@
    {
     "check": "collar_*_torn",
     "toward": "pass",
-    "weight": 1
+    "weight": 1,
+    "limits": [
+     0.004,
+     0.008
+    ],
+    "better": "lower"
    },
    {
     "check": "sleeve_*_spikes_*",
@@ -129,84 +159,154 @@
    {
     "check": "sleeve_*_profile_*",
     "toward": "pass",
-    "weight": 1
+    "weight": 1,
+    "limits": [
+     0.02,
+     0.04
+    ],
+    "better": "lower"
    },
    {
     "check": "sleeve_*_rough_*",
     "toward": "pass",
-    "weight": 1
+    "weight": 1,
+    "limits": [
+     0.007,
+     0.014
+    ],
+    "better": "lower"
    },
    {
     "check": "piece_top",
-    "toward": "target",
+    "toward": "pass",
     "field": "views.front",
-    "target": 0.75,
-    "scale": 0.1,
+    "limits": [
+     0.749,
+     0.637
+    ],
+    "better": "higher",
     "weight": 2
    },
    {
     "check": "piece_top",
-    "toward": "target",
+    "toward": "pass",
     "field": "views.three_quarter",
-    "target": 0.8,
-    "scale": 0.1,
+    "limits": [
+     0.799,
+     0.679
+    ],
+    "better": "higher",
     "weight": 1
    },
    {
     "check": "piece_top",
-    "toward": "target",
+    "toward": "pass",
     "field": "views.back",
-    "target": 0.93,
-    "scale": 0.1,
+    "limits": [
+     0.931,
+     0.791
+    ],
+    "better": "higher",
     "weight": 1
    },
    {
-    "check": "piece_sleeve_L",
-    "toward": "target",
-    "field": "views.front",
-    "target": 0.95,
-    "scale": 0.1,
-    "weight": 1
-   },
-   {
-    "check": "piece_sleeve_L",
-    "toward": "target",
+    "check": "piece_top",
+    "toward": "pass",
     "field": "views.profile",
-    "target": 0.94,
-    "scale": 0.1,
+    "limits": [
+     0.635,
+     0.54
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "pass",
+    "field": "views.front",
+    "limits": [
+     0.948,
+     0.806
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "pass",
+    "field": "views.profile",
+    "limits": [
+     0.942,
+     0.801
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "pass",
+    "field": "views.back",
+    "limits": [
+     0.854,
+     0.726
+    ],
+    "better": "higher",
     "weight": 1
    },
    {
     "check": "piece_sleeve_R",
-    "toward": "target",
+    "toward": "pass",
     "field": "views.front",
-    "target": 0.95,
-    "scale": 0.1,
+    "limits": [
+     0.954,
+     0.811
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_R",
+    "toward": "pass",
+    "field": "views.back",
+    "limits": [
+     0.862,
+     0.733
+    ],
+    "better": "higher",
     "weight": 1
    },
    {
     "check": "piece_collar",
-    "toward": "target",
+    "toward": "pass",
     "field": "views.front",
-    "target": 0.66,
-    "scale": 0.1,
-    "weight": 0.5
+    "limits": [
+     0.657,
+     0.558
+    ],
+    "better": "higher",
+    "weight": 1
    },
    {
     "check": "piece_collar",
-    "toward": "target",
+    "toward": "pass",
     "field": "views.three_quarter",
-    "target": 0.47,
-    "scale": 0.1,
-    "weight": 0.5
+    "limits": [
+     0.467,
+     0.397
+    ],
+    "better": "higher",
+    "weight": 1
    },
    {
     "check": "piece_collar",
-    "toward": "target",
+    "toward": "pass",
     "field": "views.back",
-    "target": 0.93,
-    "scale": 0.1,
-    "weight": 0.5
+    "limits": [
+     0.927,
+     0.788
+    ],
+    "better": "higher",
+    "weight": 1
    }
   ],
   "constraints": {
