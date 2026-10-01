@@ -1,0 +1,92 @@
+{
+ "check": "skirt_panel_three_quarter_creases",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T02:12:11",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_skirt"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.104,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.104,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.104,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.108,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.104,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.104,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.104,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.104,
+    "PASS"
+   ]
+  },
+  "min": 0.104,
+  "max": 0.108,
+  "spread": 0.004,
+  "median": 0.104
+ },
+ "known_bad": {
+  "name": "g4_before",
+  "value": 1.0,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 1.0,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.591,
+  "status": "WARN",
+  "margin": 0.456
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.004), g4_before reads 1.0 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
+ "build": "charkit/out/g4_creases2",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 46.1
+}

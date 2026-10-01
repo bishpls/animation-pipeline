@@ -31,7 +31,9 @@ def run(I, T, params):
         r = hs.score(x, T)
         out[st] = dict(all=r['all']['lock_iou'], tune=pooled(r, TUNE), check=pooled(r, CHECK),
                        views={v: r[v]['lock_iou'] for v in hs.VIEWS},
-                       families={f: y['lock_iou'] for f, y in r['all']['families'].items()})
+                       families={f: y['lock_iou'] for f, y in r['all']['families'].items()},
+                       view_families={v: {f: y['lock_iou'] for f, y in r[v].get('families', {}).items()}
+                                      for v in hs.VIEWS if v in r})
     return out
 
 
@@ -55,4 +57,7 @@ if __name__ == '__main__':
             name, x['all'], x['tune'], x['check'], ' '.join('%s %.3f' % (v[:5], q) for v, q in x['views'].items()),
             r['cells']['all'], r['tips']['all'], ' '.join('%s %.2f' % (f[:5], q) for f, q in x['families'].items()),
             time.time() - t0))
+        print('%-22s back lower %.3f | front lower %s | profile lower %s | bangs %s' % (
+            '', x['view_families']['back'].get('lower_back', 0), x['view_families']['front'].get('lower_back'),
+            x['view_families']['profile'].get('lower_back'), x['families'].get('bangs')))
         json.dump(res, open(out, 'w'), indent=1)

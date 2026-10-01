@@ -2834,6 +2834,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                          None if o.get('trim_below_chin', False) else case.chin_z,
                                          o.get('trim_sides', 'drawn'), o.get('trim_tq_slack', 0.0))
     regions = piece_regions(F, o, trim)
+    if o.get('fields_only'):
+        return dict(fields=F, regions=regions)      # (charkit.geom.lockshell's context: the fields the pieces are cut on)
     refined = refine_tips(F, regions, masks, views, hull_frame) if views is not None and hull_frame is not None else {}
     pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined, 'carved_under_buns': carved}
     if 'trim' in F:
@@ -2858,6 +2860,13 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                             outline_w=np.concatenate(ow))
         report['pieces'][name] = dict(family=family, locks=len(parts), verts=int(off),
                                       tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4), folds=nf)
+    LS = None
+    if o.get('lock_shells') and views is not None and hull_frame is not None:
+        # (tool/hairshell, option B: the named families' locks, and named groups of a family's, as their own shells
+        # fitted to the drawn locks (charkit.geom.lockshell), in place of the envelope's wedges)
+        from . import lockshell
+        LS = lockshell.build_shells(F, masks, views, hull_frame, L, o['lock_shells'], log)
+        report['lock_shells'] = LS['report']
     sectors = {}
     if o.get('crown_blend', 0) > 0 and o.get('cap_sectors', False):
         sectors = cap_sectors(crown_cap(F, style, o, L), F, regions, o['cap_sectors'])
@@ -2897,7 +2906,22 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
             L_ = [(None, None, float(np.mean([bd[0](np.array([LL['th'][1]]))[0], bd[1](np.array([LL['th'][1]]))[0]])))
                   for bd in B_]
         else:
+            if LS is not None:
+                # a group of this family's locks as shells: the wedges whose tips fall in its azimuths go
+                for g in LS['opts']['groups']:
+                    if g['family'] == R['family'] and g.get('phi') and g.get('replace', True) and LS['parts'].get(
+                            g.get('name', '%s_%s' % (g['family'], g.get('view', '')))):
+                        L_ = [q for q in L_ if not (g['phi'][0] <= q[2] <= g['phi'][1])]
             parts = [lock_shell(F, piece, a, b, t, ph, R['top'], edge, style, o, L, efn) for a, b, t in L_]
+            if LS is not None:
+                side = piece.rsplit('_', 1)[-1] if R['family'] == 'side_locks' else None
+                if R['family'] in LS['opts']['families']:
+                    sh = [q for q in LS['parts'].get(R['family'], []) if side is None or q['fit']['side'] == side]
+                    if sh:
+                        parts = sh
+                for g in LS['opts']['groups']:
+                    if g['family'] == R['family']:
+                        parts = parts + LS['parts'].get(g.get('name', '%s_%s' % (g['family'], g.get('view', ''))), [])
         if sectors:
             if piece in sectors:
                 parts.append(sectors[piece])

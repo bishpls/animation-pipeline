@@ -222,3 +222,16 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
 - k7 (crease placement under the fixed measure): f 0.65 -> 0.5 by mid-skirt (t65m50b50) front 0.059 P, 3q 0.597 W.
   Spec updated; box build g4_creases2 running. Then: calibrate the 8 checks on it, pregate, gate.
 - Cuff template seed build g4_cuff0 (charkit/out/garments4/specs/cuff0.json) also running.
+- **Calibrated on g4_creases2** (charkit/out/garments4/calib_creases2.log; records committed): bow front/3q,
+  skirt_panel front/3q creases, front/3q edges CALIBRATED (3q creases' design 0.104-0.108 after the span fix); panel
+  front/3q shape GUARD. g4_creases2 readings: skirt creases 0.059 P / 0.591 W, edges 0.103 / 0.308 P, shape 0.894 P /
+  0.698 W, bow 0.337 P / 0.379 W; guard vs g4_part1: largest drop piece_cuff_R 3q -6.2%; PASS -> WARN flap_profile_iou_R,
+  flap_profile_sweep_R, skirt_pleats.
+- **Branches (coordinator: one milestone per gate):** tool/garments4-part2 = the creases milestone (gated alone);
+  tool/garments4-cuffs (b5997d73 = part2 + garments.cuff's grow_line) carries the cuffs work; cuffqa.py stays in
+  charkit/out/garments4/defer/ until the cuffs milestone. Cuff sweep k8 (tools/garments4/k8.json, base g4_cuff0) running.
+- Review page JSON: charkit/out/garments4/review/creases.json.
+- pipeline-3d 6620113d (tool/hairshell, opt-in) merged (639339a3). Pregate (639339a3 into 6620113d): PASS, 49 moved,
+  0 blocking (`charkit/out/pregate/pregate_tool-garments4-part2_639339a3_into_6620113d.md`; evaluator-only row
+  piece_overskirt_panel_L_three_quarter_left -0.151 W -> -0.330 F, not in the gate's QA). Box gate running (log
+  charkit/out/garments4/gate_creases.log).
