@@ -91,6 +91,32 @@ quarter and profile crab), and the star, while its shape IoU passes (0.65-0.77),
 against the turnaround's 0.31 (accessories.md's three-view fit: 0.37): an equal-armed compass star, not the design's
 tall one. Only the top row (the covered layer) is registered.
 
+**skirt_layers** (`--kind skirt`): R and DC from outfit_truth on the turnaround's views (the occluders per view in
+`layerref.OCCLUDERS`), the figures' layer masks from the colour classes, one sheet scale (from the skirt row's front
+and three-quarter, every figure fitted within +-6%). Measurement fixes, each seen on the overlays before reading the
+results: the dress form's pole (neutral grey, R - B ~0 against the trim's ~0.06) was read as dark trim; the truth's
+unscored lines joined every unlabelled cell into one "hands" region (the hands and legs now come from the skin
+class); the truth's unscored rim round the layer's own cells (4 px) is neutral, as outfit.score leaves unscored
+pixels out (making all unscored pixels neutral let the layer spread over the hair and skin: reverted).
+
+Take 1, per view front / three-quarter / profile / back (tol: iou_dc >= 0.80, outside <= 0.03, recall >= 0.85):
+- skirt without the flaps: iou_dc 0.919 / 0.955 / 0.878 / 0.827, recall 0.992 / 0.983 / 0.960 / 0.992, outside
+  **0.072** / 0.026 / **0.057** / **0.090**: FAIL (drawn a few px fuller at the sides; the red rim on the overlays).
+  Its hem 1.31 / 1.28 / 1.23 / 1.26 L under the waistband's top, against the turnaround's visible 1.28 / 1.28 / 1.21 /
+  1.25: the hem the flaps hide is LEVEL with the visible centre back (no drop).
+- flaps alone: iou_dc 0.68 / 0.67 / 0.56 / 0.68, outside 0.12 / 0.06 / 0.13 / 0.28: FAIL (drawn wider than the
+  turnaround's: past the skirt's sides in front, over the skirt's visible back sides in the back view).
+- scale spread 0.08 (tol 0.06).
+
+Take 2: skirt without the flaps iou_dc 0.932 / 0.954 / 0.905 / 0.844, recall 0.978 / 0.983 / 0.986 / 0.972, outside
+**0.047** / 0.026 / **0.053** / **0.073**: FAIL; its hem 1.28 / 1.25 / 1.24 / 1.27 L (level again); flaps alone iou_dc
+0.50 / 0.69 / 0.59 / 0.52: FAIL; scale spread 0.12.
+
+**Not registered.** Both takes agree on the one thing the skirt row adds: the hem the flaps hide is level with the
+visible centre back (1.26-1.27 L under the waistband's top, the visible 1.25), so the builder's fill across the back
+(garment-sampling.md: "the hidden back hem is unconstrained") has a reading; registering the row for that level only
+is a decision for Michael. The flaps alone are drawn too wide in both takes.
+
 ## 5. Registered (charkit/refs/clawd/manifest.json)
 
 - `base_body_turnaround` (take 1, `charkit/refs/clawd/gen/base_body_turnaround.png`): role, an `authority_split`
