@@ -373,10 +373,9 @@ def waist_section(waist_dir, out):
         H.append('<h3>%s, end of the pose</h3><p>Grey the skin, brown the band (<b style="color:#d00">red</b> where '
                  'newly inside the skin), orange the skirt (<b style="color:#c0c">magenta</b> where its top, under the '
                  'band at rest, now shows). Same framing in every image.</p><table class="grid"><tr><th>view</th>%s</tr>'
-                 % pose + ''.join('<th>%s<br><small>skirt: %s</small></th>' % (WAIST_NAMES[c.split('/')[0]],
-                                                                                'cloth (anime default)' if
-                                                                                c.endswith('cloth') else 'skinned')
-                                  for c in cols))
+                 % (pose, ''.join('<th>%s<br><small>skirt: %s</small></th>' % (
+                     WAIST_NAMES[c.split('/')[0]], 'cloth (anime default)' if c.endswith('cloth') else 'skinned')
+                     for c in cols)))
         for i, vn in enumerate(('front', 'her left')):
             H.append('<tr><td>%s</td>%s</tr>' % (vn, ''.join(
                 '<td><img src="%s"></td>' % os.path.relpath(os.path.join(waist_dir, ps[i]), out) for ps in cols.values())))

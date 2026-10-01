@@ -380,3 +380,5 @@ Harness scripts and outputs: `charkit/out/xpbd/r3/`.
   direction on the hips (as the cloth does: pins on the skin, hold toward the hips-carried shape), i.e. a helper root
   bone whose head rides the skin and whose rotation stays the hips'; above stiffness 8 the skirt gains 0.001 L, so 8 is
   enough. Spring settings stay out of the outfit graph (decision 2).
+- **Review page** `charkit/out/xpbd/r3/review/index.html` (review.page3, made by `charkit/out/xpbd/r3/page.py`): the
+  summary box, the waistband (numbers and pictures), the calibration, the CPU, the chains, the bake and its replay.
