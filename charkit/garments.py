@@ -2573,7 +2573,21 @@ def bow_hull(A, spec, hull):
         # ribbon.root: the tails' root rows (from just above the knot's bottom up) set to the knot's centre depth after
         # the wrap, flat: hidden inside the knot and the panels by its sides (the turned ribbon's inner edge stood
         # 0.02 L in front of the knot's face there and covered its lower half: knot IoU 1.0 -> 0.6, round 5's t1)
-        G['verts'][G['root_v'], 1] = float(np.mean(G['verts'][G['knot_v'], 1]))
+        yk = float(np.mean(G['verts'][G['knot_v'], 1]))
+        rbk = (spec.get('ribbon') or {}).get('root_back')
+        if rbk is not None:
+            # root_back (L): the root behind the knot's back by this much instead: at its centre depth it hid the back
+            # half of the knot's outline shell (the line round its sides and bottom thinned or went: t9, t10)
+            yk = float(np.max(G['verts'][G['knot_v'], 1])) + rbk * L
+        G['verts'][G['root_v'], 1] = yk
+        seat = (spec.get('ribbon') or {}).get('root_seat', 0.0)
+        if seat and G.get('seat_v') is not None:
+            # root_seat (0..1): the tails' top row (just under the knot) moved that share of the way back to the knot's
+            # centre depth (never forward): the turned ribbon's inner edge stood in front of the knot's face there and
+            # hid the knot's lower outline (round 5's t9: the knot merged into the tails in front)
+            sv = G['seat_v']
+            y0 = G['verts'][sv, 1]
+            G['verts'][sv, 1] = np.maximum(y0, y0 + seat * (yk - y0))
     clr = spec.get('clear')
     if clr:
         # pieces don't interpenetrate (the placement rules outrank the reference's exact placement): the lobes held
@@ -2653,7 +2667,8 @@ def clear_column(V, sel, A, spec, hull, c):
     L of the bin's lowest) against the jacket's rendered front `below` L under them, which must stand `gap` L behind
     them (the bust comes toward the camera under the lobes' lower edge and hid its outline: bow_front_bleed). The
     offsets are smoothed over x (`smooth` L), and with `ramp` (L) fade out over that height above the lower edge (a
-    tilt; None: the whole column). -> V moved (m)."""
+    tilt; None: the whole column). Rim points the knot or a tail covers in front (within `cover` L) set none. -> V
+    moved (m)."""
     from scipy.spatial import cKDTree
     L = A['head']['L']
     got = _shell_front(A, spec, hull, c)
@@ -2666,6 +2681,14 @@ def clear_column(V, sel, A, spec, hull, c):
         return V
     T2 = cKDTree(front[:, [0, 2]])
     P = V[sel]
+    # the rest of the bow (its knot and tails): a rim point with one of theirs in front of it within `cover` L (x, z) is
+    # hidden in front, its line not drawn there, so it sets no offset (the strips' rims behind the tails are buried
+    # deep in the bust: counted, they pushed whole columns 0.08 L forward, in front of the tails)
+    # (off unless set: with `cover` 0.012-0.02 the offsets jumped between covered and open columns and 323-327
+    # triangles flipped, round 5's c3/c4)
+    O = V[~np.asarray(sel, bool)]
+    TO = cKDTree(O[:, [0, 2]]) if len(O) and c.get('cover') else None
+    cover = (c.get('cover') or 0.0) * L
     bw, rim = c.get('bin', 0.01) * L, c.get('rim', 0.012) * L
     below, gap = c.get('below', 0.006) * L, c.get('gap', 0.015) * L
     xb = np.floor(P[:, 0] / bw).astype(int)
@@ -2677,6 +2700,12 @@ def clear_column(V, sel, A, spec, hull, c):
         z0 = P[m, 2].min()
         zlow[i] = z0
         r = P[m][P[m, 2] <= z0 + rim]
+        if TO is not None and len(r):
+            hid = np.array([any(O[j, 1] < y for j in TO.query_ball_point([x, z], cover))
+                            for x, y, z in r[:, :3]])
+            r = r[~hid]
+            if not len(r):
+                continue
         q = np.c_[r[:, 0], r[:, 2] - below]
         _, j = T2.query(q, k=8)
         yj = front[j, 1].min(1)                                  # the jacket's front there (frontmost of the near ones)
@@ -2789,7 +2818,7 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
     def add(vs, fs, us):
         o = len(verts); verts.extend(vs); uvs.extend(us); faces.extend([tuple(i + o for i in f) for f in fs])
     nu, nv = 24, 14
-    lobe_v, root_v = [], []
+    lobe_v, root_v, seat_v = [], [], []
     for sx in (-1, 1):
         vs, us = [], []
         if pleat:
@@ -2892,6 +2921,7 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
         rows_ = ([(0.0, root), (0.0, 0.3 * root)] if root else []) + [(i / M, 0.0) for i in range(M + 1)]
         if root:
             root_v.extend(range(len(verts), len(verts) + 12))    # (bow_hull sets them inside the knot after the wrap)
+            seat_v.extend(range(len(verts) + 12, len(verts) + 18))   # ... and seats the top row (root_seat)
         for i, (s_, up) in enumerate(rows_):
             last = i == len(rows_) - 1
             p = c + np.array([sx * sz * (0.05 + out_ * s_), -0.01 * L * s_, -sz * (TAIL0 + tail * s_ - up)])
@@ -2926,7 +2956,8 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
     for k, v in tail_s.items():
         ts[k] = v
     return dict(verts=verts, faces=faces, weights={'upperChest': np.ones(len(verts))}, uv=uvs, tail_s=ts, knot_v=knot_v,
-                lobe_v=np.array(lobe_v, int) if lobe_v else None, root_v=np.array(root_v, int) if root_v else None)
+                lobe_v=np.array(lobe_v, int) if lobe_v else None, root_v=np.array(root_v, int) if root_v else None,
+                seat_v=np.array(seat_v, int) if seat_v else None)
 
 
 def _ring_faces(nr, nu, vs, us, rows):
