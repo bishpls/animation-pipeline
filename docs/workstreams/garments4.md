@@ -319,3 +319,144 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   reach (front/back/3q WARN -> PASS), hand_shape_R F -> W, skirt_pleats W -> P; guard: piece_cuff_L 3q -10%, profile -7%
   (the rest up). No PASS -> WARN. Review page `charkit/out/garments4/review/cuffs2/index.html` (cuffs2.json). Mergeable:
   tool/garments4-cuffs at this notes commit.
+- Cuffs pregate (`pregate --pair tool/garments4-cuffs --into pipeline-3d`, 76826e3f into d0d6304c): PASS, 47 moved, 0
+  blocking (charkit/out/pregate/pregate_tool-garments4-cuffs_76826e3f_into_d0d6304c.md).
+
+## Milestone 3: the shoulders and the back collar (branch tool/garments4-shoulders from the cuffs head 76826e3f)
+- Seen (review/shoulders/top_g4_cuffs.png, shline_g4_cuffs.png): ours dips 0.07-0.09 L at |x| 0.30-0.35 in front and
+  back between the collar's edge and the puff (the drawn line is level there, -0.47..-0.50); the outer puff 0.03-0.05 L
+  low; the drawn back panel is square (half-width 0.40 -> 0.36, top -0.49, flat bottom -0.90), ours a rounded flap
+  (0.15 at the top, a point at -0.94). The drawn line at the figure's edge is 5 px (0.0235 L) wide and our_lines put
+  ours inside our silhouette: our geometry compares with the drawn silhouette (collarqa's shoulder_back_line reads the
+  fill: 0.0047 PASS there is 0.019 L under the silhouette).
+- Code: c95cd257 = tool/collar4's garments.py + code_base.py (off by default: outline split/top, stand, drape, stripe
+  cut, body.shoulder.join), its checks left out. ca32ff7a: declared family `top_line` (dz / slope / trough over x bands,
+  the lower edge not under hair) + `ref` 'silhouette' for any family; tests.
+- Draft declarations charkit/out/garments4/drafts/shoulders.json (tools/declm.py): g4_cuffs front top 0.033 F, tilt
+  0.203 F, dip 0.052 F; back top 0.019 W, tilt 0.086 P, dip 0.042 F; 3q top 0.042 F (ours ABOVE: the views disagree,
+  Part 1's far-sleeve note) -> 3q reported, not declared; collar_back_rows (width rms, silhouette) 0.147 F.
+- Box builds (collar4's body.shoulder {z -.525, x .47, join} + collars; specs charkit/out/garments4/specs/, overrides
+  tools/garments4/sh_*.json): g4_sh0 (body.shoulder only) build-garments4-1001-034242-aa9c, g4_shA3 (+ collar A3)
+  -034301-4999, g4_shE2 (+ collar E2) -034321-8333; logs charkit/out/garments4/build_sh*.log.
+- **Calibrated** (charkit/out/garments4/calib_shoulders.log; QA rerun on g4_cuffs2 as g4_cuffs2_q; known-bad g4_cuffs2
+  stored): shoulder_{front,back}_top, _dip, shoulder_front_tilt, collar_back_rows all CALIBRATED (design 0-0.03 every
+  move; known-bad FAIL; voronoi floor FAIL, but shoulder_back_dip's passes). On g4_cuffs2 they read 0.033 F / 0.019 W,
+  0.052 F / 0.042 F, 0.203 F, 0.147 F: **they must reach WARN or better before a gate** (new FAILs block).
+- Variant builds against g4_cuffs2 (tools/kcmp.py: K's view, the guard at -10%; declm.py the shoulder checks):
+
+| build | dips f/b | top f/b | tilt f | back rows | blockers under K |
+|---|---|---|---|---|---|
+| g4_cuffs2 | 0.052 / 0.042 | 0.033 / 0.019 | 0.203 | 0.147 | (base) |
+| sh0: body.shoulder | 0.005 / 0.005 | 0.028 / 0.019 | 0.104 | 0.194 | art_outline_collar P->F (back: the jacket through the hull collar's top), neck_crease 26.9 W -> 61.5 F |
+| shA3: + A3 collar | 0.005 / 0 | 0.033 / 0.019 | 0.161 | 0.079 | art_outline_collar F (front 3.9), neck F, guard piece_top f -25% 3q -15% |
+| shE2: + E2 collar | 0.005 / 0 | 0.021 / 0.019 | 0.091 | 0.065 | art_outline_collar F (front 4.7), art_outline_neck F (3q 8.7), neck_crease 57.4 F, guard collar 3q -15.3% |
+| cA3: A3, no body.shoulder | - | - | - | - | collar front -56%, neck 35 F, spikes F: the template collar needs the shoulders |
+| cE2: E2, no body.shoulder | 0.047 / 0.028 | 0.038 / 0.019 | 0.191 | 0.097 | neck 38.2 F, art_outline_collar F, collar 3q -18% |
+
+  E2 + body.shoulder looks closest to the design in every view (review/shoulders/side_vars.png: the lapels with their
+  stripe in front and 3q, the square back panel), but carries tool/collar4's blockers. The corners (tools/corners.py,
+  c_E2.png, c_A3.png): the collar's outer ends where the hair crosses its top (x +-0.36..0.41, z -0.48..-0.51), the
+  lapels' inner corners at the neck (x +-0.12, z -0.52) and where they meet the bow (x +-0.08, z -0.65).
+- **The jacket's shoulder pad** (garments.shoulder_pad, a shell's `pad` {lift [[|x|, dz]], nz, smooth}; also on the
+  hull collar): the body untouched (no neck_crease or hair refit), the jacket's (and collar's) upward faces raised to a
+  level shoulder. Sweep k13 (base g4_cuffs2, hull collar; tools/garments4/k13.json) running.
+- k13 (pad on the hull collar, base g4_cuffs2): the dips go (front 0.052 -> 0.014, back 0.042 -> 0.005 at lift x1.0),
+  collar_back_lay (flag) 0.061 F -> 0.024 P, shoulder_back_slope W -> P (x1.3); but art_outline_collar 1.45 P -> 3-3.9 F
+  (the padded jacket shows round the hull collar's edges, review: sweeps/k13 boards) and piece_top front -15%.
+  shoulder_front_top stays 0.033 F: the puffs' outer slope (|x| 0.55-0.75) is 0.03-0.05 L under the drawn one.
+- k14 (+ the hull collar draped over the padded jacket, + the puff's upper stations' `out` +0.03/0.05): the drape
+  wrecks the hull collar (front -28%, 3q -33%, corners 4-4.8 F); the puffs' `out` +0.03 takes the front/back top to
+  0.014 / 0.005 PASS but tilt 0.20 -> 0.30-0.33 F and sleeve_R 3q -15%.
+- k15 (hybrid template collars on base g4_shA3: E2's lapel table without the stand, H1-H5) running (log sweeps/k15.log;
+  started detached, no notification: read the log).
+- **Item 4 (the neck-to-bow V), measured:** declared family `class_iou` (fed2ef44): neck_v_front_skin (skin IoU in
+  x +-0.2, z -0.45..-0.75; draft charkit/out/garments4/drafts/neckv.json) 0.476 FAIL on g4_cuffs2 (ours 0.028 L^2 of
+  skin there, drawn 0.060), shE2 0.415, shA3 0.424. Drawn V: skin half-width 0.15 at -0.475 tapering to 0.06 at -0.70;
+  ours ends at -0.55 (the jacket's opening starts at -0.72). Box builds g4_nv1 (top.opening + the drawn V rows),
+  g4_nv2 (x0.85) running (specs charkit/out/garments4/specs/nv*.json, overrides tools/garments4/nv*.json).
+- Plan: item 4 gates first on its own branch (tool/garments4-neckv from the cuffs head + the declared families,
+  without shoulderqa's checks, which FAIL until the shoulders land).
+- k15 (base g4_shA3: A3 + E2's lapel table without the stand, H1-H5): H1 repairs A3's guard (piece_top front 0.437 ->
+  0.544, 3q 0.584 -> 0.662; vs g4_cuffs2's 0.583/0.688: -7%/-4%), keeps the dips at 0.005/0, collar_back_iou 0.81 W,
+  square P; but art_outline_collar (numpy drawing) 3.4-5.6 FAIL and art_outline_neck ~5 FAIL in every row, and the
+  collar's profile IoU 0.028 -> 0.021 (a sliver). **Shoulders parked here** (the coordinator's queue: the neck V, then
+  the staircase): what blocks is tool/collar4's corners: art_outline_collar (the collar's outer ends at the puff and
+  hair, the lapels' corners at the neck and the bow) and art_outline_neck (3q: the collar's top edge meeting the neck).
+  Best candidate: body.shoulder + H1 (spec: sh0.json + k15's H1 collar). Next: corners.py on an H1 box build, round the
+  lapels' neck corners and the outer ends (the front table's first rows; the top edge easing down into the puff).
+- **The V:** g4_nv2 (top.opening's V rows x0.85): neck_v_front_skin 0.476 F -> 0.765 W, art_outline_neck 1.684 W ->
+  1.472 P; but neck_crease 26.9 W -> 55.3 F (column -25): the opened V shows the body's own join, which reads 40-45
+  degrees all round on the whole skin (neck_crease_all 44.7 on every build): the neck turns into the chest within
+  ~0.02 L under the cut (NECK_BASE 0.12 L loft). New knob body.neck_join (code_base; default unchanged): builds
+  g4_nv2j18 / g4_nv2j24 (neck_join 0.18 / 0.24) running.
+
+## The staircase hem (coordinator, Michael 2026-10-01: square steps, risers on the creases, crease spacing): measured
+- Tool `charkit/out/garments4/tools/stairm.py BUILD` (the band's top edge per piece and view from skirtqa's machinery,
+  RDP-simplified into risers and treads; tilt of risers from vertical and treads from horizontal; creases = lines
+  reaching within 0.06 L over the band's top; treads crossed by a crease; riser-to-crease distance; crease spacing).
+- The design (front skirt): risers 21-24 deg off vertical, treads 13-16 deg off horizontal: the steps are square (the
+  corner ~90 deg) but the whole stair follows the pleat folds' fan and the hem's slope; every riser sits on a drawn
+  fold (riser-crease 0.026-0.035 L next to the panel), no tread crossed. 3q likewise (risers 14-27, 0 crossed). The
+  flaps: risers ~2 deg, treads 22-29 deg (along the flap's slanted hem), risers 0.002-0.007 L from a crease.
+- Ours (g4_cuffs2): skirt risers 16-22 deg but treads 2-11 deg (level): the corners sheared by 10-20 deg; risers
+  0.2-0.4 L from any crease, 2 treads crossed (front); the flaps' treads level (2-5 deg, drawn 22-29). Our pleat folds
+  aren't lines (the skirt's knife pleats are geometry plus a faint texture line), so our_lines sees only the panel's
+  edges near the hem: the crease measure on ours needs the folds' azimuths (geometry) or inked folds.
+- The cause: band_rows' stair is per column at azimuth knots [0, 14, 28] deg out from the panel's edge while the 18
+  knife pleats fold every 20 deg (outer folds at 0, +-20, +-40 deg, inner at +-10, +-30...): risers mid-pleat, treads
+  across folds; the treads at constant v (a share of each column's length), not along the hem's local slope.
+- Plan (not started): a declared/calibrated check on the corner angle (riser vs tread, |90 - angle| beyond the
+  design's) and riser-on-fold / tread-crossing counts per view (front, 3q; skirt and flaps), the crease spacing (pleat
+  widths) against the drawn folds' spacing; then the stair knots on the pleat folds (risers on folds), the treads along
+  the hem, the pleat count/phase fitted jointly to the drawn fold spacing; the merged crease checks must stay PASS.
+- **The join, tried:** g4_nv2j18 / g4_nv2j24 (body.neck_join 0.18 / 0.24 with nv2's V): neck_crease 48.2 / 52.8 FAIL
+  (no better), and the longer loft moves the body's shoulders: sleeve_front_spikes_L/R 0 -> 0.02-0.027 FAIL,
+  shoulder_back_slope W -> F, art_outline_collar P -> W, piece_collar front -13% / -34%; j18 also
+  collar_profile_torn 0 -> 0.021 F. Not the fix.
+
+## Stop point (2026-10-01, lean agent 2, ~520k): what's gated, what's next
+- **Gated:** the cuffs (tool/garments4-cuffs 28f088c2, PASS under K into 1d57838; review
+  charkit/out/garments4/review/cuffs2/index.html).
+- **Not gated (no candidate clears K):** the shoulders + back collar, the neck V. Branch tool/garments4-shoulders
+  carries: collar4's builder code (c95cd257, off by default), declared families top_line / class_iou and `ref`
+  'silhouette' (ca32ff7a, fed2ef44; tests), charkit/shoulderqa.py (6 checks CALIBRATED, 2428729c; they FAIL on the
+  default, so this branch can't gate before the shoulders are fixed: or move shoulderqa.py to defer/ to gate the rest),
+  garments.shoulder_pad + the hull collar's pad/over (k13/k14: not taken), code_base body.neck_join (default unchanged).
+  Shoulders review page (options, asks Michael): charkit/out/garments4/review/shoulders_page/index.html.
+- **Next, the shoulders (a collar milestone):** base body.shoulder + k15's H1 collar (A3 + E2's lapel table, no stand):
+  dips PASS, panel square PASS, guard ok, neck_crease 26 W; blockers art_outline_collar (front: the collar's outer ends
+  at the puff/hair x +-0.35..0.41 z -0.48..-0.52; 3q: those and x -0.07 at the neck) and art_outline_neck (3q 3 corners:
+  the collar's top edge meeting the neck, x 0.13-0.21 z -0.49..-0.53). Box-build H1 (sh0.json + k15's H1 collar), run
+  tools/corners.py on it, then round the outer ends (the front table's top rows easing the outer edge down under the
+  puff) and the neckline by azimuth (outline.top) in a garments sweep on that base; keep shoulder_front_top <= 0.03
+  (the puffs' outer slope is 0.03-0.05 L low: sleeve `out` +0.03 fixes it but tilt FAILs: fit top/tilt jointly).
+- **Next, the neck V (item 4):** nv2's opening rows (tools/garments4/nv2.json) give neck_v_front_skin 0.476 -> 0.765
+  WARN and art_outline_neck W -> P; what blocks is neck_crease 26.9 -> 55.3 F: the body's own neck-to-chest turn (the
+  whole skin reads 40-45 deg in every column; the V now shows columns -25..25). Fix the join's shape, not its reach:
+  the monotone cubic from the cut (neck_curve) turns from vertical to the chest's flare within ~0.02 L; ease the head's
+  neck slope into it over 0.04-0.06 L above the cut (code_base.blend_neck / neck_curve), or a front-only join table
+  that keeps the sides (neck_join as [[0, .18], [40, .12], [180, .12]] keeps the shoulders' rows as they are). Then
+  declare neck_v_front_skin (draft charkit/out/garments4/drafts/neckv.json; class_iou, limits [0.8, 0.6], known-bad
+  g4_cuffs2), calibrate, and gate it alone (branch from the cuffs head + c95cd257 + ca32ff7a + fed2ef44 + f6e33039,
+  without shoulderqa.py).
+- **Next, the staircase (lean relaunch):** see "The staircase hem" above: the check (corner angle |90 - angle| beyond
+  the design's per view; risers on folds and treads crossed by a fold as defects; crease spacing against the drawn
+  folds' spacing), calibrated (design jittered 1-2 px PASS, g4_cuffs2 FAIL); then the stair's azimuth knots on the
+  pleat folds (band_rows `stair` knots at the folds' azimuths: 18 pleats -> folds every 20 deg from the front), treads
+  along the hem's local slope, pleat count and phase fitted jointly to the drawn fold spacing per view; the merged
+  crease checks (skirt_panel_*_creases/_edges/_shape, bow_*_creases) stay PASS.
+
+## Relaunch 3 (2026-10-01, lean agent 3): the queue
+Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments4-stairs` from pipeline-3d 31689611;
+(2) the body's neck-chest join, branch `tool/garments4-neck` from pipeline-3d; (3) a new isolated reference; (4) the V;
+(5) flat lapels. Gate each. Not ours: the shoulders/back collar (Michael's two calls; E2/A3 superseded by item 5); hair.
+- **Item 2 adds (coordinator 2026-10-01):** (a) a manifest caution on `garment_breakdown`: its flat-lay's bodice V shows
+  the inside of the back panel (orange), not the bodice front; the turnaround's V is skin; nothing reads the flat-lay's V
+  as the blouse front. (b) Reference generation (Michael's general approval; one call, n=2, tools/gptimage.py, ledger):
+  the blouse as worn WITHOUT the bow, front / three-quarter / side / back, one scale, orthographic, `--ref` the
+  turnaround: the sailor collar flat over the shoulders and chest, the stripe along its edges, a low band at the back
+  of the neck, the V opening showing skin down to where the bow sits. Refcheck against the turnaround (bodice and collar
+  silhouettes, the V's shape); register only if it passes, as the shape authority for the lapels, the V and the bodice
+  front (shape vs placement split, as the bow's close-up). (c) The lapels are wide flat panels whose inner edges form
+  the V down to the knot (ours bunch into lumps beside the neck): after the V opens, a lapel template lying flat along
+  the V's edges, scored per view on lapel shape and width along its length; re-judge art_outline_collar after it.
