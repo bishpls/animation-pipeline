@@ -82,4 +82,22 @@ The second character's hair under his crown uses the same rule: keep it generic.
   hair_strokes_*, bun_L_front_lines; guard: hair_piece_{bangs,side_locks,upper_back,lower_back,buns},
   hair_bun_outline, body_*_iou_hair). pipeline-3d 27a4b6c3 (accessories6, infra5-s) merged in (clean).
 - Pregate --box auto: PASS (0 moved), 98453674 into 27a4b6c3.
-- Gate launched: `python -m charkit remote gate tool/hairtruth --into pipeline-3d` (log charkit/out/hairtruth/gate.log).
+- **Gate: PASS under K**, tool/hairtruth db28d8f9 into pipeline-3d 27a4b6c3: report
+  charkit/out/gate/gate_tool-hairtruth_db28d8f9_into_27a4b6c3.md. Nothing blocks: 27 checks remeasured (geometry
+  unchanged: the 2x2 is the measure alone), all 24 graded ones with GOOD records; tests 104/104; build CPU 1103.5 ->
+  1432.5 s (1.30x, against a cached baseline; the traces' build time 576 -> 606 s). On 27a4b6c3 the old reading had
+  moved with accessories6's new crab placement (body iou_hair F/P 0.840/0.786, bangs 0.743, side locks 0.520) while
+  the shape truth reads exactly what it read on cd1c327f (0.862/0.852, 0.833, 0.536): the clips no longer move the
+  hair scores.
+- Review page: charkit/out/hairtruth/review/page/index.html (page.json beside it).
+
+## Next steps
+1. Coordinator: merge tool/hairtruth (db28d8f9 + notes). If pipeline-3d moved: `python -m charkit gate --carry
+   tool/hairtruth --into pipeline-3d`.
+2. tool/hairtruth-art (7f887f68 = tool/hairtruth + the art switch): needs look_v5 restored (the stopped render box may
+   hold it), then calibrate art_terminator_hair,art_peeks_hair, store the design measures, gate.
+3. Follow-ups: the fast evaluator's body_*_iou_hair (bodymeasure, the body fitter's and the pregate's) still reads the
+   turnaround as drawn; the hair fits (hairlab) likewise; the second character's crown is a cover only if accqa finds
+   it as a clip piece (shapetruth.entry's `covers`).
+4. Whichever of tool/hairshell3 / the hair strokes round merges after this refreshes its records of the remeasured
+   checks (hair_strokes_*, hair_lock_lines_*, hair_piece_*, body_*_iou_hair) on its own geometry.
