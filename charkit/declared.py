@@ -267,15 +267,25 @@ def ink_between(Mo, Md, ctx, round_=4):
 
 
 def area(Mo, Md, ctx, round_=3):
-    """the piece's size: its pixels over the drawn piece's, less one, |.| (ours / design reported as `ratio`)."""
-    from . import pieceqa
+    """the piece's size: its pixels over the drawn piece's, less one, |.| (ours / design reported as `ratio`). With the
+    outfit graph (the QA's inputs), the pixels piece_<id> counts (bodymeasure.piece_shapes' px: where a piece lies over
+    another of its colour, the drawing can't tell them apart and those pixels count for neither: a wrist cuff over the
+    orange skirt in three-quarter); else the masks' own."""
+    from . import bodymeasure, pieceqa
     Md = fit(Md, Mo.shape)
     if Md.sum() < pieceqa.MIN_PX:
         return None
     if Mo.sum() < pieceqa.MIN_PX:
         return dict(value=None, why=WHY_OURS)
-    r = float(Mo.sum()) / float(Md.sum())
-    return dict(value=round(abs(r - 1), round_), ours=int(Mo.sum()), design=int(Md.sum()), ratio=round(r, 3))
+    po, pd = float(Mo.sum()), float(Md.sum())
+    if ctx.get('graph') is not None:
+        S = bodymeasure.piece_shapes({ctx['view']: ctx['lab']}, ctx['names'], ctx['masks'], ctx['graph'], ctx['spec'],
+                                     ctx['ppl'])
+        r_ = ((S.get(ctx['piece']) or {}).get('views') or {}).get(ctx['view'])
+        if r_ is not None and r_['px'][1] >= pieceqa.MIN_PX:
+            po, pd = float(r_['px'][0]), float(r_['px'][1])
+    r = po / pd
+    return dict(value=round(abs(r - 1), round_), ours=int(po), design=int(pd), ratio=round(r, 3))
 
 
 def position(Mo, Md, ctx, axis='both', round_=4):
