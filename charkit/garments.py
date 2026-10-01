@@ -2503,7 +2503,8 @@ def bow_hull(A, spec, hull):
         k_ = np.clip(np.nan_to_num(ts, nan=0.0) / (spec.get('ribbon') or {}).get('stand_in', 0.3), 0.0, 1.0)
         G['verts'][:, 1] -= stand * L * k_ * k_ * (3 - 2 * k_)
     kst = (spec.get('pleat') or {}).get('stand')
-    if kst is not None and G.get('knot_v') is not None:
+    seat = (spec.get('pleat') or {}).get('seat')
+    if (kst is not None or seat is not None) and G.get('knot_v') is not None:
         # the knot stood in front of the lobes (after the wrap: the chest's round moved the lobes' middles forward of
         # their pinch): its back in front of the lobes' surface at its sides, so its outline (the hull's back faces,
         # round its edge) draws against the lobes as the design's line does, and in profile it shows in front
@@ -2518,7 +2519,13 @@ def bow_hull(A, spec, hull):
         front = V[allz, 1].min() if len(allz) else side                # ... and anywhere at its height (profile)
         # its back `stand` L behind the lobes' frontmost at its height (so in profile it stands in front of them by
         # its depth less that, with no gap between), but at least 0.004 L in front of them by its sides (its outline)
-        dyk = min(front + kst * L, side - 0.004 * L) - V[kv, 1].max()
+        if seat is None:
+            dyk = min(front + kst * L, side - 0.004 * L) - V[kv, 1].max()
+        else:
+            # pleat.seat (L): the knot's back just this far in front of the lobes by its sides (its outline there), the
+            # lobes' middles left to stand round it (pleat.bulge): in profile it sits in the loops, as drawn, where
+            # `stand` followed the lobes' frontmost and floated it in front of them
+            dyk = side - seat * L - V[kv, 1].max()
         V[kv, 1] += dyk
     G['fit'] = dict(size=sz / L, tail=tail, depth=depth / L, centre=[0.5 * (lo + hi), y, z])
     return G
@@ -2551,7 +2558,13 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
     half-depth at the knot over the fullest), step, thin (the strip's half-depth over the panel's), overlap (the panel
     reaching under the line), x0 (the lobes' inner end), stand (bow_hull: the knot's back this far (L) in front of the
     lobes by its sides), cup (the lobes' outer ends this far forward of their pinch: in profile they reach past the
-    knot's back, as drawn, while by its sides they stay behind it). `knot_box` (sizes: wide, deep, tall): the knot (else the wing's box or the old one).
+    knot's back, as drawn, while by its sides they stay behind it); top_p, bottom_p (the upper and lower edges' rise
+    and fall along the lobe, u^p: under 1 fuller by the knot, as drawn); crease [at the knot, at the outer end] (the
+    crease its own line above the lower edge, as a share of the lobe's height; crease_p how late it falls; the strip
+    below it shows as the loop's lower layer, closing onto it over `close` before the end cap), almond (dict: the drawn
+    upper fold, _almond), bulge [amount, u] (the lobes' middles forward: _bulge), seat (L: bow_hull stands the knot's
+    back this far in front of the lobes by its sides; without stand or seat the knot stays where the wrap puts it, its
+    front `-0.012 L` proud). `knot_box` (sizes: wide, deep, tall): the knot (else the wing's box or the old one).
     The tails' vertices' share of their length (0 at the knot .. 1 at the end; NaN off the tails) -> the result's
     'tail_s', and the knot's and the lobes' vertex indices ('knot_v', 'lobe_v')."""
     depth = 0.09 * sz if depth is None else depth
@@ -2570,6 +2583,9 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
                 vs, us, fs = _pleat_band(pleat, kind, sx, sz, depth, nu)
                 add([c + v for v in vs], fs, us)
             lobe_v.extend(range(l0, len(verts)))
+            if pleat.get('almond') is not None:
+                vs, us, fs = _pleat_band(pleat, 'almond', sx, sz, depth, nu)
+                add([c + v for v in vs], fs, us)
             vs, us = [], []
         elif wing:
             # a bow tie's wing: sections along x from the knot (u 0) to the end (u 1), each an ellipse in (depth,
@@ -2690,6 +2706,71 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
                 lobe_v=np.array(lobe_v, int) if lobe_v else None)
 
 
+def _ring_faces(nr, nu, vs, us, rows):
+    """quads between nr rings of nu points, each end closed by a fan to its ring's mean (added to vs, us)."""
+    fs = []
+    for i in range(nr - 1):
+        for j in range(nu):
+            j2 = (j + 1) % nu
+            fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
+    for i, u in ((0, rows[0]), (nr - 1, rows[-1])):
+        ring = np.array(vs[i * nu:(i + 1) * nu])
+        tip = len(vs)
+        vs.append(ring.mean(0)); us.append((0.5, u))
+        fs += [((i * nu + (j + 1) % nu), i * nu + j, tip) if i == 0 else (i * nu + j, i * nu + (j + 1) % nu, tip)
+               for j in range(nu)]
+    return fs
+
+
+def _almond(P, sx, sz, depth, nu, top, bot, crease, ov, pinch, nw):
+    """pleat.almond (dict, sizes): the drawn upper fold, an almond across the lobe's upper half from the knot (the
+    design's, the breakdown's and the close-up's alike: two strokes meeting at points), as a thin lens standing `gap`
+    in front of the panel's front, so its outline draws it (inverted hulls draw silhouettes only). Keys: u [from, to]
+    along the lobe, f [at its ends] its middle's height above the lower edge as a share of the lobe's height, h its
+    half-height, d its half-depth, gap. -> (verts, uvs, faces)."""
+    A = P['almond']
+    a0, a1 = A.get('u', (0.06, 0.5))
+    f0, f1 = A.get('f', (0.66, 0.72))
+    ah, ad, gap = A.get('h', 0.025), A.get('d', 0.012), A.get('gap', 0.004)
+    rows = [a0 + (a1 - a0) * 0.5 * (1 - math.cos(math.pi * i / nw)) for i in range(nw + 1)]
+    vs, us = [], []
+    for u in rows:
+        s_ = (u - a0) / max(1e-9, a1 - a0)
+        t, b = top(u), crease(u) - ov
+        zm, hh = 0.5 * (t + b), 0.5 * (t - b)
+        dd = depth * (pinch + (1 - pinch) * math.sin(math.pi * min(0.999, 0.15 + 0.85 * u)) ** 0.5)
+        yc = -P.get('cup', 0.0) * sz * u ** 0.7 - _bulge(P, u) * sz
+        zc = bot(u) + (f0 + (f1 - f0) * s_) * (top(u) - bot(u))
+        sn = max(-0.99, min(0.99, (zc - zm) / max(1e-9, hh)))
+        yf = yc - math.sqrt(1 - sn * sn) * dd                   # the panel's front at the almond's height
+        w = math.sin(math.pi * s_)
+        h_, d_ = ah * w ** 0.7, max(0.15, w ** 0.5) * ad
+        y0 = yf / sz - gap - d_ if sz else 0.0
+        x = sx * (P.get('x0', 0.05) + (LOBE - P.get('x0', 0.05)) * u) * sz
+        for j in range(nu):
+            ph = 2 * math.pi * j / nu
+            vs.append(np.array([x, (y0 - math.cos(ph) * d_) * sz, (zc + math.sin(ph) * h_) * sz]))
+            us.append((j / nu, u))
+    fs = _ring_faces(len(rows), nu, vs, us, rows)
+    return vs, us, fs
+
+
+def _smooth(t):
+    t = min(1.0, max(0.0, t))
+    return t * t * (3 - 2 * t)
+
+
+def _bulge(P, u):
+    """pleat.bulge [amount (sizes), u at its fullest]: how far forward the lobe puffs at u (0 at the knot .. 1 the outer
+    end), sin(pi u^q)^2 with q putting its peak at the given u: nothing by the knot's sides (its outline there needs the
+    lobes behind it) and in the outer end, so in profile the loops' middles stand round the knot as drawn."""
+    b = P.get('bulge')
+    if not b:
+        return 0.0
+    q = math.log(0.5) / math.log(min(0.95, max(0.05, b[1])))
+    return b[0] * math.sin(math.pi * min(1.0, max(0.0, u)) ** q) ** 2
+
+
 def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
     """one band of a pleated lobe (_bow_mesh's `pleat`), round the origin: 'panel' (above the crease line, in front) or
     'strip' (the fold's underside below it, behind), a ring of nu points per row along the lobe (u 0 at the knot .. 1 at
@@ -2701,13 +2782,34 @@ def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
     pu, pl = P.get('end_p', (4.0, 1.4))
     pinch, step, thin = P.get('pinch', 0.4), P.get('step', 0.7), P.get('thin', 0.5)
     tp = P.get('top_p', 1.0)
-    crease = lambda u: -(hk + (hb - hk) * u)
+    bp = P.get('bottom_p', 1.0)
+    bot = lambda u: -(hk + (hb - hk) * u ** bp)                    # the lobe's lower edge
+    top = lambda u: hk + (ht - hk) * u ** tp + rise * u             # ... and its upper edge
+    cr = P.get('crease')
+    if cr:
+        # the crease its own line above the lower edge, [at the knot, at the outer end] as a share of the lobe's height
+        # (crease_p: how late it falls from the one to the other): the strip below it shows as the drawn loop's lower
+        # layer (the design's: a quarter of the height mid-lobe, closing at the lower outer corner), so the panel's
+        # lower edge is inside the lobe's silhouette and its outline draws the crease
+        cp = P.get('crease_p', 1.0)
+        crease = lambda u: bot(u) + (cr[0] + (cr[1] - cr[0]) * u ** cp) * (top(u) - bot(u))
+    else:
+        crease = bot
     if kind == 'panel':
-        zt = lambda u: hk + (ht - hk) * u ** tp + rise * u
+        zt = top
         zb = lambda u: crease(u) - ov
+    elif cr:
+        # the strip's lower edge the lobe's, closing onto the crease over `close` before the panel's end cap starts (the
+        # drawn crease meets the lower outer corner)
+        e0, e1 = 1 - capw - P.get('close', 0.2), 1 - capw
+        g_ = lambda u: 1 - _smooth((u - e0) / max(1e-9, e1 - e0))
+        zt = lambda u: crease(u) + ov
+        zb = lambda u: crease(u) - (crease(u) - bot(u)) * g_(u) - ov * (1 - g_(u)) - sag * math.sin(math.pi * u) ** 0.8
     else:
         zt = lambda u: crease(u) + ov
-        zb = lambda u: crease(u) - sag * math.sin(math.pi * u) ** 0.8
+        zb = lambda u: bot(u) - sag * math.sin(math.pi * u) ** 0.8
+    if kind == 'almond':
+        return _almond(P, sx, sz, depth, nu, top, bot, crease, ov, pinch, nw)
     rows = [0.5 * (1 - math.cos(math.pi * i / nw)) * (1 - capw) for i in range(nw)]
     if kind == 'panel':
         rows += [1 - capw + capw * math.sin(0.5 * math.pi * q / 8) for q in range(9)]
@@ -2723,6 +2825,7 @@ def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
         # the half-depth: pinched at the knot, fullest past mid-lobe, thinning into the end's cap
         dd = depth * (pinch + (1 - pinch) * math.sin(math.pi * min(0.999, 0.15 + 0.85 * u)) ** 0.5)
         yc = (0.0 if kind == 'panel' else step * dd) - P.get('cup', 0.0) * sz * u ** 0.7   # cup: the ends forward
+        yc -= _bulge(P, u) * sz
         if kind == 'strip':
             dd *= thin
         x = sx * (x0 + (LOBE - x0) * u) * sz
