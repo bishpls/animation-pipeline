@@ -1,0 +1,10 @@
+{
+ "name": "g4_stairs0",
+ "why": "the staircase hem sheared: the skirt's stepped band's risers mid-pleat and its treads across the pleats' folds (5 treads crossed in front, 3 in three-quarter), its corners 18-22 degrees from square where the design's are 6-10 (pipeline-3d after the cuffs milestone)",
+ "flag": "Michael 2026-10-01: the design draws the skirt hem's and the flaps' dark staircase with exact right angles; ours is slightly sheared: our zigzag runs across a crease, and it shouldn't (a fold bends a step that spans it)",
+ "commit": null,
+ "source": "~/animation-pipeline-garments4/charkit/out/g4_cuffs2",
+ "stored": "2026-10-01",
+ "bundle": "d88d7cdb9e483f15",
+ "qa_checks": 631
+}

@@ -1,0 +1,152 @@
+{
+ "base": "charkit/out/g4_cuffs2",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "skirt",
+  "artifacts"
+ ],
+ "checks": [
+  "stair_*",
+  "skirt_*",
+  "hemband_*",
+  "art_band_lower",
+  "art_*_flaps",
+  "flap_*",
+  "piece_skirt*",
+  "piece_overskirt*"
+ ],
+ "boards": {
+  "az": [
+   0,
+   35
+  ],
+  "crop": "skirt",
+  "pad": 0.1
+ },
+ "variants": {
+  "anchor": {
+   "garments.skirt.pleat_anchor": true
+  },
+  "afold": {
+   "garments.skirt.pleat_anchor": true,
+   "garments.skirt.band.stair_unit": "fold",
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     1,
+     0.25
+    ],
+    [
+     2,
+     0.15
+    ]
+   ]
+  },
+  "afold_l2": {
+   "garments.skirt.pleat_anchor": true,
+   "garments.skirt.band.stair_unit": "fold",
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     1,
+     0.25
+    ],
+    [
+     2,
+     0.15
+    ]
+   ],
+   "garments.skirt.band.lean": 0.002
+  },
+  "afold_l4": {
+   "garments.skirt.pleat_anchor": true,
+   "garments.skirt.band.stair_unit": "fold",
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     1,
+     0.25
+    ],
+    [
+     2,
+     0.15
+    ]
+   ],
+   "garments.skirt.band.lean": 0.004
+  },
+  "afold_l6": {
+   "garments.skirt.pleat_anchor": true,
+   "garments.skirt.band.stair_unit": "fold",
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     1,
+     0.25
+    ],
+    [
+     2,
+     0.15
+    ]
+   ],
+   "garments.skirt.band.lean": 0.006
+  },
+  "afold_l8": {
+   "garments.skirt.pleat_anchor": true,
+   "garments.skirt.band.stair_unit": "fold",
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     1,
+     0.25
+    ],
+    [
+     2,
+     0.15
+    ]
+   ],
+   "garments.skirt.band.lean": 0.008
+  },
+  "sq1": {
+   "garments.overskirt_panel_L.square": 1.0
+  },
+  "sq15": {
+   "garments.overskirt_panel_L.square": 1.5
+  },
+  "afold_l4_sq1": {
+   "garments.skirt.pleat_anchor": true,
+   "garments.skirt.band.stair_unit": "fold",
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     1,
+     0.25
+    ],
+    [
+     2,
+     0.15
+    ]
+   ],
+   "garments.skirt.band.lean": 0.004,
+   "garments.overskirt_panel_L.square": 1.0
+  }
+ }
+}

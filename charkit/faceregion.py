@@ -196,51 +196,108 @@ def profile_edge(B, z_top=None, z_bottom=-0.85, step=0.01):
                 rows=rows)
 
 
-def neck_crease(B, cols=36, dz=0.01, sector=math.radians(6), variant='masked'):
+def neck_crease(B, cols=36, dz=0.01, variant='masked'):
     """the sharpest local bend of the skin's outline down any column round the neck near the cut (JOIN): per column the
-    skin's radius from the neck's axis per height, its slope angle, and how far it departs from its own smoothing over
-    CREASE_SMOOTH (degrees) -> dict(max, median, worst column (degrees round from the front), per column). variant: the
-    skin as it shows ('masked': the garments' mask on) or whole ('eval')."""
+    skin's exact cut at that azimuth (crease_of), its slope angle per height, and how far it departs from its own
+    smoothing over CREASE_SMOOTH (degrees) -> dict(max, median, worst column (degrees round from the front), per column).
+    variant: the skin as it shows ('masked': the garments' mask on) or whole ('eval')."""
     c, L, _ = frame(B)
     try:
-        V = _mesh(B.skin(), variant)[0]
+        V, T = _mesh(B.skin(), variant)
     except (KeyError, ValueError):                 # (a bundle without the masked skin)
-        V = _mesh(B.skin(), 'eval')[0]
-    return crease_of(V, c, L, cols, dz, sector)
+        V, T = _mesh(B.skin(), 'eval')
+    return crease_of(V, T, c, L, cols, dz)
 
 
-def crease_of(V, c, L, cols=36, dz=0.01, sector=math.radians(6)):
-    """neck_crease on plain arrays: the skin's vertices V (world), the head's centre c and L."""
+CREASE_RUN = 4               # steps: a column's outline is read on its unbroken runs this long or longer (a garment's
+                             # mask can cut a column into pieces; a bend is never read across a gap)
+
+
+def section_outline(V, T, axis, a, zs):
+    """the skin cut by the half-plane at azimuth a round the vertical axis through `axis` (the column's direction
+    (sin a, -cos a): 0 the front): each triangle crossing the plane gives a segment in (r, z); the outline is the
+    outermost crossing at each height of zs -> r (len(zs),), NaN where no surface crosses (a masked gap, or past the
+    surface's edge). Exact on the mesh: no sector of azimuths blended, no slab of vertex rows sampled."""
+    d = np.array([math.sin(a), -math.cos(a)])
+    nrm = np.array([d[1], -d[0]])
+    q = V[:, :2] - axis
+    s, u = q @ nrm, q @ d
+    side = s[T] >= 0
+    cross = side.any(1) & ~side.all(1)
+    Tc = T[cross]
+    out = np.full(len(zs), np.nan)
+    if not len(Tc):
+        return out
+    pts_u, pts_z, ok = [], [], []
+    for i, j in ((0, 1), (1, 2), (2, 0)):
+        a_, b_ = Tc[:, i], Tc[:, j]
+        m = (s[a_] >= 0) != (s[b_] >= 0)
+        den = np.where(m, s[a_] - s[b_], 1.0)
+        f = np.where(m, s[a_] / den, 0.0)
+        pts_u.append(u[a_] + f * (u[b_] - u[a_]))
+        pts_z.append(V[a_, 2] + f * (V[b_, 2] - V[a_, 2]))
+        ok.append(m)
+    pu, pz, ok = np.stack(pts_u, 1), np.stack(pts_z, 1), np.stack(ok, 1)
+    first = np.argmax(ok, 1)                                     # the triangle's two crossing edges: its segment
+    second = 2 - np.argmax(ok[:, ::-1], 1)
+    k = np.arange(len(Tc))
+    u0, z0, u1, z1 = pu[k, first], pz[k, first], pu[k, second], pz[k, second]
+    keep = (u0 > 0) & (u1 > 0) & (first != second) & (z0 != z1)  # the column's side of the axis
+    u0, z0, u1, z1 = u0[keep], z0[keep], u1[keep], z1[keep]
+    if not len(u0):
+        return out
+    lo, hi = np.minimum(z0, z1), np.maximum(z0, z1)
+    Z = np.asarray(zs)[None, :]
+    span = (lo[:, None] <= Z) & (hi[:, None] >= Z)
+    f = (Z - z0[:, None]) / (z1 - z0)[:, None]
+    R = np.where(span, u0[:, None] + f * (u1 - u0)[:, None], -np.inf)
+    best = R.max(0)
+    out[np.isfinite(best)] = best[np.isfinite(best)]
+    return out
+
+
+def crease_of(V, T, c, L, cols=36, dz=0.01):
+    """neck_crease on plain arrays: the skin's vertices V (world) and triangles T, the head's centre c and L. Each column
+    (cols round the neck's axis) is the skin's exact cut at its azimuth (section_outline) every dz L over the join
+    window; its outline's slope per step (degrees, 0 vertical) less that slope's smoothing over CREASE_SMOOTH is the
+    bend, read on each unbroken run of CREASE_RUN steps or more (a gap the garments' mask leaves splits a column: no
+    bend is read across it, nor past a run's ends).
+    (Before 2026-10-01 a column was the largest vertex radius within 6 degrees and 0.006 L of each height, the gaps
+    interpolated: it read the vertex rows' spacing on a steep flare (two heights catching one row read flat, then a
+    jump), the ends' clamped extrapolation and a mask's edge crossing the sector as bends of 27-55 degrees on a join
+    whose exact cut bends 12-14.)"""
+    from scipy.ndimage import gaussian_filter1d
+    T = np.asarray(T)
     zc = c[2] + CUT * L
-    band = (V[:, 2] > zc - (JOIN[0] + 0.05) * L) & (V[:, 2] < zc + (JOIN[1] + 0.05) * L)
-    P = V[band]
-    if len(P) < 50:
+    vin = (V[:, 2] > zc - (JOIN[0] + 0.05) * L) & (V[:, 2] < zc + (JOIN[1] + 0.05) * L)
+    if vin.sum() < 50:
         return None
-    ring = P[np.abs(P[:, 2] - zc) < 0.02 * L]
+    Tb = T[vin[T].all(1)]
+    ring = V[vin & (np.abs(V[:, 2] - zc) < 0.02 * L)]
     axis = ring[:, :2].mean(0) if len(ring) else c[:2]
-    q = P[:, :2] - axis
-    th = np.arctan2(q[:, 0], -q[:, 1])
-    r = np.hypot(q[:, 0], q[:, 1])
     zs = np.arange(zc - JOIN[0] * L, zc + JOIN[1] * L + 1e-12, dz * L)
     per = {}
     for j in range(cols):
         a = -math.pi + 2 * math.pi * (j + 0.5) / cols
-        m = np.abs(np.angle(np.exp(1j * (th - a)))) < sector
-        if m.sum() < 10:
-            continue
-        rr = []
-        for z in zs:
-            mm = m & (np.abs(P[:, 2] - z) < 0.6 * dz * L)
-            rr.append(r[mm].max() if mm.any() else np.nan)
-        rr = np.array(rr)
+        rr = section_outline(V, Tb, axis, a, zs)
         ok = np.isfinite(rr)
-        if ok.sum() < 6:
-            continue
-        rr = np.interp(np.arange(len(rr)), np.nonzero(ok)[0], rr[ok])
-        ang = np.degrees(np.arctan2(np.diff(rr), dz * L))            # the outline's slope per step (0: vertical)
-        from scipy.ndimage import gaussian_filter1d
-        bend = np.abs(ang - gaussian_filter1d(ang, CREASE_SMOOTH / dz, mode='nearest'))
-        per[round(math.degrees(a))] = round(float(bend.max()), 1)
+        okd = ok[1:] & ok[:-1]
+        ang = np.degrees(np.arctan2(np.diff(np.where(ok, rr, 0.0)), dz * L))   # the outline's slope per step
+        best, k, seen = 0.0, 0, False
+        while k < len(okd):
+            if not okd[k]:
+                k += 1
+                continue
+            e = k
+            while e < len(okd) and okd[e]:
+                e += 1
+            if e - k >= CREASE_RUN:
+                seg = ang[k:e]
+                b = np.abs(seg - gaussian_filter1d(seg, CREASE_SMOOTH / dz, mode='nearest'))
+                best, seen = max(best, float(b.max())), True
+            k = e
+        if seen:
+            per[round(math.degrees(a))] = round(best, 1)
     if not per:
         return None
     worst = max(per, key=per.get)

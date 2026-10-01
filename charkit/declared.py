@@ -20,8 +20,17 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   position     a piece's centroid against the design's (L from the eye line and the midline): the larger of |dx|, |dz|
                (params axis 'x', 'z' or 'both')
   area         the piece's pixels over the drawn piece's, |ratio - 1| (a size: the wrist cuffs 1.5-2.4x the drawn)
+  class_iou    a model-sheet class inside a window (L round the eye line): IoU of ours with the drawing's (the skin
+               in the V above the bow)
+  top_line     the upper edge of a union of pieces (the shoulder line) per column over x bands, ours against the drawn
+               silhouette's where the lower edge isn't under hair: its height (dz), slope or trough (the dip)
   ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
                recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
+  stair        a piece's stepped hem band (the skirt's and the flaps' dark staircase): the face/band boundary traced
+               as risers and treads (stair_of); measure 'corner' (how far its corners are from square, degrees),
+               'crossed' (the zigzag's steps a fold crosses: Michael, 2026-10-01, "a fold bends a step that spans it") or 'spacing'
+               (our folds' spacing where they meet the band against the drawn steps' widths, |ratio - 1|); our folds
+               are our lines and our geometry's (our_folds)
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -33,7 +42,9 @@ nothing imported: the gate and `calibrate` read a tree's without running it; no 
             the bow's drawn tails into the bow, as our bow object has them); round: the value's decimals; drawn: the
             drawn piece to compare against in place of `piece`'s (a region we build as part of a piece: the skirt's
             cream panel); ours_cls: our piece's pixels of that model-sheet class only (pieceqa.our_classes: 'cream',
-            the panel's material on our skirt)
+            the panel's material on our skirt); ref: 'silhouette' compares with the drawn pieces as our surfaces
+            would draw them (the drawing's lines inside the figure given to the nearest piece: bodymeasure.drawn_labels;
+            area's default) instead of the outfit's fill masks
   limits    [pass, warn] (within: PASS, WARN; beyond: FAIL), or a reference to a part's own table
             ('charkit.pieceqa.LIMITS.rows'); better 'lower' (default; shape_iou 'higher') or 'higher' (at least)
   part      the QA part that reports it: 'declared' (default: this module's part) or a part that evaluates its own
@@ -289,6 +300,87 @@ def area(Mo, Md, ctx, round_=3, ref='silhouette'):
                 fill=fill, ratio_fill=round(float(Mo.sum()) / fill, 3))
 
 
+def top_line(Mo, Md, ctx, x=((-0.7, -0.15), (0.15, 0.7)), measure='dz', min_cols=8, round_=4):
+    """the upper edge of a union of pieces (the shoulder line: the jacket, the collar and the sleeves) per column over
+    signed x bands (L from the midline, one per side), ours against the drawn pieces' silhouettes (evaluate's `ref`
+    'silhouette': the drawing's lines given to the nearest piece). A column whose lower edge of the two lies under hair
+    (the label just above it hair) is left out: a shoulder under the hair isn't seen in that view, and the hair's tips
+    resting on it are no shoulder. measure 'dz': per band the median of ours less the design's, the worse band's |.|;
+    'slope': per band a line fitted against |x| (L per L), |ours - design's|, the worse; 'trough': per band the deepest
+    trough of the edge (collarqa.trough: the water line between the higher points either side), ours beyond the
+    design's (>= 0), the worse (Michael's dip between the collar and the puff)."""
+    from . import bodyqa, collarqa, pieceqa
+    ppl = ctx['ppl']
+    Mo = np.any(Mo, 0) if isinstance(Mo, (list, tuple)) else Mo
+    Md = np.any([fit(m, Mo.shape) for m in Md], 0) if isinstance(Md, (list, tuple)) else fit(Md, Mo.shape)
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    if Mo.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    hair_o, hair_d = ctx.get('hair_ours'), ctx.get('hair_drawn')
+    to, td = collarqa.top_edge(Mo), collarqa.top_edge(Md)
+    per, vals = {}, []
+    for k, (a, b) in enumerate(x):
+        c0, c1 = sorted((collarqa._col(a, ppl), collarqa._col(b, ppl)))
+        cs = np.arange(max(0, c0), min(Mo.shape[1] - 1, c1) + 1)
+        ro, rd = to[cs], td[cs]
+        ok = np.isfinite(ro) & np.isfinite(rd)
+        lower_o = ok & (ro > rd)                  # (rows grow downward: ours lower)
+        for lower, hair, r in ((lower_o, hair_o, ro), (ok & (rd > ro), hair_d, rd)):
+            if hair is None:
+                continue
+            ri = np.clip(np.nan_to_num(r, nan=0).astype(int) - 2, 0, Mo.shape[0] - 1)
+            under = hair[ri, cs]
+            ok &= ~(lower & under)
+        if ok.sum() < min_cols:
+            per[k] = None
+            continue
+        xs = np.abs((cs[ok] + 0.5) / ppl - bodyqa.WIN['x'])
+        zo, zd = collarqa._z(ro[ok], ppl), collarqa._z(rd[ok], ppl)
+        if measure == 'dz':
+            v = float(np.median(zo - zd))
+            per[k] = dict(dz=round(v, 4), cols=int(ok.sum()))
+            vals.append(abs(v))
+        elif measure == 'slope':
+            so, sd = np.polyfit(xs, zo, 1)[0], np.polyfit(xs, zd, 1)[0]
+            per[k] = dict(slope=round(float(so), 3), slope_design=round(float(sd), 3), cols=int(ok.sum()))
+            vals.append(abs(so - sd))
+        else:
+            o_, d_ = collarqa.trough(zo), collarqa.trough(zd)
+            per[k] = dict(ours=round(o_, 4), design=round(d_, 4), cols=int(ok.sum()))
+            vals.append(max(0.0, o_ - d_))
+    if not vals:
+        return None
+    return dict(value=round(max(vals), round_), ours=per, design=None)
+
+
+def class_iou(Mo, Md, ctx, cls='skin', window=(-0.2, 0.2, -0.4, -0.75), round_=4):
+    """a model-sheet class inside a window (x0, x1 from the midline, z top, z bottom: L from the eye line): the IoU of
+    our pixels of that class (pieceqa.our_classes) with the drawing's (its classes) there, higher better: the skin in
+    the V between the collar's lapels above the bow (Michael's item 4: drawn skin, ours the jacket's orange). The
+    piece only names where it's measured; its masks aren't read."""
+    from . import bodyqa, pieceqa
+    ppl = ctx['ppl']
+    co, cd = ctx.get('cls_ours'), ctx.get('cls')
+    if cd is None:
+        return None
+    if co is None:
+        return dict(value=None, why=WHY_OURS)
+    sh = co.shape
+    x0, x1, zt, zb = window
+    r0, r1 = int(round((bodyqa.WIN['top'] - zt) * ppl)), int(round((bodyqa.WIN['top'] - zb) * ppl))
+    c0, c1 = int(round((x0 + bodyqa.WIN['x']) * ppl)), int(round((x1 + bodyqa.WIN['x']) * ppl))
+    W = np.zeros(sh, bool)
+    W[max(0, r0):r1, max(0, c0):c1] = True
+    o = W & (co == bodyqa.CLASS[cls])
+    d = W & (fit(cd, sh) if cd.dtype == bool else (lambda c: c)(np.pad(cd, ((0, max(0, sh[0] - cd.shape[0])), (0, max(0, sh[1] - cd.shape[1]))), constant_values=-1)[:sh[0], :sh[1]]) == bodyqa.CLASS[cls])
+    if d.sum() < pieceqa.MIN_PX:
+        return None
+    u = (o | d).sum()
+    return dict(value=round(float((o & d).sum()) / float(u), round_), ours=round(float(o.sum()) / ppl ** 2, 4),
+                design=round(float(d.sum()) / ppl ** 2, 4))
+
+
 def position(Mo, Md, ctx, axis='both', round_=4):
     """the piece's centroid (L from the midline and the eye line: pieceqa.x_of, z_of) against the design's: the larger of
     |dx| and |dz| (axis 'both'), or one of them."""
@@ -407,10 +499,299 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
                 precision=round(prec, 3))
 
 
+# ------------------------------------------------------------------------------------------------- the stepped band
+STAIR_GAP = 0.03          # L: the band within this of the face (the drawing's line between them: skirtqa.BAND_GAP)
+STAIR_EPS = 2.0           # px: the boundary simplified to a polyline within this (skirtqa.EDGE_EPS)
+STAIR_RISE = 0.015        # L: a riser at least this long (skirtqa.MIN_RISE) ...
+STAIR_TREAD = 0.02        # L: ... a tread at least this long (skirtqa.MIN_TREAD); shorter pieces join their neighbours
+
+
+def stair_runs(face, band, ppl, gap=STAIR_GAP, eps=STAIR_EPS, min_rise=STAIR_RISE, min_tread=STAIR_TREAD,
+               min_run=0.05):
+    """a piece's stepped band in one view (face: the piece's pixels above its band, its drawn lines kept; band: the
+    dark pixels): the face's outline (skimage find_contours, sub-pixel) where the band lies within `gap` L of it, in
+    runs at least `min_run` L long, each simplified to a polyline (skirtqa.rdp, eps px) whose pieces are classed risers
+    ('r': steeper than 45 degrees) or treads ('t'), consecutive ones of a class merged, and a piece shorter than its
+    class's minimum (min_rise, min_tread L) joined with its neighbours (between two of the other class: the three as
+    one; at a run's end: dropped), so the classes alternate. The outline, not the band's top per column (skirtqa's
+    band_edge): a riser leaning over its band reads too. -> [dict(P (k, 2) the run's points (row, col), cum (k,) arc
+    length px, segs [dict(k, i0, i1, a (row, col), b, len L)])]."""
+    from scipy import ndimage
+    from skimage.measure import find_contours
+    from .skirtqa import rdp
+    if not face.any() or not band.any():
+        return []
+    g_ = max(1.0, gap * ppl)
+    hi_ = np.array(face.shape) - 1
+    out = []
+    for C in find_contours(np.pad(face, 1).astype(float), 0.5):
+        C = C - 1
+        # the band beyond the outline along its outward normal (within gap), not merely near it: a face's side edge
+        # with its band diagonally below is no riser
+        T = np.gradient(C, axis=0)
+        Nn = np.c_[T[:, 1], -T[:, 0]] / np.maximum(1e-9, np.hypot(T[:, 0], T[:, 1]))[:, None]
+        q = np.clip(np.rint(C + 1.5 * Nn).astype(int), 0, hi_)
+        Nn[face[q[:, 0], q[:, 1]]] *= -1                       # (pointing out of the face)
+        ok = np.zeros(len(C), bool)
+        for t_ in np.arange(1.0, g_ + 0.5, 1.0):
+            q = np.clip(np.rint(C + t_ * Nn).astype(int), 0, hi_)
+            ok |= band[q[:, 0], q[:, 1]]
+        if not ok.any():
+            continue
+        closed = np.allclose(C[0], C[-1])
+        if closed and ok.all():
+            k0 = 0
+        elif closed:                                     # (start the walk where the boundary leaves the band)
+            k0 = int(np.nonzero(~ok)[0][0])
+            C, ok = np.roll(C[:-1], -k0, 0), np.roll(ok[:-1], -k0)
+        idx = np.nonzero(ok)[0]
+        for run in np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1):
+            P = C[run]
+            if len(P) < 3:
+                continue
+            cum = np.r_[0, np.cumsum(np.hypot(*np.diff(P, axis=0).T))]
+            if cum[-1] < min_run * ppl:
+                continue
+            keep = rdp(P[:, ::-1], eps)
+            g = []
+            for i0, i1 in zip(keep[:-1], keep[1:]):
+                dr, dc = P[i1] - P[i0]
+                k = 'r' if abs(dr) > abs(dc) else 't'
+                if g and g[-1]['k'] == k:
+                    g[-1]['i1'] = int(i1)
+                else:
+                    g.append(dict(k=k, i0=int(i0), i1=int(i1)))
+            while g:
+                ln = [float(np.hypot(*(P[s['i1']] - P[s['i0']]))) / ppl for s in g]
+                short = [(ln[i] / (min_rise if s['k'] == 'r' else min_tread), i) for i, s in enumerate(g)
+                         if ln[i] < (min_rise if s['k'] == 'r' else min_tread)]
+                if not short:
+                    break
+                i = min(short)[1]
+                if 0 < i < len(g) - 1:
+                    g[i - 1:i + 2] = [dict(k=g[i - 1]['k'], i0=g[i - 1]['i0'], i1=g[i + 1]['i1'])]
+                else:
+                    g.pop(i)
+                    # (a run's end piece dropped; neighbours of a class merged)
+                h = []
+                for s in g:
+                    if h and h[-1]['k'] == s['k']:
+                        h[-1]['i1'] = s['i1']
+                    else:
+                        h.append(dict(s))
+                g = h
+            for s in g:
+                s['a'], s['b'] = P[s['i0']], P[s['i1']]
+                s['len'] = float(np.hypot(*(s['b'] - s['a']))) / ppl
+            if g:
+                out.append(dict(P=P, cum=cum, segs=g))
+    return out
+
+
+def stair_creases(lines, region, runs, ppl, above=0.08, clear=2.0, min_len=0.03):
+    """the folds meeting a stepped band (stair_runs'): the drawn lines inside the piece (`region`) within `above` L
+    of the band's boundary but more than `clear` px from it (the boundary's own line: a riser's outline is no fold),
+    as 8-connected pieces at least `min_len` L across; each one's meeting point is its pixel nearest the boundary,
+    placed on the nearest run point -> [dict(at (row, col), run, i (the run point's index), d px)]."""
+    from scipy import ndimage
+    if lines is None or not runs:
+        return []
+    Pall = np.concatenate([r['P'] for r in runs])
+    which = np.concatenate([np.full(len(r['P']), j) for j, r in enumerate(runs)])
+    pos = np.concatenate([np.arange(len(r['P'])) for r in runs])
+    seed = np.zeros(lines.shape, bool)
+    ri = np.clip(np.rint(Pall).astype(int), 0, np.array(lines.shape) - 1)
+    seed[ri[:, 0], ri[:, 1]] = True
+    dist = ndimage.distance_transform_edt(~seed)
+    zone = lines & region & (dist <= above * ppl) & (dist > clear)
+    lab, n = ndimage.label(zone, np.ones((3, 3)))
+    out = []
+    if not n:
+        return out
+    from scipy.spatial import cKDTree
+    tree = cKDTree(Pall)
+    for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        rr, cc = np.nonzero(lab[sl] == i)
+        rr, cc = rr + sl[0].start, cc + sl[1].start
+        if max(np.ptp(rr), np.ptp(cc)) + 1 < min_len * ppl:
+            continue
+        k = int(np.argmin(dist[rr, cc]))
+        d, j = tree.query([rr[k], cc[k]])
+        out.append(dict(at=(float(rr[k]), float(cc[k])), run=int(which[j]), i=int(pos[j]), d=float(d)))
+    return out
+
+
+def seg_dir(P, s, trim=0.15):
+    """a stair segment's direction (unit, row-col): the principal axis of its boundary points, `trim` of its length
+    left out at each end (a drawn corner's rounding), else its ends' chord."""
+    Q = P[s['i0']:s['i1'] + 1]
+    k = int(round(trim * len(Q)))
+    Q = Q[k:len(Q) - k] if len(Q) - 2 * k >= 4 else Q
+    d = s['b'] - s['a']
+    if len(Q) >= 4:
+        _, _, vt = np.linalg.svd(Q - Q.mean(0), full_matrices=False)
+        e = vt[0] * (1 if vt[0] @ d >= 0 else -1)
+    else:
+        e = d
+    return e / max(1e-9, np.hypot(*e))
+
+
+def stair_read(runs, creases, ppl, tol=0.02, margin=0.035):
+    """a stepped band's numbers: each corner's departure from square (90 less the acute angle between a riser's and the
+    next tread's lines, degrees), each tread a fold meets more than `margin` L inside its ends (crossed: a fold bends the
+    step), each riser no fold meets within `tol` L of it (off), and the folds' spacing (L, straight across between
+    consecutive meeting points along a run; meeting points within `tol` L of each other one fold) -> dict(corners, crossed, off, risers, treads,
+    spacing, creases, tread_len (L))."""
+    corners, crossed, off, spacing, tl = [], 0, 0, [], []
+    nr = nt = nf = steps_crossed = 0
+    t_, m_ = tol * ppl, margin * ppl
+    for j, r in enumerate(runs):
+        cum, g = r['cum'], r['segs']
+        for s, u in zip(g[:-1], g[1:]):
+            a, b = seg_dir(r['P'], s), seg_dir(r['P'], u)
+            corners.append(90.0 - float(np.degrees(np.arccos(min(1.0, abs(a @ b))))))
+        at, pts = [], []
+        for x, i in sorted((cum[c['i']], c['i']) for c in creases if c['run'] == j):
+            if not at or x - at[-1][-1] > t_:          # (a fold's two edges, or a line and a fold: one fold)
+                at.append([x])
+                pts.append([i])
+            else:
+                at[-1].append(x)
+                pts[-1].append(i)
+        at = [float(np.mean(a)) for a in at]
+        nf += len(at)
+        Q = np.array([r['P'][ii].mean(0) for ii in pts]) if pts else np.zeros((0, 2))
+        spacing += list(np.hypot(*np.diff(Q, axis=0).T) / ppl) if len(Q) > 1 else []
+        for q, s in enumerate(g):
+            lo, hi = cum[s['i0']], cum[s['i1']]
+            if s['k'] == 't':
+                nt += 1
+                tl.append(round(s['len'], 4))
+                x_ = int(any(lo + m_ < x < hi - m_ for x in at))
+                crossed += x_
+                if 0 < q < len(g) - 1:                  # (a step of the zigzag: a riser at either end)
+                    steps_crossed += x_
+            else:
+                nr += 1
+                off += int(not any(lo - t_ <= x <= hi + t_ for x in at))
+    return dict(corners=[round(c, 1) for c in corners], crossed=crossed, off=off, risers=nr, treads=nt,
+                spacing=[round(float(s), 4) for s in spacing], creases=nf, tread_len=tl, steps_crossed=steps_crossed)
+
+
+def stair_inputs(M, cls, lines, ppl, reach=0.4, inset=3):
+    """a piece's face and band from its pixels and the model-sheet classes over them: the face the piece's pixels
+    neither dark nor cream (the skirt's cream panel has no band; the drawing's lines inside it kept, so a fold doesn't
+    cut it), the band the dark pixels (the class image's: the drawn masks leave the band out) with the face above
+    them within `reach` L in their column (the band under the piece, not a band over it: the skirt's over a flap's
+    top), our ink strokes left out of it (dark geometry: lines, not band); and the piece's inside, `inset` px in from
+    the outline of it and its band (where a line is a fold, not its outline) -> (face, band, lines, inside)."""
+    from scipy import ndimage
+    from . import bodyqa
+    sh = M.shape
+    c = np.zeros(sh, int)
+    h, w = min(sh[0], cls.shape[0]), min(sh[1], cls.shape[1])
+    c[:h, :w] = cls[:h, :w]
+    ln = fit(lines, sh) if lines is not None else np.zeros(sh, bool)
+    dark = c == bodyqa.CLASS['dark']
+    face = M & ~dark & (c != bodyqa.CLASS['cream'])
+    face = ndimage.binary_opening(face, iterations=1)
+    dark &= ~ln
+    under = np.zeros(sh, bool)
+    for d in range(1, max(2, int(round(reach * ppl))) + 1):
+        under[d:] |= face[:-d]
+    band = dark & under
+    whole = ndimage.binary_closing(np.pad(M | band, 4), iterations=4)[4:-4, 4:-4]     # (closed over drawn lines)
+    inside = ndimage.binary_erosion(ndimage.binary_fill_holes(whole), iterations=inset)
+    return face, band, (ln if lines is not None else None), inside
+
+
+def stair_of(M, cls, lines, ppl, gap=STAIR_GAP, above=0.08, tol=0.02, folds=None):
+    """stair_runs, stair_creases and stair_read on a piece's mask, the classes over it, the lines (ink: the band left
+    out under them) and folds (geometry's: read as folds with the lines) -> (read, runs, creases) or None (no band under
+    the face)."""
+    face, band, ln, inside = stair_inputs(M, cls, lines, ppl)
+    runs = stair_runs(face, band, ppl, gap)
+    if not runs:
+        return None
+    if folds is not None:
+        ln = fit(folds, M.shape) | (ln if ln is not None else False)
+    cr = stair_creases(ln, inside & ~band, runs, ppl, above) if ln is not None else []
+    return stair_read(runs, cr, ppl, tol), runs, cr
+
+
+def _pool(reads):
+    """stair_read's readings over several pieces in one view, pooled."""
+    out = dict(corners=[], crossed=0, off=0, risers=0, treads=0, spacing=[], creases=0, tread_len=[], steps_crossed=0)
+    for r in reads:
+        for k in out:
+            out[k] = out[k] + r[k]
+    return out
+
+
+def stair(Mo, Md, ctx, measure='corner', above=0.08, tol=0.02, round_=2):
+    """the stepped band (stair_of) on ours and the drawn piece (or pieces: a list, their readings pooled): ours from our
+    piece's pixels, our model-sheet classes (ctx cls_ours), our drawn lines (ctx lines: outlines and ink strokes) and our
+    geometry's folds (ctx folds: our_folds: the pleats' folds show as shading where the design draws lines), the
+    design's from the drawn piece, its classes and its ink with its fainter strokes (outfit.ridges, skin left out: as
+    ink_inside reads them). measure 'corner': the corners' median departure from square, ours beyond the design's
+    (degrees); 'crossed': the zigzag's steps (treads with a riser at either end) a fold crosses (Michael, 2026-10-01:
+    "our zigzag runs across a crease ... a fold bends a step that spans it"), ours beyond the design's (a count; every
+    tread a fold crosses, the flat band beyond the stair too, reported beside it); 'spacing': our folds' median spacing where they meet the band against the drawn
+    steps' median width (the drawn pleat widths: a step is a pleat), |ours / design - 1|. A view where no drawn piece
+    shows a band under it is skipped; ours showing none: FAIL."""
+    from . import bodyqa, outfit
+    dv = ctx.get('dv') or {}
+    raw = dv.get('raw')
+    cld = ctx.get('cls')
+    Mos, Mds = (Mo, Md) if isinstance(Md, (list, tuple)) else ([Mo], [Md])
+    if cld is None:
+        return None
+    ink = (raw if raw is not None else cld) == bodyqa.CLASS['line']
+    if dv.get('rgb') is not None:
+        ink = ink | (outfit.ridges(dv['rgb']) & ((raw if raw is not None else cld) != bodyqa.CLASS['skin']))
+    D = [stair_of(m, cld, ink, ctx['ppl'], above=above, tol=tol) for m in Mds if m is not None and m.any()]
+    D = [g[0] for g in D if g is not None]
+    if not D:
+        return None
+    d = _pool(D)
+    if (measure == 'corner' and not d['corners']) or (measure == 'spacing' and not d['tread_len']):
+        return None
+    clo = ctx.get('cls_ours')
+    O = [stair_of(m, clo, ctx.get('lines'), ctx['ppl'], above=above, tol=tol, folds=ctx.get('folds'))
+         for m in Mos if clo is not None and m.any()]
+    O = [g[0] for g in O if g is not None]
+    if not O:
+        return dict(value=None, why='ours shows no band under the piece here')
+    o = _pool(O)
+    if measure == 'corner':
+        if not o['corners']:
+            return dict(value=None, why='ours shows no step here')
+        mo, md = float(np.median(o['corners'])), float(np.median(d['corners']))
+        return dict(value=round(max(0.0, mo - md), round_), ours=round(mo, round_), design=round(md, round_),
+                    count=[len(o['corners']), len(d['corners'])])
+    if measure == 'crossed':
+        # the zigzag's steps (a tread with a riser at either end) a fold crosses; count: [steps crossed, every tread
+        # crossed (the flat band beyond the stair too), treads] ours, then the design's
+        return dict(value=max(0, o['steps_crossed'] - d['steps_crossed']), ours=o['steps_crossed'],
+                    design=d['steps_crossed'], count=[[o['steps_crossed'], o['crossed'], o['treads']],
+                                                      [d['steps_crossed'], d['crossed'], d['treads']]])
+    if measure == 'spacing':
+        if not o['spacing']:
+            return dict(value=None, why='ours shows fewer than two folds meeting the band here')
+        so, sd = float(np.median(o['spacing'])), float(np.median(d['tread_len']))
+        return dict(value=round(abs(so / sd - 1), round_), ours=round(so, 4), design=round(sd, 4),
+                    ratio=round(so / sd, 3))
+    raise KeyError(measure)
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position, ink_inside=ink_inside, area=area)
-HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
-LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
+                position=position, ink_inside=ink_inside, area=area, top_line=top_line, class_iou=class_iou,
+                stair=stair)
+HIGHER = ('shape_iou', 'class_iou')                 # families whose value is better higher (a declaration's `better` overrides)
+LINE_FAMILIES = ('ink_between', 'ink_inside', 'stair')     # families that read our drawn lines (inputs' lines)
+HAIR_FAMILIES = ('top_line',)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
+CLASS_FAMILIES = ('class_iou', 'stair')           # families that read our model-sheet classes (inputs' classes)
+FOLD_FAMILIES = ('stair',)                        # families that read our geometry's folds (inputs' folds: our_folds)
 
 
 def grade(v, limits, better='lower'):
@@ -421,7 +802,7 @@ def grade(v, limits, better='lower'):
 
 
 # ------------------------------------------------------------------------------------------------------------ measuring
-def inputs(B, design, views=VIEWS, lines=False, classes=False):
+def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines) -> dict, or None when the design or the outfit masks are missing."""
@@ -443,6 +824,8 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False):
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
     if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
         out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
+    if folds:                                     # (the stair family: our geometry's folds, as the design's lines)
+        out['folds'] = our_folds(B, ctx['ppl'], ctx['az3'], tuple(O))
     return out
 
 
@@ -484,10 +867,91 @@ def our_lines(B, ppl, az3, views=VIEWS):
     return out
 
 
+FOLD_DEG = 15.0          # degrees: a fold where the surface turns by at least this ...
+FOLD_PX = 4              # ... between pixels this far either side (a subdivided fold turns over a few pixels)
+FOLD_SIGMA = 1.5         # px: the normals smoothed first (the facets' jitter)
+
+
+def fold_lines(n, own, depth, k=FOLD_PX, min_deg=FOLD_DEG, step=1.5, pix=1.0, sigma=FOLD_SIGMA):
+    """the folds in a view's normal image (n (H, W, 3), own the object per pixel (-1 none), depth; smoothed by a gaussian
+    sigma px: a subdivided surface's facets turn a little at every edge): along each axis the
+    surface's turn between the pixels k either side, where both are the same object and continuous with the middle one
+    (depths within step pixels a pixel), kept where it reaches min_deg and is the largest of its neighbours along that
+    axis (thinned to the fold's line) -> bool image."""
+    from scipy import ndimage
+    H, W = own.shape
+    c = np.cos(np.radians(min_deg))
+    out = np.zeros((H, W), bool)
+    if sigma:                                            # (a subdivided mesh's flat facets: their jitter smoothed out)
+        m = (own >= 0).astype(float)
+        w = ndimage.gaussian_filter(m, sigma)
+        n = np.stack([ndimage.gaussian_filter(n[..., i] * m, sigma) for i in range(3)], -1) / np.maximum(1e-9, w)[..., None]
+        n /= np.maximum(1e-9, np.linalg.norm(n, axis=-1))[..., None]
+    for ax in (0, 1):
+        t = np.zeros((H, W))
+        a = [slice(None)] * 2
+        lo, mid, hi = list(a), list(a), list(a)
+        lo[ax], mid[ax], hi[ax] = slice(None, -2 * k), slice(k, -k), slice(2 * k, None)
+        lo, mid, hi = tuple(lo), tuple(mid), tuple(hi)
+        ok = (own[lo] == own[mid]) & (own[hi] == own[mid]) & (own[mid] >= 0) & \
+            (np.abs(depth[lo] - depth[mid]) < step * k * pix) & (np.abs(depth[hi] - depth[mid]) < step * k * pix)
+        d = np.abs((n[lo] * n[hi]).sum(-1))
+        t[mid] = np.where(ok, 1.0 - d, 0.0)              # (1 - cos: grows with the turn)
+        prev, nxt = np.roll(t, 1, ax), np.roll(t, -1, ax)
+        out |= (t >= 1.0 - c) & (t >= prev) & (t >= nxt)
+    return out
+
+
+def our_folds(B, ppl, az3, views=VIEWS, min_deg=FOLD_DEG, k=FOLD_PX):
+    """our geometry's folds per view on the design's grids (tool/garments4, the staircase): the faces z-buffered by
+    their index (pieceqa.our_labels' objects), their normals, and fold_lines on them -> {view: bool image}. The skirt's
+    pleat folds show in the render as its cel shading's edges, not as ink, where the design draws them as lines: the
+    stair family reads them with our lines. The generic calibration's stand-in patches it as it patches our_lines."""
+    from . import bodyqa, qa3d
+    from .faceqa import zbuffer
+    meshes, _ = qa3d.scene_objects(B)
+    obj, N, own, base = [], [], [], 0
+    for i, (V, T, _) in enumerate(meshes):
+        V, T = np.asarray(V, float), np.asarray(T)
+        if not len(T):
+            continue
+        n = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+        n /= np.maximum(1e-12, np.linalg.norm(n, axis=1))[:, None]
+        obj.append((V, T, base + np.arange(len(T))))
+        N.append(n)
+        own.append(np.full(len(T), i))
+        base += len(T)
+    if not obj:
+        return {}
+    N, own = np.concatenate(N + [np.zeros((1, 3))]), np.concatenate(own + [np.array([-1])])
+    As = B.assembly
+    iw = np.array(qa3d.iris_centres(B))
+    az = bodyqa.azimuths(az3)
+    out = {}
+    for v in views:
+        org = bodyqa.origin(v, az[v], iw, As['centre'])
+        depth, lab = zbuffer(obj, az[v], org, As['L'], 1.0 / ppl, bodyqa.WIN)
+        kk = np.where(lab >= 0, lab, base)
+        out[v] = fold_lines(N[kk], own[kk], np.where(np.isfinite(depth), depth, 0.0), k, min_deg,
+                            pix=As['L'] / ppl)
+    return out
+
+
 def silhouette(I, view, pid):
     """the drawn piece's silhouette in a view: its pixels in the drawing drawn as our label image
     (bodymeasure.drawn_labels, cached on I: the drawing's lines inside the figure given to the nearest piece), or None
     when the inputs lack the outfit graph."""
+    from . import bodymeasure
+    lab = drawn_lab(I, view)
+    if lab is None:
+        return None
+    idx = {n: i for i, n in enumerate(I['names'])}
+    return bodymeasure.member_mask(lab, idx, I['pm'].get(pid, []))
+
+
+def drawn_lab(I, view):
+    """the drawing as our label image in a view (bodymeasure.drawn_labels, cached on I), or None without the outfit
+    graph."""
     from . import bodymeasure
     if I.get('graph') is None or I.get('dv') is None:
         return None
@@ -497,10 +961,13 @@ def silhouette(I, view, pid):
         I['_drawn'] = bodymeasure.drawn_labels(I['masks'], I['graph'], I['pm'], names, I['dv'], skin,
                                                [n for n in names if n.startswith('hair')])
     got = I['_drawn'].get(view)
-    if got is None:
-        return None
-    idx = {n: i for i, n in enumerate(I['names'])}
-    return bodymeasure.member_mask(got[0], idx, I['pm'].get(pid, []))
+    return None if got is None else got[0]
+
+
+def hair_of(lab, names):
+    """the pixels of a label image that are hair (an object named hair*)."""
+    h = [i for i, n in enumerate(names) if n.startswith('hair')]
+    return (lab >= 0) & np.isin(lab % 1000, h) if h else np.zeros(lab.shape, bool)
 
 
 def fit(m, shape):
@@ -566,9 +1033,17 @@ def evaluate(decls, I):
         ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=(dv.get(view) or {}).get('fg'), cls=(dv.get(view) or {}).get('cls'),
                    dv=dv.get(view),
                    lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
-                   cls_ours=(I.get('cls_ours') or {}).get(view),
+                   cls_ours=(I.get('cls_ours') or {}).get(view), folds=(I.get('folds') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
+        ref = params.pop('ref', None) if d['family'] != 'area' else None
+        if ref == 'silhouette':                           # (the drawn pieces with the drawing's lines given to them)
+            S = [silhouette(I, view, p) for p in pieces]
+            Md = [m if s_ is None else s_ for s_, m in zip(S, Md)]
+        if d['family'] in HAIR_FAMILIES:                  # (what lies under hair in each view isn't seen)
+            dl = drawn_lab(I, view)
+            ctx['hair_ours'] = hair_of(lab, names)
+            ctx['hair_drawn'] = None if dl is None else fit(hair_of(dl, names), lab.shape)
         fam = FAMILIES[d['family']]
         if 'round' in params:
             params['round_'] = params.pop('round')
@@ -610,7 +1085,9 @@ def declared(B, design=None, out=None):
         return None, {}
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
     I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
-               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) for d in ds))
+               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) or d['family'] in CLASS_FAMILIES
+                           for d in ds),
+               folds=any(d['family'] in FOLD_FAMILIES for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}
@@ -653,4 +1130,8 @@ class Declared(_calib_base()):
             if kind == 'design':
                 return {v: _shift(drawn(v), arg[0], arg[1], False) for v in views if v in self.cls}
             return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
-        return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines)]
+
+        def folds(B, ppl, az3, views=VIEWS, **kw):
+            return lines(B, ppl, az3, views)            # (the drawing draws its folds as lines)
+        return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines),
+                                                (sys.modules[__name__], 'our_folds', folds)]
