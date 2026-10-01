@@ -80,7 +80,8 @@ P = dict(
                            # them), False none (every region tipless: own or merged)
     merge_by='vall',       # a tipless region joins: 'vall' the tips' Voronoi's majority, 'decided' the nearest decided
                            # lock (own or tips') along the flow, 'exits' the lock it flows into
-    notch_lines=False,      # a lock line traced up from each notch of the outline
+    notch_lines='hem',     # a lock line traced up from each notch of the outline: 'hem' the outer outline's notches
+                           # opening down only, True every notch, False none
     tones=False,
     stroke_min=0.0,        # L: an interior stroke shorter than this is texture: not a lock wall (0: every stroke is)            # the cel tones' edges cut the cells (and, along the flow, the locks)
     closure_along=0.7,     # a trapped ball's closure whose direction . the flow is at least this continues a lock line
@@ -95,6 +96,7 @@ P = dict(
     match_cost=0.15,       # L: a cross-view match costs at most this (tip distance on the shell)
     match_du=0.02,         # L: a tip's position is known to this across the picture (its azimuth interval)
     limb_spread=30.0,      # deg: a tip on the silhouette may lie this far round past the shell's limb
+    near_t=3.0,            # line widths: a stroke ending this close to other ink is a T-junction's stem
     match_by='tips',       # cross-view links: 'tips' (every detected tip matched, its lock linked) or 'locks'
     match_dir=0.1,         # L per unit: the tips' outward directions' vertical parts differing costs this much
     match_root=0.0,        # the roots' azimuth gap's weight in a match's cost (0: the tips decide; a lock's root moves
@@ -464,8 +466,11 @@ class Split:
         # the drawing draws only the notch): traced upstream along the flow until ink, an extension or the outline
         if P['notch_lines']:
             hits['notch'] = 0
+            outer = _outer_contour_id(self)
             for t in self.notch_list:
-                o = np.array(t['out'])                     # from the chord to the notch: out of the hair at a notch
+                o = np.array(t['out'])                     # from the chord to the notch: into the hair at a notch
+                if P['notch_lines'] == 'hem' and not (t['contour'] == outer and o[0] < -0.5):
+                    continue                               # only the hem's notches (the outer outline's, opening down)
                 f = self.f_at(t['rc'])
                 up = -f
                 start = (t['rc'][0] + 1.5 * up[0], t['rc'][1] + 1.5 * up[1])
@@ -1043,16 +1048,28 @@ class Split:
         votes = {}
         Hh, Ww = sk.shape
         nT = 0
-        for r, c in np.argwhere(nb >= 3):
-            # the branches leaving this junction (walk each neighbour out a few line widths)
+        from scipy import ndimage as _nd
+        jl, nj = _nd.label(nb >= 3, structure=np.ones((3, 3)))
+        L_ = int(2 * lw) + 2
+        for j, sl in enumerate(_nd.find_objects(jl), 1):
+            cl = jl == j
+            rr_, cc_ = np.nonzero(cl[sl]); rr_ = rr_ + sl[0].start; cc_ = cc_ + sl[1].start
+            r, c = float(rr_.mean()), float(cc_.mean())
+            # the branches leaving the junction's cluster, each walked out L_ px
+            starts = set()
+            for a_, b_ in zip(rr_, cc_):
+                for dr, dc in OFF8:
+                    q = (a_ + dr, b_ + dc)
+                    if 0 <= q[0] < Hh and 0 <= q[1] < Ww and sk[q] and not cl[q]:
+                        starts.add(q)
             dirs = []
-            L_ = int(3 * lw) + 2
-            for dr, dc in OFF8:
-                q = (r + dr, c + dc)
-                if not (0 <= q[0] < Hh and 0 <= q[1] < Ww) or not sk[q] or nb[q] >= 3:
+            used = set()
+            for q in sorted(starts):
+                if q in used:
                     continue
-                br = [(r, c)] + _branch_from(sk, nb, (r, c), q, L_)
-                if len(br) < L_:
+                br = _branch_from(sk, np.where(cl, 3, np.minimum(nb, 2)), (int(round(r)), int(round(c))), q, L_)
+                used.update(br[:3])
+                if len(br) < L_ * 0.8:
                     continue
                 v = np.array(br[-1], float) - np.array([r, c], float)
                 dirs.append(v / max(1e-9, np.hypot(*v)))
@@ -1066,7 +1083,7 @@ class Split:
                     if best is None or cs < best[0]:
                         best = (cs, a, b)
             cs, a, b = best
-            if cs > -0.7:                                   # not a straight bar
+            if cs > -0.5:                                   # not a straight bar
                 continue
             s = dirs[3 - a - b]
             n = np.array([-s[1], s[0]])
@@ -1083,6 +1100,30 @@ class Split:
             for B in (Lb, Rb):
                 if B and B != F:
                     votes[(F, B)] = votes.get((F, B), 0) + 1
+        # near T-junctions: a drawn stroke whose end stops within near_t line widths of other ink (its extension met
+        # ink at once): the stroke is the stem, the ink it meets the bar
+        nN = 0
+        for e in self.ends:
+            if e.get('ext') != 'ink':
+                continue
+            ex = next((x for x in self.extensions if tuple(x['start']) == tuple(e['rc'])), None)
+            if ex is None or ex['length'] > P['near_t'] * lw:
+                continue
+            t = np.array(e['t']); n = np.array([-t[1], t[0]])
+            hit = np.array(ex['pts'][-1]) if ex['pts'] else np.array(e['rc'], float)
+            pf = hit + 2.5 * lw * t
+            pl = np.array(e['rc']) - 2 * lw * t + 1.5 * lw * n
+            pr = np.array(e['rc']) - 2 * lw * t - 1.5 * lw * n
+            get = lambda p: int(locks[int(round(min(max(p[0], 0), Hh - 1))), int(round(min(max(p[1], 0), Ww - 1)))]) \
+                if self.H[int(round(min(max(p[0], 0), Hh - 1))), int(round(min(max(p[1], 0), Ww - 1)))] else 0
+            F, Lb, Rb = get(pf), get(pl), get(pr)
+            if not F:
+                continue
+            nN += 1
+            for B in (Lb, Rb):
+                if B and B != F:
+                    votes[(F, B)] = votes.get((F, B), 0) + 1
+        self.report.update(near_t=nN)
         ids = sorted(int(i) for i in np.unique(locks[locks > 0]))
         rank = _ranks(ids, votes)
         self.layer_votes, self.layer_rank = votes, rank
@@ -1205,6 +1246,13 @@ class Split:
         self.layers(out)
         self.describe(out)
         return out
+
+
+def _outer_contour_id(S):
+    """the index (in tips()'s find_contours order) of the hair's longest outline: its outer edge."""
+    from skimage import measure
+    conts = measure.find_contours(np.pad(S.H, 1).astype(float), 0.5)
+    return int(np.argmax([len(c) for c in conts])) if conts else -1
 
 
 def _branch_from(sk, nb, j, q, maxlen):
