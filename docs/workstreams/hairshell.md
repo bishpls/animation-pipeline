@@ -128,6 +128,23 @@ back group (the back's hem locks run to the crown: their majority is the upper b
 Fixed: family-part targets, facing views only, centreline-proximity association, bounded twist, curvature clamp, scalp
 roots. Fit after (ls4): 28 shells, coverage of the side-lock family front 0.557 / profile 0.578.
 
+**Sweeps 2-3** (`sw2`, `sw3`; `tools/hairshell/sweepkeys.py OUT/sweep.json` tabulates them with each row's own builder
+folds; `tools/hairshell/lockpics.py OUT LABEL=BUILD ...` scores a build's or sweep row's locks against the truth, a
+row's folder given a `bundle` link to the base's):
+- sw2 `sides` (side locks only): side locks front 0.560 -> 0.559, profile 0.469 -> 0.597; terminator 2.126 -> 2.063;
+  lock lines 3q 0.176 -> 0.279, profile 0.120 -> 0.211; but peeks 17 -> 52, noise 0.072 -> 0.099, lock IoU against the
+  truth only 0.355 -> 0.362 (side locks 0.394 -> 0.441; the 3q 0.451 -> 0.367): too many small shells (the splitter's
+  fragments), gaps between them.
+- sw2 `pilot` (+ the back group in place of the wedges): lower back back 0.672 -> 0.494 (guard), lock IoU 0.338.
+- Then: fragments merged into their neighbour under 0.008 L^2 (an animator's lock, not every splitter piece), widened by a
+  line width (the drawn regions stop at the ink), containment (the centreline half a drawn width inside the drawn
+  hair in every view the lock faces), de-dup by coverage, `replace: false` for a group (laid over the family's own
+  pieces). sw3: sides 0.559 / 0.697, terminator 2.431, peeks 25, folds 189 (the tubes folded).
+- Folds: the root's dive to the scalp ran along the radial (degenerate frame) and the Bezier's own parameter crowded
+  stations at its turns; fixed by even arc-length stations, transported and smoothed frames, a smoothstep dive (at
+  most 31 deg), max-curvature clamps, smoothness prior 0.02 -> 1.0 (ls13: folds 2, fit IoU mean 0.665, coverage front
+  0.610 / profile 0.537).
+
 ## Jobs
 
-None running.
+- sweep 4 (laptop, background): `charkit/out/hairshell/sw4` (sides, pilot, pilot_over) + lock scores `lp4`.
