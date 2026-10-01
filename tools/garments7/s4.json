@@ -1,0 +1,159 @@
+{
+ "base": "charkit/out/g7_c4",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "face_region"
+ ],
+ "checks": [
+  "art_outline_neck",
+  "art_outline_collar",
+  "art_mirror_waist",
+  "art_speckle_neck",
+  "art_fragments_collar",
+  "bow_front_bleed",
+  "neck_v_*",
+  "neck_crease",
+  "collar_*_torn",
+  "shoulder_*"
+ ],
+ "variants": {
+  "L0": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 0.7,
+    "off": 0.06
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "L1": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 0.7,
+    "off": 0.06
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 55
+  },
+  "L2": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 0.7,
+    "off": 0.06,
+    "point": [
+     0.0,
+     -0.72
+    ],
+    "shoulder": [
+     0.34,
+     -0.5
+    ]
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "L3": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 0.7,
+    "off": 0.06,
+    "point": [
+     0.0,
+     -0.72
+    ],
+    "shoulder": [
+     0.34,
+     -0.5
+    ]
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 50
+  },
+  "L4": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.06,
+    "point": [
+     0.0,
+     -0.72
+    ],
+    "shoulder": [
+     0.34,
+     -0.5
+    ]
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "L5": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 0.7,
+    "off": 0.04,
+    "point": [
+     0.0,
+     -0.72
+    ],
+    "shoulder": [
+     0.34,
+     -0.5
+    ]
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "L6": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 0.7,
+    "off": 0.06,
+    "point": [
+     0.0,
+     -0.72
+    ],
+    "shoulder": [
+     0.38,
+     -0.49
+    ]
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  }
+ },
+ "boards": {
+  "az": [
+   0,
+   35.5
+  ],
+  "crop": "collar",
+  "pad": 0.08
+ }
+}

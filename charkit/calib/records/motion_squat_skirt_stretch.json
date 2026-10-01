@@ -3,7 +3,7 @@
  "part": "motion",
  "adapter": "Motion",
  "module": "charkit.calib.motion",
- "at": "2026-09-30T22:27:15",
+ "at": "2026-10-01T21:55:54",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -12,56 +12,56 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.12947,
+    0.15721,
     "PASS"
    ],
    "+0,+2": [
-    0.09584,
+    0.12728,
     "PASS"
    ],
    "+1,+0": [
-    0.1356,
+    0.18173,
     "PASS"
    ],
    "+2,+0": [
-    0.13098,
+    0.16272,
     "PASS"
    ],
    "+0,-1": [
-    0.09629,
+    0.12593,
     "PASS"
    ],
    "+0,-2": [
-    0.10632,
+    0.13534,
     "PASS"
    ],
    "-1,+0": [
-    0.10658,
+    0.13528,
     "PASS"
    ],
    "-2,+0": [
-    0.11531,
+    0.15561,
     "PASS"
    ]
   },
-  "min": 0.09584,
-  "max": 0.1356,
-  "spread": 0.0398,
-  "median": 0.11094499999999999
+  "min": 0.12593,
+  "max": 0.18173,
+  "spread": 0.0558,
+  "median": 0.145475
  },
  "known_bad": {
   "name": "motion_skinned",
-  "value": 0.87191,
+  "value": 0.81945,
   "status": "FAIL"
  },
  "floor": {
   "shuffled_weights": {
    "values": [
-    49.11149,
-    44.60025,
-    46.79084,
-    50.98656,
-    43.59455
+    53.50256,
+    53.76173,
+    56.96068,
+    59.48796,
+    62.62051
    ],
    "statuses": [
     "FAIL",
@@ -70,7 +70,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 46.79084,
+   "median": 56.96068,
    "status": "FAIL",
    "passing": 0
   }
@@ -78,15 +78,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.10404,
+  "value": 0.1338,
   "status": "PASS",
   "margin": 1.0
  },
  "verdict": "calibrated",
- "why": "a defect detector: the design passes every move (spread 0.0398), motion_skinned reads 0.87191 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
- "build": "charkit/out/hands_b4",
+ "why": "a defect detector: the design passes every move (spread 0.0558), motion_skinned reads 0.81945 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
+ "build": "charkit/out/g7_c7",
  "generators": {
   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
  },
- "seconds": 217.9
+ "seconds": 656.7
 }

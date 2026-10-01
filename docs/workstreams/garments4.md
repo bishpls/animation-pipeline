@@ -633,9 +633,55 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   [0.8, 0.6], Michael's item-4 flag, known-bad g4_cuffs2. Box build g4_v1 running (log
   charkit/out/garments4/build_v1.log). Next: compare with g4_cuffs2 / g4_stairs1 (kcmp), calibrate neck_v_* on the box,
   gate.
+- **Stairs gate 2: PASS under K** (tool/garments4-stairs 0425973b into pipeline-3d 00494dec;
+  charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md): nothing blocks; CPU 1.04x; 6 new checks
+  calibrated; art_band_lower (flag) 1.185 -> 1.111; flap_profile_sweep_R W -> P; guard: piece_overskirt_panel_L/R front
+  +3%, back +1%, piece_skirt unchanged. Mergeable at 0425973b (+ notes).
+- **Neck gate: PASS under K** (tool/garments4-neck 6598251b into 00494dec;
+  charkit/out/gate/gate_tool-garments4-neck_6598251b_into_00494dec.md): remeasured neck_crease 26.9 W -> 12.6 P,
+  neck_crease_all 44.7 -> 14.4 INFO, record calibrated; geometry unchanged (no 2x2); CPU 1.07x. Mergeable at 6598251b.
+- **g4_v1** (the V opened, box): neck_v_front_skin 0.765 W, neck_v_three_quarter_skin 0.566 F; neck_crease 12.7 P;
+  art_outline_neck 1.684 W -> 1.472 P; art_outline_collar 1.442 P (unchanged); piece_top front 0.583 -> 0.749, 3q 0.688
+  -> 0.800 (profile, back unchanged); piece_collar, piece_bow, piece_bodice_panel unchanged. Nothing worse under K.
+  neck_v_* CALIBRATED (box; design 0.90-0.97 every move, known-bad g4_v0 0.476 / 0.358 FAIL, voronoi floor 1.0: it
+  relabels pieces, not classes). Records via tools/garments4/box_records (the box's synced files are read-only:
+  `calibrate store` on the box linked the build but couldn't rewrite the JSON; --json needs an existing synced dir).
+- **The V's gate order:** gated into pipeline-3d before the neck remeasure lands, the 2x2 scores neck_crease's old
+  measure on the V geometry (26.9 W -> 55.3 F) and blocks; gate the V into tool/garments4-neck (its parent), carry
+  after the coordinator merges neck.
+- Lapels (step 4) branch tool/garments4-lapels (from tool/garments4-v): declared family band_rows (a1f16db1, 3b4886c3:
+  a two-sided band row by row, width / inner (the V) / outer edge vs the drawn silhouette, occluders' rows left out per
+  side incl. hair); drafts tools/garments4/drafts/lapels.json (collar_{front,three_quarter}_lapel_width / _v), being
+  calibrated on the box with neck_v_*.
+- Review page JSONs (built on the box: `remote run --fetch DIR review page JSON --out DIR`): tools/garments4/review/
+  stairs.json, neck.json, v1.json (figures copied under tools/garments4/review/).
+- **Stairs gate 3: PASS under K** (b4670264, the merge of pipeline-3d ff41ca2, into ff41ca20;
+  charkit/out/gate/gate_tool-garments4-stairs_b4670264_into_ff41ca20.md): CPU 1.00x. Mergeable at b4670264. (The carry
+  was refused: the build reads faceregion.py, which the neck merge changed.)
+- Review pages (built on the box): stairs charkit/out/garments4/review/stairs/index.html, neck
+  charkit/out/garments4/review/neck_page/index.html (sources tools/garments4/review/*.json).
+- V gate running (tool/garments4-v a6e0e465+records into ff41ca2; log charkit/out/garments4/gate_v.log).
+- **Lapels, step 4 (tool/garments4-lapels):** the front band measure didn't calibrate (a 1-2 px vertical move reads
+  0.035-0.06 L; the hair occluder takes every design row in front): declared three-quarter only (charkit/lapelqa.py,
+  limits [0.015, 0.03] from the draft's design worst 0.0083 / 0.0104 and known-bad 0.061 / 0.063); the front graded by
+  piece_collar front, neck_v_front_skin, art_outline_collar. Sweep l1 (flat_front alone, conform off in front): worse
+  (collar front IoU 0.657 -> 0.506 at 60 deg, 0.19 at 120; art_outline_neck 1.47 -> 3.94): the conform was the
+  shape. New template: collar 'lapel' {a, point, soft} (a Coons patch per lapel in the front view: V edge straight
+  from the collar's V top to the point, the neckline row, the column at a, the outer edge; laid on the body from the
+  front; garments.front_hits) with flat_front over the same azimuths; the jacket's opening must reach under the lapels
+  (x1.0-1.1 of the drawn V; nv2's x0.85 leaves orange inside a drawn-width V). Sweep l2 running (tools/garments4/l2.json:
+  a 60/75, opening x0.85/1.0/1.1, v_half 40/48).
 - **Stairs gate 2: PASS under K** (0425973b into 00494dec; charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md):
   nothing blocks, CPU 1.04x, 6 new checks calibrated, art_band_lower 1.185 -> 1.111, guard flat or up. pipeline-3d
   ff41ca2 (the neck merged) merged in afterwards (notes and CODEMAP conflicts resolved, CODEMAP regenerated).
+- **V gate 2: PASS under K** (tool/garments4-v a3bb4a8b, pipeline-3d 0d53cb8 merged in (declared families unioned),
+  into 0d53cb84; charkit/out/gate/gate_tool-garments4-v_a3bb4a8b_into_0d53cb84.md): CPU 1.01x; the one new FAIL is the
+  branch's own neck_v_three_quarter_skin 0.566 (reported). Mergeable at a3bb4a8b. Review page
+  charkit/out/garments4/review/v_page/index.html.
+- Lapels: sweeps l2 (the Coons patch) and l3 (the walk cut at the drawn outer edge) both worse than the hull collar
+  (collar front IoU 0.657 -> 0.41-0.54, 3q 0.468 -> 0.24-0.37, lap3q width 0.061 -> 0.095-0.128): the walk crumples over
+  the neck's flare. l4 running: mode 'project' (straight front-view columns laid on the torso). tool/garments4-v merged
+  into lapels (a3bb4a8b; declared families unioned: top_line, class_iou, stair, band_rows).
 
 ## The motion QA fix (branch tool/garments4-motionfix from pipeline-3d ad081524; coordinator's priority)
 - Cause (confirmed from the builds' qa.json): motion read SKIPPED "skirt: not a grid" since the creases milestone
@@ -657,3 +703,587 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - **Motion gate: PASS under K** (tool/garments4-motionfix 4da79555 into pipeline-3d ad081524;
   charkit/out/gate/gate_tool-garments4-motionfix_4da79555_into_ad081524.md): CPU 1.04x; the four motion checks back
   (records calibrated); motion's measurement steps registered after the gate (charkit/steps/motionqa.py), carried.
+
+## Lapels (step 4), stop point: not gated; what the sweeps showed and the exact next steps
+- Branch tool/garments4-lapels (pipeline-3d merged in after the V). Carries: declared band_rows (+ hair occluder),
+  charkit/lapelqa.py (collar_three_quarter_lapel_width / _v, limits [0.015, 0.03]; front not calibrated: a 1-2 px vertical
+  move reads 0.035-0.06 L; the drafts' records not written: calibrate the module on the chosen build), calibrate's
+  draft-check fix, garments: collar_hull flat_front {a, fade} (conform off in front), collar front_length table, collar
+  'lapel' {mode 'project' (straight front-view columns laid on the torso, garments.front_hits) or the walk cut at the
+  drawn outer edge; a, point, shoulder, spread, off, top, blend}. All off by default; bodysens NOT_KNOBS lists them.
+- Sweeps on g4_v1 (box; tools/garments4/l1..l7.json, outs charkit/out/garments4/sweeps/l1..l7, table
+  charkit/out/garments4/tools/ltab.py): control collar F/3q 0.657/0.468, V 0.765/0.566, lap3q width 0.061, ao_collar 1.45,
+  ao_neck 2.09 (numpy drawing). l1 conform off alone: worse (collar F 0.19-0.51). l2 Coons patch / l3 walk cut at the
+  outer edge: worse (0.41-0.54 / 0.24-0.37), the walk crumples over the neck's flare. l4/l5 projected: l5 Q2 (a 85, v_half
+  55, opening x1.1, spread 0.7, off 0.06) collar 0.765/0.428, V 0.80 P / 0.627, ao_collar 0.69, but ao_neck 5.7 and
+  fragments 9.2, lap3q width 0.079; l7 showed Q2's front gain came from rows that missed the torso collapsing onto the
+  neckline point (degenerate faces at the neck); with them filled by the walk (S0) 0.452/0.309. Neckline drops 0.02-0.06
+  (l7) give V 0.78-0.80 / 0.68-0.70 but collar 0.48-0.59 / 0.35-0.43.
+- **Why it doesn't converge:** the drawn lapels' top runs along a level shoulder line where our body dips 0.07-0.09 L
+  (milestone 3's measurement: shoulder_*_dip); in front view there's no body under the lapel's top (x 0.15-0.40 at
+  z -0.47..-0.52), so a lapel laid on the body has nothing to lie on there: the hull conform supplied it (as lumps).
+  The flat lapels need the shoulders first (body.shoulder template or the jacket's shoulder pad, tool/garments4-shoulders;
+  parked on Michael's two calls).
+- **Next steps:** (1) with Michael's shoulders answer: body.shoulder {z -0.525, x 0.47, join} (or the pad) on this branch;
+  (2) then the projected lapels laid on the jacket's surface (not the body's), all rows (no collapsed rows), lap_T
+  including the shoulder tops; sweep a/v_half/opening/off against collar F/3q (guard), neck_v_*, lap3q width/v, ao_collar,
+  ao_neck, af_collar; (3) calibrate lapelqa on the chosen build (`calibrate 'collar_three_quarter_lapel_*' --build`,
+  known-bad g4_v0), box build, merge pipeline-3d, gate; (4) re-judge art_outline_collar on it (today 1.442 PASS on the
+  default with the V: its FAILs were tool/collar4's stand-up template collars E2/A3/H1, 3.4-5.6).
+- Review pages: stairs charkit/out/garments4/review/stairs/index.html, neck .../review/neck_page/index.html, the V
+  .../review/v_page/index.html, lapels (informational) .../review/lapels_page/index.html (sources tools/garments4/review).
+- Heads (2026-10-01 end of this run): stairs b4670264 (merged, pipeline-3d 0d53cb8), neck 6598251b (merged, ff41ca2),
+  the V a3bb4a8b (gate PASS into 0d53cb84; merged, 9f6379e8), motion fix 880202e9 (carried PASS into ad081524; not yet
+  merged), lapels this commit (not gated).
+
+## Round 5 (2026-10-01, lean agent 5): shoulders first, then the flat lapels
+- Coordinator: (1) shoulders on tool/garments4-shoulders (pipeline-3d e9cb156 merged in: 1b83a84d, CODEMAP f2a1dffe):
+  re-measure with the V open, fix the shoulder line to the drawing's level line (template or pad, on the numbers) with
+  the back collar's cream panel; guard skin/top/sleeves/collar IoUs per view; gate. (2) then the flat lapels on the
+  fixed shoulders (tool/garments4-lapels + pipeline-3d): inner edges on the V to the knot, the stripe, a low band at the
+  back of the neck, the span stopping at the front-facing columns; gate; re-judge art_outline_collar.
+- Box builds running: g5_base (the merged head's default spec, charkit/out/garments5/specs/base.json; log
+  charkit/out/garments5/build_base.log), g5_sh0 (+ body.shoulder {z -0.525, x 0.47, join}: specs/sh0.json; log
+  build_sh0.log). Outputs charkit/out/g5_base, charkit/out/g5_sh0.
+- **Scope expansion (coordinator, Michael's diagnosis, 2026-10-01):** the body has no real shoulder (separate meshes:
+  the torso tube and capped arm tubes; the torso's top fitted from the hull, i.e. the costume; body.shoulder off). Order:
+  (1) the body's shoulder, structurally: measured against base_body_turnaround, a continuous shoulder joining the arms
+  to the torso (welded, or a joined region with edge loops), skinnable (clavicle and upper-arm weights; garments'
+  transferred weights valid), the shoulder template on; guard skin/arm/sleeve/top IoUs, hands, cuffs, motion, art_bumps_*;
+  a posed check (arm raised 90 deg front and side) in the notes; gate. (2) the garment shoulders and back collar on the
+  new body; gate. (3) the flat lapels; gate; re-judge art_outline_collar.
+- Baseline g5_base (the merged head's default; qa charkit/out/g5_base/qa/qa.json): shoulder_front_top 0.033 F, _dip
+  0.052 F, _tilt 0.203 F, back top 0.019 W, dip 0.042 F, collar_back_rows 0.147 F, collar_back_iou 0.73 F;
+  art_outline_collar 1.442 P (3q 3.29), art_outline_neck 1.472 P, neck_crease 12.7 P, neck_v_front 0.765 W, 3q 0.566 F;
+  motion kick inside 0.0071 W. g5_sh0 (+ body.shoulder level template): dips 0.005 P, front top 0.028 W, tilt 0.104 W;
+  but art_outline_collar 1.44 P -> 2.83 W, art_outline_neck 1.47 -> 2.84 W (flags), neck_crease 12.7 -> 28.2 W.
+- **The body's shoulder measured** (tool tools/garments5/shm.py, box: `remote run --fetch charkit/out/garments5/shm
+  script tools/garments5/shm.py BUILD..`; our skin alone z-buffered, triangles labelled torso/arm/head by the nearest
+  body_code part; against base_body_turnaround's figures less hair (opened 3x3) on the design grid; picture
+  charkit/out/garments5/shm/v1b.png, numbers v1b.json). The reference (front; back within 0.01): shoulder top line z at
+  |x| 0.3 / 0.4 / 0.5 / 0.6 = -0.50 / -0.525 / -0.535 / -0.615 (an upper bound under the hair's edge at |x| < 0.5: the
+  first body pixel under the hair); shoulder point (0.585, -0.595); outer edge |x| at z -0.6 / -0.7 / -0.8 / -0.9 / -1.0 /
+  -1.2 = 0.585 / 0.64 / 0.673 / 0.696 / 0.73 / 0.80; armpit z -1.005; profile: the deltoid's back edge x 0.50 / 0.53 /
+  0.53 / 0.51 / 0.49 at z -0.62 / -0.75 / -0.85 / -0.9 / -1.0. Ours (g4_v1 = default body): the top line at |x| 0.3 /
+  0.4 / 0.5 / 0.6 = -0.637 / -0.696 / -0.93 / -0.89 (0.14-0.40 L low); the outer edge 0.41 / 0.40 at z -0.7 / -0.8 (the
+  torso's vertical side wall: no deltoid), then the arm tube's flat cap at z -0.86 (its corner the "shoulder point"
+  (0.74, -0.856)); armpit -0.85; no arm in profile above z -0.85. The arm below z -1.0 is within 0.03 L (outer edge
+  0.759 / 0.792 at -1.0 / -1.2 against 0.73 / 0.80). The skeleton's shoulder joint (the 2D rig's, outfit.rig_frame) sits
+  at (0.544, -0.886): ~0.16 L under where the deltoid's centre would be.
+- **The joined shoulder (52949256, off by default: body.shoulder.socket):** code_body.socket_rim / shoulder_bridge: a
+  hole in the torso's side (rows from where the side reaches `top` L out down to the armpit `bottom`; columns within
+  `half` deg of the side), a bridge of `loops` edge loops from its rim to the arm's ring at `s0` L down the chain (per
+  rim vertex a cubic leaving the torso toward the hole's middle lifted `lift` deg, arriving along the arm; `reach`
+  tangent shares), the arm's columns matched to the rim's (angle round the bridge's axis) and evened over `blend` rings.
+  build_body_data stitches the torso with holes, the bridges and the arms into one closed surface (only the neck ring
+  open; tests charkit/tests/test_shoulder_join.py), the torso's partial rows listed for the neck join
+  (code_base._torso_rings), weights: the clavicle round the rim (`clav`), the bridge eased from the rim's to the arm's
+  (`arm_w`), optionally the upper arm over the torso round the rim (`torso_arm`); the template's widening at the sides
+  only (`az`). Harness tools/garments5/bodyj.py (box: `remote run --fetch OUT script tools/garments5/bodyj.py
+  charkit/out/g5_base VARIANTS.json --out OUT`): the body data built from the spec without Blender, topology, the base
+  body measures (shm.measure_labels), the posed check.
+- Grid j2 (charkit/out/garments5/bodyj2): best `t36_l65_a45_b50` = shoulder {z -0.525, x 0.38, round 0.03, hold 0,
+  fall 0.10, az 50, join [[0,.12],[45,.12],[75,.03],[180,.03]], socket {top 0.36, lift [65, 75], reach [0.45, 0.5]}}:
+  score 0.051 (j1 defaults) -> 0.030 (own body 0.17-0.2 rms); front: top rms 0.042, outer 0.019, point (0.585, -0.588)
+  vs ref (0.585, -0.595), armpit -1.047 vs -1.01; profile arm front/back rms 0.029/0.026. Residual top line at |x|
+  0.2-0.35: ours -0.547 (the neck join re-seats the template's top rows within 0.03 L of the cut at the sides) against
+  the sheet's -0.50..-0.53 (under its hair's edge: an upper bound); the trapezius flare above the cut is the head's neck.
+- Posed check (90 deg, LBS on the body's own weights): the old body's arm tubes don't deform but go through the torso
+  in the forward raise (27 vertices, 0.04 L deep); the joined shoulder deforms with the 2D rig's low joint (0.544,
+  -0.886): stretch up to 4.7x (the armpit's short bridge), faces down to 3% area in the forward raise. Being tested:
+  the pivot up the arm's line (0.1-0.26 L) and the weights (arm_w, torso_arm), metrics strain p95 (edges >= 0.015 L),
+  folded/collapsed area shares, penetration, volume (run j3, charkit/out/garments5/bodyj3).
+- Declared checks for the body against the base body sheet (uncommitted until calibrated): declared `ref`
+  'base_body' (base_body(): the manifest's sheet at the refcheck scale, registered on the turnaround's head; our_body():
+  the skin alone) with `below` / `window`, family `side_line` (dx / rms / axilla); the Declared adapter's stand-in for
+  our_body (the sheet's body moved; a floor: the costume's silhouette). Draft tools/garments5/drafts/bodyshoulder.json
+  (body_shoulder_{front,back}_top / _side, body_axilla_{front,back}, body_shoulder_{view}_iou).
+- **Weights and the pivot (runs j3, j4: charkit/out/garments5/bodyj3, bodyj4):** the 2D rig's joint (0.544, -0.886) as
+  the pivot folds the deltoid in the side raise (folded 1.8%, the arm leaving the torso under the deltoid); with the
+  rig's joint 0.18 L up the arm's line (socket.pivot; the garments keep the chain's root: garments.arm_seg) and the arm's
+  weight over the bridge's outer half (arm_w [0.5, 1]): side raise strain p95 1.77, folded 0.1%, collapsed 0.55%,
+  nothing inside the torso, volume +0.6%; forward raise 1.91 / 2.7% / 0.24% / none / -0.7% (the old body: no deformation
+  but the arm tube 0.04 L into the torso, 27 vertices). The upper arm over the torso round the rim (torso_arm) and an
+  earlier arm weight made it worse (penetration 0.06-0.15 L). Pivots 0.12 / 0.18 / 0.24 all fine for the side raise;
+  0.18 chosen (the deltoid's centre, ~0.1 L under the shoulder point).
+- **Candidate in the default spec** (b184f019): body.shoulder {z -0.525, x 0.38, round
+  0.03, hold 0, fall 0.10, az 50, join [[0,.12],[45,.12],[75,.03],[180,.03]], socket {top 0.36, lift [65, 75], reach
+  [0.45, 0.5], arm_w [0.5, 1.0], pivot 0.18}}. Box build g5_c1 (log charkit/out/garments5/build_c1.log).
+- Known-bad g5_base stored on the box (`remote run calibrate store g5_base charkit/out/g5_base ...`: the link made, the
+  JSON written locally: charkit/calib/known_bad/g5_base.json, the box's synced files being read-only).
+- Next: QA g5_c1 against g5_base (kcmp: guard IoUs skin/arm/sleeves/top, hands, cuffs, motion, art_bumps_*, the
+  collar's flags); calibrate the body-shoulder drafts on the box (`remote run --fetch tools/garments5/box_records
+  calibrate 'body_shoulder_*,body_axilla_*' --declared tools/garments5/drafts/bodyshoulder.json --build
+  charkit/out/g5_c1 --json tools/garments5/box_records/cal_body.json`), move them into charkit/bodyshoulderqa.py with
+  the records; pregate on the box; gate.
+- Coordinator 10:4x: the build box full (16 slots, sweeps): overflow to render2 (`remote --box render2 ...`). g5_c1
+  relaunched on render2 (log charkit/out/garments5/build_c1.log); the baseline built again there as g5_base_r2 (log
+  build_base_r2.log) so the known-bad can be stored and the drafts calibrated on one box.
+- **The candidate's full build g5_c1 (render2; QA charkit/out/g5_c1/qa/qa.json) against g5_base_r2 (the same box's
+  baseline), under K: blocked.** The body's shoulder is right (above) but the garments, fitted round the old body,
+  don't hold on it:
+  - piece_top front 0.749 -> 0.311 (-58%), 3q 0.80 -> 0.58, back 0.93 -> 0.74; piece_sleeve_L/R front -22% / -29%.
+    tools/garments5/topiou.py: our jacket's extra area 0.038 -> 0.136 L^2, at |x| 0.4-0.6, z -0.6..-0.9: the bridge's
+    front columns (the socket's front edge at 60 deg on the torso, y ~ -0.19) stand in front of the puffs' inner front
+    (the puffs match the drawn profile, IoU 0.94). tools/garments5/confuse.py: drawn sleeve -> our jacket +0.034 (front),
+    +0.025 (3q), +0.017 (back); drawn collar -> our jacket +0.022 (back: the jacket over the raised shoulder comes up
+    through the hull collar's back flap).
+  - sleeve_*_spikes / _profile FAIL (front spikes 0 -> 0.21): the same jacket past the puffs.
+  - neck_crease 12.7 P -> 81 F (whole skin 14.4 -> 88): the neck (the head's, slender to the cut) turns into a shoulder
+    top at the cut's height within 0.006-0.03 L at the sides (the template's rows; the join's reach 0.03 there).
+  - art_outline_collar 1.44 P -> 4.67 W, art_outline_neck 1.47 P -> 4.93 W (flags), collar_*_torn 0 -> 0.013-0.071 F,
+    collar_back_rows / square / iou worse: the hull collar is walked on the body (garments.collar: from the neckline
+    outward a fixed surface length) and now walks out along the level shoulder and over the bridge.
+  - bow_front_bleed 0 -> 0.155 F (flag), hair_penetration 0 -> 0.0065 W, hand_three_quarter_reach_L P -> W (-0.0403).
+  - Better: shoulder_front_dip 0.052 F -> 0 P, shoulder_front_tilt 0.203 F -> 0.109 W, art_terminator_hair W -> P.
+  - Skin above the jacket at the shoulder tops (tools/garments5/skinpeek.py: the body's top at |x| 0.25-0.45 at
+    -0.505..-0.51 from the eye line; the jacket's top -0.553..-0.579: its neck cut, 0.04 L over the neck bone's head).
+- **Garment sweeps on g5_c1 (render2; charkit/out/garments5/sweeps/g1, g2):** g1, the jacket's neck cut 0.04 -> 0.05 /
+  0.06 / 0.08: collar_front_torn and 3q torn clear at 0.06, nothing else; 0.08 trips the guard (piece_top front -17%).
+  g2, the puffs' clearance (garments.puff_clear, e5cd247e: spec clear_body {gap, bones, inner}) with the cut at 0.06:
+  sleeve front spikes 0.21 -> 0.08, piece_top 0.613 -> 0.632-0.647 (front 0.31 -> 0.35-0.38), but piece_sleeve_R 3q
+  0.458 -> 0.36-0.40 (the far puff grows) and art_outline_neck worse: the clearance alone isn't the fix (the deltoid's
+  front-inner part is in the excluded inner sector).
+- **The neck join against the shoulder's height (run j5, tools/garments5/bodyj.py now assembles with character.assemble,
+  the neck's join included, and reads the whole skin's neck_crease):** T0 (the candidate) crease 88; T1 (the join's reach
+  at the sides 0.08 L, the rim's top under it at z -0.61 (socket.top_z)) crease 21 but the shoulder's silhouette score
+  0.029 -> 0.103 (the join's loft pulls the shoulder's top rows in: the point (0.61, -0.71) against the sheet's (0.585,
+  -0.595)). The sheet's shoulder line at |x| 0.3-0.4 sits at our cut's height (-0.50..-0.53): its trapezius flare is
+  above the cut, in the head's neck (the face workstream's). T2-T4 (reach 0.10/0.12) pending in
+  charkit/out/garments5/bodyj5.
+- j5 complete: T0 (candidate) score 0.029 crease(whole, cage) 88; T1 (join reach 0.08 at the sides, rim top -0.61) 0.103
+  / 21; T2 (0.10, -0.63) 0.109 / 24; T3 (0.12, -0.65) 0.127 / 21; T4 (x 0.42, round 0.08, 0.10, -0.63) 0.110 / 24. The
+  old body (j6): score 0.184, crease (whole, cage) 24.5. So the crease comes back to the old body's with a deeper join,
+  but the variants tried lose the shoulder's top (the join's loft pulls the template's top rows in); a better try: the
+  template wider (x ~0.55-0.6) under the join's reach so the torso's rows make the shoulder cap, the rim below them.
+  Decision asked of Michael (review page): A flare the head's neck above the cut (face workstream), B a lower shoulder
+  top, C re-measure neck_crease.
+
+### Round 5 stop point (2026-10-01): the body's shoulder done, off by default; the garments next
+- **Branch tool/garments4-shoulders** (pipeline-3d e9cb156 merged in). Carries, off by default: the joined shoulder
+  (code_body socket/bridge, weights, the rig's pivot; garments.arm_seg keeps the arm-placed garments on the chain's
+  root), garments.puff_clear, declared `ref` 'base_body' + side_line, `charkit script` (hairshell3's d9b5e521),
+  known-bad g5_base, plus the earlier shoulder work (collar4's builder code, shoulderqa.py's 6 calibrated garment
+  shoulder checks: they FAIL on the default body, so this branch still can't gate as is). The spec switch was tried
+  (b184f019) and reverted (6739aa7f); the candidate's knobs: tools/garments5/v/candidate_shoulder.json.
+- **Review page:** charkit/out/garments5/review/body_shoulder/index.html (source tools/garments5/review/body_shoulder.json,
+  built on render2: `remote --box render2 run --fetch tools/garments5/review/page review page
+  tools/garments5/review/body_shoulder.json --out tools/garments5/review/page`). Asks Michael: keep the moved joint;
+  the neck join A (flare the head's neck above the cut: face workstream) / B (a lower shoulder top) / C (re-measure
+  neck_crease); refit the garments to the body rather than slim the body.
+- **Builds (render2 and local):** g5_base_r2 (the old default), g5_c1 (the switch on). Build box: g5_base, g5_sh0.
+- **Exact next steps (the garment round, with the switch on: tools/garments5/v/candidate_shoulder.json into the spec):**
+  1. The shoulder's top: fix the bridge's top loops overlapping the torso's top rows near the neck (lift top 65 -> 30-45,
+     or the rim's top further out), then the neck join per Michael's A/B/C (B: the template wider, x 0.55-0.6, under
+     a 0.08-0.10 L join so the torso's rows make the shoulder cap, the rim below them; bodyj.py with the join modelled).
+  2. The socket's front edge back (half 30 -> 20-24, or shift toward the back) so the deltoid's front stays under the
+     puffs, and puff_clear for the rest (inner 20-30 deg, gap 0.035); guard piece_top F, piece_sleeve_R 3q.
+  3. The jacket's neck cut 0.06 (covers the shoulder tops; clears collar front/3q torn).
+  4. The collar on the new body: the walk's lengths (side_depth, back_depth) refit so the back panel and the lapels'
+     outer ends land as before (collar_back_rows/square/iou, torn, art_outline_collar), or the hull collar's conform
+     reach; the jacket bedded under the back flap (bed() generalised: the collar, from the back).
+  5. bow_front_bleed (flag): find what moved under the bow (the template's sides widen from 40 deg: az 50 -> 35).
+  6. Calibrate the body-shoulder drafts on render2 (`calibrate 'body_shoulder_*,body_axilla_*' --declared
+     tools/garments5/drafts/bodyshoulder.json --build charkit/out/<candidate>`; the known-bad g5_base must be stored on
+     that box: `calibrate store g5_base charkit/out/g5_base_r2 ...`), move them into charkit/bodyshoulderqa.py with the
+     records; motion_* step if the rig moves the motion values; pregate on the box; gate.
+  7. Then the flat lapels (tool/garments4-lapels) on it, and re-judge art_outline_collar.
+- tool/optimize (`charkit sweep --optimize`) was in testing on the boxes, not landed: use it for steps 1-4 once it is.
+
+## Round 6 (2026-10-01, lean agent 6): the garments refit to the joined shoulder
+- Coordinator: Michael confirmed the three answers as recommended: (1) keep the joint 0.18 L up at the deltoid's
+  centre; (2) A: flare the head's neck above the cut (ours end to end, minimal and local in the head's neck code; face7
+  doesn't touch the neck; do it last); (3) refit the garments to the new body (puffs contain the deltoid, the collar
+  walked on the new shoulder, the jacket bedded under the collar's back flap). Acceptance: gate PASS under K with the
+  joined shoulder ON by default (clawd.json + clawd_body_pieces.json); no garment piece's shape IoU below the old body's
+  by more than the guard in any view; the 90 deg raises clean with the garments on; review page (design | old body |
+  refit per view, plus the raised poses) with the summary box. Then the flat lapels; re-judge art_outline_collar.
+- pipeline-3d 07f305e8 (the clips) merged in: 1425a80c (declared.py: both families side_line + visible kept).
+- Fresh candidate base: charkit/out/garments6/specs/c0.json (clawd.json + tools/garments5/v/candidate_shoulder.json),
+  box build g6_c0 on render2 (log charkit/out/garments6/build_c0.log).
+- g6_c0 built (render2; = g5_c1 + the clips). Diagnosis on it / g5_c1 (tools/garments6, outputs charkit/out/garments6/lab):
+  - shoulderlab.py (design | ours | diff per view): front, the jacket stands in front of the puffs' inner part at
+    x 0.3-0.5, z -0.55..-0.95, and over the shoulder top; back, the jacket's shoulders over the collar's flap region.
+  - xsec.py (sections x = 0.3/0.45/0.55, z = -0.55/-0.65/-0.75): the jacket (region leftShoulder + leftUpperArm t <
+    0.12) now wraps the whole deltoid (the bridge's vertices are dominated by the clavicle and the upper arm): at z
+    -0.65/-0.75 it is a full loop round the arm, the same size as the puff, coming out at its inner front and back.
+  - depthgap.py: front view, the jacket nearer than the puff inside the drawn puff 0.0345 L^2, by p50 0.045 / max 0.117 L
+    (z -0.5..-0.8, x 0.39-0.59); back 0.017 L^2; profile 0.0035.
+  - contain.py (the skin of the bridge + arm in the puff's frame): 28% outside the puff, the bridge's front and back
+    columns by the torso (angles +-60..150, t -0.45..0): the puff's inner front/back, and the shoulder top above the
+    dome.
+  - neckring.py: the neck ring at z -0.544 (r 0.117 sides .. 0.2 back), the jacket's plane cut at -0.563; the bridge's
+    top loops rise to -0.505 beside the neck (the skin wings over the collar in the c1 renders: the round-5 defect).
+  - The design (sleeve_closeup): the puff sits over the shoulder, its seam at the armhole, the bodice up to it.
+- Plan: (1) the body first (the garments fit the final body): the neck flare (A: code_base.flare_neck, body.neck_flare
+  {h, share by azimuth, to, p}) with the bridge's top lift lowered; measured by tools/garments6/bodyj6.py (score vs the
+  sheet, whole-skin neck crease, bridge over the ring, posed, a zoomed picture). (2) the garments: the jacket tucked under
+  the puffs (top.tuck {under, margin}: the bridge/arm vertices inside a puff left out), the puffs grown round the
+  deltoid by part (sleeve_L.clear_body {gap, parts [shoulder, arm], inner 0}), the jacket's neck cut a neckline
+  (cuts' 5th element r round the neck's axis); then the collar walk, the back flap bed, bow_front_bleed.
+- Running: sweep d1 (render2, base g6_c0, tools/garments6/v/d1.json -> charkit/out/garments6/sweeps/d1, log
+  sweep_d1.log): tuck / clear by parts / neck r; local bodyj6 test (T0, F1) -> charkit/out/garments6/bodyj6_test.
+- Sweeps d1/d2 (render2, base g6_c0; tools/garments6/sweepk.py reads a sweep's rows under K against the old body
+  g5_base_r2): the jacket tucked under the puffs (top.tuck margin 0) + the puffs grown round the bridge and arm by part
+  (sleeve_L.clear_body {gap 0.025, parts [shoulder, arm], inner 0}): piece_top f/3q/p/b 0.311/0.577/0.577/0.743 ->
+  0.626/0.719/0.623/0.860 (old body 0.749/0.800/0.634/0.931), sleeve_L 0.889/0.964/0.867/0.867, sleeve_R front 0.891,
+  bow_front_bleed 0.153 F -> 0.06 W, art_bumps/points_top 20/27 -> 0. The smooth envelope (clear_body.spread 0.04-0.06)
+  balloons the puff (profile 0.94 -> 0.65-0.69, a block up to the neck): not used; the 3x3 max filter leaves lumps on
+  the inner front (sleeve_front_spikes 0.08 F).
+- The sweep can't see the skin's mask (the garments stage splices garments only; neck_crease reads the base's masked
+  skin): neck_crease, the skin's wings, art_outline_neck need full builds.
+- Body variants k2 (tools/garments6/bodyj6.py, render2 -> charkit/out/garments6/bodyj6_k2): score vs the sheet / whole-skin
+  crease / the bridge over the neck ring: T0 0.0293 / 88 / 25 verts 0.038 L; F1 (the flare: h 0.08, share 1 at 75-180
+  deg, to 0.04, p 2) 0.0281 / 90 / same; L45 (socket lift top 45) 0.0324 / 88 / 5, 0.021; F1L45 0.0315 / 83 / 5, 0.021;
+  L30 0.040. The whole-skin crease stays 83-90 (the level shoulder's own turn; the QA reads the masked skin). Posed on
+  every variant: strain p95 1.75-1.95, folded <= 3.3%, nothing inside the torso.
+- tools/garments6/bodysec.py (sections by part): the bridge forms the whole shoulder top from x 0.15 out (the hole's
+  top starts by the neck); its front and back columns leave the torso nearly perpendicular (a wall at the hole's front
+  edge, x 0.2-0.25, y -0.05); the rim's top corners rise to -0.505 (the skin wings over the collar in the renders).
+- posed.py (the raises with the garments on, left arm): with the puff rigid on the upper arm the skin it holds comes out
+  under it (side raise 53 vertices, 0.12 L; forward 19, 0.11); with the cap weighted from the body (sleeve weights {from
+  body, rigid_from 0.05, blend 0.15}) 8 / 0.046 and 13 / 0.041, the puff's strain p95 2.0 / 2.4, folded 1.2% / 3.9%.
+- poke.py (what comes through what, at rest): with the radial neck cut the jacket covers the shoulder tops and came
+  through the collar (front 209, back 20 vertices); the collar beds: the back/front projections (bed side back/front)
+  front 102 / back 23; along the collar's normal (bed side normal, 6 passes) front 10 / back 5 (max 0.04 L).
+- Builds running (render2): g6_f1 (body F1 + garments tools/garments6/v/ga.json: tuck, radial neck cut, beds bow + collar
+  back/front projections, clear_body {gap 0.02, from_t -0.3}, the cap's body weights), g6_f1l45 (body F1L45, same);
+  specs charkit/out/garments6/specs/b_F1.json, b_F1L45.json; logs build_f1.log, build_f1l45.log. Next garment set gb.json
+  (the collar bed along its normal).
+- Builds g6_f1 / g6_f1l45 (render2; garments ga.json) against the old body (kcmp): piece_top f/3q 0.565/0.691 and
+  0.649/0.744 (old 0.749/0.800), sleeve_L front 0.79 / 0.81, sleeve_R front 0.76 / 0.81; bow_front_bleed 0.0125 /
+  0.015 PASS; shoulder_front/back_dip 0 PASS, front tilt 0.10 W / 0.078 P, front top 0.028 W (were FAIL); but
+  neck_crease 96 / 104 FAIL (worst columns +-55..75 deg), collar torn x4 FAIL, piece_collar front/3q -28/-41% and
+  -21/-31% (guard), art_outline_collar 8.8 / 9.6 W, art_outline_neck 9.0 / 6.3 W, art_speckle_neck (flag) 3.9 / 9.2 W,
+  sleeve spikes/profile FAIL. tools/garments6/look.py (renders, collar region): skin patches at the puffs' inner front and
+  back and at the shoulder tops; skinwhere.py: the skin showing is mostly the bridge's skin on the jacket's border
+  (front 0.055 L^2, back 0.066): with tuck margin 0 the jacket's last faces are dropped where one vertex is inside the
+  puff, and the border skin there lies outside it. Next: margin 0.02-0.03; the collar bed along its normal (gb).
+- Builds running (render2): g6_b1 (F1L45 + gb, tuck margin 0.02), g6_b2 (margin 0.03), g6_b3 (F1 + gb margin 0.02);
+  specs charkit/out/garments6/specs/b1-3.json, logs build_b1..3.log.
+- puff_clear `dilate`/`blur` (a smooth plateau over the needs, never under them) added for the lumps.
+- Builds b1/b2 (tuck margin 0.02/0.03): the jacket kept near the seam stands in front of the puffs (piece_top front
+  0.43/0.40). The tuck now sinks (tuck {sink -0.004, drop 0.06, ease 0.02}: the jacket's offset eased under the skin
+  where the body lies inside a puff; only faces deeper than drop cut): bridge skin showing at the seam 0.055 -> 0.001 L^2.
+  b4 (sink): no skin patches in the renders (look_b45.png), piece_top front 0.41 (the puff's dome doesn't hold the
+  bridge's top: top in front of it 0.028 L^2, up to 0.1 L); b5 (sink + puff clear dilate 5 / blur 1.2): piece_top
+  0.614/0.737/0.624/0.952 (old 0.749/0.800/0.634/0.931: front -18%), sleeves front 0.79-0.81 (old 0.95), but
+  bow_front_bleed 0.205 F (the dilated puffs reach the bow's loop ends with no outline: bleedpic.py) -> the puffs
+  bedded behind the bow (sleeve bed). b4/b5's QA rerun on render2 (their build's QA had imported a declared.py synced
+  mid-merge: keep the tree committed while box jobs run).
+- Sweep d3 (collar lengths on g6_b1): side_depth 0.455 -> 0.34, back_depth 0.51 -> 0.47: piece_collar f/3q/p/b
+  0.49/0.30/0.05/0.88 -> 0.87/0.53/0.03/0.94 (old body 0.66/0.47/0.03/0.93), art_outline_collar 5.7 -> 3.7 W.
+- neck_crease (masked skin): the flare's bug (the rows at the cut interpolated with the unflared row under it) fixed
+  (k3: F1 score 0.0282, front top at |x| 0.2 -0.543 -> -0.519, sheet -0.496); the crease the QA reads is the visible
+  skin's: the flare's bottom showing under the collar (the collar masked no skin). Now the collar masks the skin under
+  it (collar hide_under {reach, rim, neck}: under_sheet; the intent of neck_crease leaves a flare under a collar out):
+  the unsubdivided estimate 76 -> 51 (old body 24.5 -> the QA's 12.7), one column (-65) left; trying the mask's reach.
+- The jacket's neck cut in front back to the plane (the radial cut opened a round skin notch over the bow's knot: the
+  neck V's outline corners, art_outline_neck 10): r [[0, 1], [40, 1], [70, 0.15], [90, 0.15], [150, 0.2], [180, 0.23]].
+
+### Round 6 checkpoint (2026-10-01, ~680k context): state, numbers, running job, exact next steps
+- **Branch tool/garments4-shoulders**, pipeline-3d 60c0f1a4 (hands2 interim) merged in (a3e425fd, CODEMAP 31932ec1).
+  The joined shoulder is still OFF in charkit/spec/clawd.json; the candidate lives in variant specs.
+- **New code this round (all opt-in by spec, nothing changes the default build):**
+  - code_base.flare_neck (body.neck_flare {h, share by azimuth, to, p}): Michael's answer A, the head's neck rows over
+    the cut pushed toward the torso's ring (fix 2: the rows round the cut at the full gap).
+  - garments.shell: cuts' 5th element r (a neckline round the neck's axis; an azimuth table); `tuck` {under, sink, drop,
+    ease} (the jacket sunk under the puffs, deep faces cut); `bed` as a list incl. under a hull collar (side back/front
+    projections, or 'normal': bed_sheet along the collar's normal, 6 passes).
+  - garments.puff: `clear_body` by body parts ({parts [shoulder, arm], inner 0}), `from_t`, `taper`, `dilate`/`blur`
+    (or `spread`); `weights` {from body, rigid_from, blend} (the cap bends with the body at a raise); `bed` behind the bow.
+  - garments.collar_hull `symmetric` (the halves mirrored); collar `hide_under` {reach, rim, neck} (under_sheet: the skin
+    under the collar masked, the neck's flare under it too).
+  - helpers body_part_mask, puff_margin, tucked, under_sheet, bed_sheet.
+- **Harness (tools/garments6):** shoulderlab (design|ours|diff labels), depthgap, xsec, contain (the puff's hold on the
+  deltoid), neckring, bodyj6 (body variants: score vs the sheet, whole-skin crease, bridge over the ring, posed),
+  bodysec (sections by part), posed (the raises with the garments on), poke (what comes through what), skinwhere
+  (the skin showing by part and why + the masked crease estimate), look (renders: design | builds), bleedpic, necklab,
+  sweepk (a sweep under K vs the old body). Variant/garment sets in tools/garments6/v (body_*.json, g*.json, k*.json).
+- **Best candidate so far: g6_c2** (spec charkit/out/garments6/specs/c2.json = clawd.json + tools/garments6/v/
+  body_F1_fl3.json + gh.json; render2, fetched). Against the old body g5_base_r2 (K view, kcmp):
+  neck_crease 12.7 -> 13.7 PASS (was 81-105); shoulder_front/back_dip FAIL -> PASS, front tilt FAIL -> PASS,
+  collar_back_square FAIL -> WARN; piece_collar f/3q/b 0.87/0.52/0.91 (old 0.66/0.47/0.93); sleeves front 0.80-0.82
+  (old 0.95: -14%); **still blocking:** piece_top front 0.40 / 3q 0.62 (old 0.75/0.80: the guard), bow_front_bleed
+  0.065 F, art_mirror_waist 2.1 W (flag), art_outline_collar 3.65 W, art_outline_neck 8.3 W, art_speckle_neck 2.2 W
+  (flags), collar_front_torn 0.036 F, collar_three_quarter_torn 0.009 F, sleeve front spikes 0.08 F, sleeve profile/3q
+  profile 0.06-0.08 F, sleeve_three_quarter_rough_R F. hand_three_quarter_reach_L WARN, hair_penetration WARN,
+  poke_share WARN (reported only).
+- Body: F1 (lift 65, the flare at the sides and back: share [[0,0],[55,0],[85,1],[180,1]], h 0.1, p 1.5) keeps the bare
+  shoulder's score vs the sheet 0.028 (round 5's 0.029; old body 0.2); F1L45 0.032. Posed (body alone) unchanged:
+  strain p95 1.73-1.92, folded <= 2.7%, nothing inside the torso.
+- Posed with the garments on (posed.py on g6_c0 + tuck/clear): the rigid puff leaves the deltoid's skin out under it
+  (side raise 53 vertices 0.12 L); the cap weighted from the body: 8 / 0.046 L, the puff's strain p95 2.0-2.4, folded
+  1.2-3.9%. Not yet run on c2.
+- **Running:** optimizer opt1 (tools/garments6/v/opt1.json: base g6_c2, set {collar symmetric, clear_body from_t -0.3
+  taper 0.05}, 10 knobs: the puffs' clearance gap/from_t/dilate/blur/taper, the tuck's ease/sink, the puffs' bow bed
+  gap, the collar's side/back depth; objective: piece_top/sleeve/collar views toward the old body's, sleeve spikes/
+  profile/rough, bow_front_bleed x3, collar torn, art_outline_collar, art_mirror_waist; guard 0.15, flags, no new FAIL;
+  220 evals / 100 min, confirm top 2). Box job sweep-garments4-1001-132917-edb4 on the BUILD box, 13 workers; out
+  charkit/out/optimize/g6_opt1 (log charkit/out/garments6/opt1.log). If the local follow died: `python -m charkit remote
+  attach sweep-garments4-1001-132917-edb4`, then `python -m charkit sweep optimize report charkit/out/optimize/g6_opt1`.
+- **Seen, not yet fixed (necklab.png, look_c.png, look_sleeve_c2.png):** the front lapels are still the hull collar's
+  crumpled bits by the neck (the flat lapels, step 5, are the fix); a thin skin strip along the collar's inner edge on the
+  shoulder tops (z -0.55, x 0.1-0.35; the jacket's top border / the zip band showing under the collar's rim): the
+  neck's outline corners (art_outline_neck) and specks; the jacket intrudes into the neck's V at x +-0.05-0.1, z -0.55
+  (the V's notch); in profile the grown puff's top came out flat (taper added); the puffs' inner edge merges into the
+  jacket in front with no outline (no depth step between them).
+- **Exact next steps:**
+  1. Read opt1 (OUT/review/index.html, best_override.json, confirm.json); put its best into a new garment set; if
+     the puff profile or bleed still block, refit the puff's upper knots (profile table's first stations: front/in/back)
+     instead of growing it.
+  2. The neck's base: hide the skin strip under the collar's inner rim (collar hide_under rim 0 or the jacket's top
+     border raised under the collar), restore the V (the jacket's opening rows at z -0.55..-0.65 for the new chest);
+     check with necklab.py and skinwhere.py, then a build (art_outline_neck, art_speckle_neck must return to PASS).
+  3. Merge pipeline-3d if it moved; switch the candidate into charkit/spec/clawd.json and clawd_body_pieces.json
+     (body.shoulder from tools/garments5/v/candidate_shoulder.json + body.neck_flare + the garment set).
+  4. Final build; posed.py on it (both raises, the review page's posed pictures); calibrate the body-shoulder drafts
+     (tools/garments5/drafts/bodyshoulder.json) on the box that holds the build: first `calibrate store g5_base
+     charkit/out/g5_base_r2 --why ...` there (pipeline-3d's 8580945f fixed the read-only rewrite), then `calibrate
+     'body_shoulder_*,body_axilla_*' --declared tools/garments5/drafts/bodyshoulder.json --build <final>`; move them
+     into charkit/bodyshoulderqa.py (DECLARED_CHECKS) with the records.
+  5. `python -m charkit pregate --box auto`; then `python -m charkit remote gate tool/garments4-shoulders --into
+     pipeline-3d`. Known: 3 order-dependent test failures exist on pipeline-3d (test_optimize qa stage, test_procs,
+     test_registry), per its d44db780.
+  6. Review page (tools/garments5/review/body_shoulder.json as the template: design | old body | refit per view, the
+     posed pictures, the summary box), then the flat lapels and art_outline_collar.
+- Box hygiene: keep the tree committed while box jobs run (b4/b5's QA imported a declared.py synced mid-merge and failed;
+  their QA was rerun with `remote run --fetch charkit/out/<build>/qa qa charkit/out/<build>/bundle`).
+
+## Round 7 (2026-10-01, lean agent 7): finishing the refit to the joined shoulder
+- Coordinator: Michael confirmed YES: the collar masks the skin under it, as the jacket does (collar `hide_under`;
+  neck_crease's own intent). Kept.
+- c2 against the old body g5_base_r2 (kcmp, piece IoUs by view): the guard blocker is piece_top only (front 0.749 ->
+  0.400, 3q 0.80 -> 0.616); the sleeves in c2 are within it (front L/R 0.948/0.954 -> 0.867/0.881, -8.5% / -7.6%).
+  tools/garments5/topiou.py: c2's extra jacket is all at z -0.5..-0.7 (0.064 L^2 more than the old body's), |x| 0.3-0.5
+  (the jacket over the bridge's top, in front of the puff's inner top: the dome above clear_body.from_t isn't grown)
+  and at |x| < 0.12 (the V).
+- The V's notch (look_neck_c2.png): the jacket's opening table is unchanged (half 0.092 at z -0.6); the old body's
+  lapels (collar side_depth 0.455) covered |x| 0.05-0.12 there; c2's shorter collar (0.34, sweep d3) shows the jacket
+  between the lapel and the V.
+- The skin strip (tools/garments7/stripwhy.py: per pixel, what lies behind the skin showing): right side only in c2
+  (x 0.2-0.42, z ~-0.54), the near jacket absent there, the skin 0.03 L outside the puff (the bridge's top through the
+  ungrown dome). skinwhere: bridge/border. Tied to the puff dome (opt1's from_t/taper) and the lopsided collar (c2 has
+  no collar.symmetric; opt1 sets it).
+- Posed on c2 with the garments on (posed.py, lab/posed_c2.png): skin out of the puff side 5 verts / 0.027 L, forward
+  11 / 0.020 (c0+tuck: 8 / 0.046, 13 / 0.041); jacket strain p95 1.17, puff p95 2.09 / 2.34, folded 1.3% / 4.7%; a skin
+  strip at the armpit under the puff's lower edge when raised.
+- tools/garments7/compose.py: a spec with override files applied (base + body + garment sets). specs/c2.json predates
+  the hands2 merge (its body.hand is the old one): the final candidate is composed from today's clawd.json.
+- Body-shoulder calibration on render2 against c2 (its body is final): known-bad store hit the box's read-only
+  known_bad/g5_base.json (the links made; the JSON is committed locally); calibrate job
+  calibrate-garments4-1001-133646-695d -> tools/garments7/box_records/cal_body_c2.json (log
+  charkit/out/garments6/cal_body.log).
+- opt1 status at the checkpoint: the box job (sweep-garments4-1001-132917-edb4, build box) is still running; the local
+  follow was stopped at the 30 min background limit, so its outputs aren't fetched: `python -m charkit remote attach
+  sweep-garments4-1001-132917-edb4` (run_in_background, timeout 7200000) collects them. Generation 0: 0/13 feasible
+  (every row breaks a constraint against the control g6_c2), best f 33.2 (the from_t low probe); rows take ~6 min each
+  on 13 workers. If it stays infeasible, read history.md for the broken constraints (likely a flag check or a
+  no-new-fail on the control's WARN/FAIL set) before relaunching with `keep`/looser knob bounds.
+- **The skin strip, found** (tools/garments7/stripsrc.py traces the visible skin to body vertices; the shell's
+  tests replayed): the neck's head sits at y +0.099 L (behind the throat), so the shoulder top's front lies at 59 deg
+  round it, where gh's radial table interpolated r 0.45 (40 deg 1 -> 70 deg 0.15): the jacket was cut over the shoulder
+  front out to x 0.34 above the neck plane (z -0.563), and the strip is the border skin along that edge, outside the
+  puff (margin -inf / -0.12) and not under the collar. Table [[0,1],[30,1],[45,0.18],[70,0.15],[90,0.15],[150,0.2],
+  [180,0.23]]: the bridge skin showing (skinwhere) front 0.0242 -> 0.0009 L^2, 3q 0.0145 -> 0.0001; the jacket through
+  the collar (poke) 45 -> 51 vertices front, depths unchanged.
+- **The V's notch, found** (tools/garments7/vjacket.py): the opening applies only before the chest's head (y < -0.065 L);
+  the joined shoulder's throat at the neck base lies at y -0.058..-0.063, so its faces counted as the back and stayed,
+  the offset carrying them 0.07 L into the V (29 jacket vertices inside the opening at z -0.55..-0.6; 77 without the
+  beds; the old body 7). New opt-in `opening.ahead` (L): ahead 0.02 -> 0 there (7 left lower down, the old body's).
+- Garment set tools/garments7/gi.json = gh + that neck table + opening.ahead 0.02 + collar.symmetric.
+- body-shoulder checks: charkit/bodyshoulderqa.py (from the draft; front/back IoU only, the line checks guarded by them);
+  first calibration on c2 (draft, cal_body_c2.json): top/side/axilla/IoU front+back CALIBRATED (axilla 0.038/0.047 WARN),
+  profile IoU BLIND (known-bad 0.8785 WARN), 3q IoU COARSE (margin 0.42). declared.py's floor stand-in lacked an import
+  (fixed). Module calibration rerunning (render2) -> tools/garments7/box_records/cal_body_mod.json (log
+  charkit/out/garments6/cal_body3.log); the records then go to charkit/calib/records.
+- opt1: each evaluation ~6 min (13 workers); gen 0: 0/13 feasible, the best so far the probe from_t at its low end
+  (-0.38): f 33.19 v 0 (control 37.50). Its follower died at 13:58; reattached (log charkit/out/garments6/opt1_attach.log).
+- Builds running (render2): g7_base (today's clawd.json, the K baseline with the hands2 hand) and g7_c4 (clawd.json +
+  body_F1_fl3 + gi; specs charkit/out/garments7/specs; logs charkit/out/garments7/build_*.log).
+- **g7_base / g7_c4 built (render2).** c4 (gi) against g7_base under K: art_speckle_neck back to PASS (0.88), art_mirror_waist
+  2.1 -> 1.57 W (the mirrored collar), the strip gone (look_neck_c4.png), the body checks all PASS but the axilla (W);
+  still blocking: piece_top front/3q 0.378/0.597 (base 0.749/0.799), bow_front_bleed 0.065 F, art_outline_neck 11.1 W,
+  art_outline_collar 3.86 W (worst back 8.0: the puffs' inner backs and the jacket over the flap's upper corners),
+  collar torn back 0.0136 F / profile 0.0165 F / 3q F (fragments), sleeve spikes/profile/rough F.
+- The V's edge: the jacket alone in front view (tools/garments7/vedge.py) is clean with no beds or the bow's bed alone;
+  the collar's bed along its normal (the crumpled lapels' normals sideways) notches it. The continuous opening cut
+  (tried, reverted): no change. Bedding along the shell's normal (tried, reverted): blew the jacket apart. New opt-in
+  bed `hold` L: within it outside the opening's edge the collar bed keeps x and z (sinks back only); left edge clean,
+  right still notched (not a slide: likely faces sunk behind). Sweep s1 (render2, base g7_c4: hold 0.06 / 0.12 / no
+  collar bed; art_outline_*, art_speckle_*, collar torn) -> charkit/out/garments7/sweeps/s1.
+- Profile/back (look_collar_back.png): the puff's dome rises over the collar's shoulder band in profile (the design lays
+  the band over a lower puff) and the puffs' inner backs lap over the flap's corners: the same crowded shoulder top
+  opt1 searches (the dome's growth vs the collar's lengths).
+- piece_top on c4 (topiou, xsec_c4.png): the extra jacket +0.061 L^2 front, all z -0.5..-0.7; at z -0.55 the puff's
+  dome is a small ring (x 0.4-0.6, y 0..0.2) while the jacket over the bridge spans y -0.1..0.27 at x 0.4-0.45: the
+  jacket stands out of the dome in front and behind. The dome must hold the bridge's top (clear_body.from_t toward
+  -0.38: gen 0's best probe); the sleeves' spikes and the profile's flat top are that growth's cost.
+- **art_outline_neck is a one-corner check in front**: the design reads 0.847 corners/L, the limit ratio 1.5, the
+  outline ~0.8-1.1 L long: g7_base passes with exactly 1 corner (1.266/L, ratio 1.47). tools/garments7/neckcorners.py
+  locates them: c4 has 12 (x -0.10 z -0.52 x4, x +0.09 z -0.53 x2, x +0.14 z -0.47 x2: the neck's base meeting the
+  lapel tips; x 0.21..0.33 z -0.50 x2: a thin skin line on the right shoulder (a fragment); the V x2). Every joined-
+  shoulder build had 11-20 (g6_c0: the bare bridge skin on both shoulder tops, since fixed).
+- Sweep s2 (render2, OAT on g7_c4: collar conform_smooth / reach / lift / neck_drop / neck_smooth / conform_k /
+  side_depth; table: tools/garments7/stab.py charkit/out/garments7/sweeps/s2/sweep.json): art_outline_neck 10.2-15.9 on
+  every row: the collar's crumple knobs don't reach it. (side_depth 0.455: piece_top front 0.46 but collar front 0.72.)
+- The shoulder line (stripwhy on c4): the skin 0.009 L in front of the collar there (the collar's shoulder lies just
+  under the raised shoulder), not under its mask (rim 1). Full builds on render2 (the mask is the build's):
+  g7_c5a = c4 + hide_under rim 0; g7_c5b = c4 without the neck flare; g7_c5c = both (specs charkit/out/garments7/specs,
+  script build_c5.sh: builds then neckcorners).
+- **Sweep re-mask (5066ae6d)**: the garments stage now re-masks the skin per row from the evaluator's hide set (the
+  base's subdivided skin restricted to the cage faces that stay, the boundary moved as Blender's masked subdivision
+  puts it). Validated g7_c4 -> g7_c5a (collar hide_under rim 0): masked skin within 5e-7 L p99; neck_crease 40 (real
+  40.0), art_outline_neck 11.79 (12.16), art_speckle_neck 0.854 (0.848). Collar, mask and cut changes can now be
+  screened; body changes (the flare) still need real builds.
+- c5a/b/c (real): hide_under rim 0: 13 corners, neck_crease 40 F; no flare: 8 corners but art_speckle_neck 3.2 W and
+  neck_v_front_skin FAIL (flags): the flare stays. neck_crease isn't a flag.
+- **opt2 running** (render2, 8 workers): tools/garments7/opt2.json, base g7_c4 (re-mask on): 12 knobs (the puffs'
+  clear_body gap/from_t/taper/blur, the bow bed gap, the collar's side/back depth, rise, neck_drop, lift, v_half,
+  hide_under.neck); every blocking flag and new FAIL toward pass with limits; the pieces pass-with-limits (pass at the old
+  body's IoU, fail at the K floor); guard 0.25 vs its control. Out charkit/out/optimize/g7_opt2 (log
+  charkit/out/garments7/opt2.log).
+- **opt1 ended** (230 evaluations; best g06_12 f 28.7 from the control's 37.5: clear_body gap 0.0115, from_t -0.375,
+  dilate 7, blur 1.38, taper 0.056; tuck ease 0.034, sink -0.0096; bow bed gap 0.012; collar side 0.364, back 0.505;
+  charkit/out/optimize/g6_opt1/best_override.json). Its confirm picked none, and **its confirm builds are the old
+  body**: the confirm builds `confirm.spec` / the decl's `spec` / else charkit/spec/clawd.json with the overrides, not
+  the base build's spec (shoulder_*_dip FAIL, no body_shoulder checks). A trap whenever the base isn't the default spec:
+  set `confirm.spec` (tool note for the coordinator: the default should follow the base build).
+- opt2 stopped (sweep-garments4-1001-150512-2b74, killed after gen 2): its start differed from its control (a taper c4
+  lacks: the start infeasible, 0/14 feasible in gens 0-2), one knob dead (hide_under.neck), no confirm spec.
+- Flare variants (real, render2; g7_c6a/b/c): sides less flared / h 0.05 / p 3: front corners 11 / 11 / 12; b and c
+  push art_speckle_neck to WARN and neck_crease to 17-25. The flare stays as in c4: the corners are the garments'.
+- art_outline_neck's overlay (tools/garments7/neckover.py, charkit/out/garments7/neckover_c4.png): c4's corners are the
+  neck sides bulging where the lapel tips sit (x +-0.13 z -0.47..-0.52), the V's sides (x +-0.08 z -0.52..-0.6: c4's
+  lapels end at z -0.52, the base's reach -0.6, so the V below them is bordered by the jacket's notched edge), and the
+  right shoulder's skin sliver (x 0.2-0.33 z -0.5, a fragment).
+- Sweep s3 (render2, re-mask on; tools/garments7/s3.json): collar side/back depth, rise, neck_drop, lift, v_half OAT +
+  opt1's best -> charkit/out/garments7/sweeps/s3.
+- **Sweep s3** (re-mask on, g7_c4; tools/garments7/stab.py charkit/out/garments7/sweeps/s3/sweep.json): art_outline_neck
+  control 11.1; opt1's best 5.79 (but neck_crease 41 F, bleed 0.16 F, collar front torn F); opt1's puff+tuck only 8.96
+  (piece_top front/3q 0.496/0.652, sleeve_L front 0.941, mirror_waist PASS, ao_collar 2.14); side_depth 0.455: piece_top
+  0.476/0.662, ao_neck 14.5, speckle 4.2 W; lift 0: collar front 0.963; back_depth 0.51: top back 0.95, mirror PASS.
+  No hull-lapel setting reaches art_outline_neck (<= 1.5): the hull-conformed lapels' crumpled tips and the jacket
+  edge they leave are the corners. -> the flat lapels move ahead of the gate.
+- **Merged tool/garments4-lapels** (d73c9a50): collar_hull flat_front, front_length, collar 'lapel' (project/walk);
+  declared band_rows; lapelqa.py parked as tools/garments7/drafts/lapelqa.py (uncalibrated). Unchanged with them off.
+- Sweep s4 (render2, re-mask on, boards): the projected flat lapels on c4 (L0 = the lapels round's Q2 settings; L2 the
+  V's point at the bow (z -0.72) and the drawn shoulder point (0.34, -0.50); v_half, spread, off variants)
+  -> charkit/out/garments7/sweeps/s4.
+- **Coordinator / Michael (2026-10-01): the joined shoulder's knobs are Clawd's values**, not general ones (on the
+  second test character, c3, its structure held but his silhouette fit worsened 0.053 -> 0.106 and his raised arm went
+  inside the torso). A per-character fit from each base-body sheet comes next, without holding this merge. So: when the
+  joined shoulder goes ON, Clawd's values go explicitly in charkit/spec/clawd.json (and the alias), every key written
+  out (body.shoulder z, x, round, hold, fall, az, join, and the socket's full set: top, bottom, half, shift, s0, lift,
+  reach, loops, blend, clav, arm_w, torso_arm, pivot; body.neck_flare), never as code defaults. Checked: the code
+  holds no Clawd numbers: shoulder_width needs z and x (a missing key raises); SOCKET's code defaults are the older
+  generic ones (top 0.30, lift (25, 75), pivot 0 ...), not Clawd's tuned ones; a spec without body.shoulder builds the
+  old body, never Clawd's shoulder.
+- **Flat lapels on the joined shoulder** (new, opt-in): lapel 'smooth' {grid, dilate, blur} (the projected lapels laid
+  on a dilated, blurred height field of the torso's front: laid point by point they folded between the neck, the
+  shoulder's top and the chest) and 'inner'/'bottom_a' (the V's point apart from the outer edge's low end).
+  tools/garments7/lapelview.py draws the collar alone: the smooth lapels are clean bands (lapelview3.png). Sweep s5
+  (re-mask on; tools/garments7/stab.py charkit/out/garments7/sweeps/s5/sweep.json): art_outline_neck 7.1-15.0 (F4
+  best: inner (0.03, -0.64), bottom_a 40, v_half 34), bow_front_bleed 0.15-0.18 F (the lapels' cream at the bow's lower
+  edges), collar 3q IoU 0.21-0.36 (< the 0.397 floor), neck_crease 100+ F in F0/F2/F3/F6 (the mask under the new
+  collar), art_mirror_waist PASS everywhere (1.15-1.24). Not a quick win: the flat lapels need their own round, and
+  their shape under the bow is unknown (no drawing of the collar without the bow: Michael's separated-layer rule).
+- **Conclusion of round 7**: K PASS with the joined shoulder ON isn't reachable this round. The garment knobs (opt1:
+  230 evaluations; s2-s5: ~45 rows, re-mask on from s3) reach art_outline_neck 5.8 at best (limit 1.5; the old
+  body passes with one corner), piece_top front 0.50 (floor 0.637). Building the best measured candidate (g7_c7 = c4 +
+  gj: opt1's puff and tuck knobs + collar back_depth 0.51; g7_c7b + side_depth 0.364) for the review page and the
+  decision: switch on now with named regressions accepted (motion testing unblocked) or hold for the flat lapels and
+  the puffs' dome.
+- **Michael's decision (2026-10-01, via the coordinator): the joined shoulder ON now, garment regressions accepted by
+  name** (motion testing goes on the default body); round 8 (a fresh agent) generates separated references (the collar
+  and lapels alone, the top without collar and bow, the bow alone if bow_closeup isn't one) and rebuilds the flat lapels
+  and puffs from per-piece shape truths.
+- c7 vs c7b vs c4 against g7_base (kcmp): c7 best (art_mirror_waist PASS, no sleeve spikes FAIL, piece_top 0.507/0.669,
+  sleeves front 0.941/0.945); c7b art_outline_neck 5.9 but neck_crease 32 FAIL, spikes R FAIL, 3q torn FAIL.
+- pipeline-3d cd1c327f (char3, build2) merged (9e258250; code_body's bare-hull paths and other footwear, not Clawd's).
+- **Default switched** (charkit/spec/clawd.json + alias = g7_c7's spec; Clawd's shoulder written out in full:
+  tools/garments7/clawd_shoulder_explicit.json; the only difference from c7's spec: the socket's keys explicit, equal to
+  the code's defaults). Spec tests pass. Pregate running (log charkit/out/garments7/pregate.log).
+- Posed c7 (posed.py; charkit/out/garments7/posed_c7.png/json): side raise skin out 3 verts / 0.021 L, forward 17 / 0.025;
+  jacket strain p95 1.17 / 1.13; puff p95 2.09 / 2.36, folded 1.3% / 4.3%; the armpit wedge of skin under the puff
+  when raised (skin showing 236 vs 144 at rest; old body 258 vs 240): for round 8 (the puff's underarm or the jacket's
+  armhole under it).
+
+### Round 8 handoff (for a fresh agent): the flat lapels and the puffs' dome from separated references
+State at hand-off: the joined shoulder ON by default (charkit/spec/clawd.json + alias = g7_c7's spec); the garment
+regressions accepted by name (charkit/accepted/*.json, "garments round 8" in their why). The old body's readings are
+the targets (g7_base, pipeline-3d's default before the switch; builds g7_base / g7_c7 under charkit/out).
+- **What to recover** (g7_base -> g7_c7): art_outline_neck 1.47 -> 10.3 (one corner allowed: tools/garments7/
+  neckcorners.py lists them, neckover.py draws artifactqa's overlay); art_outline_collar 1.44 -> 3.47 (worst back: the
+  puffs' inner backs and the jacket over the flap's upper corners); bow_front_bleed 0 -> 0.147; collar torn back /
+  front / profile; sleeve_L profile 0.031 -> 0.114 (the dome grown flat); piece_top front/3q 0.749/0.799 -> 0.507/0.669;
+  piece_sleeve_L profile 0.942 -> 0.769; neck_crease 12.7 -> 24.2 (W, not a flag).
+- **The flat lapels** (code in, opt-in): collar 'lapel' {mode 'project', a, spread, off, point (the outer edge's low
+  end), shoulder, inner (the V's point), bottom_a, smooth {grid, dilate, blur}} with collar_hull flat_front {a, fade}.
+  The smooth height field makes them clean bands (tools/garments7/lapelview.py: the collar alone, front and 3q); sweep
+  s5's F4 (inner (0.03,-0.64), bottom_a 40, v_half 34, point (0.2,-0.66), shoulder (0.34,-0.49)) read art_outline_neck
+  7.1, but collar 3q IoU fell to 0.21-0.36 and bow_front_bleed rose to 0.15-0.18 (the lapels' cream beside the bow's
+  lower edges), neck_crease 100+ in some rows (the mask under the new collar). Their shape under the bow and how wide
+  they run over the shoulder is what the separated references must settle (Michael: the collar never had a reference
+  without the bow; bodice_layers.png exists but only necklineqa reads it).
+- **The puffs' dome**: at z -0.55 the dome is a small ring (x 0.4-0.6, y 0..0.2) while the jacket over the bridge spans
+  y -0.1..0.27 (tools/garments6/xsec.py): the jacket shows over it (piece_top's extra, +0.06 L^2 at z -0.5..-0.7). The
+  grown dome (clear_body from_t -0.375, dilate 7) recovers piece_top to 0.51 but flattens the profile (sleeve profile
+  FAIL). A dome that holds the bridge's top with the drawn profile (the knot table's first stations / the cap) is the
+  template fix; tools/garments6/depthgap.py and contain.py measure it. Also: a wedge of skin at the armpit under the
+  puff's lower edge at a 90 deg raise (posed.py: skin showing 236 vs 144 at rest).
+- **Tools to use**: `charkit sweep` / `sweep optimize` now re-mask the skin per row (5066ae6d): collar/mask/cut changes
+  read faithfully; set `confirm.spec` in optimize declarations (the confirm otherwise builds charkit/spec/clawd.json
+  with the overrides). Body changes (the neck flare) need real builds. tools/garments7/stab.py tabulates a sweep;
+  look.py --decl draws its rows; compose.py composes specs; kcmp.py (charkit/out/garments4/tools) reads two builds
+  under K.
+- **Checks waiting**: tools/garments7/drafts/lapelqa.py (collar_three_quarter_lapel_width / _v, from the lapels round:
+  calibrate on the chosen build before moving it into charkit/).
+- **Gate 2** (be6aae1a into 27a4b6c3, build2; report charkit/out/gate/gate_tool-garments4-shoulders_be6aae1a_into_27a4b6c3.md):
+  FAIL, 22 blockers: the 15 expected (art_outline_neck 1.468 P -> 10.307 W, art_outline_collar 1.442 P -> 3.47 W; new
+  FAILs bow_front_bleed 0 -> 0.1475, collar_back/front/profile_torn 0.0101/0.0261/0.0197, sleeve_profile_profile_L
+  0.0307 W -> 0.1139, sleeve_three_quarter_profile_L 0.016 -> 0.0618; the guard on piece_top (front -32%, 3q -16%) and
+  piece_sleeve_L (profile -18%) under neck_v_front/three_quarter_skin and shoulder_back_dip/back_top/front_dip/
+  front_tilt/front_top improving) + 7 unexpected: the motion part's measuring code read as changed (its closure reaches
+  code_body/code_base/bodyeval: the rig it rebuilds) with no registered step (motion_kick/squat_skirt_inside/stretch;
+  their values identical on both geometries) and 3 calibration records to refresh.
+- Done: the 15 accepted by name (charkit/accepted/, Michael's why, the gate's readings; 1d948d0f); motion_* registered
+  as a remeasure (charkit/steps/code_body.py, commit 0f23cacb: the rig rebuilt with the joined shoulder; the measure
+  unchanged), records refreshed on g7_c7: kick_stretch and squat_stretch CALIBRATED. **Open: motion_kick_skirt_inside
+  MISCALIBRATED on today's skirt** (its design stand-in reads WARN in 7 of 8 moves; pipeline-3d's own build reads 0.0071
+  WARN, against 0.00244 PASS when calibrated on hands_b4): upstream drift, not this branch's; its record left as it was.
+- Infra slip (no harm): a `git stash` / `stash pop` here (the tree was clean) popped infra5-s's stash (the stash list is
+  shared across worktrees); it conflicted, so git kept the entry; my two files were restored from HEAD; stash@{0}
+  ("infra5-s: stopped agent wip (boxjob, remote)") is intact.
+- Gate 3 running (with the acceptances and --accept naming the 15; log charkit/out/garments7/gate3.log).
+- **Gate 3** (c8d30430 into 27a4b6c3, build2; report charkit/out/gate/gate_tool-garments4-shoulders_c8d30430_into_27a4b6c3.md):
+  FAIL under K, **5 blockers, none the garments'**: the 15 garment regressions reported as accepted (Michael, by name);
+  left: (1-4) the 2x2 couldn't run the old measure on the new geometry for motion_kick/squat_skirt_inside/stretch
+  (pipeline-3d's motion code reads no skirt values on the joined body; the new measure reads them the same on both
+  geometries: 0.0071 W / 0.0796 P / 0.0171 I / 0.1338 P); (5) motion_kick_skirt_inside's record not refreshed
+  (MISCALIBRATED on today's skirt, upstream). Not accepted (outside Michael's named list): the coordinator's call
+  (`--accept 'motion_*_skirt_*'` for the 2x2 cells; a decision on kick_inside's record). Build CPU 1.02x; 104 test
+  files, 0 failing. Reported (not blocking): neck_crease 12.7 -> 24.2 W, poke_share 0.0029 -> 0.0074 W,
+  hair_penetration 0 -> 0.0065 W; collar_back_rows ships at FAIL (0.160; the old body read 0.147 FAIL).
+- Review page: charkit/out/garments7/review/index.html (source tools/garments7/review/round7.json).
+- **Exact next steps**: (1) the coordinator decides the 5 motion blockers; then `python -m charkit gate --carry
+  tool/garments4-shoulders --into pipeline-3d` (or a re-gate with --accept naming them); (2) round 8 (fresh agent): the
+  separated references, then the flat lapels and the puffs' dome (handoff above); tools/garments5/v/candidate_shoulder.json
+  is unchanged (its socket keys implicit: the same values as the default's explicit ones).
+- **Coordinator (Michael's decision, finishing it)**: accept motion_*_skirt_* by name (the 2x2 couldn't run the old motion
+  measure on the joined body; the new measure identical on both); refresh motion_kick_skirt_inside's record on today's
+  skirt with a note (done: verdict miscalibrated, noted as upstream drift; a non-calibrated verdict still blocks under
+  the gate's calibration rule: the coordinator's call); merge pipeline-3d 241f0547 (tool/rom, tool/hairtruth; done,
+  56227cc2); accept rom_weights_stray ("the joined shoulder's bridge carries neck weight; fixed by tool/motion1") and any
+  other rom_* the switch regresses; re-gate cold (--args "--cache refresh") with the full --accept list
+  (charkit/out/garments7/accept_list.txt). Gate 4 running (log charkit/out/garments7/gate4.log). Michael's flag: a big
+  kink in the raised arm on the round-7 review page: tool/motion1's first item.
+- **Gate 4** (cold, --cache refresh; 1ffdc9a5 into 241f0547; report charkit/out/gate/gate_tool-garments4-shoulders_1ffdc9a5_into_241f0547.md):
+  FAIL under K, **1 blocker: motion_kick_skirt_inside's record says miscalibrated** (refreshed on today's skirt as
+  asked; a non-calibrated verdict blocks and acceptances don't cover calibration). Accepted by name and reported (16):
+  the 15 garment items + rom_weights_stray (0 -> 0.0082 FAIL). The motion skirt 2x2 cells accepted (--accept).
+  rom: rom_shoulder_open 0.382 F -> 0 P and rom_shoulder_torso 0.0475 F -> 0 P (improved); rom_hair_shoulders
+  0.00004 P -> 0.0012 W (reported); rom_shoulder_strain 0 -> 1.26, rom_shoulder_folded 0 -> 0.059, rom_garment_strain
+  0.62 -> 1.06, rom_top_body 0.036 -> 0.10 (INFO, report-only). Build CPU 1.01x; 107 test files, 0 failing.
+  Options for the coordinator: make motion_kick_skirt_inside ungraded as its squat sibling was in round 3
+  (charkit.sim.motionqa.UNGRADED: a registered remeasure), or a decision on the record; then `gate --carry`.

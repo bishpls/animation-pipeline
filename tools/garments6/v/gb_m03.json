@@ -1,0 +1,74 @@
+{
+ "garments.top.tuck": {
+  "under": [
+   "sleeve_L",
+   "sleeve_R"
+  ],
+  "margin": 0.03
+ },
+ "garments.top.cuts": [
+  [
+   "hips",
+   0.0,
+   "above",
+   0.1
+  ],
+  [
+   "neck",
+   0.0,
+   "below",
+   0.04,
+   [
+    [
+     0,
+     0.17
+    ],
+    [
+     60,
+     0.15
+    ],
+    [
+     90,
+     0.15
+    ],
+    [
+     150,
+     0.2
+    ],
+    [
+     180,
+     0.23
+    ]
+   ]
+  ]
+ ],
+ "garments.top.bed": [
+  {
+   "gap": 0.01,
+   "margin": 0.02,
+   "ease": 0.04
+  },
+  {
+   "under": "collar",
+   "side": "normal",
+   "gap": 0.008,
+   "margin": 0.015,
+   "ease": 0.04
+  }
+ ],
+ "garments.sleeve_L.clear_body": {
+  "gap": 0.02,
+  "parts": [
+   "shoulder",
+   "arm"
+  ],
+  "inner": 0,
+  "smooth": 2,
+  "from_t": -0.3
+ },
+ "garments.sleeve_L.weights": {
+  "from": "body",
+  "rigid_from": 0.05,
+  "blend": 0.15
+ }
+}

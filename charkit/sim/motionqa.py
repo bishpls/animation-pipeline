@@ -26,8 +26,11 @@ POSE_LIMITS = {('kick', 'inside'): (0.005, 0.01)}  # (round 3's records: the hel
                                                    # with no colliders 0.0125 and the pelvis-carried skirt 0.0123: the
                                                    # thigh through the skirt is a 1% defect at the kick, tighter, not looser)
 POSES = ('kick', 'squat')
-UNGRADED = {('squat', 'inside')}     # (round 3: the held solve's nudges read 0.003..0.015 at the squat: not robust to
+UNGRADED = {('squat', 'inside'),     # (round 3: the held solve's nudges read 0.003..0.015 at the squat: not robust to
                                      # nuisance settings, reported INFO until it is; docs/workstreams/xpbd.md)
+            ('kick', 'inside')}      # (2026-10-01, tool/garments4-shoulders on the coordinator's decision: miscalibrated
+                                     # on the current staircase skirt, its design stand-in WARN in 7 of 8 moves (0.0041..
+                                     # 0.0088); reported INFO until tool/motion1 recalibrates it on the current skirt)
 EVERY = 6
 
 

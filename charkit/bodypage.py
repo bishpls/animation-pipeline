@@ -45,12 +45,30 @@ def save_body(spec, path, log=print):
     hand_parts = []
     for n, L_ in B['limbs'].items():
         ch, P, rows, th = L_['chain'], L_['params'], L_['rows'], L_['th']
-        R = np.stack([section_r(P[k], th, 0.0) for k in range(len(rows))])
-        if n.startswith('arm_'):                     # the arm's tube ends at the wrist: the hand template takes over
+        so = (B.get('sockets') or {}).get(n[4:]) if n.startswith('arm_') else None
+        if so is not None:
+            # the joined shoulder (code_body.SOCKET): the arm's rings from the bridge's end, the bridge and the torso's
+            # hole for the build to stitch (build_body_data)
+            rows, G = so['rows'], so['A']
             keep = rows <= ch.s0[2] + code_hand.WRIST_KEEP
-            rows, R = rows[keep], R[keep]
-        S, THl = np.meshgrid(rows, th, indexing='ij')
-        arrays[n + '_P'] = ch.point(S, THl, R)
+            arrays[n + '_P'], rows = G[keep], rows[keep]
+            sd = n[4:]
+            arrays['shoulder_%s_P' % sd] = so['P']
+            arrays['shoulder_%s_u' % sd] = so['u']
+            arrays['shoulder_%s_loop' % sd] = np.array(so['loop'], int)
+            arrays['shoulder_%s_drop_v' % sd] = np.array(so['drop_v'], int).reshape(-1, 2)
+            arrays['shoulder_%s_drop_f' % sd] = np.array(so['drop_f'], int).reshape(-1, 2)
+            arrays['shoulder_%s_clav' % sd] = np.array(so['spec'].get('clav', (0.6, 0.2)), float)
+            arrays['shoulder_%s_pivot' % sd] = np.array(float(so['spec'].get('pivot', 0.0)))
+            arrays['shoulder_%s_w' % sd] = np.r_[np.asarray(so['spec'].get('arm_w', (0.0, 1.0)), float),
+                                                 np.asarray(so['spec'].get('torso_arm', (0.0, 0.1)), float)]
+        else:
+            R = np.stack([section_r(P[k], th, 0.0) for k in range(len(rows))])
+            if n.startswith('arm_'):                 # the arm's tube ends at the wrist: the hand template takes over
+                keep = rows <= ch.s0[2] + code_hand.WRIST_KEEP
+                rows, R = rows[keep], R[keep]
+            S, THl = np.meshgrid(rows, th, indexing='ij')
+            arrays[n + '_P'] = ch.point(S, THl, R)
         arrays[n + '_s'] = rows
         arrays[n + '_J'] = ch.J
         arrays[n + '_s0'] = np.r_[ch.s0, ch.total]

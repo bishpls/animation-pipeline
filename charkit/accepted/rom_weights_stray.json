@@ -1,0 +1,10 @@
+{
+ "check": "rom_weights_stray",
+ "status": "FAIL",
+ "value": null,
+ "by": "Michael",
+ "why": "Michael, 2026-10-01: the joined shoulder on by default for motion testing. Reading accepted: the joined shoulder's bridge carries neck weight; fixed by tool/motion1 (launched)",
+ "at": "2026-10-01T18:30:18",
+ "branch": "tool/garments4-shoulders",
+ "recorded_by": "tool/garments4-shoulders' agent (round 7), on the coordinator's relay of Michael's call"
+}

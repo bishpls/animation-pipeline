@@ -1,0 +1,278 @@
+{
+ "motion_kick_skirt_inside": {
+  "check": "motion_kick_skirt_inside",
+  "part": "motion",
+  "adapter": "Motion",
+  "module": "charkit.calib.motion",
+  "at": "2026-10-01T21:55:54",
+  "better": "lower",
+  "kind": "defect",
+  "shape": [
+   "piece_skirt"
+  ],
+  "design": {
+   "moves": {
+    "+0,+1": [
+     0.00847,
+     "WARN"
+    ],
+    "+0,+2": [
+     0.00669,
+     "WARN"
+    ],
+    "+1,+0": [
+     0.00728,
+     "WARN"
+    ],
+    "+2,+0": [
+     0.00779,
+     "WARN"
+    ],
+    "+0,-1": [
+     0.00618,
+     "WARN"
+    ],
+    "+0,-2": [
+     0.00407,
+     "PASS"
+    ],
+    "-1,+0": [
+     0.0061,
+     "WARN"
+    ],
+    "-2,+0": [
+     0.00881,
+     "WARN"
+    ]
+   },
+   "min": 0.00407,
+   "max": 0.00881,
+   "spread": 0.0047,
+   "median": 0.006985
+  },
+  "known_bad": {
+   "name": "motion_nocol",
+   "value": 0.01719,
+   "status": "FAIL"
+  },
+  "floor": {
+   "shuffled_weights": {
+    "values": [
+     0.06868,
+     0.06335,
+     0.06546,
+     0.06419,
+     0.06275
+    ],
+    "statuses": [
+     "FAIL",
+     "FAIL",
+     "FAIL",
+     "FAIL",
+     "FAIL"
+    ],
+    "median": 0.06419,
+    "status": "FAIL",
+    "passing": 0
+   }
+  },
+  "probes": {},
+  "blind_to": [],
+  "current": {
+   "value": 0.00711,
+   "status": "WARN",
+   "margin": 0.998
+  },
+  "verdict": "miscalibrated",
+  "why": "the design reads WARN moved +0,+1, +0,+2, +1,+0, +2,+0 px (7 of 8 moves)",
+  "build": "charkit/out/g7_c7",
+  "generators": {
+   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
+  },
+  "seconds": 656.7
+ },
+ "motion_kick_skirt_stretch": {
+  "check": "motion_kick_skirt_stretch",
+  "part": "motion",
+  "adapter": "Motion",
+  "module": "charkit.calib.motion",
+  "at": "2026-10-01T21:55:54",
+  "better": "lower",
+  "kind": "defect",
+  "shape": [
+   "piece_skirt"
+  ],
+  "design": {
+   "moves": {
+    "+0,+1": [
+     0.07827,
+     "PASS"
+    ],
+    "+0,+2": [
+     0.07436,
+     "PASS"
+    ],
+    "+1,+0": [
+     0.0783,
+     "PASS"
+    ],
+    "+2,+0": [
+     0.07801,
+     "PASS"
+    ],
+    "+0,-1": [
+     0.07133,
+     "PASS"
+    ],
+    "+0,-2": [
+     0.0835,
+     "PASS"
+    ],
+    "-1,+0": [
+     0.07406,
+     "PASS"
+    ],
+    "-2,+0": [
+     0.07628,
+     "PASS"
+    ]
+   },
+   "min": 0.07133,
+   "max": 0.0835,
+   "spread": 0.0122,
+   "median": 0.07714499999999999
+  },
+  "known_bad": {
+   "name": "motion_skinned",
+   "value": 2.14672,
+   "status": "FAIL"
+  },
+  "floor": {
+   "shuffled_weights": {
+    "values": [
+     55.16178,
+     55.30491,
+     56.17925,
+     56.74667,
+     60.01369
+    ],
+    "statuses": [
+     "FAIL",
+     "FAIL",
+     "FAIL",
+     "FAIL",
+     "FAIL"
+    ],
+    "median": 56.17925,
+    "status": "FAIL",
+    "passing": 0
+   }
+  },
+  "probes": {},
+  "blind_to": [],
+  "current": {
+   "value": 0.07957,
+   "status": "PASS",
+   "margin": 1.0
+  },
+  "verdict": "calibrated",
+  "why": "a defect detector: the design passes every move (spread 0.0122), motion_skinned reads 2.14672 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
+  "build": "charkit/out/g7_c7",
+  "generators": {
+   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
+  },
+  "seconds": 656.7
+ },
+ "motion_squat_skirt_stretch": {
+  "check": "motion_squat_skirt_stretch",
+  "part": "motion",
+  "adapter": "Motion",
+  "module": "charkit.calib.motion",
+  "at": "2026-10-01T21:55:54",
+  "better": "lower",
+  "kind": "defect",
+  "shape": [
+   "piece_skirt"
+  ],
+  "design": {
+   "moves": {
+    "+0,+1": [
+     0.15721,
+     "PASS"
+    ],
+    "+0,+2": [
+     0.12728,
+     "PASS"
+    ],
+    "+1,+0": [
+     0.18173,
+     "PASS"
+    ],
+    "+2,+0": [
+     0.16272,
+     "PASS"
+    ],
+    "+0,-1": [
+     0.12593,
+     "PASS"
+    ],
+    "+0,-2": [
+     0.13534,
+     "PASS"
+    ],
+    "-1,+0": [
+     0.13528,
+     "PASS"
+    ],
+    "-2,+0": [
+     0.15561,
+     "PASS"
+    ]
+   },
+   "min": 0.12593,
+   "max": 0.18173,
+   "spread": 0.0558,
+   "median": 0.145475
+  },
+  "known_bad": {
+   "name": "motion_skinned",
+   "value": 0.81945,
+   "status": "FAIL"
+  },
+  "floor": {
+   "shuffled_weights": {
+    "values": [
+     53.50256,
+     53.76173,
+     56.96068,
+     59.48796,
+     62.62051
+    ],
+    "statuses": [
+     "FAIL",
+     "FAIL",
+     "FAIL",
+     "FAIL",
+     "FAIL"
+    ],
+    "median": 56.96068,
+    "status": "FAIL",
+    "passing": 0
+   }
+  },
+  "probes": {},
+  "blind_to": [],
+  "current": {
+   "value": 0.1338,
+   "status": "PASS",
+   "margin": 1.0
+  },
+  "verdict": "calibrated",
+  "why": "a defect detector: the design passes every move (spread 0.0558), motion_skinned reads 0.81945 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
+  "build": "charkit/out/g7_c7",
+  "generators": {
+   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
+  },
+  "seconds": 656.7
+ }
+}

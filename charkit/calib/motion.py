@@ -16,14 +16,16 @@ shape is the template, which motion never changes).
              because it stretches instead)
   motion_squat_skirt_inside is ungraded (table only, charkit.sim.motionqa.UNGRADED): round 3's calibration read the
              held solve WARN at 3 of 8 nudges (0.003..0.015 against PASS <= 0.01): not robust, so not gated
+  motion_kick_skirt_inside likewise since 2026-10-01 (tool/garments4-shoulders, the coordinator's decision): on the
+             current staircase skirt its design stand-in reads WARN in 7 of 8 nudges (0.0041..0.0088; pipeline-3d's own
+             build reads 0.0071 WARN, against 0.00244 when calibrated on hands_b4): miscalibrated, so not gated until
+             tool/motion1 recalibrates it on the current skirt
 """
 CALIBRATION = [
     dict(check='motion_kick_skirt_stretch', part='motion', adapter='Motion', known_bad='motion_skinned', kind='defect',
          shape=['piece_skirt'], better='lower', baseline=['shuffled_weights']),
     dict(check='motion_squat_skirt_stretch', part='motion', adapter='Motion', known_bad='motion_skinned', kind='defect',
          shape=['piece_skirt'], better='lower', baseline=['shuffled_weights']),
-    dict(check='motion_kick_skirt_inside', part='motion', adapter='Motion', known_bad='motion_nocol',
-         kind='defect', shape=['piece_skirt'], better='lower', baseline=['shuffled_weights']),
 ]
 
 KNOWN = {'motion_skinned': 'skinned', 'motion_pelvis_rigid': 'pelvis_rigid', 'motion_nocol': '_nocol'}
