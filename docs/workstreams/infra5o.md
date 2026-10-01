@@ -17,6 +17,9 @@ Started 15:38 EDT. Wall time per task is logged in "Time" below.
 | orientation, data | 15:38 | 15:50 | brief, code, the box's gate baselines' traces fetched |
 | 1 instrumentation + `charkit profile` | 15:50 | 16:05 | per-stage CPU recorded; profile table on stored builds |
 | 4 fail-fast, 6 denominators, 2 budget plumbing | 16:05 | 16:35 | code + unit tests (budget numbers wait on b0) |
+| b0 profile, QA cProfile, counts | 16:35 | 16:50 | b0 cold build profiled; the renderer is the QA's cost |
+| coordinator's stale-cache item | 16:50 | 17:35 | walker, depth, runtime record, verify, affected gates |
+| 3 cuts: declared buffers, render culling | 17:35 | | b1 launched 17:30 |
 
 ## 1. Per-stage build profile
 
@@ -75,3 +78,53 @@ builds never pass it, and a gate whose candidate skipped a part blocks.
 
 Running: b0 = this branch (60c0f1a4 + instrumentation), default spec, `--boards '' --no-blend --cache off`, on the build
 box into charkit/out/infra5/b0 (log charkit/out/infra5/b0.log).
+
+## The stale baseline hull (the coordinator's item, 16:50)
+
+**Cause.** code_base.head_sections imports headfit and refcheck with importlib.import_module (deliberately, to keep
+the QA's modules out of the stage keys), and headfit imports faceregion and refcheck the same way. The code walk behind
+every cache key (cache.code_units) read only import statements, so the hull's shared-cache key (manifest.code2, depth 2)
+never saw headfit's head fit: after face7 changed headfit (9be5b320), the gates' baselines restored a hull made by
+other code. A second hole of the same kind: the produced references' shared key stopped two imports deep.
+
+**Fix, generic** (b22652e5):
+1. The walk follows literal runtime imports: `m = importlib.import_module('charkit.x')` (in a function or at the top),
+   `__import__('charkit.x', fromlist=..).f`, relative names; a computed name isn't followed (`_Mod.SCHEMA` 5).
+   Grep of runtime imports in charkit: code_base (refcheck, headfit), geom/headfit (faceregion, refcheck),
+   build_blender (bundle, qa3d_blender), outfit (`__import__('charkit.mh')`): all literal, all followed now. Computed
+   ones (registry's part discovery, calibrate/sweep/optimize/fitkit by data, geom/__init__'s lazy loader, cache's
+   qarender, declared's limit references) aren't stage code or are covered below. head_sections now reaches 547
+   definitions in 41 files (headfit.assemble among them); test_cache's step-closure test said "the head step doesn't
+   reach the QA": it only held because the walk couldn't see the imports (updated, with what it does reach).
+2. The produced references' shared-cache key (CACHE_DEPTH) follows all the code (was 2 imports); the in-tree stamp stays
+   one import deep (a QA edit would rebuild every copy's hull), guarded by 3.
+3. **The code that ran, recorded as it runs** (cache.ran: sys.monitoring PY_START, each code object once, so no cost to
+   speak of): every venv step entry, QA part entry and produced-reference entry (and PATH.stamp.json) keeps the
+   definitions it ran with their digests; a restore checks them (cache.ran_changed) and an entry whose code changed, or
+   made before the record, is a miss and replaced. This is what a static walk can't promise (computed imports, depth
+   limits): a restore can no longer give a product of code that differs from what this tree would run.
+4. `--cache verify` covers the venv steps (file_step(verify=): run, compare products with the entry a lookup would
+   restore, same_product: an .npz by its arrays) and the produced references (CHARKIT_PRODUCED_VERIFY): CHARKIT_CACHE_STALE
+   lines, the stale entry replaced. The gate reports stale lines from either build; CHARKIT_GATE_VERIFY_BASE=1 builds the
+   baseline with --cache verify (off by default: 3 makes it unnecessary, and verifying costs the venv steps' ~400 s CPU
+   per baseline). A periodic verify build: `python -m charkit remote --box build build charkit/spec/clawd.json --out
+   charkit/out/verify --boards '' --no-blend --cache verify` (grep CHARKIT_CACHE_STALE); proposed for the post-merge
+   preview (`CHARKIT_PREVIEW_VERIFY`, not wired: the coordinator's call).
+Tests: test_cache (the walk follows call-made imports; a step entry checked against the code it ran; verify finds a
+stale step product; a produced entry made by other code misses), test_produced_cache (verify names a stale entry).
+
+**Which of today's gates could have been affected** (charkit/out/infra5/stale/scan.py on the box's produced cache:
+restores of a hull entry stored before a merge that changed code its key couldn't see; 68 restores, times UTC):
+- face5 342e88c8 (09-30 21:44 EDT, faceregion + headfit): entry 18c7bdd8-55bedf8f (stored 23:39Z, before it) restored
+  01:46Z-03:13Z by the gates of tool/hair5 (2), tool/hands (2), tool/face6 (3), tool/sweep (3), tmp/sweep-declared,
+  tool/pieceref, tmp/batch-1001, tool/hairsplit (bases and candidates alike).
+- garments4-neck ff41ca20 (08:17 EDT, faceregion): entry aefd7446-dc07e4e5 (stored 04:20Z) restored 12:24Z-14:52Z by
+  tool/garments4-stairs, tool/garments4-v (2), tool/hairstrokes (3, merge_hairstrokes too), tool/accessories5 (2),
+  tool/garments4-motionfix, tool/face7 (d8c6fa8a's base).
+- face7 gate 1 9be5b320 (10:46 EDT, headfit; the coordinator's case): entry 60a77c6f-b021909c (stored 14:10Z by the face7
+  worktree) restored 15:55Z-19:54Z by tool/face7 (2), tool/hairshell3 (2), tool/hairstrokes (2), tool/optimize,
+  tool/hands2, tool/accessories6, the pregates of optimize, hairshell3, rom and accessories6, this branch's fail-fast
+  gate and its b0 build.
+Whether each restore was actually wrong depends on whether that change moved the hull (the third is confirmed by c3).
+Where base and candidate both restored the same entry, nothing moved between them (the gate compared like with like);
+the risk is a side that rebuilt (its key changed for another reason) against one that restored.

@@ -31,6 +31,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # the aux target's clear (part 0, hull 0, tone -1, depth inf) as the float32 bits the rgba32uint target holds
 AUX_CLEAR = tuple(float(x) for x in np.array([0.0, 0.0, -1.0, np.inf], np.float32).view(np.uint32))
 RES_BYTES = 256                        # WebGPU's row alignment for texture reads
+# an orthographic frame leaves out the primitives wholly outside its window before drawing (infra round 5: the QA's
+# head frames drew all 2M triangles of the figure, most of them off the window, on a CPU rasteriser); what's left draws
+# exactly as before (a primitive outside the window has no fragment in it). CHARKIT_RENDER_CULL=0 draws them all.
+CULL_PAD = 0.1                         # m round a primitive's own extent: its outline hull's push (millimetres) many times
 
 
 class Window(views_.Camera):
@@ -94,7 +98,8 @@ class Frames:
         self._overlays = {}
         self._targets = {}
         self._no_streaks = {}
-        self.timing = {'setup_s': round(time.time() - t0, 3), 'frames': []}
+        self._boxes = {}
+        self.timing = {'setup_s': round(time.time() - t0, 3), 'frames': [], 'culled': []}
 
     # ---- setup
     def _build(self):
@@ -268,6 +273,34 @@ class Frames:
                 hulls.append(it)
         return surf, hulls
 
+    def _box(self, P):
+        """a primitive's extent (glTF frame) grown by CULL_PAD, as its 8 corners (homogeneous) -> (8, 4)."""
+        b = self._boxes.get(id(P))
+        if b is None:
+            p = np.asarray(P.position, float)
+            lo, hi = p.min(0) - CULL_PAD, p.max(0) + CULL_PAD
+            b = self._boxes[id(P)] = np.array([[x, y, z, 1.0] for x in (lo[0], hi[0]) for y in (lo[1], hi[1])
+                                                for z in (lo[2], hi[2])])
+        return b
+
+    def _outside(self, it, M):
+        """is item it wholly outside the clip volume of view-projection M (an orthographic camera's: w = 1)?"""
+        c = self._box(it['P']) @ M.T
+        x, y, z = c[:, 0], c[:, 1], c[:, 2]
+        return bool((x > 1).all() or (x < -1).all() or (y > 1).all() or (y < -1).all() or (z < 0).all() or
+                    (z > 1).all())
+
+    def _cull(self, cam, surf, hulls):
+        """the frame's items less those wholly outside an orthographic window (CULL_PAD; CHARKIT_RENDER_CULL=0: none
+        left out) -> (surf, hulls)."""
+        if os.environ.get('CHARKIT_RENDER_CULL', '1') == '0' or not getattr(cam, 'ortho', False):
+            return surf, hulls
+        M = cam.proj @ cam.view
+        s2 = [x for x in surf if not self._outside(x[0], M)]
+        h2 = [it for it in hulls if not self._outside(it, M)]
+        self.timing['culled'].append(len(surf) + len(hulls) - len(s2) - len(h2))
+        return s2, h2
+
     def _encode(self, enc, kind, T, cam, surf, hulls, clear):
         wgpu, R = self.wgpu, self.R
         if kind == 'colour':
@@ -325,7 +358,7 @@ class Frames:
         light = self.light_for(cam.az) if light is None else np.asarray(light, float)
         light = light / max(np.linalg.norm(light), 1e-12)
         R._update_normals(line)
-        surf, hulls = self._items(draw, off, paint, streaks, variants)
+        surf, hulls = self._cull(cam, *self._items(draw, off, paint, streaks, variants))
         out = {'light': light, 'line': line, 'res': (W, H), 'aux_ss': aux_ss}
         clear = (0.0, 0.0, 0.0, 0.0) if transparent else (*[float(x) for x in world], 1.0)
         jobs = []

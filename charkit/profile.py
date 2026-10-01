@@ -4,7 +4,9 @@ builds side by side.
 
     python -m charkit profile BUILD [--vs OTHER] [--gate GATE.json] [--json] [--md OUT.md] [--top N] [--budget]
     python -m charkit profile qa BUNDLE [--parts a,b] [--top N] [--out DIR] [--profile full|iterate]
-        # the QA's parts one by one under cProfile on a bundle: per part its wall and CPU and the functions that cost it
+        # the QA's parts one by one under cProfile on a bundle: per part its wall and CPU, the functions that cost it,
+        # and its readings (each check's value and status)
+    python -m charkit profile same A/qa_profile.json B/qa_profile.json    # two runs' readings equal? and their times
 
 A build folder holds (charkit/cli.py, trace.py, qa3d.py):
   build_cpu.json   the whole build's CPU and wall seconds; `phases` {step: [wall, cpu]}: resolve (the references
@@ -336,7 +338,9 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print):
                             calls=nc, tottime=round(tt, 3), cumtime=round(ct, 3)))
         fns.sort(key=lambda x: -x['tottime'])
         res[P.name] = dict(wall=round(w, 2), cpu=round(cp, 2), checks=len(C), error=err, functions=fns[:top_n],
-                           cumulative=sorted(fns, key=lambda x: -x['cumtime'])[:top_n])
+                           cumulative=sorted(fns, key=lambda x: -x['cumtime'])[:top_n],
+                           readings={k: [v.get('value'), v.get('status')] if isinstance(v, dict) else [v, None]
+                                     for k, v in (C or {}).items()})
         if out:
             st.dump_stats(os.path.join(out, 'qa_%s.prof' % P.name))
         log('profile qa %-14s %7.1f s wall %7.1f s CPU  %d checks%s; top: %s' % (
@@ -347,11 +351,31 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print):
     return res
 
 
+def same_readings(a, b):
+    """two `profile qa` results (their json) -> {part: [checks whose reading differs]} (empty: every reading equal)."""
+    A, B = (_load(x) if isinstance(x, str) else x for x in (a, b))
+    out = {}
+    for p in sorted(set(A) | set(B)):
+        ra, rb = (A.get(p) or {}).get('readings') or {}, (B.get(p) or {}).get('readings') or {}
+        bad = sorted(k for k in set(ra) | set(rb) if json.dumps(ra.get(k), default=str) != json.dumps(rb.get(k), default=str))
+        if bad:
+            out[p] = bad
+    return out
+
+
 def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__)
         return 0
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    if args[0] == 'same':                       # profile same A/qa_profile.json B/qa_profile.json
+        d = same_readings(args[1], args[2])
+        A, B = _load(args[1]), _load(args[2])
+        for p in sorted(set(A) & set(B)):
+            print('%-14s %7.1f -> %7.1f s wall %7.1f -> %7.1f s CPU  %s' % (
+                p, A[p].get('wall') or 0, B[p].get('wall') or 0, A[p].get('cpu') or 0, B[p].get('cpu') or 0,
+                'readings differ: %s' % ', '.join(d[p][:6]) if p in d else 'readings equal'))
+        return 1 if d else 0
     if args[0] == 'qa':
         parts = opt('--parts')
         qa(os.path.abspath(args[1]), parts=parts.split(',') if parts else None, top_n=int(opt('--top', 25)),
