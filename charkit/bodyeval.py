@@ -581,6 +581,7 @@ def garment_part(o):
     lit, shade = tones(base_uv, np.arange(nf))
     P = Part(o['name'], 'garments', o['V'], polys, lit, shade)
     P.tex = dict(uvc=uvc, fn=tones)
+    P.slot = slot                                                # (its material slot per polygon: bundle()'s pmat)
     sol = o['mods'].get('thick')
     if sol is not None and sol['type'] == 'SOLIDIFY':            # the thickness the build's Solidify gives it (evaluated)
         P.solid = float(sol['settings']['thickness'])
@@ -853,6 +854,8 @@ class Geometry:
                 cls = cls if cls is not None else family(lit) if p.lit is not None else np.full(len(lit), CL['other'])
                 objs.append(dict(name=p.name, group=p.group, V=V, F=T, label=np.asarray(cls)[pid], lit=lit[pid],
                                  shade=shd[pid], role=getattr(p, 'role', None)))
+                if getattr(p, 'slot', None) is not None:          # each triangle's material slot (a garment's: its
+                    objs[-1]['pmat'] = np.asarray(p.slot)[origin]  # panel, band, ink; charkit.sweep's splice reads it)
                 if p.group == 'skin':
                     objs[-1]['scalp'] = self.scalp_polys(p)[origin]
             iris = np.array([p.V.mean(0) for p in self.parts if p.name.startswith('iris_')])
