@@ -302,6 +302,38 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      collarqa.py and steps/collarqa.py (textual; the coordinator's merge).
    - Review page: `charkit/out/pieceref/review/index.html` (review.py b2_before_res pr3 x9; summary.json).
 
+14. **Round 5 (2026-09-30, relaunched lean; coordinator: accept bow_profile_ribbon, recalibrate the knot IoU by
+   tightening, attribute and fix the real regressions, the bleed without folds or named acceptance).**
+   - pipeline-3d 342e88c (tool/face5) merged (ed29b131, clean).
+   - **bow_part_knot_iou recalibrated by tightening** (480f0a19, step 1821836c, record CALIBRATED): its own lines
+     `LIMITS['knot_iou']` (0.9, 0.7), was the lobes' (0.6, 0.45). Ladder (`harness/kcal.py`, kcal.json): at the grid's
+     212.5 px/L the drawn knot is 18 x 25 px against iou_tol's 4.25 px band, so it reads placement, not shape (x1.5
+     wide, an ellipse in its box, scaled 0.8-1.2: all 1.0; knot_rect and knot_line carry shape). The design moved 1-4 px
+     0.94-1.0, 5 px 0.833, 6 px 0.621; pr3 1.0; pipeline-3d's knot (b2_before, b2_close) 0.536 and g3_render3 0.467
+     FAIL now (WARN before: the blind record). Test test_the_knot_is_graded_on_tighter_lines.
+   - **Attribution by swapping the bow** (`harness/swap.sh`, `swcmp.py`; splices on pr3's bundle): pipeline-3d's bow
+     spliced into pr3 (sw_old) reads every blocker at the base's value (bow torn 0.0003/0.0011/0.0, collar_front_torn
+     0.0031, spikes 0/0, bleed 0, art_outline_collar 0.731 P), w4 spliced back (sw_w4) the candidate's: **the bow
+     carries all of them** (garments.py's branch changes are bow-only).
+   - Where (`harness/torndiag.py SRC`: the torn masks at 3x with the bow by connected part; rough pixels by surface,
+     holes, knock-outs; `torn_SRC_*.png`): front (0.0202 L; holes filled 0.0078, knot knocked out 0.005): a hole under
+     the knot (the tails' tops start TAIL0 = 0.08 sizes under the centre, the fitted knot's bottom 0.0625: the jacket
+     shows through) and gaps by the knot's rounded corners (where the collar shows: collar_front_torn's 3 fragments);
+     three-quarter (0.0254; filled 0.0255): a thin hole between the near tail and the strip and notches where the tails'
+     outer edges meet the lobes' lower edges; profile (0.0353; strip L knocked out 0.0067): a see-through slit between
+     the tails and the strip's `hang`. `depths.py SRC`: the tails' backs 0.012-0.033 L behind the knot's front, the
+     strips' fronts 0.030-0.036 (a gap up to 0.04 L lower down).
+   - Sleeve spikes (`spikediag.py`, `corner.py`): our lobes' upper outer corners sit where the drawn ones are (rows
+     407 vs 406, outermost 84 vs 81 px; the pillows' were 6 px lower and 7 px in), but our sleeves' caps sit 13 px
+     (0.06 L) lower than drawn (top row 394 vs 381), so the corner bites 7 px into the sleeve's inner top edge and
+     leaves a horn there that borders background (the design's: 3 px, collar round it).
+   - Variants (`fix.sh NAME --set ..`: var.py on pr3 with every affected part, then torndiag; `fixcmp.py RUN..`):
+     h0 hang off: profile torn 0.0101, 3q 0.0706 (worse); h1 hang off + x0 .03: front 0.0086, collar_front_torn
+     0.0016 P but knot_line 0.64 F. New knobs (off unless set): `ribbon.root` (the tails' tops carried up behind the
+     knot), `ribbon.back` (L: the tails' tops set back toward the loops), `pleat.tuck` [sizes, u-width] (the strip's
+     lower half forward by the knot), `clear.mode 'column'` (`clear_column`: the lobes moved toward the camera by one
+     smoothed offset per column, measured at the lower rim against the jacket's rendered front `below` under it).
+
 ## Next steps (round 5)
 1. The new FAILs from the pleated bow: the bow's torn outline (round the square upper corners, the strips' ends; measure
    with piece_details' roughness per corner), the collar's fragments and the sleeves' spikes under the lobes' ends,
