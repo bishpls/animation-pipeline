@@ -252,7 +252,8 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `rom.py` | `rom_vol_elbow` | rom | RomVolume | rom_lbs |
 | `rom.py` | `rom_vol_knee` | rom | RomVolume | rom_lbs |
 | `rom.py` | `rom_vol_fingers` | rom | RomVolume | rom_lbs |
-| `rom.py` | `rom_shoulder_torso` | rom | Rom | rom_rigid_shoulder |
+| `rom.py` | `rom_shoulder_torso` | rom | RomShoulder | rom_rigid_shoulder |
+| `rom.py` | `rom_shoulder_open` | rom | RomShoulder | rom_rigid_shoulder |
 | `rom.py` | `rom_hair_shoulders` | rom | Rom | rom_hair_on_chest |
 | `rom.py` | `rom_finger_finger` | rom | Rom | rom_fingers_shifted |
 | `rom.py` | `rom_weights_stray` | rom | Rom | rom_stray |
@@ -4065,7 +4066,7 @@ Calibration adapters for the bow: its parts and the lines inside them (charkit.p
 - class `IsoParts`: iso_pieces: the turnaround's front bow (parts and lines) as ours drawn alone.
 - class `BowProfile`: bow_profile (bowqa): the drawn profile bow's loops (the outfit's `bow` mask) and tails (bow_tail_L|R) as our ...
 
-#### `charkit/calib/rom.py` (8 calibration entries)
+#### `charkit/calib/rom.py` (9 calibration entries)
 
 Calibration adapter for range-of-motion QA (charkit.romqa: the range-of-motion suite at the checks' poses on the build's export; tool/rom, 2026-10-01). Defect detectors with physical limits (no drawing of these poses grades them); the shape they could be gamed against is the body's and the garments' (sheet_pieces' piece IoUs: a fix that moves the ...
 
@@ -4079,6 +4080,7 @@ Calibration adapter for range-of-motion QA (charkit.romqa: the range-of-motion s
 - `garments_rigid(rig)`: every garment on its own commonest dominant bone alone: garments that never stretch (the garment strain check's ...
 - `garments_shuffled(rig, seed=0)`
 - class `Rom`: the build as it ships, nudged (the design leg): range-of-motion QA's checks that the build itself passes.
+- class `RomShoulder`: the shoulder at the arm poses: the design leg the build itself (calibrate it on a joined-shoulder build; the ...
 - class `RomVolume`: joint volume: the design leg the same rig skinned by dual quaternions (Kavan et al.
 - class `RomFit`: garments against the body: the design leg every garment skinned with the skin's weights under it (garments_fit: ...
 - class `RomRigid`: garment strain: the design leg every garment rigid on its commonest bone (garments_rigid: nothing stretches), nudged.

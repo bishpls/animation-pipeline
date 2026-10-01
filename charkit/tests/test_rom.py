@@ -151,6 +151,22 @@ def test_weight_sanity_finds_stray_influence():
     assert bad['step_max'] > ok['step_max']
 
 
+def test_qa_checks_calibrated_or_info():
+    """every graded rom_* check has a calibrated record; the rest report INFO beside their grade."""
+    import json
+    from charkit import romqa
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for k in romqa.CALIBRATED:
+        assert k in romqa.CHECKS or k in romqa.WEIGHT_CHECKS, k
+        r = json.load(open(os.path.join(root, 'charkit', 'calib', 'records', k + '.json')))
+        assert r['verdict'] == 'calibrated', (k, r['verdict'])
+    rep = {'poses': {'elbows_135': {'summary': {'vol_elbow': 0.38}}, 'head_turn': {'summary': {'neck_strain': 0.6}}},
+           'weights': {'clawd_skin': {'stray_share': 0.0}}}
+    C = romqa.checks_of(rep)
+    assert C['rom_vol_elbow']['status'] == 'FAIL' and C['rom_neck_strain']['status'] == 'INFO'
+    assert C['rom_neck_strain']['grade'] == 'FAIL' and C['rom_weights_stray']['status'] == 'PASS'
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

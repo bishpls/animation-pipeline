@@ -3,7 +3,7 @@
  "part": "rom",
  "adapter": "RomShoulder",
  "module": "charkit.calib.rom",
- "at": "2026-10-01T17:03:31",
+ "at": "2026-10-01T17:40:19",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -84,5 +84,5 @@
  "generators": {
   "shuffled_weights": "the skin's weights shuffled among its vertices (seeded): a random rig"
  },
- "seconds": 2202.6
+ "seconds": 2041.4
 }

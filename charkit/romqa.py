@@ -58,8 +58,9 @@ CHECKS = {
     'rom_hand_skirt': ('hand_skirt', ('spine_twist', 'hand_fist'), 'max'),
 }
 WEIGHT_CHECKS = {'rom_weights_stray': ('stray_share', (0.0, 0.001), ('clawd_skin',))}
-# the checks whose records are calibrated (charkit/calib/records): their grade is their status
-CALIBRATED = ()
+# the checks whose records are calibrated (charkit/calib/records, 2026-10-01): their grade is their status
+CALIBRATED = ('rom_vol_elbow', 'rom_vol_knee', 'rom_vol_fingers', 'rom_shoulder_torso', 'rom_shoulder_open',
+              'rom_hair_shoulders', 'rom_finger_finger', 'rom_weights_stray', 'rom_garment_strain')
 
 
 def poses_needed(checks=CHECKS):

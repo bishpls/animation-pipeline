@@ -3,7 +3,7 @@
  "part": "rom",
  "adapter": "RomShoulder",
  "module": "charkit.calib.rom",
- "at": "2026-10-01T17:03:31",
+ "at": "2026-10-01T17:40:19",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -14,12 +14,12 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.0286,
-    "WARN"
+    0.0,
+    "PASS"
    ],
    "+0,+2": [
-    0.1143,
-    "FAIL"
+    0.0,
+    "PASS"
    ],
    "+1,+0": [
     0.0,
@@ -47,13 +47,13 @@
    ]
   },
   "min": 0.0,
-  "max": 0.1143,
-  "spread": 0.1143,
+  "max": 0.0,
+  "spread": 0.0,
   "median": 0.0
  },
  "known_bad": {
   "name": "rom_rigid_shoulder",
-  "value": 0.0522,
+  "value": 0.0475,
   "status": "FAIL"
  },
  "floor": {
@@ -78,11 +78,11 @@
   "status": "PASS",
   "margin": null
  },
- "verdict": "miscalibrated",
- "why": "the design reads FAIL/WARN moved +0,+1, +0,+2 px (2 of 8 moves)",
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), rom_rigid_shoulder reads 0.0475 FAIL; a random stand-in passes it (shuffled_weights); shape guarded by piece_top, piece_sleeve_L, piece_sleeve_R",
  "build": "../animation-pipeline-rom-cand/charkit/out/rom_cand2",
  "generators": {
   "shuffled_weights": "the skin's weights shuffled among its vertices (seeded): a random rig"
  },
- "seconds": 2202.6
+ "seconds": 2041.4
 }
