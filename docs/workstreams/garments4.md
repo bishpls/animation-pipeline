@@ -1049,3 +1049,28 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
      posed pictures, the summary box), then the flat lapels and art_outline_collar.
 - Box hygiene: keep the tree committed while box jobs run (b4/b5's QA imported a declared.py synced mid-merge and failed;
   their QA was rerun with `remote run --fetch charkit/out/<build>/qa qa charkit/out/<build>/bundle`).
+
+## Round 7 (2026-10-01, lean agent 7): finishing the refit to the joined shoulder
+- Coordinator: Michael confirmed YES: the collar masks the skin under it, as the jacket does (collar `hide_under`;
+  neck_crease's own intent). Kept.
+- c2 against the old body g5_base_r2 (kcmp, piece IoUs by view): the guard blocker is piece_top only (front 0.749 ->
+  0.400, 3q 0.80 -> 0.616); the sleeves in c2 are within it (front L/R 0.948/0.954 -> 0.867/0.881, -8.5% / -7.6%).
+  tools/garments5/topiou.py: c2's extra jacket is all at z -0.5..-0.7 (0.064 L^2 more than the old body's), |x| 0.3-0.5
+  (the jacket over the bridge's top, in front of the puff's inner top: the dome above clear_body.from_t isn't grown)
+  and at |x| < 0.12 (the V).
+- The V's notch (look_neck_c2.png): the jacket's opening table is unchanged (half 0.092 at z -0.6); the old body's
+  lapels (collar side_depth 0.455) covered |x| 0.05-0.12 there; c2's shorter collar (0.34, sweep d3) shows the jacket
+  between the lapel and the V.
+- The skin strip (tools/garments7/stripwhy.py: per pixel, what lies behind the skin showing): right side only in c2
+  (x 0.2-0.42, z ~-0.54), the near jacket absent there, the skin 0.03 L outside the puff (the bridge's top through the
+  ungrown dome). skinwhere: bridge/border. Tied to the puff dome (opt1's from_t/taper) and the lopsided collar (c2 has
+  no collar.symmetric; opt1 sets it).
+- Posed on c2 with the garments on (posed.py, lab/posed_c2.png): skin out of the puff side 5 verts / 0.027 L, forward
+  11 / 0.020 (c0+tuck: 8 / 0.046, 13 / 0.041); jacket strain p95 1.17, puff p95 2.09 / 2.34, folded 1.3% / 4.7%; a skin
+  strip at the armpit under the puff's lower edge when raised.
+- tools/garments7/compose.py: a spec with override files applied (base + body + garment sets). specs/c2.json predates
+  the hands2 merge (its body.hand is the old one): the final candidate is composed from today's clawd.json.
+- Body-shoulder calibration on render2 against c2 (its body is final): known-bad store hit the box's read-only
+  known_bad/g5_base.json (the links made; the JSON is committed locally); calibrate job
+  calibrate-garments4-1001-133646-695d -> tools/garments7/box_records/cal_body_c2.json (log
+  charkit/out/garments6/cal_body.log).
