@@ -1889,6 +1889,7 @@ class Declared(_calib_base()):
             # the base body declarations' stand-in for our skin alone: the base body sheet's own body moved for the
             # design (its hair's place counted as body: ours has no hair over it); a floor's, the turnaround's
             # figure less its hair (the costume's silhouette: what a body fitted to the visual hull takes)
+            from . import bodyqa
             bb = base_body(self.design) or {}
             out = {}
             for v in views:
