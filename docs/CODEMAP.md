@@ -29,6 +29,9 @@ regenerate it after changing a module's docstring or public functions. The curat
 - **Review pages**: reviewpage.py (`charkit review page`: the standard page), preview.py (per-merge previews),
   review.py, flags.py, checkpoint.py, *page.py.
 - **Simulation**: sim/ (xpbd.py cloth, springbone.py, drape.py, motion.py, motionqa.py).
+- **Range of motion**: pose.py and poses/*.json (named poses as data, in anatomical terms, any humanoid), rom.py (the
+  suite: the shipped export's rig posed and measured, `charkit rom BUILD`), romqa.py (QA part 'rom', report-only),
+  calib/rom.py (its reference rigs and known-bads).
 - **Renderer**: render/ (charkit's WebGPU toon renderer: gpu.py, buffers.py, views.py, softras.py, parity.py);
   qarender.py (the QA's drawing through it).
 - **Geometry kernel**: geom/ (mesh IO, repair, booleans, BVH, raster, loft, hull, solidify, subsurf).
@@ -73,6 +76,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | 2300 | `skirt` | - | skirt | `charkit/qa3d.py:skirt` |
 | 2400 | `accessories` | - | accessories | `charkit/accqa.py:qa_accessories` |
 | 2500 | `motion` | `motion_` | motion | `charkit/sim/motionqa.py:motion_qa` |
+| 2600 | `rom` | - | rom | `charkit/romqa.py:rom_qa` |
 
 ## Commands (`python -m charkit CMD`)
 
@@ -115,6 +119,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `refs-check` | `manifest` |
 | `remote` | `remote` |
 | `review` | `review` |
+| `rom` | `rom` |
 | `script` | `cli` |
 | `slots` | `procs` |
 | `sweep` | `sweep` |
@@ -245,6 +250,15 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `parts.py` | `iso_bow_crease_*` | iso_pieces | IsoParts | g3_render3 |
 | `parts.py` | `bow_profile_tail_*` | bow_profile | BowProfile | g3_render3 |
 | `parts.py` | `bow_profile_loop_*` | bow_profile | BowProfile | g3_render3 |
+| `rom.py` | `rom_vol_elbow` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_vol_knee` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_vol_fingers` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_shoulder_torso` | rom | RomShoulder | rom_rigid_shoulder |
+| `rom.py` | `rom_shoulder_open` | rom | RomShoulder | rom_rigid_shoulder |
+| `rom.py` | `rom_hair_shoulders` | rom | Rom | rom_hair_on_chest |
+| `rom.py` | `rom_finger_finger` | rom | Rom | rom_fingers_shifted |
+| `rom.py` | `rom_weights_stray` | rom | Rom | rom_stray |
+| `rom.py` | `rom_garment_strain` | rom | RomRigid | rom_garments_shuffled |
 
 ## Declared checks (charkit/declared.py)
 
@@ -694,6 +708,8 @@ Box jobs that outlive their ssh, and the boxes' load, measured (standard library
 - `follow(jid, offset=0, out=None, heartbeat=HEARTBEAT, poll=0.5)`: the log from byte offset as frames until the job ends (see the module's docstring).
 - class `Frames`: the laptop's side of follow: feed it bytes as they arrive; it hands log bytes to on_data as soon as they come (a ...
 - `info(d)`
+- `stall_limit(kind, stall_min=None)`: minutes of silence after which a running job of this kind is flagged: its own (stall_min), else its kind's, else 20.
+- `flags(row, now=None)`: the alarms on one job row (info's), for a RUNNING job only: [{'flag': 'silent', 'minutes': quiet, 'limit': N}] ...
 - `list_jobs(days=1)`
 - `prune(days=KEEP_DAYS)`: finished or lost jobs' directories older than days.
 - `cron_lines(dst)`: the sampler's user crontab lines: once a minute, and at boot (a `boot` event).
@@ -702,6 +718,8 @@ Box jobs that outlive their ssh, and the boxes' load, measured (standard library
 - `slots_now(slots_dir=SLOTS_DIR)`: the build slots: count, held (with who holds them) and the builds waiting for one.
 - `reading(slots_dir=SLOTS_DIR)`: what charkit.remote.pick_box routes by, now: the build slots (slots_now) with the box's cores (ncpu), its 1-, 5- ...
 - `running_jobs()`
+- `quiet_now(jids, now=None)`: each running job's log now -> {jid: [bytes, seconds since its last write]} (the sampler's `quiet`: a job's ...
+- `silences(days=7, load_dir=None)`: the longest silence of each job the sampler saw (its samples' largest `quiet`), by kind, for the jobs that ended ...
 - `sample(load_dir=LOAD, slots_dir=SLOTS_DIR, now=None, boot=False)`: one sample appended to load_dir/load-<UTC day>.jsonl -> the sample. boot: the @reboot line's (event 'boot').
 - `publish_load(d, meta)`: the load log into the bucket under load-<host> (the job's own bucketsync.py), when a job ends.
 - `main(argv)`
@@ -1076,6 +1094,16 @@ Michael's flags on the shoulders, the sailor collar and the bow (2026-09-30; too
 - `bleed(B, design, dvf, bow_d, ppl)`: the bow's cream against the jacket with no line between: ours drawn with the build's outlines (lookqa's frame at ...
 - `runs_rows(bow, jk, rows, ppl, sgn=None)`: per row of `rows`: the widest run of bow pixels (L) and whether that run touches a jacket pixel (4-neighbours, no ...
 - `ribbon_line(B, dvp, tails_d, rows, zs, ppl, az)`: the ribbons against the jacket in profile, per row of the design's rows (ra, rb) (zs: their heights, L from the ...
+
+#### `charkit/cow.py`
+
+Copy on write for a box copy's linked inputs (standard library only).
+
+- `shared_readonly(path)`: is path a regular file that is read-only for its owner and hard-linked elsewhere (a box copy's synced input)?
+- `unshare(path, truncate=False)`: give path (a read-only hard link) a private, owner-writable file of its own: removed when the write truncates ...
+- `box_copy(root=ROOT)`: is root a box copy (its charkit/__init__.py a read-only hard link from the blob cache)?
+- `install(root=ROOT, force=False)`: the hook in this process (once) for writes under root -> True when installed now.
+- `unshared()`: how many writes this process gave a file of its own (0 when the hook isn't installed).
 
 #### `charkit/creaseqa.py` (4 declared checks)
 
@@ -2569,6 +2597,21 @@ Garment piece details (tool/garments2, docs/workstreams/garments2.md): the fault
 - `piece_details(B, design=None, out=None)`: the outfit pieces' details against the design: the puff sleeves' spikes, outline and width along the arm and ...
 - `measure(B, design, out=None)`: the piece details' checks on a bundle against the design (qa3d.Design) -> (table, checks).
 
+#### `charkit/pose.py`
+
+Named poses as data (tool/rom, 2026-10-01): a pose is a preset in a JSON library (charkit/poses/*.json), applied to any humanoid skeleton (the VRM humanoid bones: charkit.mh.VRM_JOINTS / VRM_PARENT) in anatomical terms, so motion tests, the range-of-motion suite (charkit.rom) and shots reuse the same presets on any character.
+
+- `library(path=LIBRARY)`: a pose library file -> {name: preset} (in the file's order).
+- `rotation(axis, deg)`: the rotation by deg degrees about axis (right-handed; Rodrigues).
+- `side_of(bone)`
+- `bare(bone)`: a bone's side-less name ('leftLowerArm' -> 'LowerArm').
+- class `Skeleton`: the humanoid's rest skeleton (Blender's frame): heads and tails per VRM bone, parents (charkit.mh.VRM_PARENT), ...
+- `ops_of(sk, preset)`: a preset's ops per bone: {bone: {op: value}} (side-less keys and patterns expanded to both sides).
+- `bone_rotation(sk, b, ops, d, flex, spread, f=1.0)`: the rotation (3x3, world) of bone b's ops taken f of the way, from its carried direction d, hinge direction flex ...
+- `solve(sk, preset, f=1.0)`: {bone: 4x4 world deformation} of a preset taken f of the way (rest -> posed; Blender's frame), composed down the ...
+- `posed_joints(sk, D)`: each bone's posed head and tail -> ({bone: head}, {bone: tail}).
+- `angle_between(sk, D, a, b)`: the posed angle (degrees) between bones a and b's directions (the flexion a joint reached).
+
 #### `charkit/pregate.py`
 
 The local pre-gate check (docs/ROADMAP.md "Iteration speed", redesign item 2): the fast evaluator's checks on this worktree as it is (uncommitted edits included) against pipeline-3d's, judged as the gate judges them (charkit.gate's compare_qa and judge: policy K), on the laptop, before a box gate. The evaluator is charkit.bodyeval as the body fit reads ...
@@ -2611,13 +2654,17 @@ The combined preview after a merge (Michael, 2026-09-30: review never depends on
 
 Builds that know their own processes: every Blender a charkit command starts is recorded in its output folder (`.pid.json`: pid, command, start time) while it runs, so a build can be listed and stopped by its own record, never by a pattern that would match another worktree's builds.
 
+- `priority(env=None)`: this process's slot priority (PRIO): CHARKIT_SLOT_PRIO, else a gate's when charkit runs from a gate's or a ...
+- `background(nice=NICE)`: this process, and what it starts, as background work (sweeps, optimize and their workers): build slots taken at ...
+- `outranked(prio, why=None)`: the live waiters of a priority above prio (slots/wait/*.json; only those waiting for slots when why='slots') -> ...
 - `slots()`
 - `available_gb()`: memory the machine can hand out now (free + inactive + speculative pages; macOS vm_stat), or None elsewhere.
 - `build_slot(label='build')`: a machine-wide build slot held for the block: a whole build, its produced references, venv steps, Blender and QA ...
 - `thread_cap()`: the threads each of a build's pools gets (numba, BLAS, OpenMP, llvmpipe: THREAD_VARS): CHARKIT_THREADS (a number, ...
 - `thread_env(n=None)`: the environment that caps a process's pools at n threads (default thread_cap()), OpenMP's waits passive.
 - `cap_threads()`: this process and what it starts capped (thread_env), called before numpy, numba or a BLAS loads (they read these ...
-- `acquire_slot(label='build', poll=2.0, mem=None)`: take a machine-wide build slot once enough memory is free, waiting while all slots are held or memory is short -> ...
+- class `Slot`: a held build slot (acquire_slot): close() gives it back (as the process ending does).
+- `acquire_slot(label='build', poll=2.0, mem=None, prio=None, why=None)`: take a machine-wide build slot once enough memory is free, waiting while all slots are held, memory is short or a ...
 - `write(out, pid, label, cmd)`: record a process in `out`/.pid.json. -> the record's path.
 - `record(out, pid, label, cmd)`: `out`/.pid.json names `pid` while the block runs.
 - `run(cmd, out, label='build', slot=True, **kw)`: run a command to completion in a build slot, its pid recorded in `out`/.pid.json (removed when it ends) -> ...
@@ -2839,7 +2886,9 @@ Builds off the laptop, on the CPU build box (infra/gcp/build.sh; its config infr
 - `wants_gpu(cmd, rest)`: does this command's job draw boards in EEVEE (a render box's GPU)? A build whose --boards isn't '' (its default ...
 - `route(cmd, rest, need=False, log=None, reserve=1)`: --box auto for this command: pick_box (a render box preferred when its boards render, required with need), the ...
 - `box_has(path)`: does the chosen box's copy of this worktree hold path (worktree-relative)?
-- `jobs(args)`: every box's jobs (running, and finished in the last --days, default 1).
+- `jobs(args)`: every box's jobs (running, and finished in the last --days, default 1), a running one's alarms under it (SILENT, ...
+- `flag_text(f, jid='JID')`: one alarm (charkit.boxjob.flags) in words.
+- `silences(args)`: `remote jobs --silences [--days N]`: per box and kind, the longest silence of each job the box's load sampler saw ...
 - `main_attach(args)`
 - `main_kill(args)`
 - `put(local, remote)`: a file onto the box: through its bucket (build.sh push: charkit/bucketsync.py); with CHARKIT_SYNC=rsync, through ...
@@ -2885,9 +2934,62 @@ The standard review page (`charkit review page`): what every round's hand-made p
 - `checks_table(builds, patterns)`: each build's qa.json on the named checks (patterns), side by side; flag checks marked [F] -> HTML.
 - `key_numbers(builds, patterns, limit=8)`: the summary's key numbers when the JSON gives none: the first `limit` named checks across the builds.
 - `sweep_section(page, path)`: a sweep's table (sweep.md, as HTML) and its rows' boards -> HTML.
+- `table_section(sec)`: a given table: {"title", "text", "columns", "rows"}, a cell a string or [text, status].
 - `figures_section(page, sec)`: a section of given pictures (a round's own measurement pictures: the drawn locks, a fit's overlay): {"title", ...
 - `make(spec, out=None, log=print)`: the page from a PAGE.json's dict -> its index.html path.
 - `main(args)`
+
+#### `charkit/rom.py`
+
+The range-of-motion suite (tool/rom, 2026-10-01; docs/CHARKIT_HANDOFF.md "Known gaps before motion testing" item 2): the shipped rig posed through the pose library (charkit/poses/rom.json, charkit.pose) and measured per pose, numbers before pictures. The rig is the build's export (OUT/NAME.look.glb): its skeleton (the VRM humanoid's nodes and inverse ...
+
+- class `Obj`: one exported object welded into a mesh (Blender's frame): V (n, 3) its surface (the outline's inward move ...
+- class `Rig`: a build's shipped rig: the export's skeleton (Skeleton on the bones' heads from the inverse bind matrices, tails ...
+- `dqs(V, J, W, R, t)`: dual quaternion skinning of V (n, 3) with bone indices J and weights W (n, k) by the bones' rotations R (nb, 3, ...
+- `load(build, export=None)`: a build folder -> (Rig, the bundle or None): the export beside the bundle (NAME.look.glb, else NAME.vrm), the ...
+- `board_views(rig, az=BOARD_AZ, res=BOARD_RES, prefix='', centre=None, ortho=None)`: the posed boards' views: orthographic, one scale for every pose (1.45 x the height on the picture's height, the ...
+- `render_boards(rig, poses, out, az=BOARD_AZ, res=BOARD_RES, adapter=None, ss=2, ...)`: each pose drawn by charkit's toon renderer from every azimuth into out/POSE_AZ.png -> {pose: {az: path}}.
+- `head_length(rig, B=None)`: the character's head length L (m): the bundle's assembly L, else the export's boards / head L.
+- `regions(rig, skin='clawd_skin')`: the skin's vertices by region (each vertex's dominant bone): {name: bool (n,)}: torso, head, and per side the arm ...
+- `shells(V, F)`: each vertex's connected shell (an id).
+- `submesh(F, keep)`: the triangles of F whose three vertices are all kept -> (m, 3).
+- `boundary_loops(F)`: an oriented triangle set's boundary loops (each directed edge with no reverse twin), chained -> [[v...]].
+- `capped(X, F, loops)`: X with a centroid per loop appended, F with each loop fanned shut (orientation closing the surface) -> (X', F').
+- class `Closed`: a region of a mesh as a closed surface (its boundary loops capped, the same caps rest and posed).
+- `inside_new(Q0, Q1, bv0, bv1, L, tol=0.004)`: points (rest Q0, posed Q1) inside a closed surface posed (bv1) and not at rest (bv0), deeper than tol L -> ...
+- `crossing_edges(X, E, bv)`: which edges (X[E[:, 0]] -> X[E[:, 1]]) cross the surface in bv -> bool (len(E),).
+- `crossings_new(X0, X1, E, bv0, bv1)`: edges crossing a surface posed and not at rest -> dict(n, share).
+- `strain(V0, V1, E, min_len=0.0)`: |edge / rest edge - 1| over edges E at least min_len long at rest (all of them when none is) -> dict(p95, max).
+- `tri_area_n(X, F)`
+- `skin_faces(rig, o, D, X1, F=None)`: the skin's faces against rest: collapsed (under 20% of their rest area) and folded (their normal turned over ...
+- `ring_area(Q)`: a ring's area on its best-fit plane (charkit.code_hand.ring_area).
+- `joint_rings(rig, skin='clawd_skin')`: every joint's rest rings on the skin -> {joint: [dict(offset, ring, area (m^2), r)]}, joints named per side ...
+- `ring_ratios(rings, X)`: each joint's rings posed (X the posed skin) over rest -> {joint: dict(min, at (offset), ratios)}.
+- class `Context`: what every pose shares: the rig, L, the skin's regions and rings, the closed regions and their rest BVHs, the ...
+- `measure_pose(ctx, D, X=None)`: one pose's measures (D: {bone: 4x4}) -> dict(rings, skin_pairs, garments, crossings, strain, skin).
+- `joint_family(j)`
+- `summary(m)`: a pose's measures as its headline numbers (the report's table and the QA's checks read these) -> dict: vol_FAMILY ...
+- `dense_weights(rig, o, rows=None)`: an object's weights as a dense (n, bones) float32 array (bones: rig.bone_names(), humanoid ancestors merged).
+- `seg_dist(P_, a, b)`
+- `weight_sanity(rig, L, skin='clawd_skin', step_len=0.03, stray_far=0.35, ...)`: the rig's weights checked once (no pose): per object the largest |sum - 1|, the vertices with no weight, stray ...
+- `limit_of(key)`
+- `grade(key, v)`
+- `run(build, out=None, poses=None, boards=False, export=None, lib=None, ...)`: the suite on a build -> the report (also out/rom.json and out/rom.md when out is given).
+- `markdown(rep)`
+- `main(args)`
+- class `Posable`: a bundle made posable: each drawn variant's vertices (the skin's 'masked', every other object's 'eval') matched ...
+- `art_posed(rig, B, poses, log=print)`: the toon artefact detectors (charkit.artifactqa: outline corners, terminator kinks, fragments, speckle, the ...
+- `render_closeups(rig, out, lib=None, which=None, res=(520, 520), adapter=None, ss=2, ...)`: the close-up set (CLOSEUPS) into out/NAME_AZ.png: the joint the pose stresses, posed, at a fixed window round its ...
+- `compare_markdown(reps, labels)`: several bodies' reports (run()'s) side by side: per pose, body findings then garment findings, each cell the ...
+
+#### `charkit/romqa.py` (QA parts: `rom`)
+
+Range-of-motion QA (tool/rom, 2026-10-01): the range-of-motion suite (charkit.rom) run on a build's export at the poses each check names, report-only. Every check is the worst reading over its poses (the pose named in `pose`, every pose's reading in `by_pose`), graded against physical limits (charkit.rom.LIMITS: there is no drawing of these poses); a ...
+
+- `poses_needed(checks=CHECKS)`
+- `checks_of(rep, calibrated=CALIBRATED)`: the suite's report (charkit.rom.run's, or measure()'s) -> {check: dict(value, status, grade, pose, by_pose)}.
+- `measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, ...)`: the suite on a bundle's build at the checks' poses -> the report (charkit.rom.run's shape, no pictures).
+- `rom_qa(B, design=None, out=None)`: the range-of-motion suite at the checks' poses on the build's export (report-only).
 
 #### `charkit/scene.py`
 
@@ -3053,7 +3155,7 @@ charkit sweep: declared variants of a finished build, rebuilt in-process at the 
 - `patched(over)`: module attributes `qa:MODULE.NAME` (a dotted name under the module) set for the block.
 - `measure(B, parts, over=None)`: the named QA parts on bundle B (as qa3d.evaluate runs them: the registry's order, qa.json's names, graded only ...
 - `kept(C, patterns=None)`: the checks' readings worth keeping (KEEP fields; the shape checks always) -> {check: dict}.
-- `run_rows(decl, rows, out, log=print)`: the rows measured in this process -> [row dict].
+- `run_rows(decl, rows, out, log=print, between=None)`: the rows measured in this process -> [row dict].
 - `run(decl, out, jobs=1, only=None, log=print)`: a sweep: the rows (expand), measured in this process or in `jobs` processes (each in a build slot) -> the result ...
 - `improved(c0, c1, better=None)`: did a check improve from c0 to c1 (its grade or status better, or its value toward `better`)?
 - `shape_moves(c, r, eps=0.0005)`: {shape check: {view: [control, row]}} for every shape check whose IoU moved more than eps in a view.
@@ -4093,6 +4195,26 @@ Calibration adapters for the bow: its parts and the lines inside them (charkit.p
 - class `BowParts`: bow_parts: the turnaround's bow parts and lines as ours.
 - class `IsoParts`: iso_pieces: the turnaround's front bow (parts and lines) as ours drawn alone.
 - class `BowProfile`: bow_profile (bowqa): the drawn profile bow's loops (the outfit's `bow` mask) and tails (bow_tail_L|R) as our ...
+
+#### `charkit/calib/rom.py` (9 calibration entries)
+
+Calibration adapter for range-of-motion QA (charkit.romqa: the range-of-motion suite at the checks' poses on the build's export; tool/rom, 2026-10-01). Defect detectors with physical limits (no drawing of these poses grades them); the shape they could be gamed against is the body's and the garments' (sheet_pieces' piece IoUs: a fix that moves the ...
+
+- `rigid_joints(rig, skin='clawd_skin')`: every skin vertex on its dominant bone alone (no blend across any joint).
+- `garments_on_hips(rig)`
+- `hair_on_chest(rig)`
+- `skirt_on_thigh(rig)`
+- `fingers_shifted(rig, skin='clawd_skin')`: each finger's vertices skinned to the bones two fingers on (index -> ring, middle -> little, ring -> index, ...
+- `stray(rig, skin='clawd_skin', share=0.02, seed=0)`: share of the skin's vertices given half their weight on a far bone (the opposite foot's for the upper body, the ...
+- `shuffled(rig, seed=0, skin='clawd_skin')`
+- `garments_rigid(rig)`: every garment on its own commonest dominant bone alone: garments that never stretch (the garment strain check's ...
+- `garments_shuffled(rig, seed=0)`
+- class `Rom`: the build as it ships, nudged (the design leg): range-of-motion QA's checks that the build itself passes.
+- class `RomShoulder`: the shoulder at the arm poses: the design leg the build itself (calibrate it on a joined-shoulder build; the ...
+- class `RomVolume`: joint volume: the design leg the same rig skinned by dual quaternions (Kavan et al.
+- class `RomFit`: garments against the body: the design leg every garment skinned with the skin's weights under it (garments_fit: ...
+- class `RomRigid`: garment strain: the design leg every garment rigid on its commonest bone (garments_rigid: nothing stretches), nudged.
+- `garments_fit(rig, skin='clawd_skin')`: every garment skinned with the skin's own weights at its nearest skin point (barycentric, the top four): the ...
 
 ### charkit/steps/
 

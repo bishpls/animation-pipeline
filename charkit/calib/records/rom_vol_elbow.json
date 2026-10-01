@@ -1,0 +1,87 @@
+{
+ "check": "rom_vol_elbow",
+ "part": "rom",
+ "adapter": "RomVolume",
+ "module": "charkit.calib.rom",
+ "at": "2026-10-01T16:26:47",
+ "better": "higher",
+ "kind": "defect",
+ "shape": [
+  "piece_cuff_L",
+  "piece_cuff_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9952,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.9949,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.9957,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.996,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9955,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.9955,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.9955,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.9955,
+    "PASS"
+   ]
+  },
+  "min": 0.9949,
+  "max": 0.996,
+  "spread": 0.0011,
+  "median": 0.9955
+ },
+ "known_bad": {
+  "name": "rom_lbs",
+  "value": 0.3818,
+  "status": "FAIL"
+ },
+ "floor": {
+  "shuffled_weights": {
+   "values": [
+    1.0,
+    1.0
+   ],
+   "statuses": [
+    "PASS",
+    "PASS"
+   ],
+   "median": 1.0,
+   "status": "PASS",
+   "passing": 2
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.3818,
+  "status": "FAIL",
+  "margin": 137.378
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0011), rom_lbs reads 0.3818 FAIL; a random stand-in passes it (shuffled_weights); shape guarded by piece_cuff_L, piece_cuff_R",
+ "build": "charkit/out/rom_base2",
+ "generators": {
+  "shuffled_weights": "the skin's weights shuffled among its vertices (seeded): a random rig"
+ },
+ "seconds": 1577.2
+}
