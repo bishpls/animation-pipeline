@@ -650,6 +650,43 @@ def _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L, base=NECK_BASE):
         Vb[rg, :2] = axis + np.stack([np.sin(th) * rr, -np.cos(th) * rr], 1)
     return Vb, lofts[0][1]
 
+def flare_neck(S, fl, Bm, ring_b, Vb, axis, Oz, L):
+    """the head's neck flared above the cut into the shoulders (body.neck_flare; Michael's answer A, 2026-10-01: the
+    joined shoulder's level top sits at the cut's height, where the base body sheet draws the trapezius already flaring
+    out of the neck; the slender head neck turning into it within 0.03 L read as a crease, neck_crease 12.7 -> 81). Each
+    column's rows from `h` L above the cut down to it pushed out toward the authored torso's ring `to` L under the cut
+    (its radius round the neck's axis at that column): by `share` of the gap at the cut (a number or [[degrees from
+    the front, share], ...], mirrored: the sides and the back, where the trapezius is; the front's chest keeps the
+    join's own loft), easing in as u^p (u: 0 at the flare's top, 1 at the cut), so the neck leaves its own line
+    tangentially and arrives near level, as the drawn trapezius does. The join's loft (_join_neck) then starts from the
+    flared row. -> a new Sections (S itself untouched); S unchanged for a body without an authored torso."""
+    from charkit.geom.headgeom import Sections
+    rings = _torso_rings(Bm, ring_b, Vb)
+    if not rings:
+        return S
+    zr = [(Vb[rg, 2].mean() - Oz) / L for rg in rings]
+    to = float(fl.get('to', 0.04))
+    k = next((i for i, z in enumerate(zr) if zr[0] - z >= to - 1e-9), len(rings) - 1)
+    r_ring = _ring_polar((Vb[rings[k], :2] - axis) / L, (0.0, 0.0), S.th)
+    sh = fl.get('share', 1.0)
+    if isinstance(sh, (list, tuple)):
+        K = np.asarray(sorted(sh), float)
+        sh = np.interp(np.degrees(np.abs(S.th)), K[:, 0], K[:, 1])
+    sh = np.broadcast_to(np.asarray(sh, float), S.th.shape)
+    h, p = float(fl.get('h', 0.08)), float(fl.get('p', 2.0))
+    from charkit.geom.headgeom import _row_at
+    base = _row_at(S, CUT)
+    if base is None:
+        return S
+    gap = np.maximum(0.0, r_ring - base[1]) * sh
+    r = S.r.copy()
+    for i, z in enumerate(S.zs):
+        if CUT - 1e-9 <= z <= CUT + h and np.isfinite(r[i]).all():
+            u = (CUT + h - z) / h
+            r[i] = r[i] + gap * u ** p
+    return Sections(S.zs, S.cy, r)
+
+
 def _cut_body(Bm, Vb, Fb, z_cut, L):
     """MakeHuman's body cut level at the neck -> (the kept faces' indices, those faces, the neck ring)."""
     # the cut: above it, within the neck's column (the shoulders' tops can reach it beside the neck, and stay)
@@ -711,6 +748,8 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
     # (body.neck_join: the join's reach on its own, a number or a table by azimuth; Michael's item 4, 2026-10-01: the V
     # opened to the skin shows the neck turning into the chest in 0.01 L, a 40-degree crease all round the join)
     body_ = spec.get('body') or {}
+    if body_.get('neck_flare'):
+        S = flare_neck(S, body_['neck_flare'], Bm, ring_b, Vb, np.array([Ox, Oy + cy_cut * L]), Oz, L)
     Vb, curve = _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L,
                            base=body_.get('neck_join', (body_.get('shoulder') or {}).get('join', NECK_BASE)))
     nc = Vb[ring_b].mean(0)

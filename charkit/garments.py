@@ -172,6 +172,23 @@ def panel_faces(V, faces, P, L, cell=0.03, close=2, facing=-0.3):
     return out
 
 
+def _axis_dist(A, bone, X):
+    """points' horizontal distance (world) from the upright axis through a bone's head."""
+    h = bone_seg(A, bone)[0]
+    return np.hypot(X[:, 0] - h[0], X[:, 1] - h[1])
+
+
+def _by_azimuth(A, bone, v, X):
+    """a value given as a number or a table [[degrees round the bone head's upright axis from the front, value], ...]
+    (mirrored: 0 in front, 90 her side, 180 behind) at points X -> (n,)."""
+    if not isinstance(v, (list, tuple)):
+        return np.full(len(X), float(v))
+    h = bone_seg(A, bone)[0]
+    th = np.degrees(np.arctan2(np.abs(X[:, 0] - h[0]), h[1] - X[:, 1]))
+    K = np.asarray(sorted(v), float)
+    return np.interp(th, K[:, 0], K[:, 1])
+
+
 def shell(A, spec, normals=None, hull=None):
     """a tight garment: the region's faces lifted by `offset` along the body's normals. With `source` 'hull', its hem
     follows the hull's own piece: cut below the lower edge of its points (and its folded pieces', `fold`) per angle
@@ -201,14 +218,26 @@ def shell(A, spec, normals=None, hull=None):
             zl = float(np.median(edge(np.linspace(-np.pi, np.pi, 72, endpoint=False)))) - spec.get('hem_drop', 0.0) * L
             cut = lambda X: np.full(len(X), zl)
         ins &= V[:, 2] >= cut(V)
-    # height cuts at body landmarks: [bone, t, 'above' | 'below', offset in L]
-    for bone, t, side, o in spec.get('cuts', []):
+    # height cuts at body landmarks: [bone, t, 'above' | 'below', offset in L(, r)]; with r (L: a number or [[degrees
+    # round the bone's head from the front, r], ...], mirrored) the cut only within r of the bone head's upright axis:
+    # a neckline round the neck rather than a plane through the shoulders (the joined shoulder's level top rises over
+    # the plane beside the neck: the jacket cut there left the skin showing on the shoulder tops)
+    for c in spec.get('cuts', []):
+        bone, t, side, o = c[:4]
         if bone == 'eye':                                        # a height from the eye line (L)
             zc = _eye_z(A) + o * L
         else:
             h, tl = bone_seg(A, bone)
             zc = (h + (tl - h) * t)[2] + o * L
-        ins &= (V[:, 2] >= zc) if side == 'above' else (V[:, 2] <= zc)
+        m_ = (V[:, 2] >= zc) if side == 'above' else (V[:, 2] <= zc)
+        if len(c) > 4 and c[4] is not None and bone != 'eye':
+            m_ |= _axis_dist(A, bone, V) >= _by_azimuth(A, bone, c[4], V) * L
+        ins &= m_
+    if spec.get('tuck') and hull is not None:
+        # the jacket ends under the puffs (Michael, 2026-10-01: the puffs contain the joined shoulder's deltoid): the
+        # body parts the puffs hold (the bridge, the upper arm) left out where they lie `margin` L inside a puff, so
+        # the shell's edge there is under it; outside the puffs (the bridge's columns by the torso) it covers them
+        ins &= ~tucked(A, spec['tuck'], spec.get('_spec') or {}, hull)
     body_of, Wr = None, None
     rf = spec.get('refine', 0)
     if rf:
@@ -3142,7 +3171,8 @@ def puff(A, spec, hull=None):
 
 def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
     """a puff grown where the body under it would come through (spec `clear_body` {gap L: the jacket's offset, its
-    thickness and a clearance; bones: the body's parts it must hold, by dominant bone suffix; inner: degrees round the
+    thickness and a clearance; bones: the body's parts it must hold, by dominant bone suffix, or parts: by the authored
+    body's part names (['shoulder', 'arm']: the joined shoulder's bridge and the arm); inner: degrees round the
     inner direction left alone, the cap's inner side running into the torso by design; smooth: passes}): per section
     cell the body's outermost point there plus gap, the section taken out to it (never in), the growth eased over the
     neighbouring cells. The tool/garments4 joined shoulder (2026-10-01): the puff's knots were fitted round the old
@@ -3151,9 +3181,15 @@ def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
     from scipy import ndimage
     L = A['head']['L']
     gap = float(cb.get('gap', 0.03))
-    bones = [side + b for b in cb.get('bones', ('UpperArm', 'Shoulder'))]
-    dom, _ = dominant(A)
-    Q = A['verts'][np.isin(dom, bones)] - h
+    if cb.get('parts'):
+        # by the authored body's parts (the joined shoulder's bridge 'shoulder', the arm 'arm'): the deltoid the puff
+        # holds, whatever its weights (the bridge's inner half is the clavicle's)
+        sel = body_part_mask(A, [p + '_' for p in cb['parts']], side)
+    else:
+        bones = [side + b for b in cb.get('bones', ('UpperArm', 'Shoulder'))]
+        dom, _ = dominant(A)
+        sel = np.isin(dom, bones)
+    Q = A['verts'][sel] - h
     if not len(Q):
         return X, Y
     tq, xq, yq = Q @ d / L, Q @ o / L, Q @ f / L
@@ -3175,6 +3211,66 @@ def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
         grow = np.maximum(grow, g2)
     k = np.where(R > 1e-9, (R + grow) / np.maximum(R, 1e-9), 1.0)
     return X * k, Y * k
+
+
+def body_part_mask(A, prefixes, side=None):
+    """the body's vertices in its authored parts (A['body']['parts']: 'torso', 'shoulder_left' (the joined shoulder's
+    bridge), 'arm_left', ...) whose names start with a prefix (and end with the side, when given) -> (n,) bool over
+    A['verts'] (all False for a body without parts)."""
+    m = np.zeros(len(A['verts']), bool)
+    for k, (a, b) in ((A.get('body') or {}).get('parts') or {}).items():
+        if k.startswith(tuple(prefixes)) and (side is None or k.endswith(side)):
+            m[a:b] = True
+    return m
+
+
+def puff_margin(A, spec, hull, X):
+    """how far inside a puff sleeve (garments.puff at its spec) points X lie: the puff's radius round its arm's axis at
+    each point's station and angle, less the point's (L; > 0 inside). Points above the dome's first row or past the
+    band's top (where the puff tucks under the band) get -inf (not held by it). -> (n,)."""
+    G = puff(A, spec, hull)
+    L = A['head']['L']
+    fr = G['frame']
+    h, d, o, f = fr['origin'], fr['d'], fr['o'], fr['f']
+    nth = spec.get('cols', 64)
+    Q = np.asarray(G['verts'], float)[1:].reshape(-1, nth, 3) - h
+    ts = (Q @ d / L).mean(1)
+    RR = np.hypot(Q @ o / L, Q @ f / L)
+    th = np.arctan2(Q @ f / L, Q @ o / L).mean(0)
+    order = np.argsort(th)
+    th, RR = th[order], RR[:, order]
+    P = np.asarray(X, float) - h
+    tq, rq = P @ d / L, np.hypot(P @ o / L, P @ f / L)
+    aq = np.arctan2(P @ f / L, P @ o / L)
+    t_hi = G['t_band'] if G.get('t_band') is not None else ts.max()
+    i = np.clip(np.searchsorted(ts, tq) - 1, 0, len(ts) - 2)
+    w = np.clip((tq - ts[i]) / np.maximum(ts[i + 1] - ts[i], 1e-9), 0, 1)
+    # the radius at each point's angle on its two rows (rows interpolated round, then between)
+    jj = np.searchsorted(th, aq) % len(th)
+    j0 = (jj - 1) % len(th)
+    da = np.mod(th[jj] - th[j0], 2 * np.pi)
+    u = np.where(da > 1e-9, np.mod(aq - th[j0], 2 * np.pi) / np.maximum(da, 1e-9), 0.0)
+    ra = RR[i, j0] * (1 - u) + RR[i, jj] * u
+    rb = RR[i + 1, j0] * (1 - u) + RR[i + 1, jj] * u
+    m = ra * (1 - w) + rb * w - rq
+    return np.where((tq >= ts.min()) & (tq <= t_hi), m, -np.inf)
+
+
+def tucked(A, tk, spec_all, hull):
+    """a shell's `tuck` {under: [puff garment names], margin: L, parts: body part prefixes (default the bridge and the
+    arm)}: the body vertices of those parts lying more than `margin` inside one of the puffs -> (n,) bool."""
+    sel = body_part_mask(A, tk.get('parts', ('shoulder_', 'arm_')))
+    out = np.zeros(len(A['verts']), bool)
+    if not sel.any():
+        return out
+    idx = np.nonzero(sel)[0]
+    for nm in tk.get('under', ()):
+        s = next((g for g in spec_all.get('garments', []) if g['name'] == nm), None)
+        if s is None:
+            raise ValueError('tuck: %s not in the outfit' % nm)
+        m = puff_margin(A, dict(s, _spec=spec_all), hull, A['verts'][idx])
+        out[idx[m > float(tk.get('margin', 0.02))]] = True
+    return out
 
 
 def puff_knots(A, hull, side, t_step=0.05, cap=0.12, q=90, smooth=1.0):
