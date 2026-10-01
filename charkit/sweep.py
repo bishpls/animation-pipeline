@@ -183,6 +183,10 @@ def expand(decl):
     items = [(v['name'], v.get('set') or {}) for v in V] if isinstance(V, list) else list(V.items())
     for name, over in items:
         rows.append(dict(name=name, set=dict(shared, **over)))
+    for k in ('grid', 'oat'):
+        bad = [p for p, v in (decl.get(k) or {}).items() if not isinstance(v, list)]
+        if bad:
+            raise SystemExit('sweep: %s %s is not a list of values' % (k, bad[0]))
     grid = decl.get('grid') or {}
     if grid:
         keys = list(grid)
@@ -1117,6 +1121,10 @@ def inline_decl(args):
     for k in ('grid', 'oat'):
         if _opts(args, '--' + k):
             d[k] = dict(_kv(x) for x in _opts(args, '--' + k))
+            bad = [p for p, v in d[k].items() if not isinstance(v, list)]
+            if bad:
+                raise SystemExit('sweep --%s %s: give a JSON list of values (PATH=[v1,v2]); one value: --set, a '
+                                 'named row: --variant NAME=\'{"PATH": value}\'' % (k, bad[0]))
     for k in ('parts', 'checks', 'objects'):
         if _opt(args, '--' + k):
             d[k] = [x for x in _opt(args, '--' + k).split(',') if x]
