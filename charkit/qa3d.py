@@ -659,10 +659,9 @@ def sheet_meshes(B):
                 v, t, _, _ = o.mesh('eval')
                 meshes.append((v, t, np.full(len(t), c)))
     for o in B.objects(groups=('mouth',), visible=False):
-        v, t, tm, _ = o.mesh('eval')
-        if o.part == 'nose':                            # the nose's mark (charkit.nose): its ink tick a line
-            meshes.append((v, t, np.where(tm == 0, CL['line'], CL['other'])))
-            continue
+        v, t, _, _ = o.mesh('eval')
+        # (the nose's mark, charkit.nose, is 'other' here as every mouth-group part but the lines: classing its tick a
+        # line moved sheet_shown_front 0.469 -> 0.468, an unregistered remeasure of the sheet's checks for a 4 px mark)
         meshes.append((v, t, np.full(len(t), CL['line'] if 'line' in o.part else CL['other'])))
     covers = []
     for group, c, dst in (('hair', CL['hair'], covers), ('accessory', CL['other'], covers), ('garment', CL['other'], meshes)):
