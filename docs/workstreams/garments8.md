@@ -146,5 +146,7 @@ in g8_lapels0: 0.80 / 0.74 / 0.83 / 0.91; design 0.94-1.0; floors 0-0.47); neck_
 g4_v0 0.352, voronoi 0.728 WARN); neck_v_three_quarter MISCALIBRATED (the design moved +0,+2 reads 0.794 < 0.8).
 Grading set from it (a1480b81): collar truth front/3q [0.85, 0.70], back dropped; top truth a guard; neck_v 3q
 [0.75, 0.6]. Re-run writing the records: log charkit/out/garments8/cal_g8_local2.log.
-Step 2's targets from these: collar_front/3q_truth >= 0.70 (FAIL below: a new check, a new FAIL blocks), neck_v_*
-up from 0.574 / 0.505 (the base under the new measure; a flag check: no regression), top_* WARN or better.
+Step 2's targets from these (goals, not merge gates; coordinator 2026-10-01: under K a NEW check shipping at FAIL is
+reported, not blocking; blocking is existing checks regressing to FAIL, flag-check regressions, CPU > 1.5x, missing
+calibration records and the guard): collar_front/3q_truth >= 0.70 (Michael wants the lapels right), neck_v_* up from
+0.574 / 0.505 (the base under the new measure), top_* WARN or better. If one stops short: report it, bend nothing.
