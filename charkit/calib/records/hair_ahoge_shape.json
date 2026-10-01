@@ -1,0 +1,137 @@
+{
+ "check": "hair_ahoge_shape",
+ "part": "hair_flags",
+ "adapter": "HairFlags",
+ "module": "charkit.calib.hairflags",
+ "at": "2026-09-30T20:39:42",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_ahoge"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0,
+  "views": {
+   "back": [
+    1.0,
+    1.0
+   ],
+   "front": [
+    1.0,
+    1.0
+   ],
+   "profile": [
+    1.0,
+    1.0
+   ],
+   "three_quarter": [
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "known_bad": {
+  "name": "hair5_1580f95",
+  "value": 0.3709,
+  "status": "FAIL"
+ },
+ "floor": {
+  "rotate_ahoge": {
+   "values": [
+    0.2447,
+    0.2109,
+    0.202,
+    0.1868,
+    0.1989
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.202,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "blob_ahoge": {
+   "values": [
+    0.2719,
+    0.2719,
+    0.2719,
+    0.2719,
+    0.2719
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.2719,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "wiggle_ahoge": {
+   "value": 0.5483,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 0.3709,
+  "status": "FAIL",
+  "margin": 0.176
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), hair5_1580f95 reads 0.3709 FAIL, the floor rotate_ahoge FAIL, blob_ahoge FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/h5_base",
+ "generators": {
+  "rotate_ahoge": "the drawn ahoge turned about its root by 25-45 degrees either way",
+  "blob_ahoge": "the drawn ahoge replaced by an ellipse of its area along its root-to-tip axis (a clump)",
+  "wiggle_ahoge": "the drawn ahoge bent sideways along its length by a 1.5-wave of 0.012 L"
+ },
+ "seconds": 143.5
+}

@@ -26,6 +26,12 @@ def test_known_answers():
     ours = np.where(t >= 0, t + 1, 0)
     r = hk.score_view(ours, t, labels, hair, 20.0)
     assert r['lock_iou'] == 1.0 and r['matched'] == 3 and r['boundary_L'] == 0 and r['purity'] == 1.0
+    assert r['families'] == {'bangs': dict(truth_locks=3, ours=0, matched=3, lock_iou=1.0, lock_iou_in=1.0)}
+    # per family (tool/hair5): the strands' families are lock labels too; each family scored over its own locks
+    l2 = ['bangs/a', 'flyaways/s', 'ahoge/ahoge']
+    r = hk.score_view(ours, t, l2, hair, 20.0)
+    assert set(r['families']) == {'bangs', 'flyaways', 'ahoge'} and all(
+        x['lock_iou'] == 1.0 and x['truth_locks'] == 1 for x in r['families'].values())
     # the crown is unscored: ours reaching into it changes nothing
     o2 = ours.copy(); o2[:10, :13] = 1
     assert hk.score_view(o2, t, labels, hair, 20.0)['lock_iou'] == 1.0
@@ -51,6 +57,7 @@ def test_calibration_on_the_tracked_truth():
         own = hk.score_view(np.where(f >= 0, f + 1, 0), t, T[1][v], hair, T[2]['ppl'])
         sh = np.mean([hk.score_view(hk.shuffled(f, s), t, T[1][v], hair, T[2]['ppl'])['lock_iou'] for s in range(3)])
         assert own['lock_iou'] == 1.0, v
+        assert all(x['lock_iou'] == 1.0 for x in own['families'].values()), (v, own['families'])
         assert sh < 0.7, (v, sh)
 
 
