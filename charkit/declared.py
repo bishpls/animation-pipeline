@@ -266,16 +266,27 @@ def ink_between(Mo, Md, ctx, round_=4):
     return dict(value=round(max(0.0, o_len - d_len), round_), ours=round(o_len, 4), design=round(d_len, 4))
 
 
-def area(Mo, Md, ctx, round_=3):
-    """the piece's size: its pixels over the drawn piece's, less one, |.| (ours / design reported as `ratio`)."""
+def area(Mo, Md, ctx, round_=3, ref='silhouette'):
+    """the piece's size: its pixels over the drawn piece's, less one, |.| (ours / design reported as `ratio`). The
+    visible pixels both sides (piece_<id>'s same-colour rule, tried, reads the design moved 1-2 px 0.23 off itself: the
+    drawn skirt's mask runs under the drawn cuff, so it takes from ours alone). ref 'silhouette' (the default): the
+    drawn piece as our surfaces would draw it, its outline included (bodymeasure.drawn_labels: the drawing's lines inside
+    the figure given to the nearest piece; our geometry has no ink between pieces, so its pixels compare with the drawn
+    piece's silhouette: the wrist cuffs' silhouette is ~1.23x their fill); 'fill': the outfit's piece mask alone."""
     from . import pieceqa
     Md = fit(Md, Mo.shape)
     if Md.sum() < pieceqa.MIN_PX:
         return None
+    fill = int(Md.sum())
+    if ref == 'silhouette' and ctx.get('silhouette') is not None:
+        S = ctx['silhouette']()
+        if S is not None:
+            Md = fit(S, Mo.shape)
     if Mo.sum() < pieceqa.MIN_PX:
         return dict(value=None, why=WHY_OURS)
     r = float(Mo.sum()) / float(Md.sum())
-    return dict(value=round(abs(r - 1), round_), ours=int(Mo.sum()), design=int(Md.sum()), ratio=round(r, 3))
+    return dict(value=round(abs(r - 1), round_), ours=int(Mo.sum()), design=int(Md.sum()), ratio=round(r, 3),
+                fill=fill, ratio_fill=round(float(Mo.sum()) / fill, 3))
 
 
 def position(Mo, Md, ctx, axis='both', round_=4):
@@ -427,7 +438,7 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False):
     dv = design.design_views()
     O, names = pieceqa.our_labels(B, ctx['ppl'], ctx['az3'], views=tuple(v for v in views if v in dv))
     out = dict(O=O, names=names, masks=masks, pm=bodymeasure.piece_map(graph, B.spec), ppl=ctx['ppl'], dv=dv,
-               graph=graph, spec=B.spec)
+               graph=graph, spec=B.spec, skin=[o.name for o in B.objects(groups=('skin',))])
     if lines:
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
     if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
@@ -471,6 +482,25 @@ def our_lines(B, ppl, az3, views=VIEWS):
         mesh = aux['mesh']
         out[v] = hull[np.where(mesh >= 0, mesh, len(surfs))]
     return out
+
+
+def silhouette(I, view, pid):
+    """the drawn piece's silhouette in a view: its pixels in the drawing drawn as our label image
+    (bodymeasure.drawn_labels, cached on I: the drawing's lines inside the figure given to the nearest piece), or None
+    when the inputs lack the outfit graph."""
+    from . import bodymeasure
+    if I.get('graph') is None or I.get('dv') is None:
+        return None
+    if '_drawn' not in I:
+        names = I['names']
+        skin = I.get('skin') or [n for n in names if 'skin' in n]
+        I['_drawn'] = bodymeasure.drawn_labels(I['masks'], I['graph'], I['pm'], names, I['dv'], skin,
+                                               [n for n in names if n.startswith('hair')])
+    got = I['_drawn'].get(view)
+    if got is None:
+        return None
+    idx = {n: i for i, n in enumerate(I['names'])}
+    return bodymeasure.member_mask(got[0], idx, I['pm'].get(pid, []))
 
 
 def fit(m, shape):
@@ -538,6 +568,7 @@ def evaluate(decls, I):
                    lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
                    cls_ours=(I.get('cls_ours') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
+        ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
         fam = FAMILIES[d['family']]
         if 'round' in params:
             params['round_'] = params.pop('round')
@@ -552,8 +583,9 @@ def evaluate(decls, I):
             if r.get('count_status'):
                 st = pieceqa.worst(st, r['count_status'])
             c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
-            if 'count' in r:
-                c['count'] = r['count']
+            for k in ('count', 'ratio', 'fill', 'ratio_fill'):
+                if k in r:
+                    c[k] = r[k]
             if d.get('note'):
                 c['note'] = d['note']
             T[name] = dict(ours=r.get('ours'), design=r.get('design'))

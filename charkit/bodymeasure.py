@@ -648,6 +648,56 @@ def built_parent(graph, pm):
     return out
 
 
+def drawn_labels(masks, graph, pm, names, dv, skin=(), hair=()):
+    """the drawing as our label image per view: skin and hair from its classes, each drawn piece our object's code
+    (names' index, + 1000 for a two-sided object's right half) painted in the outfit graph's layer order, and the
+    drawing's lines (and the masks' rough edges) inside the figure given to the nearest labelled pixel, as our surfaces
+    meet with no ink between them (calib.labels.Garments' stand-in for ours; declared's silhouettes) ->
+    {view: (lab, {code: px}, garment mask)}."""
+    from scipy import ndimage
+    from .bodyqa import CLASS as CL
+    up = built_parent(graph, pm)
+    idx = {n: i for i, n in enumerate(names)}
+    skin = [n for n in skin if n in idx]
+    hair = list(hair)
+    over = {p['id']: (p.get('layer') or {}).get('over') or [] for p in graph['pieces']}
+    depth = {}
+
+    def dep(p, seen=()):
+        if p not in depth:
+            depth[p] = 1 + max([dep(q, seen + (p,)) for q in over.get(p, ()) if q not in seen] or [0])
+        return depth[p]
+    order = sorted(over, key=dep)
+    out = {}
+    for v, d in dv.items():
+        cls = d['cls']
+        lab = np.full(cls.shape, -1, np.int32)
+        if skin:
+            lab[d['fg'] & (cls == CL['skin'])] = idx[skin[0]]
+        if hair:
+            lab[d['fg'] & (cls == CL['hair'])] = idx[hair[0]]
+        garment = np.zeros(cls.shape, bool)
+        px = {}
+        for pid in order:
+            m = masks.get('%s__%s' % (v, pid))
+            members = pm.get(pid) or pm.get(up.get(pid)) or []
+            if m is None or not m.any() or not members or members[0][0] not in idx:
+                continue
+            name, sgn = members[0]
+            code = idx[name] + (1000 if sgn is not None and sgn < 0 else 0)
+            m = m[:cls.shape[0], :cls.shape[1]]
+            lab[m] = code
+            garment |= m
+            px[code] = px.get(code, 0) + int(m.sum())
+        gap = d['fg'] & (lab < 0)
+        if gap.any() and (lab >= 0).any():
+            _, (iy, ix) = ndimage.distance_transform_edt(lab < 0, return_indices=True)
+            lab[gap] = lab[iy[gap], ix[gap]]
+            garment = np.isin(lab, list(px)) if px else garment
+        out[v] = (lab, px, garment)
+    return out
+
+
 def folded(masks, graph, pm):
     """the drawn masks with each piece we don't build folded into the piece of ours it is part of (built_parent), so
     our top is compared with the drawn top and its panel; the unbuilt piece keeps its own mask for the count."""
