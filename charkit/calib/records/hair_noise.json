@@ -1,0 +1,103 @@
+{
+ "check": "hair_noise",
+ "part": "hair_noise",
+ "adapter": "HairNoise",
+ "module": "charkit.calib.hairnoise",
+ "at": "2026-10-01T08:00:46",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "hair_piece_bangs",
+  "hair_piece_side_locks",
+  "hair_piece_upper_back",
+  "hair_piece_lower_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    3.88,
+    "PASS"
+   ],
+   "+0,+2": [
+    4.23,
+    "PASS"
+   ],
+   "+1,+0": [
+    5.23,
+    "PASS"
+   ],
+   "+2,+0": [
+    5.92,
+    "PASS"
+   ],
+   "+0,-1": [
+    4.22,
+    "PASS"
+   ],
+   "+0,-2": [
+    5.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    5.93,
+    "PASS"
+   ],
+   "-2,+0": [
+    5.57,
+    "PASS"
+   ]
+  },
+  "min": 3.88,
+  "max": 5.93,
+  "spread": 2.05,
+  "median": 5.115
+ },
+ "known_bad": {
+  "name": "ck7_blotchy",
+  "value": 32.61,
+  "status": "FAIL"
+ },
+ "floor": {
+  "speckle": {
+   "values": [
+    14.76,
+    14.34,
+    15.76,
+    16.41,
+    12.92
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 14.76,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "voronoi_tones": {
+   "value": 0.0,
+   "status": "PASS"
+  }
+ },
+ "blind_to": [
+  "voronoi_tones"
+ ],
+ "current": {
+  "value": 4.46,
+  "status": "PASS",
+  "margin": 1.068
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 2.05), ck7_blotchy reads 32.61 FAIL; a random stand-in fails it; shape guarded by hair_piece_bangs, hair_piece_side_locks, hair_piece_upper_back, hair_piece_lower_back",
+ "build": "charkit/out/r4_hull",
+ "generators": {
+  "speckle": "the design's hair with random blots (radius 1-2 px, 6% of the hair), each a random hair pixel's colour",
+  "voronoi_tones": "the design's hair cut into random cells, as many as its tone regions, each a random hair pixel's colour"
+ },
+ "seconds": 73.3
+}

@@ -1,0 +1,10 @@
+{
+ "name": "ck7_blotchy",
+ "why": "pipeline-3d's confirm run of 2026-09-28, its final build ck7_final (copied from ~/animation-pipeline-3d/charkit/out/confirm/ck7_final): the review flagged its hair (T003): the hair shading is blotchy, light speckles on the back and sides",
+ "flag": "T003: the hair shading is blotchy: light speckles on the back and sides (2026-09-28 review of ck7_final)",
+ "commit": null,
+ "source": "~/animation-pipeline-hairshell/charkit/out/hairshell3/kb/ck7_final",
+ "stored": "2026-10-01",
+ "bundle": "17beda82c7241a64",
+ "qa_checks": 129
+}

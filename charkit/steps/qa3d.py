@@ -134,4 +134,11 @@ MEASUREMENT_STEPS = [
     ('hair_piece_*', '9bfbc8b', "the hair layers without the drawn clips (qa3d.hair_layers_masks: ours are occluders): "
      "bangs 0.792 -> 0.772, side_locks 0.534 -> 0.526, ahoge 0.318 -> 0.322, upper_back 0.768 -> 0.769"),
     ('hair_bun_*', '9bfbc8b', "the hair layers without the drawn clips: hair_bun_outline 0.456 -> 0.458"),
+    # tool/hairshell3 round 4: hair_noise a speckle measure (the coordinator's decision 1)
+    ('hair_noise', '34b8ad1', "redefined as a speckle measure: blobs under 0.002 L^2 standing out by half the hair's cel "
+     "step, per L^2 of hair (qa3d.speckles; limits 8 / 12), on the hair drawn with its outlines as the render draws them "
+     "(aa7b3e6: the ink between two locks and its filtered edge are the line's). The tone edges per hair pixel it measured "
+     "before read the design's own lock shadows as noise (0.216 FAIL) and the flagged blotchy build ck7_final as WARN "
+     "(0.046); they stay as INFO hair_tone_edges. Calibrated: the design 3.9-5.9, ck7_blotchy 32.6 FAIL, the speckle "
+     "floor 14.8 FAIL; the default hs_hull 0.0717 -> 4.46, the round-2 shells 0.0784 -> 4.55"),
 ]
