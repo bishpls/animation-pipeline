@@ -34,7 +34,8 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                prior_depth=0.15, prior_smooth=1.0, prior_twist=0.5, assoc=0.35, assoc_cover=0.3, tip_w=0.12,
                w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'), facing=0.2,
                assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0, frag_L2=0.008, frag_reach=4,
-               widen_lw=1.0, contain=1.0, dedup=0.5, unit='locks', over=0.004)
+               widen_lw=1.0, contain=1.0, dedup=0.5, unit='locks', over=0.004,
+               contain_family=True, view_depth=0.3)
 VIEWS_AZ = None
 
 
@@ -299,6 +300,21 @@ class Lock:
         tpx = ppl / s_                                   # px per metre
         if self.target_r is not None:
             out.append(self.o['prior_depth'] * (r - self.target_r(ph, th)) * tpx)
+        # each view that draws the lock sees it on top there: its centreline right under the envelope's first surface
+        # along that view's ray (offset and half a thickness under it)
+        from scipy.ndimage import map_coordinates
+        for vn, d in self.drawn.items():
+            Dv = getattr(self, 'env_depth', {}).get(vn)
+            if Dv is None:
+                continue
+            from .hairpieces import view_px
+            c, rw = view_px(P, self.views[vn], d['az'], False, self.hull_frame)
+            de = map_coordinates(Dv, [rw / 2.0, c / 2.0], order=1, mode='nearest', cval=np.nan)
+            a_ = math.radians(d['az'])
+            dep = P @ np.array([math.sin(a_), -math.cos(a_), 0.0])
+            half = 0.5 * self.o['depth_ratio'] * float(np.median(d['W'])) / self.views[vn].ppl * s_
+            res = dep - (de - self.offset - half)
+            out.append(self.o['view_depth'] * np.where(np.isfinite(res), res, 0.0) * tpx)
         # the skin: never within gap of it
         Sk = G.sample(self.F['S'], ph, th)
         clear = np.where(np.isfinite(Sk), np.maximum(0.0, Sk + self.o['gap'] * self.L - r), 0.0)
@@ -516,10 +532,45 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
         a_ = math.radians(az)
         return rad @ np.array([math.sin(a_), -math.cos(a_)]) >= o['facing']
 
+    fdist = {}
+
+    def fam_dist(vn, fam):
+        """the family's drawn region (dilated a few px) as a signed distance, where the view has the family's mask (a
+        side lock that shows must show where side locks are drawn, not over the lower back); else the hair's."""
+        k_ = (vn, fam)
+        if k_ not in fdist:
+            fm = masks.get('%s__%s' % (vn, fam))
+            if fm is None or fm.shape != S['views'][vn]['img'].shape or not o['contain_family']:
+                fdist[k_] = sdist[vn]
+            else:
+                fm = _nd.binary_dilation(fm, iterations=3)
+                fdist[k_] = (_nd.distance_transform_edt(~fm) - _nd.distance_transform_edt(fm)).astype(np.float32)
+        return fdist[k_]
+
+    edepth = {}
+
+    def env_depth(vn):
+        """the envelope's first surface along each ray of a view (every 2nd pixel of its drawn hair; its depth toward
+        the viewer, world m), nan off the hair."""
+        if vn not in edepth:
+            W_ = S['views'][vn]
+            sd = sdist[vn][::2, ::2]
+            rr, cc = np.nonzero(sd < 3)
+            D = np.full(sd.shape, np.nan, np.float32)
+            a_ = math.radians(W_['az'])
+            e = np.array([math.sin(a_), -math.cos(a_), 0.0])
+            for i in range(0, len(rr), 2000):
+                Pw = envelope_points(F, views[vn], W_['az'], hull_frame, 2 * cc[i:i + 2000], 2 * rr[i:i + 2000], L)
+                D[rr[i:i + 2000], cc[i:i + 2000]] = Pw @ e
+            edepth[vn] = D
+        return edepth[vn]
+
     def set_contain(lk):
+        if o['view_depth']:
+            lk.env_depth = {vn: env_depth(vn) for vn in lk.drawn}
         P_ = lk.curve()
         hw = float(np.median(lk.drawn[lk.primary]['W'])) / 2
-        lk.contain = {vn: (W_['az'], sdist[vn], hw) for vn, W_ in S['views'].items()
+        lk.contain = {vn: (W_['az'], fam_dist(vn, lk.family), hw) for vn, W_ in S['views'].items()
                       if vn in views and facing(P_, W_['az'])}
 
     jobs = [(f, None) for f in o['families']] + [(g['family'], g) for g in o['groups']]
@@ -568,6 +619,7 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                         L2 = best[1]
                         keep = (L2.Q.copy(), L2.twist, dict(L2.cost))
                         L2.drawn[pv] = lk.drawn[pv]
+                        set_contain(L2)
                         L2.fit()
                         if L2.cost.get(pv, 1e9) > o['view_cost_max'] or any(
                                 c > o['view_cost_max'] for vn, c in L2.cost.items() if vn != L2.primary and vn != pv):
@@ -619,6 +671,7 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                         if lk.add_view(vn, W_['az'], T2['mask'], T2['root'], T2['lock'], T2['info'].get('layer')):
                             claimed[vn].add(T2['id'])
                     if len(lk.drawn) > 1:
+                        set_contain(lk)
                         lk.fit()
                         # a view the joint fit can't follow (its drawn lock wasn't this one): out, fitted again
                         bad = [vn for vn, c in lk.cost.items() if vn != pv and c > o['view_cost_max']]
@@ -629,6 +682,7 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                                                [T2['id'] for T2 in tg[vn] if T2['mask'] is d['mask']]}
                                 lk.cost.pop(vn, None)
                             lk.init()
+                            set_contain(lk)
                             lk.fit()
                 lks.append(lk)
         for lk in lks:
