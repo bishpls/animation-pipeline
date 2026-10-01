@@ -628,7 +628,7 @@ class FaceStage(QAStage):
                 if self.B0.has(k):
                     d, i = tree.query(np.asarray(self.B0._arrays[k], float))
                     idx[vn], dist[vn] = i, float(d.max())
-            self._ref = dict(V1=ref['V'], cage=ref['cage'], idx=idx, dist=dist, name=sk)
+            self._ref = dict(V1=ref['V'], F=np.asarray(ref['F']), cage=ref['cage'], idx=idx, dist=dist, name=sk)
             print('sweep face: the base skin against the evaluator\'s: worst %s' % (
                 ', '.join('%s %.2e m' % kv for kv in dist.items())))
             far = {k: v for k, v in dist.items() if v > self.MATCH}
@@ -649,8 +649,8 @@ class FaceStage(QAStage):
         (base, assembly) replaced whole by the evaluator's (no UVs, masks or expression keys: the rest pose's measures
         only), the masked one kept as the base's (the garments' cut; the head isn't under it). -> (rep, drop)."""
         R = self.reference()
-        print('sweep face: the row\'s skin has %d vertices, the base\'s %d (the cage\'s topology moved): its eval, bare '
-              'and cage replaced whole' % (len(sk['V']), len(R['V1'])))
+        print('sweep face: the row\'s skin has %d vertices, the base\'s %d%s: its eval, bare and cage replaced whole' % (
+            len(sk['V']), len(R['V1']), '' if len(sk['V']) != len(R['V1']) else ' (the same count, other faces)'))
         files = self.B0._arrays.files if hasattr(self.B0._arrays, 'files') else list(self.B0._arrays)
         rep, drop = {}, []
         q = np.asarray(sk['F'])
@@ -682,7 +682,10 @@ class FaceStage(QAStage):
     def bundle(self, objs):
         rep, drop = {}, []
         sk = objs.get(self.SKIN)
-        if sk is not None and (sk['V'].shape != self.reference()['V1'].shape or self.decl.get('face_replace')):
+        if sk is not None and (self.decl.get('face_replace') or sk['V'].shape != self.reference()['V1'].shape or
+                               not np.array_equal(np.asarray(sk['F']), self.reference()['F'])):
+            # (another topology, by its counts or by its faces: the jaw band's pocket columns can move with the same
+            # counts, and a vertex's move read across two topologies is meaningless)
             rep, drop = self._replaced(sk)          # (face_replace: always, to check the replacement against a splice)
         elif sk is not None:
             R = self.reference()

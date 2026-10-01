@@ -3,7 +3,7 @@
  "part": "face_flags",
  "adapter": "FaceFlags",
  "module": "charkit.calib.faceflags",
- "at": "2026-10-01T10:08:15",
+ "at": "2026-10-01T11:54:34",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -85,9 +85,9 @@
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0.078), face7_before reads 0.774 FAIL, the floor contour_moved FAIL",
  "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
- "build": "charkit/out/face7_g1",
+ "build": "charkit/out/face7_g2",
  "generators": {
   "contour_moved": "the face's leading contour over the mouth's rows (and 0.05 L either side) moved 12-25% nearer or further from the eyes' midpoint"
  },
- "seconds": 38.4
+ "seconds": 40.7
 }

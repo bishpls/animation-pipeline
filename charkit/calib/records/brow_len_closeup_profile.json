@@ -3,7 +3,7 @@
  "part": "face_flags",
  "adapter": "FaceFlags",
  "module": "charkit.calib.faceflags",
- "at": "2026-10-01T10:08:15",
+ "at": "2026-10-01T11:54:34",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -78,15 +78,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.721,
-  "status": "FAIL",
-  "margin": 1.876
+  "value": 0.861,
+  "status": "WARN",
+  "margin": 1.443
  },
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0.008), face7_before reads 0.713 FAIL, the floor brow_lengthened FAIL",
- "build": "charkit/out/face7_g1",
+ "build": "charkit/out/face7_g2",
  "generators": {
   "brow_lengthened": "each brow rebuilt 0.6-0.8x or 1.25-1.5x as long"
  },
- "seconds": 38.4
+ "seconds": 40.7
 }
