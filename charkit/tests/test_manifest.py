@@ -364,3 +364,26 @@ def test_a_plain_hulls_stamp_takes_no_build_arguments():
         assert m.stamp(spec, R['body_hull']) != before[1]      # a body hull: its sheet is in its stamp
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+
+def test_a_pieces_shape_sheet_is_its_declared_shape_truth():
+    """shape_sheet: the manifest's shape_truth[part] picture (a jaw under a beard: the head sheet redrawn without it),
+    in the default sheet's facing; else the default sheet (Clawd's manifest declares none)."""
+    d = tempfile.mkdtemp(prefix='charkit-shape-')
+    try:
+        R = {'heads': {'kind': 'picture', 'path': os.path.join(d, 'heads.png')},
+             'nobeard': {'kind': 'picture', 'path': os.path.join(d, 'nobeard.png'), 'layout': 'heads'}}
+        mp = os.path.join(d, 'manifest.json')
+        json.dump({'name': 't', 'references': R, 'shape_truth': {'jaw': {'shape': 'nobeard'},
+                                                                 'beard': {'shape': 'hair_breakdown (beard family)'}}},
+                  open(mp, 'w'))
+        spec = {'name': 't', 'ref': {'manifest': mp, 'face_sheet': {'id': 'heads', 'image': R['heads']['path'],
+                                                                     'facing': 1}}}
+        got = manifest.shape_sheet(spec, 'jaw')
+        assert got['image'] == R['nobeard']['path'] and got['facing'] == 1
+        assert manifest.shape_sheet(spec, 'beard') == spec['ref']['face_sheet']      # (no such reference: the default)
+        assert manifest.shape_sheet(spec, 'hair') == spec['ref']['face_sheet']
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    clawd = manifest.resolve(json.load(open(os.path.join(manifest.ROOT, 'charkit', 'spec', 'clawd.json'))))
+    assert manifest.shape_sheet(clawd, 'jaw') == clawd['ref']['face_sheet']

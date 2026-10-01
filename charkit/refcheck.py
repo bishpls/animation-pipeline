@@ -204,6 +204,7 @@ def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
         H = detect_heads(rgb, eye_x, facing)
     except RuntimeError:
         H = None
+    H0 = H
     f = spacing / (H['ppl'] * 2 * eye_x) if H else None
     for _ in range(6 if H else 0):
         small = _resample(rgb, f) if abs(f - 1) > 1e-9 else rgb
@@ -218,7 +219,30 @@ def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
         f *= spacing / cur
     if best[0] is not None and best[0][0] <= AT_SCALE_NEAR * spacing:
         return best[0][1:]
+    if H0 is not None:
+        # (small dark eyes lost at every reduced scale tried, though the sheet's own resolution reads them: its heads
+        # scaled to the resampled sheet, 2026-10-01)
+        f = spacing / (H0['ppl'] * 2 * eye_x)
+        return _resample(rgb, f), f, scale_heads(H0, f)
     raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
+
+
+def scale_heads(H, f):
+    """detect_heads' result for the sheet resampled by f: px per L, boxes, eyes and eye lines scaled, masks resampled."""
+    from PIL import Image
+    sc = lambda v: [round(float(a) * f, 2) for a in v]
+    heads = {}
+    for k, h in H['heads'].items():
+        g = dict(h, box=[int(round(a * f)) for a in h['box']], eyes=[sc(e) for e in h['eyes']],
+                 eye_y=round(float(h['eye_y']) * f, 2))
+        if h.get('head') is not None:
+            g['head'] = [int(round(a * f)) for a in h['head']]
+        if h.get('_mask') is not None:
+            m = np.asarray(h['_mask'], bool)
+            g['_mask'] = np.asarray(Image.fromarray(m.astype(np.uint8) * 255).resize(
+                (max(1, round(m.shape[1] * f)), max(1, round(m.shape[0] * f))), Image.NEAREST)) > 127
+        heads[k] = g
+    return dict(H, ppl=H['ppl'] * f, heads=heads)
 
 
 def measure_heads(rgb, heads, ppl, facing=-1, below=-0.2, leak=0.06):

@@ -129,7 +129,9 @@ def head_sections(spec, log=print):
     import importlib
     refcheck = importlib.import_module('charkit.refcheck')
     headfit = importlib.import_module('charkit.geom.headfit')
-    fs = spec['ref']['face_sheet']
+    # (the face's contours from the jaw's declared shape truth when the manifest names one: the head sheet redrawn
+    # without the beard; else the head sheet)
+    fs = importlib.import_module('charkit.manifest').shape_sheet(spec, 'jaw')
     key = json.dumps([spec['ref'].get('manifest'), fs.get('image'), spec.get('style', 'anime'),
                       spec.get('eyes', {}).get('x', 0.168), headfit.face_style(spec)], sort_keys=True, default=str)
                       # (the style's face section: the head fit's settings; a sweep's rows patch them in one process)

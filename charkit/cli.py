@@ -485,6 +485,9 @@ def code_head(spec, resolved, out, mode='on'):
     path = os.path.join(gdir, 'head_code.npz')
     M = manifest.load(spec['ref']['manifest'])['references']
     imgs = [_path(spec['ref']['face_sheet']['image']), _path(M['head_construction']['path'])]
+    jaw = manifest.shape_sheet(spec, 'jaw')                       # (the jaw's shape truth, when declared)
+    if jaw and _path(jaw['image']) not in imgs:
+        imgs.append(_path(jaw['image']))
     from . import styles
     key = {'ref': imgs, 'eyes': spec.get('eyes'), 'style': spec.get('style', 'anime'),
            'face': styles.load(spec.get('style', 'anime'))['face'],         # (the profile's own settings, not just its name)

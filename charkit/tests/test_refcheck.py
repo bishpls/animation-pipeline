@@ -88,11 +88,30 @@ def test_at_scale_takes_its_closest_attempt_when_the_eyes_read_unevenly():
         refcheck.detect_heads = jittery(100.0, 0.0)              # converges: within 0.3 px
         small, f, H = refcheck.at_scale(rgb, 0.168, 120.0, guess=1.0)
         assert abs(H['ppl'] * 2 * 0.168 - 120.0) <= 0.3
-        refcheck.detect_heads = jittery(100.0, 10.0)             # never within 1%: raises
-        try:
-            refcheck.at_scale(rgb, 0.168, 120.0, guess=1.0)
-            assert False, 'expected RuntimeError'
-        except RuntimeError:
-            pass
+        refcheck.detect_heads = jittery(100.0, 10.0)             # never within 1%: the sheet's own reading, scaled
+        small, f, H = refcheck.at_scale(rgb, 0.168, 120.0, guess=1.0)
+        assert abs(H['ppl'] * 2 * 0.168 - 120.0) < 1e-6
+    finally:
+        refcheck.detect_heads = real
+
+
+def test_at_scale_falls_back_on_the_sheets_own_detection():
+    """a sheet whose small dark eyes are lost at every reduced scale, though its own resolution reads them: its heads
+    scaled to the resampled sheet (it raised, 2026-10-01: a beard-free redraw of a head turnaround)."""
+    real = refcheck.detect_heads
+    rgb = np.zeros((40, 60, 3))
+    H0 = dict(ppl=200.0, heads={'front': dict(box=[10, 5, 30, 35], eyes=[[15.0, 12.0], [25.0, 12.0]], eye_y=12.0,
+                                              _mask=np.ones((40, 60), bool))})
+
+    def fake(img, eye_x, facing=-1):
+        if img.shape[1] == 60:
+            return H0
+        raise RuntimeError('no two-eyed head to scale the sheet by')
+    try:
+        refcheck.detect_heads = fake
+        small, f, H = refcheck.at_scale(rgb, 0.168, 2 * 0.168 * 100.0, guess=1.0)
+        assert abs(f - 0.5) < 1e-9 and small.shape[1] == 30
+        assert abs(H['ppl'] - 100.0) < 1e-9 and H['heads']['front']['eyes'] == [[7.5, 6.0], [12.5, 6.0]]
+        assert H['heads']['front']['_mask'].shape == (20, 30)
     finally:
         refcheck.detect_heads = real

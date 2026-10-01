@@ -151,6 +151,44 @@ Fixes in progress (uncommitted until measured; all inert for Clawd):
     are the build's own manifest's (PAGE.json 'manifest', else the first build's), read with its palette and window.
     Tests: test_refcheck +1, test_faceflags +1, test_reviewpage +1 (the first two fail on the old code); the four
     files 21 passed.
+24. manifest.shape_sheet(spec, part): a piece's shape from the manifest's declared shape_truth picture (its layer
+    redrawn without what covers it), else the default sheet. The head fit (code_base.head_sections,
+    headfit.hidden_outline, the code head's cache inputs) reads the jaw's: a beard-free redraw of the head turnaround.
+    Measured (charkit/private/c3/tools/head_beard.py, b1 -> this): the head below the chin no longer follows the beard's
+    steps (front y at z -0.4 / -0.5: -0.117 / +0.017 -> -0.120 / -0.103; depth 0.87 -> 0.74 L), the hull hair's
+    silhouette IoU 0.581 -> 0.636; the beard cut unchanged (640 -> 716 faces, IoU 0.033 -> 0.034: see findings).
+25. refcheck.at_scale falls back on the sheet's own-resolution detection, scaled (scale_heads), when small dark eyes
+    are lost at every reduced scale (the beard-free redraw raised). Tests: test_refcheck +1, test_manifest +1 (each
+    fails on the old code).
+
+Item diagnoses (coordinator's read of b1, 2026-10-01):
+- (4) the skin flap at the hips: the body fitted to the CLOTHED hull (fix 19) with its torso measured by its neckline
+  only (fix 20): fixed, body IoU against the base body sheet 0.784/0.763/0.750/0.774 -> 0.875/0.813/0.942/0.863.
+- (1) the head built round the beard: the head's face contours read the dressed sheet (fix 24 reads the declared
+  beard-free redraw). Remaining: the face measure's skin flood (refcheck.face_design, measure_heads: lines as walls)
+  stops at his nose (-0.236 L) on BOTH sheets: his drawn folds and mouth wall it (Clawd's face draws no such lines), so
+  the chin is read at the nose and the jaw below is the construction skull's wide neck block (half-width 0.35 L); the
+  outline reader (faceregion.jaw_front) finds the front chin at -0.374. The beard cut (parts.facial_hair) keeps 716
+  faces: the beard lies inside that block, and its parts cleanup drops 1514 of 1591 parts.
+- (2) the white hair in fragments: the hull's head top is the crown's solid (28% of the head region's surface reads crown
+  gold, 42% hair): the hair cut finds hair only round the sides. The declared hair shape truth (head_nocrown) isn't
+  read yet: the hair cut from a hull carved from it (a head-layout hull) is the generic fix.
+- (3) Clawd's face features (big lashed eyes, blush, thin white brows): no reader of a new character's eye shape,
+  lashes, blush or brows without a 2D rig (refs.fit): the spec defaults are Clawd's.
+- the joined shoulder on a second body (scratch/c3-shoulder 80b2d306: tool/char3 + tool/garments4-shoulders, NOT for
+  merge; tools/garments5/bodyj.py parametrised to the build's own spec and base body sheet): with Clawd's candidate
+  knobs as is, topology one closed surface (arms and shoulders joined, 0 boundary / non-manifold edges; 105 flipped
+  edges against 13) and the profile arm better (front/back rms 0.122/0.165 -> 0.073/0.075), but the silhouette score
+  0.053 -> 0.106 L (front top/outer rms 0.018/0.042 -> 0.114/0.179: the top 0.14 L high at |x| 0.5, the deltoid pulled
+  in, outer x at z -0.9 0.73 vs 1.14) and the raised arm inside the torso (side / front, pivot 0.18: 100 / 148 vertices;
+  strain p95 1.30 / 1.71; folded 0.3% / 0.14%). Clawd-specific: the template's knobs are absolute L (shoulder top
+  z -0.525, x 0.38, socket top 0.36), not read from the base body sheet; the harness's shoulder point misreads an
+  A-pose (it lands near the elbow). Box build with it on (chiton's sleeves over it): s1, job build-char3-1001-151614-f06c
+  on the build box (log charkit/private/c3/out/s1_build.log; spec charkit/private/c3/spec_shoulder.json).
+
+Running (15:35): b2 on render2 (job build-char3-1001-145743-6f02, log charkit/private/c3/out/b2_build.log; fixes 18-20);
+the gate of e64f2bbb on render2 (job gate-char3-1001-150917-ca4e, log charkit/private/c3/out/gate1.log; it predates
+fixes 24-25, so re-gate the tip after); s1 on the build box.
 Preflight (charkit/private/c3/out/preflight/): the draft (7 garments, 2 accessories) and every drafted garment through
 the numpy builder (bodyeval.garment_piece) build without error; the sandals inherit the foot's bad width.
 

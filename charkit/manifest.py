@@ -242,6 +242,24 @@ def read_files(r):
             for g in r.get('reads_files', ())]
 
 
+def shape_sheet(spec, part, default='face_sheet'):
+    """the sheet a piece's shape is read from: the manifest's shape_truth[part]['shape'] when it names a reference
+    picture (the piece's layer redrawn without what covers it: a jaw under a beard, Michael 2026-10-01: each piece's
+    shape truth is its layer without what lies on it), drawn in the default sheet's layout and facing; else
+    spec.ref[default] -> dict(id, image, layout, facing), or None."""
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    base = ref.get(default)
+    if not ref.get('manifest'):
+        return base
+    M = load(ref['manifest'])
+    sid = ((M.get('shape_truth') or {}).get(part) or {}).get('shape')
+    R = M['references']
+    if not sid or sid not in R or not str(R[sid].get('path', '')).endswith('.png'):
+        return base
+    return dict(id=sid, image=R[sid]['path'], layout=R[sid].get('layout'),
+                facing=(base or {}).get('facing', -1))
+
+
 def hull_args(r):
     """a hull reference's in-process build (produced(): charkit.geom.hull.build, not its command) given what its command
     asks of `python -m charkit.geom hull` (its main's defaults): the sheet it carves (--head, --sheet NAME), --h and
