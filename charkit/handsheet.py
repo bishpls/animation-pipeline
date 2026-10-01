@@ -494,13 +494,14 @@ def _panel(rgb, h, ours, title, lines):
         (x0, y0), (x1, y1) = pl[1], pl[2]
         P0, P1 = ((x0 - ox) * k, (y0 - oy) * k), ((x1 - ox) * k, (y1 - oy) * k)
         dr.line([P0, P1], fill=(0, 0, 0), width=3)
-        dr.text((max(P0[0], P1[0]) + 6, (P0[1] + P1[1]) / 2 - 6), 'palm %.3f of reach' % pl[0], fill=(0, 0, 0))
-    canvas = Image.new('RGB', (max(im.size[0], 330), im.size[1] + 16 + 14 * len(lines)), 'white')
-    canvas.paste(im, (0, 16))
+    canvas = Image.new('RGB', (max(im.size[0], 330), im.size[1] + 30 + 14 * len(lines)), 'white')
+    canvas.paste(im, (0, 30))
     d2 = ImageDraw.Draw(canvas)
     d2.text((4, 2), title, fill=(0, 0, 0))
+    if pl:
+        d2.text((4, 15), 'drawn palm (black line): %.3f of the reach' % pl[0], fill=(0, 0, 0))
     for i, (txt, col) in enumerate(lines):
-        d2.text((4, im.size[1] + 18 + 14 * i), txt, fill=col)
+        d2.text((4, im.size[1] + 32 + 14 * i), txt, fill=col)
     return np.asarray(canvas), (pl[0] if pl else None)
 
 
