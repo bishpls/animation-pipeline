@@ -3,7 +3,8 @@ relative CPU rule, so nobody saw where): wall and CPU seconds per stage, from wh
 builds side by side.
 
     python -m charkit profile BUILD [--vs OTHER] [--gate GATE.json] [--json] [--md OUT.md] [--top N] [--budget]
-    python -m charkit profile qa BUNDLE [--parts a,b] [--top N] [--out DIR] [--profile full|iterate]
+    python -m charkit profile qa BUNDLE [--parts a,b] [--top N] [--out DIR] [--profile full|iterate] [--env K=V ..]
+                                       [--no-cprofile]
         # the QA's parts one by one under cProfile on a bundle: per part its wall and CPU, the functions that cost it,
         # and its readings (each check's value and status)
     python -m charkit profile same A/qa_profile.json B/qa_profile.json    # two runs' readings equal? and their times
@@ -301,7 +302,7 @@ def budget_rows(cand, base=None, budget=None):
 
 
 # ------------------------------------------------------------------------------------------------ the QA under cProfile
-def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print):
+def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print, cprofile=True):
     """the QA's parts one by one on a bundle (no cache), each under cProfile -> {part: dict(wall, cpu, checks,
     functions [dict(fn, calls, tottime, cumtime)])}; with out, written to out/qa_profile.json and one .prof per part."""
     import cProfile, pstats
@@ -324,16 +325,18 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print):
         pr = cProfile.Profile()
         t, c = time.perf_counter(), time.process_time()
         err = None
-        pr.enable()
+        if cprofile:
+            pr.enable()
         try:
             _, C = P.fn(B, design, tmp, *((ref_image,) if P.ref_image else ()))
         except Exception as e:                          # (measured anyway: a crash's cost is a cost)
             C, err = {}, '%s: %s' % (type(e).__name__, e)
-        pr.disable()
+        if cprofile:
+            pr.disable()
         w, cp = time.perf_counter() - t, time.process_time() - c
-        st = pstats.Stats(pr)
+        st = pstats.Stats(pr) if cprofile else None
         fns = []
-        for (f, ln, fn), (cc, nc, tt, ct, _) in st.stats.items():
+        for (f, ln, fn), (cc, nc, tt, ct, _) in (st.stats.items() if st else ()):
             fns.append(dict(fn='%s:%d:%s' % (os.path.relpath(f, ROOT) if f.startswith(ROOT) else f, ln, fn),
                             calls=nc, tottime=round(tt, 3), cumtime=round(ct, 3)))
         fns.sort(key=lambda x: -x['tottime'])
@@ -341,7 +344,7 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print):
                            cumulative=sorted(fns, key=lambda x: -x['cumtime'])[:top_n],
                            readings={k: [v.get('value'), v.get('status')] if isinstance(v, dict) else [v, None]
                                      for k, v in (C or {}).items()})
-        if out:
+        if out and st:
             st.dump_stats(os.path.join(out, 'qa_%s.prof' % P.name))
         log('profile qa %-14s %7.1f s wall %7.1f s CPU  %d checks%s; top: %s' % (
             P.name, w, cp, len(C), (' (%s)' % err) if err else '',
@@ -355,7 +358,7 @@ def same_readings(a, b):
     """two `profile qa` results (their json) -> {part: [checks whose reading differs]} (empty: every reading equal)."""
     A, B = (_load(x) if isinstance(x, str) else x for x in (a, b))
     out = {}
-    for p in sorted(set(A) | set(B)):
+    for p in sorted((set(A) | set(B)) - {'_total'}):
         ra, rb = (A.get(p) or {}).get('readings') or {}, (B.get(p) or {}).get('readings') or {}
         bad = sorted(k for k in set(ra) | set(rb) if json.dumps(ra.get(k), default=str) != json.dumps(rb.get(k), default=str))
         if bad:
@@ -371,15 +374,29 @@ def main(args):
     if args[0] == 'same':                       # profile same A/qa_profile.json B/qa_profile.json
         d = same_readings(args[1], args[2])
         A, B = _load(args[1]), _load(args[2])
-        for p in sorted(set(A) & set(B)):
+        for p in sorted((set(A) & set(B)) - {'_total'}):
             print('%-14s %7.1f -> %7.1f s wall %7.1f -> %7.1f s CPU  %s' % (
                 p, A[p].get('wall') or 0, B[p].get('wall') or 0, A[p].get('cpu') or 0, B[p].get('cpu') or 0,
                 'readings differ: %s' % ', '.join(d[p][:6]) if p in d else 'readings equal'))
+        ta, tb = A.get('_total') or {}, B.get('_total') or {}
+        if ta and tb:
+            print('%-14s %7.1f -> %7.1f s wall %7.1f -> %7.1f s CPU' % ('all', ta['wall'], tb['wall'], ta['cpu'],
+                                                                       tb['cpu']))
         return 1 if d else 0
     if args[0] == 'qa':
         parts = opt('--parts')
-        qa(os.path.abspath(args[1]), parts=parts.split(',') if parts else None, top_n=int(opt('--top', 25)),
-           out=opt('--out'), profile=opt('--profile', 'full'))
+        for i, a in enumerate(args):                    # (--env K=V: a switch for this run, e.g. CHARKIT_RENDER_CULL=0)
+            if a == '--env':
+                k, _, v = args[i + 1].partition('=')
+                os.environ[k] = v
+        t, c = time.perf_counter(), time.process_time()
+        R = qa(os.path.abspath(args[1]), parts=parts.split(',') if parts else None, top_n=int(opt('--top', 25)),
+               out=opt('--out'), profile=opt('--profile', 'full'), cprofile='--no-cprofile' not in args)
+        tot = dict(wall=round(time.perf_counter() - t, 1), cpu=round(time.process_time() - c, 1),
+                   env={k: os.environ.get(k) for k in ('CHARKIT_RENDER_CULL', 'CHARKIT_CACHE', 'CHARKIT_QA_PROFILE')})
+        print('profile qa: %s s wall, %s s CPU in all' % (tot['wall'], tot['cpu']))
+        if opt('--out'):
+            json.dump(dict(R, _total=tot), open(os.path.join(opt('--out'), 'qa_profile.json'), 'w'), indent=1)
         return 0
     steps = {}
     if opt('--gate'):

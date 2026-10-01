@@ -271,7 +271,8 @@ def design_head(B, design):
         return {}
     ex = B.assembly['eye_knobs']['x']
     rgb = design.rgba(fs['image'])[..., :3]
-    return B.memo(('hairweight_design', ex), lambda: _design_head(rgb, ex, fs.get('facing', -1)))
+    # (kept on disk too, design.memo: a pure function of the sheet's pixels, 8 s a QA pass)
+    return B.memo(('hairweight_design', ex), lambda: design.memo(_design_head, rgb, ex, fs.get('facing', -1)))
 
 
 def _design_head(rgb, ex, facing):

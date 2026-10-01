@@ -312,6 +312,8 @@ def _build(args):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
+    if mode in ('off', 'verify'):               # (the venv's design-side memo too: a cold build is cold through)
+        os.environ['CHARKIT_CACHE'] = 'off'
     for step in (code_head, code_body, hair_select, geom_hair, pieces_hair, garments_geom):
         with phase(step.__name__):
             spec = step(spec, resolved, out, mode)
