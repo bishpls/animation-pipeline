@@ -926,7 +926,12 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         j0, j1 = sorted((col(theta_of(S, cx - bw, 0.0)), col(theta_of(S, cx + bw, 0.0))))
         feats.append(dict(name=name, block=(j0, j1, row(bt), row(-bb)), outline_tz=chart(np.stack([cx + sd * eo[:, 0], eo[:, 1]], 1)),
                           rings=rings[0], theta_scale=radius(0.0), cap=caps))
-    j0, j1 = col(theta_of(S, -mw, mz)), col(theta_of(S, mw, mz))
+    # the mouth block's edge columns rounded outward (the block holds the lips' widest reach, mw): rounded to the
+    # nearest, a face correction that moved the surface at mw a third of a column (the cheek's refit, tool/face7) took
+    # the edge across a column and the cage's topology with it
+    step = 2 * np.pi / nth
+    j1 = int(np.ceil((theta_of(S, mw, mz) + np.pi) / step - 1e-6)) % nth
+    j0 = int(np.floor((theta_of(S, -mw, mz) + np.pi) / step + 1e-6)) % nth
     mo = almond(0.0, mz, mouth_w, mouth_h) if mouth_outline is None else np.asarray(mouth_outline, float) + np.array([0.0, mz])
     feats.append(dict(name='mouth', block=(j0, j1, row(mz + mt), row(mz - mb)), outline_tz=chart(mo),
                       rings=rings[1], theta_scale=radius(mz), cap=caps))
