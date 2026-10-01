@@ -58,16 +58,16 @@ def ellipse(shape, cx, cy, rx, ry):
     return ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1
 
 
-def loss_and_grad(V, F, view, mask, s, occ=None):
-    S = softras.silhouette(V, F, view, s=s, occ=occ)
+def loss_and_grad(V, F, view, mask, s, occ=None, **kw):
+    S = softras.silhouette(V, F, view, s=s, occ=occ, **kw)
     iou, g = S.iou(mask)
     return 1 - iou, S.backward(-g), S
 
 
-def fd_check(V, F, view, mask, s, occ=None, n=40, h=1e-6, seed=1):
+def fd_check(V, F, view, mask, s, occ=None, n=40, h=1e-6, seed=1, **kw):
     """the analytic gradient against central differences on the n coordinates it is largest on and n random others
     -> (cosine over them, median relative error, 95th percentile)."""
-    L0, G, S = loss_and_grad(V, F, view, mask, s, occ)
+    L0, G, S = loss_and_grad(V, F, view, mask, s, occ, **kw)
     rng = np.random.default_rng(seed)
     big = np.argsort(-np.abs(G).ravel())[:n]
     idx = np.unique(np.r_[big, rng.choice(G.size, n, replace=False)])
@@ -76,8 +76,8 @@ def fd_check(V, F, view, mask, s, occ=None, n=40, h=1e-6, seed=1):
         i, c = divmod(int(k), 3)
         Vp, Vm = V.copy(), V.copy()
         Vp[i, c] += h; Vm[i, c] -= h
-        lp = 1 - softras.silhouette(Vp, F, view, s=s, occ=occ).iou(mask)[0]
-        lm = 1 - softras.silhouette(Vm, F, view, s=s, occ=occ).iou(mask)[0]
+        lp = 1 - softras.silhouette(Vp, F, view, s=s, occ=occ, **kw).iou(mask)[0]
+        lm = 1 - softras.silhouette(Vm, F, view, s=s, occ=occ, **kw).iou(mask)[0]
         a.append(G[i, c]); f.append((lp - lm) / (2 * h))
     a, f = np.array(a), np.array(f)
     cos = float(a @ f / max(1e-30, np.linalg.norm(a) * np.linalg.norm(f)))
@@ -110,6 +110,74 @@ def test_gradient_occluded():
     cos, med, p95, k = fd_check(V, F, view, mask, 0.5, occ=occ)
     print('  occluded s 0.5: cosine %.6f, median %.2e, p95 %.2e (%d)' % (cos, med, p95, k))
     assert cos > 0.9999 and med < 1e-4 and p95 < 1e-2
+
+
+def plane_occluder(view, slope=0.5, tilt=0.1, n=30):
+    """a tilted plane cutting through the panel (depth = slope u + tilt z in the view's frame): where the panel passes
+    behind it is a depth-order edge across the panel, as a sleeve passes into the bodice or under the cuff. -> its
+    depth image (the frozen scene's form, inf where it isn't)."""
+    u, w = np.meshgrid(np.linspace(-0.6, 0.6, n), np.linspace(-0.7, 0.7, n))
+    a = math.radians(view.az)
+    d = slope * u + tilt * w
+    P = np.stack([u * np.cos(a) - d * np.sin(a), u * np.sin(a) + d * np.cos(a), w], -1).reshape(-1, 3)
+    Q = [(j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i) for j in range(n - 1) for i in range(n - 1)]
+    S = softras.silhouette(P, Q, view, soft=False)
+    return S.full(S.zbuf, np.inf)
+
+
+def test_gradient_soft_occlusion():
+    """soft occlusion: the panel cut by the tilted plane, the edge where it passes behind soft and differentiated
+    (the occluder's depth gradient by differences on its image): the gradient matches central differences, through
+    the contour and the depth-order edge both."""
+    V, F = sheet()
+    view = softras.SheetView(30.0, (0.0, 0.0), 1.0, 0.01, WIN)
+    occ = plane_occluder(view)
+    mask = ellipse(view.shape, 85, 78, 30, 55)
+    S = softras.silhouette(V, F, view, s=0.5, occ=occ, occlusion='soft')
+    assert S.occlusion == 'soft' and np.isfinite(S.d_occ).sum() > 100 and (S.cov_hard & ~S.hard).sum() > 1000
+    for s in (1.0, 0.5):
+        cos, med, p95, k = fd_check(V, F, view, mask, s, occ=occ, occlusion='soft')
+        print('  soft occlusion s %.1f: cosine %.6f, median %.2e, p95 %.2e (%d)' % (s, cos, med, p95, k))
+        assert cos > 0.9999 and med < 1e-4 and p95 < 1e-2
+
+
+def test_soft_occlusion_depth():
+    """moving the panel along the view (its depth only) moves nothing but where it passes behind the plane: hard
+    occlusion's gradient is 0 for it (the round-3 sleeve's blind spot); soft occlusion's matches the hard IoU's own
+    differences over a few pixels' move. And the soft coverage converges to the hard one as s -> 0."""
+    V, F = sheet()
+    view = softras.SheetView(30.0, (0.0, 0.0), 1.0, 0.01, WIN)
+    occ = plane_occluder(view)
+    mask = ellipse(view.shape, 85, 78, 30, 55)
+    a = math.radians(view.az)
+    dv = np.array([-math.sin(a), math.cos(a), 0.0])                  # + depth (farther)
+
+    def hard(t):
+        S = softras.silhouette(V + t * dv, F, view, occ=occ, soft=False)
+        return 1 - S.iou(mask, S.hard.astype(float))[0]
+    out = {}
+    for mode, s in (('hard', 0.5), ('soft', 0.5), ('soft', 1.0)):
+        _, G, _ = loss_and_grad(V, F, view, mask, s, occ, occlusion=mode)
+        out[mode, s] = float((G * dv).sum())
+    fd = {h: (hard(h) - hard(-h)) / (2 * h) for h in (0.01, 0.02, 0.04)}   # the edge moves ~2, 4, 8 px
+    print('  d(1 - IoU) / d depth: chain hard occlusion %+.4f, soft at s 0.5 %+.4f, at s 1 %+.4f; the hard IoU\'s '
+          'differences %s' % (out['hard', 0.5], out['soft', 0.5], out['soft', 1.0],
+                              ', '.join('%+.4f (%g)' % (v, h) for h, v in fd.items())))
+    assert abs(out['hard', 0.5]) < 1e-9
+    ref = np.median(list(fd.values()))
+    # one straight edge at one angle to the pixel grid: at s 0.5 the kernel (0.23 px wide) aliases on it (+11%);
+    # at s 1 it doesn't (a long curved contour averages the phases out: the flap's s made no difference, round 1)
+    assert abs(out['soft', 1.0] - ref) < 0.05 * abs(ref) and abs(out['soft', 0.5] - ref) < 0.15 * abs(ref), (out, fd)
+    prev = None
+    for s in (1.0, 0.5, 0.1, 0.01, 0.001):
+        S = softras.silhouette(V, F, view, s=s, occ=occ, occlusion='soft')
+        diff = float(np.abs(S.cov - S.hard).sum())
+        iou = float(((S.cov >= 0.5) & S.hard).sum() / ((S.cov >= 0.5) | S.hard).sum())
+        print('  soft occlusion s %6.3f: sum |F - C| %8.3f px; IoU(F >= 0.5, C) %.6f' % (s, diff, iou))
+        if prev is not None:
+            assert diff <= prev + 1e-9
+        prev = diff
+    assert prev < 0.1 and iou == 1.0
 
 
 def test_gradient_perspective():

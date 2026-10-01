@@ -40,6 +40,9 @@ from charkit.geom.raster import _raster, window_project, window_shape
 KERNELS = ('sigmoid', 'linear')
 REACH = 3.0             # sigmoid: pixels beyond REACH * s from the contour keep C (k(-4 REACH) = 6e-6)
 MARGIN = 1.5            # px: an edge is kept this far past the contour points found on it
+OCCLUSIONS = ('hard', 'soft')
+GMIN = 0.02             # soft occlusion: the depth-difference gradient's floor and cap, in pixel widths of depth a
+GMAX = 3.0              # pixel (the cap: edge-on contact reads v 0.5 at any softness without it; the notes, round 4)
 
 
 # ------------------------------------------------------------------------------------------------------------ cameras
@@ -64,6 +67,15 @@ class SheetView:
     def pullback(self, V, g2):
         """d/d(pixel xy) (N, 2) -> d/dV (N, 3)."""
         return g2 @ self.J
+
+    def pullback_depth(self, V, gz):
+        """d/d depth (N,) -> d/dV (N, 3) (window_project's depth: -x sin az + y cos az)."""
+        a = math.radians(self.az)
+        return np.asarray(gz, float)[:, None] * np.array([-math.sin(a), math.cos(a), 0.0])
+
+    def px_world(self, V=None):
+        """one pixel's size in world units (L pix)."""
+        return self.L * self.pix
 
 
 class CameraView:
@@ -100,6 +112,15 @@ class CameraView:
         dx = (Mx[None] * w - c[:, 0:1] * Mw[None]) / w ** 2 * (self.W / 2)          # (N, 3)
         dy = -(My[None] * w - c[:, 1:2] * Mw[None]) / w ** 2 * (self.H / 2)
         return g2[:, 0:1] * dx + g2[:, 1:2] * dy
+
+    def pullback_depth(self, V, gz):
+        return -np.asarray(gz, float)[:, None] * self.Vm[2, :3][None]
+
+    def px_world(self, V):
+        """one pixel's size in world units at the mesh's centroid (the projection's local scale)."""
+        c = np.asarray(V, float).mean(0)[None]
+        J = self.pullback(c, np.array([[1.0, 0.0]]))[0]
+        return 1.0 / max(1e-12, float(np.linalg.norm(J)))
 
 
 # ------------------------------------------------------------------------------------------------------------ kernels
@@ -290,6 +311,123 @@ def _back(P2, EA, EB, eid, ucl, dmin, cov, g, s, linear, out):
 
 
 @nb.njit(cache=True)
+def _occ_grad(z, lab):
+    """the screen-space gradient (depth per px, (H, W, 2): x then y) of a depth image, per pixel from its 4-neighbours
+    on the same surface (finite, the same label): the central difference where the two one-sided ones agree (within
+    20%), else the smaller one (a fold or an edge on one side); one side where only one exists; 0 where none."""
+    H, W = z.shape
+    out = np.zeros((H, W, 2))
+    for y in range(H):
+        for x in range(W):
+            z0 = z[y, x]
+            if not math.isfinite(z0):
+                continue
+            for a in range(2):
+                f, b, hf, hb = 0.0, 0.0, False, False
+                ya, xa = (y, x + 1) if a == 0 else (y + 1, x)
+                yb, xb = (y, x - 1) if a == 0 else (y - 1, x)
+                if ya < H and xa < W and math.isfinite(z[ya, xa]) and lab[ya, xa] == lab[y, x]:
+                    f = z[ya, xa] - z0; hf = True
+                if yb >= 0 and xb >= 0 and math.isfinite(z[yb, xb]) and lab[yb, xb] == lab[y, x]:
+                    b = z0 - z[yb, xb]; hb = True
+                if hf and hb:
+                    if abs(f - b) <= 0.2 * (abs(f) + abs(b)) + 1e-15:
+                        out[y, x, a] = 0.5 * (f + b)
+                    else:
+                        out[y, x, a] = f if abs(f) < abs(b) else b
+                elif hf:
+                    out[y, x, a] = f
+                elif hb:
+                    out[y, x, a] = b
+    return out
+
+
+@nb.njit(cache=True)
+def _delta(ax, ay, bx, by, cx, cy, za, zb, zc, px, py, zo, ogx, ogy, gmin, gmax):
+    """the signed distance (px) from pixel point p to where this triangle's plane passes behind the occluder's
+    (first order: (zo - z) / |grad zo - grad z|, + where the triangle is nearer). Written for real or complex inputs
+    (complex-step derivatives in _occ_back)."""
+    den = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+    l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / den
+    l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / den
+    z = l1 * za + l2 * zb + (1.0 - l1 - l2) * zc
+    gx = ((za - zc) * (by - cy) + (zb - zc) * (cy - ay)) / den
+    gy = ((za - zc) * (cx - bx) + (zb - zc) * (ax - cx)) / den
+    ex, ey = ogx - gx, ogy - gy
+    G2 = ex * ex + ey * ey
+    if G2.real < gmin * gmin:
+        return (zo - z) / gmin
+    if G2.real > gmax * gmax:
+        return (zo - z) / gmax
+    return (zo - z) / np.sqrt(G2)
+
+
+@nb.njit(cache=True)
+def _occ_vis(P2, dep, F, fb, cov, occ, og, s, R, linear, gmin, gmax, v, dl):
+    """soft visibility of each covered pixel against the occluder (occ: its depth; og: its screen-space gradient):
+    v = k(delta / s), delta the signed distance (px) to where the mesh passes behind it (_delta); v the hard 0 / 1
+    beyond R. dl: delta where it is soft (nan elsewhere)."""
+    H, W = cov.shape
+    for y in range(H):
+        for x in range(W):
+            dl[y, x] = np.nan
+            if not cov[y, x]:
+                v[y, x] = 0.0
+                continue
+            zo = occ[y, x]
+            if not math.isfinite(zo):
+                v[y, x] = 1.0
+                continue
+            t = fb[y, x]
+            a, b, c = F[t, 0], F[t, 1], F[t, 2]
+            d = _delta(P2[a, 0], P2[a, 1], P2[b, 0], P2[b, 1], P2[c, 0], P2[c, 1], dep[a], dep[b], dep[c],
+                       x + 0.5, y + 0.5, zo, og[y, x, 0], og[y, x, 1], gmin, gmax)
+            if abs(d) >= R:
+                v[y, x] = 1.0 if d > 0 else 0.0
+                continue
+            dl[y, x] = d
+            xx = d / s
+            v[y, x] = min(1.0, max(0.0, 0.5 + xx)) if linear else 1.0 / (1.0 + math.exp(-4.0 * xx))
+
+
+@nb.njit(cache=True)
+def _occ_back(P2, dep, F, fb, occ, og, dl, g, s, linear, gmin, gmax, out2, outz):
+    """d loss / d (pixel xy, depth) of the covering triangles' corners from g = d loss / d v on the soft-occlusion band:
+    d v / d delta analytic, d delta / d corner by complex steps (exact to rounding)."""
+    H, W = dl.shape
+    hh = 1e-30
+    for y in range(H):
+        for x in range(W):
+            d = dl[y, x]
+            if not math.isfinite(d) or g[y, x] == 0.0:
+                continue
+            xx = d / s
+            if linear:
+                dk = 1.0 if abs(xx) < 0.5 else 0.0
+            else:
+                f = 1.0 / (1.0 + math.exp(-4.0 * xx))
+                dk = 4.0 * f * (1.0 - f)
+            w = g[y, x] * dk / s
+            if w == 0.0:
+                continue
+            t = fb[y, x]
+            ids = (F[t, 0], F[t, 1], F[t, 2])
+            ins = np.empty(9, np.complex128)
+            for k in range(3):
+                ins[2 * k] = P2[ids[k], 0]; ins[2 * k + 1] = P2[ids[k], 1]; ins[6 + k] = dep[ids[k]]
+            for j in range(9):
+                ins[j] += 1j * hh
+                dd = _delta(ins[0], ins[1], ins[2], ins[3], ins[4], ins[5], ins[6], ins[7], ins[8],
+                            complex(x + 0.5), complex(y + 0.5), complex(occ[y, x]), complex(og[y, x, 0]),
+                            complex(og[y, x, 1]), gmin, gmax).imag / hh
+                ins[j] -= 1j * hh
+                if j < 6:
+                    out2[ids[j // 2], j % 2] += w * dd
+                else:
+                    outz[ids[j - 6]] += w * dd
+
+
+@nb.njit(cache=True)
 def _aggregate(P2, F, W, H, s, R):
     """SoftRas's probabilistic union (forward only, for comparison): 1 - prod_j (1 - k(sd_j / s)), sd_j the signed
     distance to triangle j (+ inside), over the pixels within R of it."""
@@ -372,12 +510,18 @@ class Silhouette:
     def backward(self, g):
         import time
         t = time.time()
-        g = np.where(self.vis_soft, np.asarray(g, float), 0.0)
+        g = np.asarray(g, float)
         out = np.zeros((len(self.P2), 2))
-        if len(self.EA):
-            _back(self.P2, self.EA, self.EB, self.eid, self.ucl, self.dmin, self.cov_hard, g, self.s,
+        if len(self.EA):                                    # cov = Fs vis: through the contour, g vis
+            _back(self.P2, self.EA, self.EB, self.eid, self.ucl, self.dmin, self.cov_hard, g * self.vis_soft, self.s,
                   self.kernel == 'linear', out)
         dV = self.view.pullback(self.V, out)
+        if self.occlusion == 'soft':                        # and through the depth-order edge, g Fs
+            out2, outz = np.zeros((len(self.P2), 2)), np.zeros(len(self.P2))
+            _occ_back(self.P2, self.depth, self.F, self.face, self.occ, self.og, self.d_occ,
+                      np.ascontiguousarray(g * self.Fs), self.s, self.kernel == 'linear', self.gmin, self.gmax, out2,
+                      outz)
+            dV = dV + self.view.pullback(self.V, out2) + self.view.pullback_depth(self.V, outz)
         self.seconds['backward'] = time.time() - t
         return dV
 
@@ -394,11 +538,15 @@ def crop(P2, shape, pad):
     return y0, max(y0, y1), x0, max(x0, x1)
 
 
-def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN, soft=True):
+def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN, soft=True, occlusion='hard',
+               occ_lab=None, occ_grad=None):
     """V (N, 3) in view's frame, F triangles (or faces: triangles() splits them), view a SheetView or CameraView, s the
     softness (px), occ (H, W) the depth of whatever else is in the view (inf where nothing: this mesh shows where it is
     nearer, as the QA composites by depth), kernel 'sigmoid' or 'linear'. soft False: the hard silhouette only (cov is
-    it; no contour, no backward). -> Silhouette (on a crop round the mesh)."""
+    it; no contour, no backward). occlusion 'soft': where the mesh passes behind the occluder (the depth-order edge:
+    a piece going into the body, the cuff, the bodice) is soft and differentiated too, as the contour is (occ_lab
+    (H, W) the occluder's surface labels, or a function of a box (y0, y1, x0, x1) giving them there, for its depth
+    gradient by differences on each surface; or occ_grad (H, W, 2) given). -> Silhouette (on a crop round the mesh)."""
     import time
     assert kernel in KERNELS
     t0 = time.time()
@@ -412,14 +560,37 @@ def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN, sof
     dep = np.ascontiguousarray(dep)
     zb, fb, _, _ = _raster(P2, dep, F, W, H)
     cov = fb >= 0
-    occ = np.full((H, W), np.inf) if occ is None else np.asarray(occ, float)[y0:y1, x0:x1]
+    occ_full = occ
+    occ = np.full((H, W), np.inf) if occ is None else np.ascontiguousarray(np.asarray(occ, float)[y0:y1, x0:x1])
     vis = cov & (zb < occ)
     t1 = time.time()
     if not soft:
         return Silhouette(V=V, F=F, view=view, box=(y0, y1, x0, x1), s=float(s), kernel=kernel, P2=P2, depth=dep,
                           zbuf=zb, face=fb, cov_hard=cov, hard=vis, cov=vis.astype(float), seconds={'raster': t1 - t0})
+    assert occlusion in OCCLUSIONS
+    softocc = occlusion == 'soft' and np.isfinite(occ[cov]).any()
+    if softocc:
+        # the occluder's depth gradient (px units) on the crop, one pixel wider so its edges see their neighbours
+        Hf, Wf = view.shape
+        ya, yb, xa, xb = max(0, y0 - 1), min(Hf, y1 + 1), max(0, x0 - 1), min(Wf, x1 + 1)
+        if occ_grad is not None:
+            og = np.asarray(occ_grad, float)[y0:y1, x0:x1]
+        else:
+            ow = np.asarray(occ_full, float)[ya:yb, xa:xb]
+            lw = (np.zeros(ow.shape, np.int64) if occ_lab is None else
+                  np.ascontiguousarray(occ_lab(ya, yb, xa, xb) if callable(occ_lab) else
+                                       np.asarray(occ_lab)[ya:yb, xa:xb], np.int64))
+            og = _occ_grad(np.ascontiguousarray(ow), lw)[y0 - ya:y0 - ya + H, x0 - xa:x0 - xa + W]
+        og = np.ascontiguousarray(og)
+        pw = view.px_world(V)
+        gmin, gmax = GMIN * pw, GMAX * pw
+        v_occ = np.empty((H, W)); d_occ = np.empty((H, W))
+        _occ_vis(P2, dep, F, fb, cov, occ, og, float(s), R, kernel == 'linear', gmin, gmax, v_occ, d_occ)
+        seen = cov & (v_occ > 0)                            # the contour runs on into the soft band behind
+    else:
+        seen = vis
     start, tris = _bins(P2, F, W, H)
-    X, ev = _crossings(P2, F, start, tris, cov, vis, W, H)
+    X, ev = _crossings(P2, F, start, tris, cov, seen, W, H)
     t2 = time.time()
     # the contour's edges, each over the span of its points (+ margin), as (lower id, higher id)
     dmin = np.full((H, W), np.inf); eid = np.full((H, W), -1, np.int64); ucl = np.zeros((H, W))
@@ -448,11 +619,15 @@ def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN, sof
         e = np.where(band, eid, 0)
         de = dep[EA[e]] * (1 - ucl) + dep[EB[e]] * ucl
         dz = np.where(band & ~cov, de, dz)
-    vis_soft = dz < occ
+    vis_soft = (dz < occ).astype(float)
+    if softocc:
+        vis_soft = np.where(cov, v_occ, vis_soft)
     t3 = time.time()
     return Silhouette(V=V, F=F, view=view, box=(y0, y1, x0, x1), s=float(s), kernel=kernel, P2=P2, depth=dep,
                       zbuf=zb, face=fb, cov_hard=cov, hard=vis, vis_soft=vis_soft, cov=Fs * vis_soft, EA=EA, EB=EB,
-                      U0=U0, U1=U1, dmin=dmin, eid=eid, ucl=ucl, contour=X, contour_edges=ev,
+                      U0=U0, U1=U1, dmin=dmin, eid=eid, ucl=ucl, contour=X, contour_edges=ev, Fs=Fs,
+                      occlusion='soft' if softocc else 'hard', occ=occ, og=og if softocc else None,
+                      gmin=gmin if softocc else None, gmax=gmax if softocc else None, d_occ=d_occ if softocc else None,
                       seconds={'raster': t1 - t0, 'contour': t2 - t1, 'field': t3 - t2})
 
 
