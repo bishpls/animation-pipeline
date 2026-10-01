@@ -1795,6 +1795,7 @@
      "px": 13367
     }
    },
+   "parts": [{"id": "bow.knot", "part": "knot", "side": "C"}, {"id": "bow.lobe_L", "part": "lobe_L", "side": "L"}, {"id": "bow.lobe_R", "part": "lobe_R", "side": "R"}],
    "trims": [],
    "attach": {
     "bone": "upperChest",
