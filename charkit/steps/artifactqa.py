@@ -52,4 +52,11 @@ MEASUREMENT_STEPS = [
     ('art_*_bow', 'a17ec74c', "the bow's crease strokes read as lines by the QA's render drawing (qarender mapped the "
      "export's ink primitives to the cloth)"),
     ('art_*_skirt', 'a17ec74c', "the skirt panel's crease strokes read as lines by the QA's render drawing"),
+    # tool/hairtruth-art: the hair region against its shape truth (charkit.shapetruth; Michael 2026-10-01): the design's
+    # hair from the head sheet with its clips repainted from hair_clips_layers (its face and neck as drawn), ours drawn
+    # without our clips (artifactqa.ours hide). Measured on pipeline-3d cd1c327f's default build (old measure -> new)
+    ('art_*_hair', '2eb75288', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): the clips' facets and outlines read as the hair's terminators and corners: "
+     "art_terminator_hair 2.178 -> 3.211 (the design's kinks per L front / three-quarter / profile 3.74 / 4.35 / 5.92 "
+     "-> 2.54 / 2.73 / 3.44, ours 8.15 / 7.90 / 4.88 -> 8.06 / 8.78 / 5.20; its grade WARN -> FAIL), "
+     "art_outline_hair 0.756 -> 0.564, art_peeks_hair 18 -> 16, art_fragments_hair unchanged"),
 ]
