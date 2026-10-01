@@ -962,3 +962,21 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - Builds running (render2): g6_b1 (F1L45 + gb, tuck margin 0.02), g6_b2 (margin 0.03), g6_b3 (F1 + gb margin 0.02);
   specs charkit/out/garments6/specs/b1-3.json, logs build_b1..3.log.
 - puff_clear `dilate`/`blur` (a smooth plateau over the needs, never under them) added for the lumps.
+- Builds b1/b2 (tuck margin 0.02/0.03): the jacket kept near the seam stands in front of the puffs (piece_top front
+  0.43/0.40). The tuck now sinks (tuck {sink -0.004, drop 0.06, ease 0.02}: the jacket's offset eased under the skin
+  where the body lies inside a puff; only faces deeper than drop cut): bridge skin showing at the seam 0.055 -> 0.001 L^2.
+  b4 (sink): no skin patches in the renders (look_b45.png), piece_top front 0.41 (the puff's dome doesn't hold the
+  bridge's top: top in front of it 0.028 L^2, up to 0.1 L); b5 (sink + puff clear dilate 5 / blur 1.2): piece_top
+  0.614/0.737/0.624/0.952 (old 0.749/0.800/0.634/0.931: front -18%), sleeves front 0.79-0.81 (old 0.95), but
+  bow_front_bleed 0.205 F (the dilated puffs reach the bow's loop ends with no outline: bleedpic.py) -> the puffs
+  bedded behind the bow (sleeve bed). b4/b5's QA rerun on render2 (their build's QA had imported a declared.py synced
+  mid-merge: keep the tree committed while box jobs run).
+- Sweep d3 (collar lengths on g6_b1): side_depth 0.455 -> 0.34, back_depth 0.51 -> 0.47: piece_collar f/3q/p/b
+  0.49/0.30/0.05/0.88 -> 0.87/0.53/0.03/0.94 (old body 0.66/0.47/0.03/0.93), art_outline_collar 5.7 -> 3.7 W.
+- neck_crease (masked skin): the flare's bug (the rows at the cut interpolated with the unflared row under it) fixed
+  (k3: F1 score 0.0282, front top at |x| 0.2 -0.543 -> -0.519, sheet -0.496); the crease the QA reads is the visible
+  skin's: the flare's bottom showing under the collar (the collar masked no skin). Now the collar masks the skin under
+  it (collar hide_under {reach, rim, neck}: under_sheet; the intent of neck_crease leaves a flare under a collar out):
+  the unsubdivided estimate 76 -> 51 (old body 24.5 -> the QA's 12.7), one column (-65) left; trying the mask's reach.
+- The jacket's neck cut in front back to the plane (the radial cut opened a round skin notch over the bow's knot: the
+  neck V's outline corners, art_outline_neck 10): r [[0, 1], [40, 1], [70, 0.15], [90, 0.15], [150, 0.2], [180, 0.23]].
