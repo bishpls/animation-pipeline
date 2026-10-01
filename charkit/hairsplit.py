@@ -67,8 +67,9 @@ P = dict(
     protrusion_len=1.0,    # a protrusion is at least this many base widths long
     cell_min=0.0012,       # L^2: a cell smaller than this joins its neighbour
     tip_scales=(0.02, 0.04, 0.07),   # L: the outline's curvature scales
-    tip_prom=0.02,         # L: a tip (notch) stands out from the outline's distance to the crown by at least this
-    tip_acute=75.0,        # deg: a convex corner sharper than this is a tip whatever its direction (a curled flick)
+    tip_prom=0.012,        # L: a tip (notch) stands out from the outline's distance to the crown by at least this
+                           # (0.02 until round 2: the back hem's shallow flicks need 0.012)
+    tip_acute=80.0,        # deg: a convex corner sharper than this is a tip whatever its direction (a curled flick)
     seed_mode='axis',      # a tip's seed: 'axis' up its axis, 'disk' its end (the free hair within seed_r of it)
     seed_r=0.025,          # L: the disk seed's radius (at most half the way to the next tip)
     seed_len=0.05,         # L: an axis seed runs up its axis at most this far
@@ -78,21 +79,25 @@ P = dict(
     occ_tips=True,         # no tip where the outline is an occluder's (a clip) edge ('pieces': a hair piece's too)
     region_tips='multi',   # a region holding tips' seeds is theirs: True any, 'multi' only several (split between
                            # them), False none (every region tipless: own or merged)
-    merge_by='vall',       # a tipless region joins: 'vall' the tips' Voronoi's majority, 'decided' the nearest decided
+    merge_theta=0.5,       # merge_by 'flow': two regions join when their cost is under this (see _merge_flow)
+    merge_lambda=0.5,      # merge_by 'flow': the width term's weight
+    merge_frag=0.002,      # L^2: merge_by 'flow': a region under this joins its cheapest neighbour first
+    merge_by='vall',       # a tipless region joins: 'flow' (_merge_flow: pairwise by flow continuity and width, a tip
+                           # per lock), 'vall' the tips' Voronoi's majority, 'decided' the nearest decided
                            # lock (own or tips') along the flow, 'exits' the lock it flows into
     notch_lines='hem',     # a lock line traced up from each notch of the outline: 'hem' the outer outline's notches
                            # opening down only, True every notch, False none
     tones=False,           # the cel tones' edges cut the cells (and, along the flow, the locks) everywhere
     stroke_min=0.0,        # L: an interior stroke shorter than this is texture: not a lock wall (0: every stroke is)
-    hem_tone=False,        # the shadow tone as lock walls where nothing is drawn (the hem: call A, round 2): 'edges' its
+    hem_tone='necks',      # the shadow tone as lock walls where nothing is drawn (the hem: call A, round 2): 'edges' its
                            # edges, 'necks' its runs cut where they narrow, 'both' (hem_tone_walls)
-    neck_h=0.75,           # line widths: a neck is a dip of at least this in the shadow tone's distance to its edge
+    neck_h=1.5,            # line widths: a neck is a dip of at least this in the shadow tone's distance to its edge
     tone_rel=0.1,          # a pixel is in the shadow tone where it is this share darker than its local base (the lit
                            # level round it: relative darkness, not a palette value)
     tone_base=0.08,        # L: the local base's window
     hem_free=0.04,         # L: the hem zone is the hair at least this far from any drawn lock line
     hem_stroke=0.05,       # L: a drawn interior stroke this long is a lock line (shorter: a notch's tick, texture)
-    notch_own=False,       # a hem notch's lock line passes the notch's own drawn tick (it stopped on it at once)
+    notch_own=True,        # a hem notch's lock line passes the notch's own drawn tick (it stopped on it at once)
     notch_between=0.0,     # L: two tips at most this far apart along the outline with no notch between them get one at
                            # the deepest point between them (0: off)
     closure_along=0.7,     # a trapped ball's closure whose direction . the flow is at least this continues a lock line
@@ -1054,6 +1059,10 @@ class Split:
             # only a region holding several tips is theirs (split between them); one with a single tip is read as a
             # tipless one: its own lock where it flows out of the hair, else merged along the flow
             owners = {c: t for c, t in owners.items() if len(t) >= 2}
+        if P['merge_by'] == 'flow':
+            self.regions = regions
+            self.locks = self._grow(self._merge_flow(regions, seeds, V_free), self.H)
+            return
         out = np.zeros(regions.shape, np.int32)
         nxt = len(self.tip_list) + 1
         amin = P['lock_min'] * self.ppl ** 2
@@ -1146,6 +1155,122 @@ class Split:
         self.locks = out
         self.report.update(locks=int(len(np.unique(out[out > 0]))), regions=int(nreg), regions_split=n_split,
                            regions_one_tip=n_one, regions_own=n_own, regions_merged=n_merge)
+
+    def _merge_flow(self, regions, seeds, V_free):
+        """merge_by 'flow' (round 2's bounded merge rule): the regions as nodes (a region holding several tips' seeds
+        split between them first), joined pairwise in order of a cost, Kruskal-wise, never two tips in one lock:
+          flow continuity  the shared boundary's direction against the flow there (|t . f|: 0 across the flow, a lock
+                           cut across by a closure; 1 along it, two locks side by side)
+          width            the boundary's span against the narrower node's width (2 x its largest inscribed radius):
+                           a continuation spans most of it, a corner contact doesn't (merge_lambda x the shortfall)
+          tip ownership    a lock holds at most one tip
+        Fragments (under merge_frag L^2) join their cheapest neighbour first, whatever the cost; pairs under merge_theta
+        merge; a group with no tip is a lock of its own (a tip hidden by a clip, the face or another lock).
+        -> lock image."""
+        from scipy import ndimage
+        P = self.P
+        N = regions.copy().astype(np.int64)
+        nxt = int(N.max()) + 1
+        tip_of = {}
+        owners = {}
+        for ti, m in seeds.items():
+            for c in np.unique(regions[m & (regions > 0)]):
+                owners.setdefault(int(c), set()).add(ti)
+        for c, tl in owners.items():
+            m = regions == c
+            if len(tl) >= 2:
+                v = np.where(np.isin(V_free[m], list(tl)), V_free[m], 0)
+                sub = np.zeros(regions.shape, np.int32); sub[m] = v
+                sub = self._grow(sub, m)
+                for ti in tl:
+                    mm = m & (sub == ti)
+                    if mm.any():
+                        N[mm] = nxt; tip_of[nxt] = ti; nxt += 1
+            else:
+                tip_of[c] = next(iter(tl))
+        G = self._grow(N.astype(np.int32), self.H).astype(np.int64)
+        ids = [int(i) for i in np.unique(G[G > 0])]
+        area = {i: int((N == i).sum()) for i in ids}
+        width = {}
+        for i, sl in zip(range(1, int(N.max()) + 1), ndimage.find_objects(N.astype(np.int32))):
+            if sl is None or i not in area:
+                continue
+            m = N[sl] == i
+            width[i] = 2.0 * float(ndimage.distance_transform_edt(np.pad(m, 1)).max()) if m.any() else 1.0
+        # the shared boundaries: 4-neighbour pairs of the grown labels that differ, both in the hair
+        pts = {}
+        for dr, dc in ((0, 1), (1, 0)):
+            a = G[:G.shape[0] - dr, :G.shape[1] - dc]; b = G[dr:, dc:]
+            ok = (a != b) & (a > 0) & (b > 0)
+            rr, cc = np.nonzero(ok)
+            for x, y, r_, c_ in zip(a[ok], b[ok], rr, cc):
+                k = (int(min(x, y)), int(max(x, y)))
+                pts.setdefault(k, []).append((r_ + 0.5 * dr, c_ + 0.5 * dc))
+        cost = {}
+        for k, q in pts.items():
+            X = np.array(q, float)
+            if len(X) < 2:
+                cost[k] = (1.0, 0.0)
+                continue
+            f = self.down[:, np.clip(np.round(X[:, 0]).astype(int), 0, G.shape[0] - 1),
+                          np.clip(np.round(X[:, 1]).astype(int), 0, G.shape[1] - 1)].mean(1)
+            f /= max(1e-9, np.hypot(*f))
+            Xc = X - X.mean(0)
+            w, v = np.linalg.eigh(Xc.T @ Xc)
+            t = v[:, -1]
+            along = abs(float(t @ f))
+            proj = Xc @ t
+            span = float(proj.max() - proj.min()) + 1.0
+            ratio = span / max(1.0, min(width.get(k[0], 1.0), width.get(k[1], 1.0)))
+            cost[k] = (along + P['merge_lambda'] * max(0.0, 1.0 - min(1.0, ratio)), span)
+        parent = {i: i for i in ids}
+        tips = {i: ({tip_of[i]} if i in tip_of else set()) for i in ids}
+        size = dict(area)
+
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        def union(i, j):
+            ri, rj = find(i), find(j)
+            if ri == rj or (tips[ri] and tips[rj]):
+                return False
+            parent[rj] = ri
+            tips[ri] |= tips[rj]; size[ri] += size[rj]
+            return True
+        nb = {}
+        for (i, j), (c, sp) in cost.items():
+            nb.setdefault(i, []).append((c, j)); nb.setdefault(j, []).append((c, i))
+        frag = P['merge_frag'] * self.ppl ** 2
+        nf = nm = 0
+        for i in sorted(ids, key=lambda i: area[i]):
+            if size[find(i)] >= frag:
+                continue
+            for c, j in sorted(nb.get(i, [])):
+                if union(j, i):
+                    nf += 1
+                    break
+        for (i, j), (c, sp) in sorted(cost.items(), key=lambda kv: kv[1][0]):
+            if c > P['merge_theta']:
+                break
+            if union(i, j):
+                nm += 1
+        out = np.zeros(regions.shape, np.int32)
+        lut = {}
+        k = len(self.tip_list) + 1
+        for i in ids:
+            r = find(i)
+            if r not in lut:
+                if tips[r]:
+                    lut[r] = next(iter(tips[r]))
+                else:
+                    lut[r] = k; k += 1
+            out[G == i] = lut[r]
+        self.report.update(locks=int(len(set(lut.values()))), regions=int(regions.max()), nodes=len(ids),
+                           merged_fragments=nf, merged_pairs=nm)
+        return out
 
     # ---- layering from T-junctions
 
