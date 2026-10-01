@@ -24,20 +24,10 @@ POSES = ('open', 'relaxed', 'fist', 'point')
 
 
 def ratios_of(h):
-    """an open hand's structural ratios off its landmarks (charkit.handsheet) -> dict(span, middle, index, ring, little)
-    or None where the open hand's three webs aren't found."""
+    """an open hand's structural ratios off its landmarks (charkit.handsheet.ratios_of: the four fingers and their three
+    webs; the thumb optional) -> dict or None."""
     from . import handsheet
-    D = handsheet.digits(h)
-    if len(D['digits']) < 5:
-        return None
-    L = handsheet.landmarks(h, open_hand=D)
-    if not L.get('palm_len') or not L.get('mcp_span_est') or len(L.get('webs', [])) < 3:
-        return None
-    r = L['reach_px']
-    PL = L['palm_len'] * r
-    f = sorted(L['fingers_open'], key=lambda d: d['angle'])          # little .. index
-    lit, ring, mid, idx = [x['length'] * r for x in f]
-    return dict(span=L['mcp_span_est'] * r / PL, middle=mid / PL, index=idx / mid, ring=ring / mid, little=lit / mid)
+    return handsheet.ratios_of(h)
 
 
 def ours(B, poses=POSES):
@@ -74,7 +64,7 @@ def measure(B, design=None, out=None):
         C['open_span'] = C['open_fingers'] = {'status': 'SKIPPED', 'why': "the sheet's open hand: its webs not found"}
     elif ro is None:
         C['open_span'] = C['open_fingers'] = {'value': None, 'status': 'FAIL',
-                                              'why': 'our open hand shows fewer than five digits or three webs'}
+                                              'why': 'our open hand shows fewer than four fingers or three webs'}
     else:
         d = ro['span'] - rs['span']
         C['open_span'] = {'value': round(d, 4), 'status': _grade('span', d), 'ours': round(ro['span'], 4),

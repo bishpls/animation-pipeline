@@ -96,14 +96,27 @@ def digits(h, prom=TIP_PROM):
             pair.setdefault(b, []).append((j, -1))
     T = [C[i] for i in tips]
     K = [C[j] for j in clefts]
+    # the thumb (round 6: a structure measure must not read it): the digit turned furthest toward the thumb's side (+x:
+    # the sheet's left hand from the back, ours drawn alike) when five show, or when its cleft lies well nearer the
+    # wrist than the others' (a thumb opened with four fingers merged); a thumb merged into the index shows no tip
+    across = {ti: float((C[ti] - wrist) @ np.array([u[1], -u[0]])) for ti in tips}     # (+: the thumb's side, +x)
+    thumb_tip = None
+    if len(tips) >= 2:
+        cand = max(tips, key=lambda ti: across[ti])
+        cl_c = [j for j, _ in pair.get(cand, [])]
+        others = [j for ti in tips if ti != cand for j, _ in pair.get(ti, []) if j not in cl_c]
+        deep = cl_c and others and min(along[j] for j in cl_c) < np.mean([along[j] for j in others]) - 0.1 * r
+        if len(tips) >= 5 or deep:
+            thumb_tip = cand
+    thumb_clefts = {j for j, _ in pair.get(thumb_tip, [])} if thumb_tip is not None else set()
     out_d = []
     for ti in tips:
-        got = pair.get(ti) or []
+        # a finger's base: at the level of its shallower web shared with another finger (never the thumb's web); the
+        # thumb's at its own cleft
+        got = [g for g in (pair.get(ti) or []) if ti == thumb_tip or g[0] not in thumb_clefts]
         tip = C[ti]
         if not got:
             continue
-        # the digit's base at the level of its shallower cleft (the one nearer its tip: a deep web beside it, the
-        # thumb's beside the index, doesn't lengthen it), the other side's edge as far from the tip
         j, sense = min(got, key=lambda g: np.linalg.norm(C[g[0]] - tip))
         P = C[j]
         want = np.linalg.norm(P - tip)
@@ -119,12 +132,14 @@ def digits(h, prom=TIP_PROM):
         ax = (tip - base) / L
         w = [_width(m, base + ax * f * L, ax) / r for f in PROFILE]
         out_d.append(dict(tip=tip, base=base, length=L / r, axis=ax, widths=w, round=w[-1] / max(w[2], 1e-9),
-                          outer=len(got) == 1, cleft=P, angle=float(np.degrees(np.arctan2(ax[0], ax[1])))))
+                          outer=len(got) == 1, cleft=P, angle=float(np.degrees(np.arctan2(ax[0], ax[1]))),
+                          thumb=ti == thumb_tip, webs=[C[g[0]] for g in got]))
     palm_w = None
     if len(K) >= 2:
         acr = np.array([-u[1], u[0]])
         palm_w = float(np.ptp([(k_ - wrist) @ acr for k_ in K])) / r
     return dict(reach=r / ppl, wrist=wrist, tips=T, clefts=K, digits=out_d, palm_w=palm_w,
+                finger_webs=[C[j] for j in clefts if j not in thumb_clefts],
                 knuckles=float(np.mean([(k_ - wrist) @ u for k_ in K])) / r if K else None)
 
 
@@ -687,15 +702,13 @@ def landmarks(h, line=None, open_hand=None):
     thumb_web = None
     if open_hand is not None:
         D = open_hand
-        # the webs: the clefts between the four fingers (all but the thumb's: the cleft beside the digit turned
-        # furthest toward the thumb's side, the largest angle)
-        dg = sorted(D['digits'], key=lambda d: d['angle'])
-        thumb = dg[-1]
-        cl = [np.asarray(k) for k in D['clefts']]
-        tw = min(cl, key=lambda k: np.linalg.norm(k - thumb['cleft'])) if cl else None
-        webs = [k for k in cl if tw is None or np.linalg.norm(k - tw) > 1]
-        thumb_web = tw
-        out['fingers_open'] = dg[:-1]
+        # the webs: the clefts between the four fingers (digits(): the thumb's own cleft left out); the thumb optional
+        # (merged into the index, it shows no tip: the structure doesn't need it)
+        fingers = sorted([d for d in D['digits'] if not d.get('thumb')], key=lambda d: d['angle'])
+        thumb = next((d for d in D['digits'] if d.get('thumb')), None)
+        webs = [np.asarray(k) for k in D.get('finger_webs', D['clefts'])]
+        thumb_web = np.asarray(thumb['cleft']) if thumb is not None else None
+        out['fingers_open'] = fingers[-4:]
         out['thumb_open'] = thumb
     else:
         webs = web_lines(h, line) if line is not None else []
@@ -729,23 +742,31 @@ def landmarks(h, line=None, open_hand=None):
         mcp_mid = 0.5 * (W_[i] + W_[j])
     else:
         mcp_mid = W_.mean(0)
-    # the wrist: the narrowest run across the arm between the cuff's edge and a quarter of the way to the MCP line
+    # the wrist line: where a cuff is drawn, its edge (the cuff hides the crease, and the thumb, turning at its root
+    # there, can't move it: thumb_only's seed 1 moved the narrowest run, and the palm length with it); else the
+    # narrowest run across the arm between the hand's top and a quarter of the way to the MCP line (an uncovered wrist)
     s_mcp = float((mcp_mid - wrist0) @ u)
     best = None
-    for s in np.linspace(0.0, 0.25 * s_mcp, 12):
+    cuffed = h.get('cuffed', True)
+    rows = np.arange(1.0, 0.08 * r, 1.0) if cuffed else np.linspace(0.0, 0.25 * s_mcp, 12)
+    for s in rows:
         p = wrist0 + u * (s + 1.0)
+        if cuffed and not m[int(np.clip(round(p[1]), 0, m.shape[0] - 1)), int(np.clip(round(p[0]), 0, m.shape[1] - 1))]:
+            continue                                  # (the cuff's curved edge: the first row the hand shows under it)
         run = _run_along(m, p, acr)
         if run is None:
             continue
         w = float(np.linalg.norm(run[1] - run[0]))
         if best is None or w < best[0]:
             best = (w, 0.5 * (run[0] + run[1]), run)
+        if cuffed:
+            break
     if best is None:
         out['why'] = 'no wrist'
         return out
     out['wrist_w'] = best[0] / r
     out['wrist_pts'] = (tuple(best[2][0]), tuple(best[2][1]))
-    palm_len = float(np.linalg.norm(mcp_mid - best[1]))
+    palm_len = float((mcp_mid - best[1]) @ u)          # (along the arm: the wrist line's middle can sit off the axis)
     out['palm_len'] = palm_len / r
     out['mcp_mid'] = tuple(mcp_mid)
     out['wrist_mid'] = tuple(best[1])
@@ -759,8 +780,9 @@ def landmarks(h, line=None, open_hand=None):
     if open_hand is not None:
         R_['fingers_over_len'] = [round(f['length'] * r / palm_len, 3) for f in out['fingers_open']]
         R_['finger_base_w_over_len'] = [round(f['widths'][0] * r / palm_len, 3) for f in out['fingers_open']]
-        R_['thumb_len_over_len'] = out['thumb_open']['length'] * r / palm_len
-        R_['thumb_base_w_over_len'] = out['thumb_open']['widths'][0] * r / palm_len
+        if out['thumb_open'] is not None:
+            R_['thumb_len_over_len'] = out['thumb_open']['length'] * r / palm_len
+            R_['thumb_base_w_over_len'] = out['thumb_open']['widths'][0] * r / palm_len
     out['ratios'] = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in R_.items()}
     return out
 
@@ -813,25 +835,28 @@ def ratios_of(h):
     PL), index, ring, little (over the middle), taper (the fingers' width at 0.9 of their length over at 0.1), thumb (the
     wrist line's thumb-side end to its tip, over PL), thumb_w (its width at its base, over PL)) or None."""
     D = digits(h)
-    if len(D['digits']) < 5:
-        return None
     L = landmarks(h, open_hand=D)
-    if not L.get('palm_len') or not L.get('mcp_span_est') or len(L.get('webs', [])) < 3:
+    if len(L.get('fingers_open') or []) < 4 or not L.get('palm_len') or not L.get('mcp_span_est') or \
+            len(L.get('webs', [])) < 3:
         return None
     r = L['reach_px']
     PL = L['palm_len'] * r
     f = sorted(L['fingers_open'], key=lambda d: d['angle'])          # little .. index
     lit, ring, mid, idx = [x['length'] * r for x in f]
-    th = L['thumb_open']
-    wp = np.array(L['wrist_pts'])
-    cmc = wp[np.argmin([np.linalg.norm(p - th['tip']) for p in wp])]
     span = L['mcp_span_est'] * r
-    return dict(span=span / PL, wrist=L['wrist_w'] * r / span, middle=mid / PL, index=idx / mid, ring=ring / mid,
-                little=lit / mid, taper=float(np.mean([x['widths'][-1] / max(x['widths'][0], 1e-9) for x in f])),
-                thumb=float(np.linalg.norm(th['tip'] - cmc)) / PL, thumb_w=th['widths'][0] * r / PL)
+    out = dict(span=span / PL, middle=mid / PL, index=idx / mid, ring=ring / mid,
+               little=lit / mid, taper=float(np.mean([x['widths'][-1] / max(x['widths'][0], 1e-9) for x in f])))
+    if not h.get('cuffed', True):                     # (a cuff hides the wrist: its width isn't read, the prior's)
+        out['wrist'] = L['wrist_w'] * r / span
+    th = L['thumb_open']
+    if th is not None:
+        wp = np.array(L['wrist_pts'])
+        cmc = wp[np.argmin([np.linalg.norm(p - th['tip']) for p in wp])]
+        out.update(thumb=float(np.linalg.norm(th['tip'] - cmc)) / PL, thumb_w=th['widths'][0] * r / PL)
+    return out
 
 
-FIT_RATIOS = ('span', 'wrist', 'middle', 'index', 'ring', 'little', 'taper', 'thumb', 'thumb_w')
+FIT_RATIOS = ('span', 'wrist', 'middle', 'index', 'ring', 'little', 'taper', 'thumb', 'thumb_w')   # (each where measured)
 
 
 def fit_ratios(spec, over, target=None, iters=8, gain=1.0, keys=FIT_RATIOS, log=print):
@@ -851,10 +876,10 @@ def fit_ratios(spec, over, target=None, iters=8, gain=1.0, keys=FIT_RATIOS, log=
         if got is None:
             log('iteration %d: our open hand shows fewer than five digits or three webs' % it)
             break
-        err = {k: tgt[k] - got[k] for k in keys}
-        hist.append(dict(ours={k: round(got[k], 4) for k in keys}, err={k: round(v, 4) for k, v in err.items()}))
+        err = {k: tgt[k] - got[k] for k in keys if k in got and k in tgt}
+        hist.append(dict(ours={k: round(got[k], 4) for k in keys if k in got}, err={k: round(v, 4) for k, v in err.items()}))
         log('iteration %d: max |err| %.4f %s' % (it, max(abs(v) for v in err.values()),
                                                   ' '.join('%s %+.3f' % (k, v) for k, v in err.items())))
-        for k in keys:
+        for k in err:
             R[k] = R[k] + gain * err[k]
     return R, hist

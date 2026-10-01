@@ -532,3 +532,29 @@ palm_line, JointFit's silhouette-IoU structure fit (kept as tools, not the struc
   palm length (anatomy ~0.75-0.85; anime longer), order middle > index 0.843 ~ ring 0.827 > little 0.715. The open
   hand draws no joint creases on its fingers, so the segments along the joint chain need the creases elsewhere (the
   relaxed and point hands' finger lines) or the prior's 1 : 0.6 : 0.45.
+- **Steps 1-5 (coordinator: proceed).** Merged pipeline-3d 27a4b6c (0d86390; hands2 already in it as 60c0f1a). Box jobs
+  now go to `--box auto` (the freest box): a job reading an earlier output names its box (`--box build`: hands2_after_q,
+  the known-bad stores live there).
+- **The prior:** charkit/styles `hand` ([default, lo, hi] per ratio over the palm length; anime: middle 0.92 [0.78,
+  1.05], span 0.82 [0.7, 0.9], wrist 0.65 [0.5, 0.85], taper 0.6, thumb_w 0.21). Not widened to fit Clawd.
+- **The ratio template:** code_hand ratio mode (body.hand.palm_len set: from_ratios(hand_ratios(spec), palm_len,
+  wrist_offset)): palm_len the size, wrist_offset 0.034 (Clawd's wrist line is the cuff's edge), segments from the
+  ratios (the prior's 1 : 0.6 : 0.45, thumb 1 : 0.7 : 0.55).
+- **The landmarks, thumb-invariant** (handsheet.digits picks the thumb out: the radial-most digit of five, or one whose
+  cleft is well nearer the wrist; a finger's base only at a web shared with another finger; the wrist line under a cuff
+  is the cuff's edge, the first row the hand shows; a covered wrist isn't read). The sheet's open hand (ratios_of):
+  span 0.925, middle 0.917, index 0.916, ring 0.899, little 0.777, taper 0.549, thumb 1.31, thumb_w 0.22. Flags against
+  the anime prior: span (0.925 > 0.9) and thumb (1.31 > 1.15), both read from the cuff's edge (the palm short); the
+  wrist not measurable (cuffed).
+- **fit_ratios** (the template's ratios moved by the measured difference, our open hand drawn and read alike; no
+  silhouette IoU): within ~0.01 in 2-3 iterations; the template's ratios span 0.900, middle 1.096, index 0.948, ring
+  0.932, little 0.857, taper 0.443, thumb 1.907, thumb_w 0.233, wrist the prior's 0.65 (charkit/out/hands3/
+  fit_ratios.json). They differ from the measured ones because the template places joints and the measure reads the
+  webs (distal of the knuckles) and the wrist line's corner.
+- **The check: QA part hand_sheet** (charkit/handsheetqa.py): handsheet_open_span (4 x the finger webs' spacing over the
+  palm length, ours minus the sheet's; 0.05/0.10), handsheet_open_fingers (0.05/0.10), the posed IoUs INFO.
+  Calibration (charkit/calib/handsheet.py; calibrate's new `invariant` list: a generator the check must not see, else
+  'confounded'): the design 0 at every move; floors wide_palm +0.30, narrow_palm -0.23, long_palm -0.22 (fingers -0.45);
+  **thumb_only (the thumb alone turned 10-30 deg) 0.000-0.0096 in all 5 seeds** (before the fixes: 3 seeds unmeasured,
+  one -0.145 on the index's base, one -0.058 through the wrist line). Known-bad comb_hand (its spec's template).
+- **ratio2** running (build box): palm_len + rest angles, the ratio1-era ratios; rerun with fit_ratios.json's after.
