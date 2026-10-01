@@ -99,6 +99,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hairlocks` | `hairlocks` |
 | `hairpage` | `hairpage` |
 | `hairsplit` | `hairsplit` |
+| `hand` | `code_hand` |
 | `history` | `history` |
 | `kill` | `procs` |
 | `mouth` | `mouthlab` |
@@ -199,6 +200,9 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hands.py` | `hand_*_reach_[LR]` | hands | Hands | mitten |
 | `hands.py` | `hand_*_digits_[LR]` | hands | Hands | mitten |
 | `hands.py` | `hand_*_cleft_[LR]` | hands | Hands | mitten |
+| `hands.py` | `hand_*_gaps_[LR]` | hands | Hands | comb_hand |
+| `hands.py` | `hand_*_taper_[LR]` | hands | Hands | comb_hand |
+| `hands.py` | `hand_*_cleftpos_[LR]` | hands | Hands | comb_hand |
 | `jaw.py` | `jaw_outline_hidden` | face_region | Jaw | f5_base |
 | `jaw.py` | `jaw_taper` | face_region | Jaw | jaw0_flagged |
 | `jaw.py` | `chin_point_z` | face_region | Jaw | jaw0_flagged |
@@ -987,6 +991,7 @@ The hand template (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7
 
 - `params(spec=None, **over)`: the hand's knobs: DEFAULT, the spec's body.hand over it, then over.
 - `frame(J, side, P)`: the hand's frame at the wrist: (W, R) with R's columns ex (along the hand), ey (radial), ez (dorsal), from the ...
+- `layout(P)`: the fingers held together (round 4, tool/hands2: de2fa87's four thin tubes fanned apart read as a comb): their ...
 - `digits(W, R, P)`: every digit's joints and segment frames -> {name: (joints (4, 3), frames, widths (base, tip))}.
 - `digit_rings(J, F, widths, nth, bones, inset=INSET)`: a digit's tube: rings along its chain (from inset behind its first joint, loops either side of each knuckle, a ...
 - `palm_rings(W, R, P, nth=NTH['palm'])`: the palm: a rounded box from inside the cuff to past the knuckles, its width easing from the wrist's to the ...
@@ -995,7 +1000,8 @@ The hand template (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7
 - `mesh(H_)`: a hand's parts as one triangle mesh -> (V, T, part index per triangle).
 - `cuff_end(H, side, J, spec=None)`: our wrist cuff's far edge along the forearm, L from the wrist joint: the spec's band on the lower arm (its middle ...
 - class `Fit`: the hand's knobs against the design's drawn hands: per view and side, the hand-check measures (handqa's shape IoU ...
-- `main(args)`
+- `show(F, P, out)`: a picture of the template against the drawn hands: per view and side the drawn hand (grey) with ours (red ...
+- `main(args)`: python -m charkit.code_hand fit --build B [--spec S | --write S] [--rounds N] [--over JSON] [--knobs a,b] [--png ...
 - `curl_pose(H_, curl=80.0, thumb=40.0)`: a fist's skinning, numpy only: every finger joint bent `curl` degrees toward the palm (the thumb's joints ...
 - `ring_area(ring)`: a ring's area on its best-fit plane.
 - `fist_report(H_, curl=80.0, thumb=40.0)`: the fist's numbers: per finger the knuckle loops' smallest area over its rest area (the volume kept at the ...
@@ -1954,7 +1960,12 @@ The hands (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7): each 
 - `design_seams(dv, views=VIEWS)`: the design's ink inside its figures (its raw classes' line pixels), per view -> {view: bool image}.
 - `sides(view)`
 - `hands_of(skin, cuffs, ppl)`: {side: hand_mask()} for one view: cuffs {side: mask}.
-- `features(h, seams, ppl)`: what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width).
+- `bands_across(h, ppl, shares)`: per share of the reach past the cuff, the hand's band across the arm there (0.75 px either side): (its span ...
+- `gaps(h, ppl, shares=GAP_BANDS)`: the fingers held together or apart: the mean share of the hand's span across the arm with no hand in it, over ...
+- `taper(h, ppl)`: how the hand narrows to its fingertips: its mean width across the arm over TIP_BANDS of the reach over its widest ...
+- `wrist(h, ppl)`: the wrist's narrowing: the hand's width across the arm at WRIST_BAND of the reach over its widest (reported in ...
+- `cleft_at(m, h, ppl)`: where the deepest silhouette pocket's bottom lies along the reach past the cuff (a share of the reach): the ...
+- `features(h, seams, ppl)`: what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width, gaps, taper, wrist, ...
 - `hands(B, design=None, out=None)`
 - `measure(B, design, out=None)`
 
@@ -3984,7 +3995,7 @@ Calibration adapter for the hair truth's score (charkit.hairlayers.score: the ha
 
 - class `HairTruth`
 
-#### `charkit/calib/hands.py` (4 calibration entries)
+#### `charkit/calib/hands.py` (7 calibration entries)
 
 Calibration adapter for the hands (charkit.handqa's 'hands' part: hand_shape_*, hand_*_reach_*, hand_*_digits_*, hand_*_cleft_*). The stand-in for ours is labels.py's Garments (the drawing's skin class and the outfit's drawn piece masks as our objects' labels, the drawing's lines absorbed: our skin, our wrist cuffs), with the drawing's ink inside the ...
 
@@ -4079,7 +4090,7 @@ The measurement steps of the checks charkit/faceregion.py measures (charkit.regi
 
 The measurement steps of the checks charkit/hairflagqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/handqa.py` (2 measurement steps)
+#### `charkit/steps/handqa.py` (4 measurement steps)
 
 The measurement steps of the checks charkit/handqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 

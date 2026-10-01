@@ -21,13 +21,25 @@ from .labels import Garments, _shift, patched
 
 CALIBRATION = [
     dict(check='hand_shape_[LR]', part='hands', adapter='Hands', known_bad='mitten',
-         baseline=['stub_hands'], probes=['blob_hands'], shape=[], better='higher'),
+         baseline=['stub_hands'], probes=['blob_hands', 'comb_hands', 'blunt_hands'], shape=[],
+         better='higher'),
     dict(check='hand_*_reach_[LR]', part='hands', adapter='Hands', known_bad='mitten',
          baseline=['stub_hands'], shape=['hand_shape_L', 'hand_shape_R'], better='lower'),
     dict(check='hand_*_digits_[LR]', part='hands', adapter='Hands', known_bad='mitten',
          baseline=['blob_hands'], shape=['hand_shape_L', 'hand_shape_R'], better='lower'),
     dict(check='hand_*_cleft_[LR]', part='hands', adapter='Hands', known_bad='mitten',
          baseline=['blob_hands'], shape=['hand_shape_L', 'hand_shape_R'], better='lower'),
+    # round 4 (tool/hands2): the structure inside the silhouette (Michael, 2026-10-01: the merged hand "clearly extremely
+    # off-model" while hand_shape passed). Known-bad: comb_hand (de2fa87's hand, the tool/hands b4 build). gaps is a
+    # defect detector (a stub or a blob has no gaps between fingers and may pass: its shape guards it)
+    dict(check='hand_*_gaps_[LR]', part='hands', adapter='Hands', known_bad='comb_hand', kind='defect',
+         baseline=['blob_hands'], probes=['comb_hands'], shape=['hand_shape_L', 'hand_shape_R'], better='lower'),
+    dict(check='hand_*_taper_[LR]', part='hands', adapter='Hands', known_bad='comb_hand',
+         baseline=['stub_hands', 'blob_hands'], probes=['blunt_hands'], shape=['hand_shape_L', 'hand_shape_R'],
+         better='lower'),
+    dict(check='hand_*_cleftpos_[LR]', part='hands', adapter='Hands', known_bad='comb_hand',
+         baseline=['stub_hands', 'blob_hands'], probes=['comb_hands'], shape=['hand_shape_L', 'hand_shape_R'],
+         better='lower'),
 ]
 
 
@@ -37,6 +49,10 @@ class Hands(Garments):
     generators = {
         'stub_hands': 'each drawn hand cut off at 35-60% of its reach past the cuff',
         'blob_hands': "each drawn hand replaced by the ellipse of its own area, centroid and second moments",
+        'comb_hands': "each drawn hand's fingers cut apart: three slits along the arm, 2 px wide, from 50% of its reach "
+                      "past the cuff to the tips, at quarters of its width there (de2fa87's comb of separate fingers)",
+        'blunt_hands': "each drawn hand squared off: from 75% of its reach to its tip, its width held at the width it "
+                       "has at 75% (fingertips side by side at one level, not converging)",
     }
 
     def __init__(self, B, design):
@@ -78,6 +94,27 @@ class Hands(Garments):
                 out[v][m & ~e] = -1
                 out[v][e] = self.skin[0]
                 self._cleared[v] |= m | e
+            elif kind in ('comb_hands', 'blunt_hands'):
+                sS, tT = handqa.coords(m.shape, h['c'], h['u'], self.ppl)
+                r = handqa.reach(h, self.ppl)
+                f = (sS - h['end']) / r
+                sb = np.round(sS * self.ppl).astype(int)
+                if kind == 'comb_hands':
+                    gone = np.zeros(m.shape, bool)
+                    for b in np.unique(sb[m & (f > 0.5)]):
+                        row = m & (sb == b)
+                        lo, hi = tT[row].min(), tT[row].max()
+                        for k in (1, 2, 3):
+                            gone |= row & (np.abs(tT - (lo + k * (hi - lo) / 4.0)) * self.ppl < 1.0)
+                    out[v][gone] = -1
+                    self._cleared[v] |= gone
+                else:
+                    at = m & (np.abs(f - 0.75) * r * self.ppl <= 0.75)
+                    lo, hi = tT[at].min(), tT[at].max()
+                    tip = np.percentile(sS[m], 99.5)
+                    add = (f >= 0.75) & (sS <= tip) & (tT >= lo) & (tT <= hi) & ~m & ~h['cuff']
+                    out[v][add] = self.skin[0]
+                    self._cleared[v] |= add
             else:
                 raise KeyError(kind)
         return out

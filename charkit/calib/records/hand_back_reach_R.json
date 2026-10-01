@@ -3,7 +3,7 @@
  "part": "hands",
  "adapter": "Hands",
  "module": "charkit.calib.hands",
- "at": "2026-09-30T21:43:54",
+ "at": "2026-10-01T16:31:18",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -79,15 +79,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": -0.0575,
-  "status": "WARN",
-  "margin": 0.822
+  "value": 0.0026,
+  "status": "PASS",
+  "margin": 1.03
  },
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0.0), mitten reads -0.3807 FAIL, the floor stub_hands FAIL",
- "build": "charkit/out/calib/cur_hands",
+ "build": "charkit/out/hands2_after_q",
  "generators": {
   "stub_hands": "each drawn hand cut off at 35-60% of its reach past the cuff"
  },
- "seconds": 76.0
+ "seconds": 342.9
 }
