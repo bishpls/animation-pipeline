@@ -112,6 +112,11 @@ resolved by taking pipeline-3d's and reapplying the body_hull routing at its Fit
     follow died: `python -m charkit remote attach build-char3-1001-141348-1817`); pregate
     `pregate-char3-1001-140854-89f4` on render2 (of 6a30512e; log charkit/private/c3/out/pregate.log; attach likewise).
   - The full test suite on the merged tree (6a30512e): 99 files, 0 failed.
+  - PREGATE DONE: PASS (3 moved, 0 blocking, 978 s), charkit/out/pregate/pregate_tool-char3_6a30512e_into_60c0f1a4.md.
+    Moved by 0.001-0.002, value only: body_three_quarter_iou_hair 0.743 -> 0.742, sheet_shown_front 0.465 -> 0.466,
+    sheet_shown_three_quarter 0.463 -> 0.461 (all hair/sheet readings: before the box gate, find which detection
+    change reaches Clawd's hair path at the QA's scale (at_scale's resample factors other than the 1.0/0.5/0.25
+    compared) and either make it identical or register the remeasure in charkit/steps/).
   - The first launch of the build failed in the sync: a blob's sha256 mismatched on the box (a file that changed
     between the laptop's hash and its upload: the local test suite was rewriting transient files in the worktree,
     e.g. test_cache's charkit/probe.py). The box caught it loudly; rerun after the tests: synced in 1.9 s. Finding
