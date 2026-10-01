@@ -1,4 +1,4 @@
-"""round 4: the trial-join cap (det_join_nfev) must leave every shell bit-identical; skin_clear moves only the vertices
+"""round 4: the trial-join cap (det_join_nfev) and frames' plain-float transport must leave every shell bit-identical; skin_clear moves only the vertices
 inside the skin. build_shells three ways on one fit context: as before (no cap, no skin_clear), with the cap, with cap +
 skin_clear; per lock the sha256 of its vertices, the CPU of each run.
     python tools/hairshell3/capcheck.py BUILD OPTS.json OUT.json"""
@@ -11,8 +11,10 @@ build, opts, out = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3]
 os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
 ctx = ls.context(build)
 runs = {'before': dict(det_join_nfev=None, skin_clear=False), 'cap': dict(skin_clear=False), 'cap_skin': {}}
+fast = {'before': False, 'cap': True, 'cap_skin': True}     # (frames' plain-float transport: the old path off)
 res = {}
 for name, over in runs.items():
+    ls.FRAMES_FAST = fast[name]
     t = time.process_time()
     LS = ls.build_shells(ctx['F'], ctx['masks'], ctx['views'], ctx['hull_frame'], ctx['L'],
                          dict(opts, split=ctx['split'], **over), log=lambda *a: None)

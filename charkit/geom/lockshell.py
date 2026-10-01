@@ -41,7 +41,7 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
                join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex',
                det=True, det_method='lm', det_step=1e-6, det_tol=1e-10, det_nfev=600, det_q_in=2.0 ** -12,
-               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0, skin_clear='vertex', det_join_nfev=150)
+               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0, skin_clear='vertex', det_join_nfev=60)
 # (round 4) det_join_nfev: a trial join's evaluations (det): one the fit can't bring within view_cost_max in that many
 # is dropped (it ran to det_nfev before: the build's CPU); one it accepts that the cap stopped is fitted again in full.
 # (round 4) skin_clear: the shell held gap L outside the skin (the crown chart's skin field): 'vertex' (the default:
@@ -182,6 +182,9 @@ def _sample3(C, G, ph, th):
     return _at3(C, x, y)
 
 
+FRAMES_FAST = True          # (round 4) frames' transport on plain floats (False: the numpy loop, for the bit-identity check)
+
+
 def frames(P, chart, twist=0.0, smooth=False):
     """per centreline point: tangent t, thickness axis a (out of the chart's centre, square to t, turned by twist rad
     about t) and broad axis b = t x a."""
@@ -195,14 +198,38 @@ def frames(P, chart, twist=0.0, smooth=False):
     # frame is carried along from its neighbour (parallel transport), from the tip end, blended in as the radial fades
     n = len(P)
     a = a0.copy()
-    for k in range(n - 2, -1, -1):
-        tr = a[k + 1] - t[k] * (a[k + 1] @ t[k])
-        tr /= np.linalg.norm(tr) + 1e-12
-        w = float(_smoothstep((st[k] - 0.25) / 0.5) if smooth else np.clip((st[k] - 0.25) / 0.5, 0.0, 1.0))
-        v = w * a0[k] + (1 - w) * tr
-        if v @ tr < 0:
-            v = tr
-        a[k] = v / (np.linalg.norm(v) + 1e-12)
+    if FRAMES_FAST:
+        # (round 4: the build's CPU) the same transport on plain floats, the blend weights computed once as a vector
+        # (frames ran ~11 million loop steps of 3-vector numpy calls in a pilot fit, 45% of its time)
+        W = (_smoothstep((st - 0.25) / 0.5) if smooth else np.clip((st - 0.25) / 0.5, 0.0, 1.0)).tolist()
+        A0, T_ = a0.tolist(), t.tolist()
+        ax, ay, az = A0[n - 1]
+        out = [None] * n
+        out[n - 1] = (ax, ay, az)
+        for k in range(n - 2, -1, -1):
+            tx, ty, tz = T_[k]
+            d = ax * tx + ay * ty + az * tz
+            rx, ry, rz = ax - tx * d, ay - ty * d, az - tz * d
+            nr_ = math.sqrt(rx * rx + ry * ry + rz * rz) + 1e-12
+            rx, ry, rz = rx / nr_, ry / nr_, rz / nr_
+            w = W[k]
+            bx, by, bz = A0[k]
+            vx, vy, vz = w * bx + (1 - w) * rx, w * by + (1 - w) * ry, w * bz + (1 - w) * rz
+            if vx * rx + vy * ry + vz * rz < 0:
+                vx, vy, vz = rx, ry, rz
+            nv = math.sqrt(vx * vx + vy * vy + vz * vz) + 1e-12
+            ax, ay, az = vx / nv, vy / nv, vz / nv
+            out[k] = (ax, ay, az)
+        a = np.array(out, float)
+    else:
+        for k in range(n - 2, -1, -1):
+            tr = a[k + 1] - t[k] * (a[k + 1] @ t[k])
+            tr /= np.linalg.norm(tr) + 1e-12
+            w = float(_smoothstep((st[k] - 0.25) / 0.5) if smooth else np.clip((st[k] - 0.25) / 0.5, 0.0, 1.0))
+            v = w * a0[k] + (1 - w) * tr
+            if v @ tr < 0:
+                v = tr
+            a[k] = v / (np.linalg.norm(v) + 1e-12)
     if n > 4:
         # no faster turn of the section than the centreline's own: the frame smoothed along it (a wide lens whose
         # frame turns between two stations crosses its own faces)
