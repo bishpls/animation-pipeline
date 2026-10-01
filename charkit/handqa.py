@@ -49,6 +49,9 @@ LIMITS = {                                       # (pass within, warn within); e
     'digits': (1, 2),                            # |ours - design| digits across the fingers (the drawn count varies
                                                  # by 1 from band to band), ours showing at least 2
     'cleft': ((0.6, 1.67), (0.4, 2.5)),          # ours over the design's deepest silhouette pocket
+    'gaps': (0.03, 0.06),                        # ours - design: the fingertips' span with no hand in it (share)
+    'taper': (0.08, 0.15),                       # |ours - design|: the fingertips' width over the hand's widest
+    'cleftpos': (0.06, 0.12),                    # |ours - design|: the deepest pocket's bottom along the reach (share)
 }
 HAND_3D = 0.9           # L: our hand is the skin's shells lying wholly within this of its wrist band's centre, below
                         # it (the palm and each digit are shells of their own: charkit/code_hand.py)
@@ -56,6 +59,12 @@ VISIBLE_MIN = 0.75      # our hand less visible than this in a view (behind the 
                         # not read (what the picture shows of them is the occluder's edge), its shape on what shows
 CLEFT_MIN = 0.03        # L: a drawn pocket this deep is a cleft the hand's shape carries (the three-quarter's far hand,
                         # its thumb behind the fingers: 0.015)
+CLEFT_FLOOR = 0.01      # L: a pocket shallower than this is no cleft (cleft_at: None)
+# round 4 (tool/hands2, Michael 2026-10-01: the hand "clearly extremely off-model" while hand_shape passed): the
+# structure inside the silhouette the IoU can't see, measured along the reach past the cuff (shares of it)
+GAP_BANDS = (0.8, 0.85, 0.9, 0.95)                              # the fingertips' bands (gaps)
+PROFILE_BANDS = tuple(np.round(np.arange(0.05, 0.96, 0.05), 2))  # the width profile's bands (taper, profile)
+TIP_BANDS = (0.85, 0.9, 0.95)                                   # the fingertips' width (taper)
 
 
 def grade(key, v, ours=None):
@@ -66,7 +75,9 @@ def grade(key, v, ours=None):
         return 'FAIL'
     if key == 'shape':
         return 'PASS' if v >= p else 'WARN' if v >= w else 'FAIL'
-    v = abs(v)
+    if key == 'cleftpos' and v is None:
+        return 'FAIL'
+    v = max(v, 0.0) if key == 'gaps' else abs(v)
     return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
 
 
@@ -379,14 +390,79 @@ def hands_of(skin, cuffs, ppl):
     return {s: hand_mask(skin, m, ppl) for s, m in cuffs.items() if m is not None and m.sum() >= MIN_PX}
 
 
+def bands_across(h, ppl, shares):
+    """per share of the reach past the cuff, the hand's band across the arm there (0.75 px either side): (its span
+    across, L; the share of that span with no hand in it) -> (widths, gaps) arrays (0, 0 where the band is empty)."""
+    m = h['mask']
+    s, t = coords(m.shape, h['c'], h['u'], ppl)
+    r = reach(h, ppl)
+    W, G = [], []
+    for f in shares:
+        band = m & (np.abs(s - (h['end'] + f * r)) <= 0.75 / ppl)
+        if not band.any():
+            W.append(0.0)
+            G.append(0.0)
+            continue
+        tb = np.round(t[band] * ppl).astype(int)
+        span = tb.max() - tb.min() + 1
+        W.append(span / ppl)
+        G.append(1.0 - len(np.unique(tb)) / float(span))
+    return np.array(W), np.array(G)
+
+
+def gaps(h, ppl, shares=GAP_BANDS):
+    """the fingers held together or apart: the mean share of the hand's span across the arm with no hand in it, over
+    bands at GAP_BANDS of the reach (the fingertips: a drawn relaxed hand's fingers touch to the tips, 0-0.025; ours,
+    four separate tubes fanned apart, showed the background between them, 0.10-0.18)."""
+    return float(bands_across(h, ppl, shares)[1].mean())
+
+
+def taper(h, ppl):
+    """how the hand narrows to its fingertips: its mean width across the arm over TIP_BANDS of the reach over its
+    widest over PROFILE_BANDS (the drawn hands converge to the middle finger's tip, 0.40-0.51; a hand ending square,
+    its fingertips side by side at one level, near 0.6-0.7)."""
+    W, _ = bands_across(h, ppl, PROFILE_BANDS)
+    if not W.max():
+        return 0.0
+    tip = np.isin(np.round(PROFILE_BANDS, 2), np.round(TIP_BANDS, 2))
+    return float(W[tip].mean() / W.max())
+
+
+def cleft_at(m, h, ppl):
+    """where the deepest silhouette pocket's bottom lies along the reach past the cuff (a share of the reach): the
+    thumb's cleft where the design draws one (0.56-0.64 front, back and three-quarter), and not a gap between fingers
+    (ours 0.72-0.76: the cleft check passed on our fingers' gaps) -> share, or None when no pocket is CLEFT_FLOOR deep."""
+    from scipy import ndimage
+    from skimage.morphology import convex_hull_image
+    from .bodymeasure import window
+    w = window(m, pad=2)
+    mm = m[w]
+    hull = convex_hull_image(mm)
+    pocket = hull & ~mm
+    if not pocket.any():
+        return None
+    depth = np.where(pocket, ndimage.distance_transform_edt(hull), 0.0)
+    if depth.max() < CLEFT_FLOOR * ppl:
+        return None
+    by, bx = np.unravel_index(np.argmax(depth), depth.shape)
+    s, _ = coords(m.shape, h['c'], h['u'], ppl)
+    return float((s[w][by, bx] - h['end']) / reach(h, ppl))
+
+
 def features(h, seams, ppl):
-    """what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width)."""
+    """what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width, gaps, taper,
+    cleft_at, profile (its width across the arm at PROFILE_BANDS of the reach over the reach))."""
     m = h['mask']
     n, per = digits(h, seams, ppl)
     cd, pk = cleft(m, ppl)
     _, t = coords(m.shape, h['c'], h['u'], ppl)
-    return dict(px=int(m.sum()), reach=round(reach(h, ppl), 4), digits=int(n), per_band=per, cleft=round(cd, 4),
-                pockets=pk, width=round(float(np.percentile(t[m], 99) - np.percentile(t[m], 1)), 4))
+    r = reach(h, ppl)
+    ca = cleft_at(m, h, ppl)
+    W, _ = bands_across(h, ppl, PROFILE_BANDS)
+    return dict(px=int(m.sum()), reach=round(r, 4), digits=int(n), per_band=per, cleft=round(cd, 4),
+                pockets=pk, width=round(float(np.percentile(t[m], 99) - np.percentile(t[m], 1)), 4),
+                gaps=round(gaps(h, ppl), 4), taper=round(taper(h, ppl), 4),
+                cleft_at=None if ca is None else round(ca, 4), profile=[round(float(x) / max(r, 1e-9), 3) for x in W])
 
 
 @qa_part('hands', order=1785, prefix='hand_', table='hands')
@@ -465,18 +541,29 @@ def measure(B, design, out=None):
                             ('digits', "the digits a band across the fingers shows (runs and the seams inside them, "
                                        "the median over bands at 55-90% of the reach), ours minus the design's"),
                             ('cleft', "the deepest pocket between the hand's silhouette and its convex hull (the "
-                                      "thumb's cleft, spread fingers), ours over the design's")):
-                if (k == 'digits' and fd['digits'] < 2) or (k == 'cleft' and fd['cleft'] < CLEFT_MIN):
+                                      "thumb's cleft, spread fingers), ours over the design's"),
+                            ('gaps', "the fingers held together: the share of the hand's span across the arm with no "
+                                     "hand in it at 80-95% of the reach (the fingertips), ours minus the design's"),
+                            ('taper', "the hand narrowing to its fingertips: its width at 85-95% of the reach over its "
+                                      "widest, ours minus the design's"),
+                            ('cleftpos', "where the deepest silhouette pocket's bottom lies along the reach (a share "
+                                         "of it: the drawn thumb's cleft, not a gap between fingers), ours minus the "
+                                         "design's")):
+                if (k == 'digits' and fd['digits'] < 2) or (k in ('cleft', 'cleftpos') and fd['cleft'] < CLEFT_MIN):
                     continue
-                if k in ('digits', 'cleft') and vis < VISIBLE_MIN:
+                if k != 'reach' and vis < VISIBLE_MIN:
                     C['%s_%s_%s' % (v, k, s)] = {'value': None, 'status': 'INFO', 'design': fd[k], 'ours': fo[k],
                                                  'why': 'our hand is %d%% hidden in this view (behind %s)'
                                                         % (round(100 * (1 - vis)), max(H['by'], key=H['by'].get)),
                                                  'note': note}
                     continue
-                d_ = fo[k] / fd[k] if k == 'cleft' else fo[k] - fd[k]
-                C['%s_%s_%s' % (v, k, s)] = {'value': round(d_, 4) if k != 'digits' else int(d_),
-                                             'status': grade(k, d_, fo[k]), 'ours': fo[k], 'design': fd[k],
+                ko = {'cleftpos': 'cleft_at'}.get(k, k)
+                if fo[ko] is None or fd[ko] is None:
+                    d_ = None
+                else:
+                    d_ = fo[ko] / fd[ko] if k == 'cleft' else fo[ko] - fd[ko]
+                C['%s_%s_%s' % (v, k, s)] = {'value': None if d_ is None else round(d_, 4) if k != 'digits' else int(d_),
+                                             'status': grade(k, d_, fo[ko]), 'ours': fo[ko], 'design': fd[ko],
                                              'note': note}
             if out:
                 if vis < 1.0:

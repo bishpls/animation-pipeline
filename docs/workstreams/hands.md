@@ -275,3 +275,68 @@ off-model" while its checks pass on shape IoU (13 PASS / 7 WARN / 1 FAIL). A che
 the measure, truth-check the asset, check granularity, then fix the builder (code_hand.py). Rest orientation A stays;
 the pose library stays deferred. Harness and outputs: `charkit/out/hands2/`.
 - Box build `charkit/out/hands2_base` (render box, boards body,design): pipeline-3d 71a2f0e as is (the before).
+
+### Round 4 state at wrap-up (2026-10-01; coordinator: WRAP UP at 95% weekly capacity, the fix not started)
+Steps done: look, name, measure, truth-check, granularity, a dry calibration. Not done: the builder fix, the records,
+the box build, the review page, the gate. Pictures (charkit/out/hands2/, local): `zoom_pairs.png` (design over ours at
+matching scale, front L, 3q L, front R, back L), `look_pairs.png`, `look_design_front.png` beside
+`look_b4_front_board.png` (the EEVEE board), `feat_b4_4.png` (each hand turned arm-down, its interior seams black:
+design | ours for front L, 3q L, profile L, back R). Numbers: feat_b4.json, sheetfeat.json, hq_b4/checks.json.
+
+**What makes it off-model** (ours = de2fa87's hand, read on hands_b4, the same code and knobs; shares of the reach past
+the cuff; both drawings agree: the turnaround and the hand sheet at 4x its resolution):
+1. **A comb, not a hand.** Four thin separate finger tubes, each outlined, fanned apart, the background (and dark
+   double hull lines) between them. Gaps at the fingertips (the hand's span with no hand in it, 80-95% of the reach):
+   design 0.000-0.010 (sheet: relaxed back 0.025, side 0), ours 0.106-0.176 (front, back, 3q L); profile 0.023.
+2. **Square end.** Taper (the width at 85-95% over the widest): design 0.40-0.51 (sheet 0.43 / 0.32; 3q R 0.70, the
+   far hand), ours 0.59-0.67: the fingertips side by side at one level where the drawing converges on the middle tip.
+3. **No thumb.** The drawn thumb is its own prong with a V cleft (front, back, 3q); ours is a nub against the palm
+   (thumb_out 5.4, thumb_down 5.1 deg: the fit folded it in). The deepest silhouette pocket's bottom: design 0.56-0.64
+   (profile 0.74), ours 0.72-0.76, a gap between fingers. The cleft check (depth ratio 0.81-1.37, PASS) was passing on
+   our finger gaps.
+4. **A block palm.** No wrist: the width at 5% over the widest, design 0.66-0.84 (sheet back 0.60), ours 0.84-0.93
+   (largest in 3q L 0.69 vs 0.93 and profile 0.66 vs 0.93).
+5. **Lines.** The drawing's interior lines are hairlines starting 30-57% down; ours run from the knuckles (~10%) as
+   dark wedges (each finger's hull). Not made a check: our_seams marks the palm/finger shell boundary as a knuckle
+   cross-line the drawing of ours doesn't draw, and an interior-ink share (declared.our_lines) reads ours below the
+   design because our mask excludes the gaps our ink sits in (inkfeat.py). Fidelity work for later.
+6. Profile (orientation A, Michael's call): ours edge-on, widest 0.29 of the reach vs the drawn 0.49: A's known
+   per-view cost, not the template's.
+
+**Truth-check:** the drawn cuff masks the hand is cut at equal the hand-checked outfit truth (IoU 1.000 in every view
+and side; 3q R's cuff 0.615 but its hand cut identical, 1.000) (truthcheck.py). The hand sheet corroborates 1-4.
+**Granularity (probes on hand_shape, dry run):** comb_hands (the drawn fingers slit apart) 0.81 PASS, blunt_hands
+(squared tips) 0.82-0.88 PASS, blob_hands 0.80-0.81 PASS: the shape IoU can't see finger separation, square tips or
+digits. That's the check-versus-eye gap.
+
+**New checks (committed as work in progress, no records yet):** handqa `hand_{view}_gaps_{L,R}` (ours - design, PASS
+0.03 / WARN 0.06), `hand_{view}_taper_{L,R}` (|ours - design|, 0.08 / 0.15), `hand_{view}_cleftpos_{L,R}` (0.06 /
+0.12; where the design's cleft >= CLEFT_MIN); INFO below VISIBLE_MIN like digits and cleft; `features` adds gaps,
+taper, cleft_at and the width profile. The 22 existing hand checks read identically on b4. calib/hands.py: entries for
+the three, known-bad `comb_hand` (stored: charkit/calib/known_bad/comb_hand.json, the store
+charkit/out/calib/builds/comb_hand = hands_b4), probes comb_hands, blunt_hands (also on hand_shape).
+Dry calibration (`calibrate ... --build charkit/out/calib/cur_comb --no-write`, calib_dry.log; current = comb_hand):
+- gaps: CALIBRATED front L/R, back L/R, 3q L (design 0, comb 0.11-0.18 FAIL, comb probe FAIL; kind defect, the blob
+  floor passes as expected). BLIND profile L (comb 0.023) and 3q R (0: the far hand edge-on).
+- taper: CALIBRATED 6 of 7 (comb 0.15-0.21 FAIL; stub 0.47-0.55 FAIL; blob 0.12-0.22 WARN/FAIL). BLIND 3q R.
+- cleftpos: CALIBRATED front R, back L, profile L. BLIND front L (comb 0.092 WARN), back R (0.103 WARN), 3q L (0.059).
+
+**Exact next steps:**
+1. Scope, don't loosen: gaps only in front, back and 3q L (views list; profile L and 3q R draw the fingers edge-on, so
+   INFO); taper 3q R INFO; cleftpos tightened to 0.05 / 0.08 (the design's spread is 0, so it still PASSes; comb's front
+   L and back R then FAIL), 3q L INFO. Re-run the dry calibration. Update handqa's docstring list; register the step
+   in charkit/steps/handqa.py ('hand_*', COMMIT, "new: gaps, taper, cleftpos").
+2. The builder (code_hand.py), fitted with the new measures beside the shape IoU per view: extend Fit.score with gaps,
+   taper and cleft_at on the template's own renders. Knobs: spread allowed negative (tips converge; BOUNDS -8..12),
+   fingers wide enough to touch their neighbours along their length (knuckle spacing is 0.24 palm_w), a stronger taper;
+   the thumb as a prong parting at ~0.6 of the reach (thumb_out, thumb_len, thumb_w into FIT_KNOBS); a narrower wrist
+   (wrist_w / palm_w ~0.7-0.75). Keep the weights summing to 1 and fist_report healthy (charkit/tests/test_code_hand.py).
+3. Motion 2x2: build_body_data reads the hand rings from body_code.npz and reaches only code_hand.UV_BAND, so geometry
+   changes in code_hand shouldn't flag motion_*; handqa did change, so after the after-build:
+   `python charkit/out/hands2/curdir.py BUILD cur_hands2`, then `python -m charkit calibrate 'hand_*' --build
+   charkit/out/calib/cur_hands2` (all 42 records).
+4. Box build (render, boards body,design), review page (design | before hands_b4 | after, per view and the hands
+   close-ups), pregate, `python -m charkit remote gate tool/hands2 --into pipeline-3d`.
+- Box build `charkit/out/hands2_base` (pipeline-3d 71a2f0e, the before): launched, reached code_body when the box's ssh
+  started failing; check `python -m charkit remote jobs` / `remote attach` before relaunching. hands_b4 serves as the
+  before (the same hand).
