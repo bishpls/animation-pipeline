@@ -413,6 +413,16 @@ def regions(rig, skin='clawd_skin'):
     return R
 
 
+def shells(V, F):
+    """each vertex's connected shell (an id)."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    n = len(V)
+    A = coo_matrix((np.ones(3 * len(F)), (np.r_[F[:, 0], F[:, 1], F[:, 2]], np.r_[F[:, 1], F[:, 2], F[:, 0]])),
+                   shape=(n, n))
+    return connected_components(A, directed=False)[1]
+
+
 def submesh(F, keep):
     """the triangles of F whose three vertices are all kept -> (m, 3)."""
     return F[keep[F].all(1)]
@@ -739,6 +749,7 @@ STRAIN_EDGE = 0.015         # L: strain is read over edges at least this long at
 ZONE = 0.35                 # L: the skin round a joint read for its strain, collapsed and folded area
 ZONES = [(z + '_' + S, s + b) for s, S in (('left', 'L'), ('right', 'R')) for z, b in (
     ('shoulder', 'UpperArm'), ('elbow', 'LowerArm'), ('hip', 'UpperLeg'), ('knee', 'LowerLeg'))] + [('neck', 'neck')]
+CONTACT = 0.02              # L: a region's points this near another's surface at rest (or inside it) meet it there
 JUNCTION = 0.12             # L: a skin pair's points this near the other region's caps at rest are its junction
 TOL = 0.004                  # L: a new penetration shallower than this is contact, not counted
 MAX_POINTS = 12000           # points a region or garment is queried with (every k-th vertex beyond)
@@ -787,6 +798,21 @@ class Context:
                 idx = self.pts[a]
                 far = self.closed[b].cap_distance(o.V, o.V[idx]) > JUNCTION * self.L
                 self.pair_pts[name] = idx[far]
+        # where a region meets another at rest (A's points inside B or within CONTACT L of it: a separate shell's
+        # buried end, a shell laid against another, a joined region's junction): a pose that opens it shows a cap and
+        # a gap (the old body's arm at the side raise, the thigh's top in the squat)
+        self.contact = {}
+        shell = shells(o.V, o.F)
+        for name, a, b in SKIN_PAIRS:
+            if b in self.bv0 and a in self.pts and not name.startswith('finger_'):
+                idx = self.pts[a]
+                idx = idx[~np.isin(shell[idx], np.unique(shell[self.R[b]]))]     # (separate shells only: a joined
+                if not len(idx):                                                   # region stretches, never opens)
+                    continue
+                d = self.bv0[b].nearest(o.V[idx])[0]
+                near = (d < CONTACT * self.L) | (self.bv0[b].winding_number(o.V[idx]) > 0.5)
+                if near.sum() >= 8:
+                    self.contact[name] = idx[near]
         self.skin_bv0 = BVH((o.V, o.F))
         # the skin round each joint (within ZONE L of its head at rest): where its deformation is read
         self.zones = {}
@@ -840,6 +866,18 @@ def measure_pose(ctx, D, X=None):
         idx = ctx.pair_pts[name]
         sp[name] = inside_new(ctx.rest[sk][idx], Xs[idx], ctx.bv0[b], bv1[b], L, ctx.tol)
     out['skin_pairs'] = sp
+    ex = {}
+    for name, idx in ctx.contact.items():
+        b = next(bb for nn, aa, bb in SKIN_PAIRS if nn == name)
+        if b not in bv1:
+            continue
+        out_ = bv1[b].winding_number(Xs[idx]) < 0.5
+        d = bv1[b].nearest(Xs[idx][out_])[0] / L if out_.any() else np.zeros(0)
+        # (the contact's rest distance is CONTACT at most: what's open is beyond it)
+        op = d > CONTACT
+        ex[name] = dict(n=int(op.sum()), share=round(float(op.sum() / len(idx)), 4),
+                        depth=round(float(d.max()), 4) if op.any() else 0.0)
+    out['open'] = ex
     # garments inside the skin
     skin_bv = BVH((Xs, rig.objs[sk].F))
     g = {}
@@ -893,6 +931,10 @@ def summary(m):
         'arm_torso': worst([k for k in sp if k.startswith(('arm_torso', 'arm_head', 'arm_arm'))]),
         'leg_torso': worst([k for k in sp if k.startswith(('thigh_torso', 'leg_leg'))]),
         'finger_finger': worst([k for k in sp if k.startswith('finger_')]),
+        'arm_open': max([v['depth'] for k, v in (m.get('open') or {}).items()
+                         if k.startswith('arm_torso')] or [0.0]),
+        'leg_open': max([v['depth'] for k, v in (m.get('open') or {}).items()
+                         if k.startswith('thigh_torso')] or [0.0]),
         'skin_strain': m['skin']['p95'], 'skin_collapsed': m['skin']['collapsed'], 'skin_folded': m['skin']['folded'],
     })
     for grp, names in GARMENT_GROUPS.items():
@@ -1015,10 +1057,12 @@ def _bary(q, A, B, C):
 # shows, under 0.65 the joint collapses (LBS's candy-wrapper). Penetration: contact (0.01 L, about 2.5 mm on Clawd)
 # passes, 0.03 L shows. Crossings: a few edges at a seam pass, a percent shows. Strain: cloth and skin stretched 25%
 # pass, 50% tear the look. Fingers are thin (about 0.06 L across): one inside another past a quarter of its width
-# shows.
+# shows. Open: where a region met another at rest (within CONTACT, or inside), a pose that parts them by more than a
+# few millimetres (0.02 L beyond the contact) shows a gap and the shell's cap.
 LIMITS = {
     'vol': (0.8, 0.65, 'higher'),
     'arm_torso': (0.01, 0.03), 'leg_torso': (0.01, 0.03), 'finger_finger': (0.008, 0.015),
+    'arm_open': (0.02, 0.04), 'leg_open': (0.02, 0.04),
     'sleeve_body': (0.01, 0.03), 'skirt_legs': (0.01, 0.03), 'top_body': (0.01, 0.03), 'shorts_boots': (0.01, 0.03),
     'hair_shoulders': (0.001, 0.01), 'hand_skirt': (0.002, 0.01), 'sleeve_top': (0.002, 0.01),
     'skin_strain': (0.25, 0.5), 'garment_strain': (0.25, 0.5), 'skin_collapsed': (0.002, 0.01),
@@ -1094,7 +1138,8 @@ def _js(x):
 
 COLUMNS = ('vol_shoulder', 'vol_elbow', 'vol_wrist', 'vol_hip', 'vol_knee', 'vol_fingers', 'vol_neck', 'vol_waist',
            'shoulder_strain', 'shoulder_folded', 'elbow_folded', 'hip_strain', 'knee_folded', 'neck_strain',
-           'arm_torso', 'leg_torso', 'finger_finger', 'sleeve_body', 'skirt_legs', 'top_body', 'shorts_boots',
+           'arm_torso', 'arm_open', 'leg_torso', 'leg_open', 'finger_finger', 'sleeve_body', 'skirt_legs',
+           'top_body', 'shorts_boots',
            'hair_shoulders', 'hand_skirt', 'sleeve_top_L', 'sleeve_top_R', 'garment_strain', 'skin_strain',
            'skin_collapsed', 'skin_folded')
 
@@ -1330,7 +1375,8 @@ def _model_dqs(rig, D):
 
 
 # ------------------------------------------------------------------------------------------------- bodies compared
-BODY_COLS = ('vol_elbow', 'vol_knee', 'vol_fingers', 'arm_torso', 'leg_torso', 'finger_finger', 'shoulder_strain',
+BODY_COLS = ('vol_elbow', 'vol_knee', 'vol_fingers', 'arm_torso', 'arm_open', 'leg_torso', 'leg_open',
+             'finger_finger', 'shoulder_strain',
              'shoulder_folded', 'elbow_folded', 'knee_folded', 'neck_strain')
 GARMENT_COLS = ('sleeve_body', 'top_body', 'skirt_legs', 'shorts_boots', 'sleeve_top_L', 'sleeve_top_R',
                 'garment_strain', 'hand_skirt', 'hair_shoulders')

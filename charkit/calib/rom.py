@@ -43,8 +43,8 @@ CALIBRATION = [
 # poses (sleeve_body 0.126 / 0.126 L, skirt_legs 0.165 / 0.165, sleeve_top 0.021 / 0.022 on the default, 2026-10-01):
 # rom_sleeve_body, rom_top_body, rom_skirt_legs, rom_sleeve_top (a cloth or spring solution, then calibrate); the
 # joined shoulder's own strain and folding (rom_shoulder_strain, rom_shoulder_folded: no shoulder build passes yet),
-# rom_knee_folded (dual quaternions fold the knee's inside more, 0.098), rom_neck_strain, rom_leg_torso (the legs are
-# separate shells: no skinning fixes it), rom_hand_skirt.
+# rom_knee_folded (dual quaternions fold the knee's inside more, 0.098), rom_neck_strain, rom_leg_torso and rom_leg_open
+# (the legs are separate shells: no skinning fixes them), rom_hand_skirt.
 
 NUDGES = {(0, 1): dict(f=1.025), (0, 2): dict(f=1.05), (1, 0): dict(f=0.975), (2, 0): dict(f=0.95),
           (0, -1): dict(max_points=3000, max_edges=15000), (0, -2): dict(max_points=12000, max_edges=60000),
