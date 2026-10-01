@@ -651,3 +651,19 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   calibrated on the box with neck_v_*.
 - Review page JSONs (built on the box: `remote run --fetch DIR review page JSON --out DIR`): tools/garments4/review/
   stairs.json, neck.json, v1.json (figures copied under tools/garments4/review/).
+- **Stairs gate 3: PASS under K** (b4670264, the merge of pipeline-3d ff41ca2, into ff41ca20;
+  charkit/out/gate/gate_tool-garments4-stairs_b4670264_into_ff41ca20.md): CPU 1.00x. Mergeable at b4670264. (The carry
+  was refused: the build reads faceregion.py, which the neck merge changed.)
+- Review pages (built on the box): stairs charkit/out/garments4/review/stairs/index.html, neck
+  charkit/out/garments4/review/neck_page/index.html (sources tools/garments4/review/*.json).
+- V gate running (tool/garments4-v a6e0e465+records into ff41ca2; log charkit/out/garments4/gate_v.log).
+- **Lapels, step 4 (tool/garments4-lapels):** the front band measure didn't calibrate (a 1-2 px vertical move reads
+  0.035-0.06 L; the hair occluder takes every design row in front): declared three-quarter only (charkit/lapelqa.py,
+  limits [0.015, 0.03] from the draft's design worst 0.0083 / 0.0104 and known-bad 0.061 / 0.063); the front graded by
+  piece_collar front, neck_v_front_skin, art_outline_collar. Sweep l1 (flat_front alone, conform off in front): worse
+  (collar front IoU 0.657 -> 0.506 at 60 deg, 0.19 at 120; art_outline_neck 1.47 -> 3.94): the conform was the
+  shape. New template: collar 'lapel' {a, point, soft} (a Coons patch per lapel in the front view: V edge straight
+  from the collar's V top to the point, the neckline row, the column at a, the outer edge; laid on the body from the
+  front; garments.front_hits) with flat_front over the same azimuths; the jacket's opening must reach under the lapels
+  (x1.0-1.1 of the drawn V; nv2's x0.85 leaves orange inside a drawn-width V). Sweep l2 running (tools/garments4/l2.json:
+  a 60/75, opening x0.85/1.0/1.1, v_half 40/48).
