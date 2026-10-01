@@ -274,3 +274,15 @@ if __name__ == '__main__':
         if k.startswith('test_'):
             f()
             print('ok', k)
+
+
+def test_view_override_is_off_by_default_and_follows_the_camera():
+    """the drawn placement's per-shot keys (charkit.mouth.VIEW; Michael, 2026-10-01): no slide, no keys; with one, the
+    weights follow the curve at the camera's yaw (her left: view_mouth_L), times the shot's setting (0 by default)."""
+    from charkit import mouth as m
+    assert m.view_knobs(m._knobs({})) is None and m.view_weights(m._knobs({}), 35.7) == {}
+    K = m._knobs({'view': {'slide': 0.11}})
+    assert m.view_weights(K, 35.7) == {'view_mouth_L': 1.0, 'view_mouth_R': 0.0}
+    assert m.view_weights(K, -35.7) == {'view_mouth_L': 0.0, 'view_mouth_R': 1.0}
+    assert m.view_weights(K, 0.0)['view_mouth_L'] == 0.0 and m.view_weights(K, 90.0)['view_mouth_L'] == 0.0
+    assert m.view_weights(K, 35.7, setting=0.0)['view_mouth_L'] == 0.0

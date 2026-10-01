@@ -22,7 +22,8 @@ regenerate it after changing a module's docstring or public functions. The curat
 - **Calibration**: calibrate.py (the triple: design moved 1-2 px, known-bad, random floor; records in
   calib/records), the stand-ins in calib/*.py (labels.Garments, details.Details, ...), declared.Declared (generic).
 - **Variants and attribution**: sweep.py (`charkit sweep`: declared rows rebuilt at a stage, measured, tabulated with
-  the shape guard; swap mode).
+  the shape guard; swap mode); optimize.py (`charkit sweep optimize`: a fit's knobs tuned by CMA-ES over sweep rows on
+  persistent workers, the constraints enforced, the best confirmed by real builds).
 - **Gate and infrastructure**: gate.py (policy K), pregate.py, codediff.py, closure.py, history.py, remote.py and
   boxjob.py (the boxes), bucketsync.py, procs.py (build slots), worker.py, sparse.py, trace.py.
 - **Review pages**: reviewpage.py (`charkit review page`: the standard page), preview.py (per-merge previews),
@@ -2157,6 +2158,47 @@ The nose's drawn mark (Michael's flag, 2026-09-30: the nose read only in profile
 - `mark(F, K, L, tip, n=9)`: the decal round the nose tip (world x, z) on the face F -> (verts, quads, slot per quad) or None (no part).
 - `tip_of(H, centre)`: the nose tip's world (x, z) on a head that knows it (charkit.code_base.SectionsHead: nose_z under the eye line), ...
 
+#### `charkit/optimize.py`
+
+charkit sweep optimize: a fit's knobs tuned by a batch optimizer instead of an agent hand-stepping sweeps (sweep, read the table, design the next sweep: face on sweep 8, lapels 7+, hair shells 11 on 2026-10-01). One launch, one read (tool/optimize, docs/workstreams/optimize.md). Each generation's population runs in parallel through the sweep's own stages ...
+
+- class `Knob`: one knob: a spec path (or a name the template reads), its bounds, integer or continuous, linear or log.
+- `expr(text, env)`: arithmetic over knob names (+ - * / ** %, unary -, min, max, abs, round) -> number. Nothing else is evaluated.
+- `fill(tpl, env)`: a template value with every '=EXPR' string evaluated.
+- class `Problem`: the declaration's optimize block, parsed: knobs, template, objective terms, constraints, method and limits.
+- `key(vals)`: a candidate's cache key: its knob values (rounded) as canonical JSON.
+- `reflect(y)`: unbounded genotype -> [0, 1] (mirrored at both bounds: a box constraint the search's distribution never sees).
+- class `CMA`: (mu/mu_w, lambda)-CMA-ES (Hansen's tutorial, arXiv:1604.00772), on the unit cube through reflect().
+- class `Uniform`: method 'random': each generation uniform in the cube (a baseline to judge the search against).
+- `fidelity(check, part=None, extra=None)`: 'real' when the screen's drawing can't read the check as the real build does (FIDELITY, REAL_PARTS, a run's own ...
+- `declared_limits()`: {check: (pass, warn, better)} from every declaration (charkit.declared), '{view}' expanded.
+- `limits_for(check, term=None)`: a check's grading for a 'pass' term -> (kind, pass, warn) or None: the term's own limits (better 'lower' default, ...
+- `raw_severity(lim, v)`: charkit.checks.severity's reading without its floor at 0: negative inside PASS (a margin's reward).
+- `field(c, path)`
+- class `Scorer`: the objective's terms (expanded on the control's checks) and the constraints against the control -> each ...
+- `rank_key(r)`: feasibility first, then the objective (an infeasible row by its violation).
+- class `Context`: what one process needs to evaluate rows: the sweep's stage (its context made once: the base bundle, the spec, the ...
+- `serve(decl_path, out, wid=0)`: `sweep worker DECL --out OUT`: one worker.
+- class `InProc`: the evaluator in this process (one worker's work, serially): tests, and a laptop's one slot.
+- class `Pool`: n persistent workers (`sweep worker`), each a fresh interpreter (fork+exec, so no fork-after-threads hazard) in a ...
+- `free_slots()`: (the machine's build slots, those free now): the box's /proc locks (charkit.boxjob), else charkit.procs'.
+- `load_decl(decl)`: a declaration (path or dict) -> dict, its base absolute: the sweep's (charkit.sweep.load_decl), with the 'python' ...
+- class `Run`: one optimization: its folder, history (the cache), state and limits.
+- `load(out)`
+- `sensitivity(P, H, O_spread=None)`: per knob: the probe's one-step effect (OAT), the effect over its range fitted on every feasible point (a linear ...
+- `report(out, log=print)`: the tables, plots and review page from a run's folder (history.jsonl, state.json, decl.json).
+- `convergence_plot(out, P, H, st)`
+- `sensitivity_plot(out, P, sens)`
+- `local_build(out, path)`: a confirm row's build folder here: as recorded, else the same place under this run's folder or this tree (a run ...
+- `review_json(out, decl, P, st, H, summ, conf)`: the review page's declaration (charkit review page): the summary box first.
+- `audit(build, parts=None, out=None, log=print)`: which checks the screen measures as the real build does: the build's own geometry measured with the numpy drawing ...
+- class `Synthetic`: a test objective (stage 'python', python 'charkit.optimize:synthetic'): knobs a, b, c (and n: an integer) set as ...
+- `synthetic(decl)`
+- class `AccfitPlace`: the clips' placement as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_place'): args ...
+- `accfit_place(decl)`
+- `main(args)`: `sweep optimize ...` (args after 'optimize').
+- `pick_box(reserve=1, log=print)`: --box auto: charkit.remote.pick_box (the build box while it has room, else the box with the most free slots).
+
 #### `charkit/outfit.py`
 
 Outfit intake (docs/CHARKIT.md §8): a character's references into an outfit component graph, so layered and flowy attire becomes separately built, rigged and measured pieces. Pure numpy/scipy (PIL for pictures); no Blender, no paid API.
@@ -2669,12 +2711,16 @@ Builds off the laptop, on the CPU build box (infra/gcp/build.sh; its config infr
 - `build(args, kind='build')`: remote build or tune: the spec made portable, the command run there, its --out fetched.
 - `collect(what)`: a finished job's outputs: pulled from the bucket (the job published them when it ended), else fetched through the ...
 - `gate(args)`: the gate on the box, run in parallel with other workstreams' gates.
+- `pregate(args)`: `pregate --box [NAME | auto]` (Michael's rule, 2026-10-01: the pre-gate's body evaluator is too heavy for the ...
+- `pick_box(reserve=1, log=print)`: `--box auto` (sweep optimize, pregate): every running box's free slots (box_slots), the build box when it has ...
 - `gate_report(folder, branch, tip, head)`: the report in a gate's own folder (its collected files) of branch at tip into head (shas: a prefix of either side ...
 - `gate_result(what, code)`: a finished gate job's own report (what: its collect record) copied into charkit/out/gate and named, with its ...
 - `supersede(branch, spec=None)`: one live gate per branch: this branch's gates still running on the box for the same spec are stopped (remote ...
 - `preflight()`: before a job: the box's gcloud credential can act without a prompt (a token).
 - `job(kind, script, label, collect=None)`: script run on the box as a detached job (charkit/boxjob.py), followed here until it ends -> its exit code ...
 - `attach(jid, rec=None, out=None)`: follow a job's log until it ends -> its exit code.
+- `box_slots(env=None)`: a box's build slots now (env: its infra/gcp/NAME.env; default the chosen box) -> dict(name, status, count, held, ...
+- `box_has(path)`: does the chosen box's copy of this worktree hold path (worktree-relative)?
 - `jobs(args)`: every box's jobs (running, and finished in the last --days, default 1).
 - `main_attach(args)`
 - `main_kill(args)`

@@ -107,8 +107,10 @@ def test_the_switches_hold_the_pleat_and_the_close_hung_tails_off_and_turn_them_
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     spec = json.load(open(os.path.join(root, 'charkit', 'spec', 'clawd.json')))
     bw = next(x for x in spec['garments'] if x['name'] == 'bow')
+    assert bw['pleat']['on'] and bw['close_hung']['on']                               # the default since garments4 Part 1
+    bw = dict(bw, pleat=dict(bw['pleat'], on=False), close_hung=dict(bw['close_hung'], on=False))
     off = g.bow_spec(bw)
-    assert 'pleat' not in off and 'close_hung' not in off and off.get('knot_box') is None   # the default: pillows
+    assert 'pleat' not in off and 'close_hung' not in off and off.get('knot_box') is None   # both off: the pillows
     assert off['knot'] == 0.6 and 'drop' not in off and 'root' not in off['ribbon']
     assert off['ribbon']['turn'] == 40 and off['ribbon']['w'] == [0.25, 0.415]              # pipeline-3d's tails
     ch = g.bow_spec(dict(bw, close_hung=dict(bw['close_hung'], on=True)))

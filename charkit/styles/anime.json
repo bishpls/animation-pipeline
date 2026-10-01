@@ -117,10 +117,25 @@
   "reach": [
    0.12,
    0.3
+  ],
+  "forehead": [
+   {
+    "depth": 0.04,
+    "z": 0.22,
+    "dz": 0.08,
+    "peak": 0.55
+   },
+   {
+    "depth": 0.04,
+    "z": 0.22,
+    "dz": 0.08,
+    "peak": 0.85
+   }
   ]
  },
  "_note_eyes": "eyes: the eye's surface turned round a fold at the iris's nasal edge (charkit.eyes.Surface; docs/workstreams/eyes2.md). The head sheet's eyes, measured per view by charkit.eyeqa (eye_view_*): in profile the iris sits against the opening's front edge (front_gap 0.000), all the white behind it (behind 1.00); in three-quarter the near eye's nasal white narrows (0.069 against the front's 0.09) and the far eye's widens (0.158). A plate on the face can't: every view sees its whole opening (profile front_gap 0.188, behind 0.00; three-quarter 0.179). Measured on Clawd (faceeval, clawd_body at tool/face 91e44ca): turn [-10, 5, 50] with fold_follow 0.5 and flick_turn 40 leaves one per-view WARN (the far eye's three-quarter nasal white 0.103 against 0.158); [-5, 10, 45] with fold_follow 1 leaves two (that, and the profile's iris too wide: gaze_off 0.181 against 0.258). The flick carried on the corner's own slope (flick_turn None) sweeps too far back once the corner turns 50 degrees (flick_out 0.70-0.81 against 0.556). anchor 'corners' (the corners on the face, the middle up to 0.03 L forward: faceregion's eye_hollow 0.016 -> 0.012, eye_bowl unchanged) against 'min' (the corners 0.03-0.05 L behind the face: eye_hollow 0.029-0.046, the far eye's nasal white hidden in three-quarter). converge 0.09: the head sheet converges the irises 0.087 of the opening in front (gaze_off; ours 0.064); 0.06-0.07 widen the far eye's white (0.125-0.15) but move its iris and the front's out of their bands. fold_back 0.015 L: anchored at the corners, the eye's middle comes forward and the profile's visible iris with it (0.012 L forward of where the plate had it); set back 0.015 it sits 0.003 L behind. The sheet checks anchor on each iris plate's vertex mean, which the turned surface carries 0.012 L further forward than the visible iris: at 0 they read sheet_profile 0.024 and nose_reach -0.032 (WARN), at 0.015 0.012 and -0.018 (PASS). Past 0.015 the corners sit behind the skin and the far eye's three-quarter iris moves out of its band. fold_shape 0 (tool/face6): the fold runs straight down at the iris's middle-row nasal edge instead of following its outline row by row, which compressed the three-quarter far eye's iris more in its middle rows than at its top and bottom (a straight-sided iris: iris fit 1.34 -> 1.18 against the design's 1.05); the profile's edge, gap and flick checks hold (venv lab, charkit/out/face6r2/run_v3.log).",
  "_note_eyes_wrap": "eyes.wrap (tool/face7; Michael's item 4, 2026-10-01: in profile the eye's far corner sat below the opening's middle, the design's above it, so the lash band slanted and the profile spikes didn't read): the upper lid's outer part wraps back round the head, 0.25 eye widths of depth per eye width of height above the outer corner at the corner, eased in from 0.2 eye widths outward of the centre; the skin over the lid follows it 0.07 L out (wrap_reach: with the fold's 0.035 the skin came in front of the spikes, which stand at their root's depth: the front's spikes read 1.0 -> 0.33). The front view is unchanged by construction (every (x, z) kept). Measured (charkit sweep --stage face on face7_b0, sw5): eye_corner_profile -0.074 FAIL -> -0.017, close-up profile -0.087 -> -0.030, three-quarter 0.017 -> 0.036 (its limit 0.04: the drawing keeps its 3/4 corner where its front has it, so the wrap stops short of the profile's 0.54), front unchanged; eye_lash_spikes_closeup_profile 0 -> 0.75; iris profile IoU 0.72 -> 0.78, lash 3/4 0.24 -> 0.30. 0.3 reads -0.009 / -0.021 / 0.039 and moves the profile flick (-0.056 -> -0.097) and eye width (1.0 -> 1.028).",
+ "_note_face_forehead": "face.forehead (tool/face7; Michael's item 3, 2026-10-01: the profile brow was short, 0.097 L deep against the drawn 0.136, because the forehead was flatter at brow height than the design's): two bumps rounding the forehead's front back at the brow's height (charkit.geom.headfit.FOREHEAD: each depth L at its peak across the face, 0 at the midline and the outline so the profile and front silhouettes stay; z 0.22 L above the eye line, eased out 0.08 L above and below, clear of the eye's lashes), 0.04 L at 0.55 of the half-width (the brow's middle) and 0.04 L at 0.85 (its outer end). One bump at the outer end alone lengthened the brow but flattened its profile arch (arch is height over length: brow_arch_closeup_profile FAIL); the middle bump keeps it. Measured (sweep sw11 on face7_b0 with the eye wrap): brow_len_closeup_profile 0.721 FAIL -> 0.861 WARN, brow_shape_closeup_profile 0.472 FAIL -> 0.755 PASS (with the spec's brows.arch 0.095 -> 0.1), brow_arch_closeup_profile 0.009 -> 0.001, front arch 0.003 -> 0.009, eye_hollow 0.012 -> 0.0035, the profile lash spikes kept (0.75); brow IoU profile 0.47 -> 0.76, front 0.82 -> 0.80.",
  "eyes": {
   "surface": "turned",
   "turn": [

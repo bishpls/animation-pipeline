@@ -3,7 +3,7 @@
  "part": "face_flags",
  "adapter": "FaceFlags",
  "module": "charkit.calib.faceflags",
- "at": "2026-10-01T10:08:15",
+ "at": "2026-10-01T11:54:34",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -83,9 +83,9 @@
  },
  "verdict": "guard",
  "why": "no known-bad (the front brow's length was never flagged: it holds the brow's x extent while the forehead rounds and the profile's length grows); the design passes and the floor does not",
- "build": "charkit/out/face7_g1",
+ "build": "charkit/out/face7_g2",
  "generators": {
   "brow_lengthened": "each brow rebuilt 0.6-0.8x or 1.25-1.5x as long"
  },
- "seconds": 38.4
+ "seconds": 40.7
 }
