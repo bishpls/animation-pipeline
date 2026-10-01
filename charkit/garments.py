@@ -4317,6 +4317,7 @@ def collar(A, spec, normals=None, neckline=None):
             zc_, yc_ = V[tri, 2].mean(1), V[tri, 1].mean(1)
             hw_t = A['weights'].get('head', np.zeros(len(V)))[tri].max(1)
             lap_T = tri[(zc_ < ez_ - 0.40 * L) & (zc_ > ez_ - 1.3 * L) & (yc_ < nb[1] + 0.05 * L) & (hw_t < 0.3)]
+            lap_field = lapel_field(V, lap_T, L, ez_, lap['smooth']) if lap.get('smooth') else None
     grid = np.zeros((nr + 1, na, 3))
     for k in range(na):
         a = -math.pi + 2 * math.pi * (k + 0.5) / na
@@ -4336,10 +4337,23 @@ def collar(A, spec, normals=None, neckline=None):
             sx = 1.0 if a >= 0 else -1.0
             Pp = np.array([nb[0] + sx * lap_p[0] * L, ez_ + lap_p[1] * L])
             Sp = np.array([nb[0] + sx * lap_s[0] * L, ez_ + lap_s[1] * L])
-            O = Pp + (abs(a) / math.radians(float(lap.get('a', 85)))) ** float(lap.get('spread', 1.0)) * (Sp - Pp)
+            a_max = math.radians(float(lap.get('a', 85)))
+            if lap.get('inner') is not None:
+                # (round 7) the V's point apart from the outer edge's low end: the bottom row runs from the V's point
+                # (`inner`, azimuth 0) across under the bow to the outer edge's low end (`point`, at `bottom_a`
+                # degrees), then up the outer edge to the shoulder; with one point for both, the lapel narrowed to the
+                # V's point, where the drawn one runs its outer edge from the shoulder under the bow at x ~0.2
+                Pv = np.array([nb[0] + sx * lap['inner'][0] * L, ez_ + lap['inner'][1] * L])
+                a_b = math.radians(float(lap.get('bottom_a', 30)))
+                if abs(a) <= a_b:
+                    O = Pv + (abs(a) / a_b) * (Pp - Pv)
+                else:
+                    O = Pp + ((abs(a) - a_b) / (a_max - a_b)) ** float(lap.get('spread', 1.0)) * (Sp - Pp)
+            else:
+                O = Pp + (abs(a) / a_max) ** float(lap.get('spread', 1.0)) * (Sp - Pp)
             ts = np.linspace(0.0, 1.0, nr + 1)
             Q = (1 - ts)[:, None] * np.array([p0[0], p0[2]])[None] + ts[:, None] * O[None]
-            ys, ns = front_hits(Q, V, lap_T)
+            ys, ns = front_hits(Q, V, lap_T) if lap_field is None else lap_field(Q)
             lo = float(lap.get('off', spec.get('offset', 0.03))) * L       # (over the jacket eased out on the bust)
             # the column as the collar walks it, for the blend into the collar's own surface toward `a`
             path = surface_walk(Vt, Nt, p0, d * 0.7 + np.array([0, 0, -0.3]), ln / (nr * 2), nr * 2,
@@ -4422,6 +4436,44 @@ def collar(A, spec, normals=None, neckline=None):
     nn = nearest(verts, V)
     W = {b: w[nn] for b, w in A['weights'].items() if w[nn].max() > 1e-4}
     return dict(verts=verts, faces=faces, weights=W, uv=uvs, edge=edge)
+
+
+def lapel_field(V, T, L, ez, sm):
+    """the surface the projected flat lapels lie on, as a height field seen from the front (round 7: laid on the torso's
+    frontmost faces point by point, neighbouring columns landed on the neck, the shoulder's top or the chest and folded
+    between them, 57% of the lapels' front area): the torso's frontmost depth (front_hits) on a `grid` L grid over the
+    chest and shoulders, the frontmost within `dilate` L of each point taken (a grey dilation, so the field stays in front
+    of every bump), blurred by `blur` L; normals from its gradient. A height field over (x, z) can't fold in the front
+    view. sm: {grid, dilate, blur} (L). -> fn(P2 (n, 2) world x, z) -> (y (n,), normal (n, 3) toward the front)."""
+    from scipy import ndimage
+    g = float(sm.get('grid', 0.01)) * L
+    x0, x1 = -0.6 * L, 0.6 * L
+    z0, z1 = ez - 1.3 * L, ez - 0.38 * L
+    xs = np.arange(x0, x1 + g, g); zs = np.arange(z0, z1 + g, g)
+    XX, ZZ = np.meshgrid(xs, zs)
+    y, _ = front_hits(np.c_[XX.ravel(), ZZ.ravel()], V, T)
+    Y = y.reshape(XX.shape)
+    bad = ~np.isfinite(Y)
+    if bad.all():
+        return lambda P2: (np.full(len(P2), np.nan), np.full((len(P2), 3), np.nan))
+    if bad.any():                                   # (off the torso: the nearest hit's depth)
+        idx = ndimage.distance_transform_edt(bad, return_distances=False, return_indices=True)
+        Y = Y[tuple(idx)]
+    k = max(1, int(round(float(sm.get('dilate', 0.03)) * L / g)))
+    Ys = -ndimage.grey_dilation(-Y, footprint=np.hypot(*np.mgrid[-k:k + 1, -k:k + 1]) <= k)
+    Ys = ndimage.gaussian_filter(Ys, float(sm.get('blur', 0.02)) * L / g, mode='nearest')
+    dz, dx = np.gradient(Ys, g)
+
+    def field(P2):
+        P2 = np.asarray(P2, float)
+        fi = (P2[:, 1] - z0) / g
+        fj = (P2[:, 0] - x0) / g
+        yv = ndimage.map_coordinates(Ys, [fi, fj], order=1, mode='nearest')
+        gx = ndimage.map_coordinates(dx, [fi, fj], order=1, mode='nearest')
+        gz = ndimage.map_coordinates(dz, [fi, fj], order=1, mode='nearest')
+        n = np.c_[gx, -np.ones(len(P2)), gz]
+        return yv, n / np.linalg.norm(n, axis=1, keepdims=True)
+    return field
 
 
 def front_hits(P2, V, T, chunk=256):
