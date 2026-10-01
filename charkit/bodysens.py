@@ -75,7 +75,9 @@ NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel'
              'hem_level', 'hem_snap',
              # a shell's cut templates (garments2: the jacket's open front, the bib inside it, the collar's outline and
              # stripe) and its refinement: tables and settings, not single knobs a sweep moves
-             'opening', 'inside', 'outline', 'stripe', 'refine')
+             'opening', 'inside', 'outline', 'stripe', 'refine',
+             # a shell bedded under the bow (garments.bed) and a piece's crease strokes (garments.with_ink): settings
+             'bed', 'creases')
 
 # hair.shape (mesh / geom mode): knob -> (default, step, lo, hi, note)
 HAIR_SHAPE = {
