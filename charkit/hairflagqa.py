@@ -527,18 +527,22 @@ def our_ink(B, design, hair=None, weights=None):
                 continue
             V, T = o.mesh('eval')[:2]
             sh = o.a('eval', 'shrink')
-            surf.append((V + sh if sh is not None else V, np.asarray(T)))
+            T = np.asarray(T)
+            surf.append((V + sh if sh is not None else V, T))
             if sh is not None:
-                hulls.append((np.asarray(V, float), np.asarray(T)[:, ::-1]))
+                # (a hull face with no width at any corner lies on the surface it came from: no ink; the outline_w
+                # group's zeros. Drawn at least a pixel wide, its edge-on slivers would read as dashes)
+                wd = np.linalg.norm(sh, axis=1)[T].max(1)
+                hulls.append((np.asarray(V, float), T[wd > 0.1 * LINE_W][:, ::-1]))
     else:
         for pc, (V, T) in hair.items():
             if pc not in FAMILY:
                 continue
             V, T = np.asarray(V, float), np.asarray(T)
-            w = LINE_W * (np.asarray(weights[pc], float) if weights and pc in weights else 1.0)
+            w = LINE_W * (np.asarray(weights[pc], float) if weights and pc in weights else np.ones(len(V)))
             n = vertex_normals(V, T)
-            surf.append((V - n * np.reshape(w, (-1, 1)) if np.ndim(w) else V - n * w, T))
-            hulls.append((V, T[:, ::-1]))
+            surf.append((V - n * w[:, None], T))
+            hulls.append((V, T[w[T].max(1) > 0.1 * LINE_W][:, ::-1]))
     dv = design.design_views()
     out = {}
     az = bodyqa.azimuths(sc['az3'])

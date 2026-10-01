@@ -2725,6 +2725,7 @@ def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4, tuck=No
         if len(line) < 3:
             continue
         line = np.array(line)
+        n_ext = 0
         if near is not None:
             # carried on from its root to the nearest drawn hair and `reach` px into it, the root's width held
             r0, c0 = int(round(line[0][1])), int(round(line[0][0]))
@@ -2737,6 +2738,7 @@ def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4, tuck=No
                 ext = line[0] + u * np.linspace(g + reach, 0, k_ + 1)[:-1, None]
                 line = np.r_[ext, line]
                 width = [width[0]] * len(ext) + list(width)
+                n_ext = len(ext)
         W3 = to_world(line[:, 0], line[:, 1])
         # one plane: the root's depth held along the strand (the mass's mid-plane jitters point to point), the line
         # smoothed along itself
@@ -2746,7 +2748,8 @@ def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4, tuck=No
             W3 = np.r_[W3[:1], gaussian_filter1d(W3, 0.8, axis=0, mode='nearest')[1:]]
         px = np.linalg.norm(to_world(np.array([0.0, 1.0]), np.array([0.0, 0.0]))[1] - to_world(np.array([0.0]),
                                                                                                  np.array([0.0]))[0])
-        wd = np.array(width) * px * np.linspace(1.0, 0.2, len(width))
+        # (the taper over the drawn strand only: its carried root keeps the root's width)
+        wd = np.array(width) * px * np.r_[np.ones(n_ext), np.linspace(1.0, 0.2, len(width) - n_ext)]
         if tuck is not None:
             W3, wd = tuck(W3, wd)
             if len(W3) < 3:
