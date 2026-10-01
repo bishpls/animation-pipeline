@@ -34,3 +34,27 @@ cand_tool-face5_6fed167_into_004efc3_default; `charkit/out/bo/pair_face5.json`, 
   the coordinator 2026-09-30 20:15. This branch can't clear face5's terminator.
 - The orientation ambiguity is real all the same: hull-local's B2s (the kept fit) against B2a (the annealed prior),
   IoUs within 0.02: bun_L turned 16.3 deg, bun_R 28.6 deg (pairmove.py), terminator 2.045 against 2.617.
+
+**What face5 changes in the side locks** (the gate pair's pieces.json reports): the lock partition moves:
+side_lock_L tips 38 / 58 / 74 -> 34 / 58 / 82 deg, side_lock_R -74 / -66 -> -78 / -62; body-clearance push 0.0401 ->
+0.0338 L (L) and 0.0326 -> 0.0283 (R); side_lock_trim pulled 91 -> 88 cells, pull_max 0.2324 -> 0.2162 L; the hull's
+labels front 6527 -> 6539, filled 2353 -> 2355; field cells 2693 -> 2697. The locks read the face through the hull's
+labels (the carve near the cheek), the skin's clearance (F['S']: trim floor, body_clear) and case.chin_z (the trim stops
+at the chin). Which one moves the tips: `tools/hull_local/hairswap.py` on the pair (B = face5, A = base; B+headA,
+B+hullA), next.
+
+## Plan for 2 (the orientation constraint), not started
+- `hairpieces.fit_block(start=)` (committed): the soft fit's first stage from another pose, the prior still on
+  block_frame's: the multistart probe. A tool `tools/bunorient/orient.py` to write: capture (bunstab.capture plus
+  bun_targets' inputs: the hair layers' masks, so targets can be rebuilt with other bun_views / per_side), then per
+  variant: the base fit, perturbations (head 1 and 10 um, points 3 seeds; bunstab.perturbations) and starts rotated
+  +-10 / 20 deg about each axis; per fit the bun mesh, Kabsch angle to the base fit, loss, IoUs. Determined = the
+  starts land within ~1 deg, or the lowest-loss basin is clear of the next by more than the 10 um noise.
+- Candidate A: three_quarter in bun_views with bun_per_side (the hair layers have three_quarter__bun_L / _R; the 3q
+  view's az 35.47 deg; without per_side bun_targets skips the 3q). The soft path has no occlusion: the far bun's
+  hidden part lands on the drawing's other hair (w_over 0.25). Maybe the near bun only.
+- Candidate B: the bun's drawn inner lines (ink inside the bun masks) against our knot / loop boundaries projected.
+- The terminator per fit: swap the refit buns into the base bundle (o/hair_bun_*/eval/V; lnor = geometric vertex
+  normals per loop; shrink = outline thickness -0.0014 x the normal; raw/V) and run the artifacts part (termlab's
+  measure); validate by reproducing the build's own reading.
+- Base build for the capture: `charkit/out/bo_base` (box build of a26f4c2 = pipeline-3d 3f7b730, running).
