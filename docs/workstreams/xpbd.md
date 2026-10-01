@@ -384,7 +384,18 @@ Harness scripts and outputs: `charkit/out/xpbd/r3/`.
   one blocker, test_spec_alias (clawd_body_pieces.json is an alias of clawd.json: the waistband's `weights` added there
   too, 24426cc). Otherwise: the 4 motion checks new (3 calibrated records, the squat's inside INFO), no other check
   moved (the waistband's IoUs unchanged), piece_skirt's views unchanged, build CPU 613 -> 864 s (1.41x, the baseline a
-  reused 004efc3 build). Re-gate launched at 24426cc (log charkit/out/xpbd/r3/gate2.log) (`python -m charkit remote gate tool/xpbd --into pipeline-3d`, log charkit/out/xpbd/r3/gate.log).
+  reused 004efc3 build). **Re-gate PASS under K** at dbe6e0f into 3f7b730
+  (`charkit/out/gate/gate_tool-xpbd_dbe6e0f_into_3f7b730.md`): nothing blocks, 76 test files ok, the 4 motion checks new
+  (3 calibrated), no other check moved, build CPU 613 -> 682 s (1.11x).
+
+### Round 3 checkpoint: exact next steps (decisions for Michael on the page's summary box)
+1. The skinned skirt's top rows on the body's weights too (asked): with the band on the body, its top shows at the
+   squat (0.17 -> 0.65 of the band-covered part). Same transfer as the band (garments.body_weights), blended into the
+   skirt's own weights below the band; re-measure with `python -m charkit.sim waist BUILD`; the known-bad of the squat's
+   stretch (motion_skinned) is the skinned skirt, so re-run its calibration after.
+2. The squat's skirt-inside check (ungraded): make the squat robust to the nudges (substeps 16, ramp 0.45 s, hold 0.85
+   read up to 0.015), then restore its grade and calibrate (motionqa.UNGRADED, charkit/calib/motion.py).
+3. The chains (asked): more chains round the skirt or thigh colliders on them; settings stay out of the graph. (`python -m charkit remote gate tool/xpbd --into pipeline-3d`, log charkit/out/xpbd/r3/gate.log).
 - **Review page** `charkit/out/xpbd/r3/review/index.html` (review.page3, made by `charkit/out/xpbd/r3/page.py`): the
   summary box, the waistband (numbers and pictures), the calibration, the CPU, the chains, the bake and its replay.
 - **Chains, roots riding the skin with the hips' rest direction** (`--root skin_pos`, tune_skinpos/, stiffness 1..32): skirt
