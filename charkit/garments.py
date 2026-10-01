@@ -3620,15 +3620,17 @@ def collar(A, spec, normals=None, neckline=None):
             ts = np.linspace(0.0, 1.0, nr + 1)
             Q = (1 - ts)[:, None] * np.array([p0[0], p0[2]])[None] + ts[:, None] * O[None]
             ys, ns = front_hits(Q, V, lap_T)
-            pts = np.c_[Q[:, 0], ys, Q[:, 1]]
-            bad = ~np.isfinite(ys)
-            pts[0] = p0
-            if bad[1:].any():
-                pts[1:][bad[1:]] = p0
             lo = float(lap.get('off', spec.get('offset', 0.03))) * L       # (over the jacket eased out on the bust)
-            for j in range(nr + 1):
-                grid[j, k] = pts[j] + (ns[j] if np.isfinite(ns[j]).all() and j > 0 else
-                                       Nt[int(np.argmin(((Vt - pts[j]) ** 2).sum(1)))]) * (lo if j > 0 else off)
+            # the column as the collar walks it, for the blend into the collar's own surface toward `a`
+            path = surface_walk(Vt, Nt, p0, d * 0.7 + np.array([0, 0, -0.3]), ln / (nr * 2), nr * 2,
+                                bias=np.array([0, 0, -0.25]))
+            walk = np.array([path[2 * j] + Nt[int(np.argmin(((Vt - path[2 * j]) ** 2).sum(1)))] * off
+                             for j in range(nr + 1)])
+            proj = np.c_[Q[:, 0], ys, Q[:, 1]] + np.nan_to_num(ns) * lo
+            u = np.clip((math.radians(float(lap.get('a', 85))) - abs(a)) / math.radians(float(lap.get('blend', 20))),
+                        0, 1)
+            w = u * u * (3 - 2 * u) * np.isfinite(ys)
+            grid[:, k] = w[:, None] * np.nan_to_num(proj) + (1 - w[:, None]) * walk
             continue
         if lap and abs(a) <= math.radians(float(lap.get('a', 85))):
             # the flat lapels: the column walked on past its length and cut where it crosses the lapels' outer edge
