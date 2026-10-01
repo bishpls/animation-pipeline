@@ -2762,14 +2762,22 @@ def _kit_edited(t0):
 
 def venv_memo(fn, *args, **kw):
     """memo() for the venv (the QA on a bundle, charkit/qa3d.py): fn(*args, **kw) kept on disk under memo/ by its code,
-    the venv's packages and its arguments' digest; each call returns a fresh copy. CHARKIT_CACHE=off computes."""
-    if os.environ.get('CHARKIT_CACHE') == 'off':
-        return fn(*args, **kw)
+    the venv's packages and its arguments' digest; each call returns a fresh copy. CHARKIT_CACHE=off (a --cache off
+    build): computed once in this process and kept in memory only (2026-10-01: computing it at every call of a pass
+    cost a cold build 60 s more)."""
+    off = os.environ.get('CHARKIT_CACHE') == 'off'
     units = code_units(fn)
     key = digest([SCHEMA, 'venv', units, venv_env(), args, kw])[:24]
     p = os.path.join(cache_dir(), 'memo', '%s.%s' % (fn.__module__, fn.__name__), key + '.pkl')
     if key in _VMEMO:
         return pickle.loads(_VMEMO[key])
+    if off:
+        out = fn(*args, **kw)
+        try:
+            _VMEMO[key] = pickle.dumps(out, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception:
+            pass
+        return out
     if os.path.exists(p):
         try:
             blob = _read_state(p)
