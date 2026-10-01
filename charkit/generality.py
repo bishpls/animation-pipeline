@@ -35,7 +35,8 @@ def vocabulary(paths=(VOCAB_GRAPH,)):
             for s in (pc.get('id'), pc.get('pair'), pc.get('type')):
                 if s:
                     words |= set(re.split(r'[\s_.\-]+', s.lower()))
-    return {w for w in words if w and w not in GENERIC and not w.isdigit()}
+    generic = {g.lower() for g in GENERIC} | {'left', 'right'}     # (tokens are lowercased: her pieces' '_L' / '_R'
+    return {w for w in words if w and w not in generic and not w.isdigit()}   # sides read as her names)
 
 
 def tokens(name):

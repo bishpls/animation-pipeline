@@ -226,9 +226,21 @@ fallback): b1 (the body on the clothed hull) and b2 (fixes 18-20); b3 (all fixes
 - QA pass share (PASS / (PASS + WARN + FAIL + errored parts)), checks named for Clawd's pieces apart:
   | build | all | applicable | Clawd-named | checks |
   | --- | --- | --- | --- | --- |
-  | c3 b1 | 0.43 | 0.41 | 0.50 | 188 |
-  | c3 b2 | 0.49 | 0.44 | 0.69 | 190 |
-  | Clawd (g7_base) | 0.74 | 0.76 | 0.73 | 708 |
+  | c3 b1 | 0.43 | 0.42 | 0.50 | 188 |
+  | c3 b2 | 0.49 | 0.44 | 0.76 | 190 |
+  | Clawd (g7_base) | 0.74 | 0.76 | 0.72 | 708 |
+  (fix 26: generality.vocabulary read her pieces' side suffixes '_L' / '_R' as her names, so every check with a side
+  counted as named; test_generality +1, failing on the old code.)
+- Template-assignment audit (coordinator 2026-10-01; charkit/private/c3/tools/template_audit.py ->
+  charkit/private/c3/report/template_audit.{json,md}, the table the piece-kind taxonomy round consumes): per declared
+  piece the template it got, the rule (outfit_sheet.draft: a hard-coded map from the manifest's free-word `type` to a
+  template kind: no name, shape or construction match), what the template models and what the piece is (construction,
+  material, attachment, motion class) and the mismatches: the draped chiton as a tight shell plus Clawd's pleated skirt
+  with her stepped hem; the draped, tied sash as a rigid flat strap plus her overskirt panel; the strapped sandal as a
+  closed shoe; fleur-de-lis points as spikes; the declared motion classes (cloth for the chiton and sash) consumed only
+  by Clawd's 2D-rig graph (charkit.outfit), so every drafted piece is skinned rigidly. Checks: 742 across both builds,
+  351 named for Clawd's pieces (22 ran on c3), 391 for a kind or any character (153 ran on c3); the per-piece families
+  (piece_<id>, piece3d_<id>) already dispatch on the graph's pieces and ran on his sandals.
   The earlier attempt (2026-09-30) read 0.30 with nothing reaching the model.
 - His references reached the model (numbers in the report): the code head from his head sheets (the jaw from the
   beard-free redraw), the body from his base body sheet (shape IoU 0.875 / 0.813 / 0.942 / 0.863), the hair and beard

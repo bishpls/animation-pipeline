@@ -19,5 +19,15 @@ def test_buckets_and_share():
     assert T['overall']['share'] == 0.4 and 'hair_pieces' in T['parts']
 
 
+def test_a_side_suffix_is_no_piece_name():
+    """her pieces' ids carry sides (boot_L, cuff_R): lowercased, 'l' and 'r' read as her vocabulary and every check
+    with a side (hand_*_L, cheek_lead_R) counted as named for her pieces (2026-10-01)."""
+    vocab = generality.vocabulary()
+    assert not ({'l', 'r', 'left', 'right'} & vocab) and 'boot' in vocab
+    T = generality.tally({'checks': {'cheek_lead_L': {'status': 'PASS'}, 'boot_sole_flat_L': {'status': 'FAIL'}}}, vocab)
+    assert T['buckets']['applicable'].get('PASS') == 1 and T['buckets']['named'].get('FAIL') == 1
+
+
 if __name__ == '__main__':
     test_buckets_and_share(); print('ok test_buckets_and_share')
+    test_a_side_suffix_is_no_piece_name(); print('ok test_a_side_suffix_is_no_piece_name')
