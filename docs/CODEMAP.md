@@ -2189,11 +2189,15 @@ charkit sweep optimize: a fit's knobs tuned by a batch optimizer instead of an a
 - `report(out, log=print)`: the tables, plots and review page from a run's folder (history.jsonl, state.json, decl.json).
 - `convergence_plot(out, P, H, st)`
 - `sensitivity_plot(out, P, sens)`
+- `local_build(out, path)`: a confirm row's build folder here: as recorded, else the same place under this run's folder or this tree (a run ...
 - `review_json(out, decl, P, st, H, summ, conf)`: the review page's declaration (charkit review page): the summary box first.
 - `audit(build, parts=None, out=None, log=print)`: which checks the screen measures as the real build does: the build's own geometry measured with the numpy drawing ...
 - class `Synthetic`: a test objective (stage 'python', python 'charkit.optimize:synthetic'): knobs a, b, c (and n: an integer) set as ...
 - `synthetic(decl)`
+- class `AccfitPlace`: the clips' placement as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_place'): args ...
+- `accfit_place(decl)`
 - `main(args)`: `sweep optimize ...` (args after 'optimize').
+- `pick_box(reserve=1, log=print)`: --box auto: every running box's free slots (charkit.remote.box_slots), the build box when it has MIN_FREE beyond ...
 
 #### `charkit/outfit.py`
 
@@ -2713,6 +2717,8 @@ Builds off the laptop, on the CPU build box (infra/gcp/build.sh; its config infr
 - `preflight()`: before a job: the box's gcloud credential can act without a prompt (a token).
 - `job(kind, script, label, collect=None)`: script run on the box as a detached job (charkit/boxjob.py), followed here until it ends -> its exit code ...
 - `attach(jid, rec=None, out=None)`: follow a job's log until it ends -> its exit code.
+- `box_slots(env=None)`: a box's build slots now (env: its infra/gcp/NAME.env; default the chosen box) -> dict(name, status, count, held, ...
+- `box_has(path)`: does the chosen box's copy of this worktree hold path (worktree-relative)?
 - `jobs(args)`: every box's jobs (running, and finished in the last --days, default 1).
 - `main_attach(args)`
 - `main_kill(args)`
