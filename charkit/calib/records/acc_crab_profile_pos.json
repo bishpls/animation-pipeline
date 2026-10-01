@@ -1,0 +1,93 @@
+{
+ "check": "acc_crab_profile_pos",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T13:30:15",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "acc_crab_shape",
+  "acc_star_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0003,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0026,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0037,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0058,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0049,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0074,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0033,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0053,
+    "PASS"
+   ]
+  },
+  "min": 0.0003,
+  "max": 0.0074,
+  "spread": 0.0071,
+  "median": 0.0043
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled",
+ "floor": {
+  "moved": {
+   "values": [
+    0.1229,
+    0.0709,
+    0.0972,
+    0.0968,
+    0.0717
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0968,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.3078,
+  "status": "FAIL",
+  "margin": -2.281
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled); the design passes and the floor does not",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/acc5/after2",
+ "generators": {
+  "moved": "each drawn clip moved 0.07-0.12 L in a random direction"
+ },
+ "seconds": 35.7
+}

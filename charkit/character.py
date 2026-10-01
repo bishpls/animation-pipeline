@@ -185,6 +185,18 @@ def features(G, keys=True, cache=None):
     Mo['line'] = mouthlib.line(F, MK, L, Mo['c'], **au)
     Mo['line_keys'] = {sh: mouthlib.line(F, MK, L, Mo['c'], sh, **au)[0] - Mo['line'][0] for sh in Mo['keys']}
     Mo['tongue_keys'] = {sh: mouthlib.tongue(F, MK, L, Mo['c'], sh, **au)[0] - Mo['tongue'][0] for sh in Mo['keys']}
+    # the drawn placement's per-shot keys (mouth.VIEW; off unless the spec's mouth.view sets a slide): the whole rest
+    # mouth slid along the face toward her left / right
+    Mo['view_keys'] = {}
+    VK = mouthlib.view_knobs(MK) if keys else None
+    if VK is not None:
+        for name, sgn in zip(mouthlib.VIEW_KEYS, (1.0, -1.0)):
+            mc2 = (Mo['c'][0] + sgn * float(VK['slide']) * L, Mo['c'][1])
+            Mo['view_keys'][name] = dict(
+                skin=mouthlib.key(V, Mo['m'], F, MK, L, mc2, 'neutral', jaw_w=fw.get('jaw'), faces=B['faces'], hold=hold),
+                teeth=mouthlib.teeth(F, MK, L, mc2, **au)[0] - Mo['teeth'][0],
+                tongue=mouthlib.tongue(F, MK, L, mc2, **au)[0] - Mo['tongue'][0],
+                mouth_line=mouthlib.line(F, MK, L, mc2, **au)[0] - Mo['line'][0])
     from . import nose as noselib                       # the nose's drawn mark (front and three-quarter), when the head
     tip = noselib.tip_of(H, centre)                     # knows its nose tip
     Mo['nose'] = noselib.mark(F, noselib.knobs(spec), L, tip) if tip is not None and 'nose' in spec else None
@@ -397,12 +409,16 @@ def build_eyes(A, arm, skin, spec, look=None):
     skin.data.materials.append(look.get('eyeline') or shade.flat('eyeline', spec.get('eyeline_color', (0.22, 0.12, 0.10))))
     for sh, D in Mo['keys'].items():
         _key(skin, f'mouth_{sh}', D)
+    for name, P in (Mo.get('view_keys') or {}).items():  # the drawn placement's per-shot keys (weight 0: rigid)
+        _key(skin, name, P['skin'])
     for part, col, keys in (('teeth', (0.97, 0.96, 0.97), Mo['teeth_keys']), ('tongue', (0.86, 0.46, 0.50), Mo['tongue_keys']),
                             ('mouth_line', spec.get('mouth_line_color', (0.36, 0.16, 0.14)), Mo['line_keys'])):
         v, q = Mo['line' if part == 'mouth_line' else part]
         o = _mesh(part, v, q, None, [look.get(part) or shade.flat(part, col)])
         for sh, d in keys.items():
             _key(o, f'mouth_{sh}', d)
+        for name, P in (Mo.get('view_keys') or {}).items():
+            _key(o, name, P[part])
         _to_head(o, arm)
         mouth_parts[part] = o
     if Mo.get('nose') is not None:                      # the nose's mark: ink and highlight, riding the head, no keys

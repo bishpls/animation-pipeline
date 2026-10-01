@@ -477,3 +477,25 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             t = time.time(); f(); print('ok', k, '%.1fs' % (time.time() - t))
+
+
+def test_a_grid_piece_with_ink_strokes_is_still_a_grid():
+    """garments.with_ink appends a piece's crease strokes to the same object (their faces on a '<name>_ink' slot,
+    their vertices after the grid's): drape.grid_of reads the grid from the cloth's own faces, and the cage carries the
+    strokes with the cloth (at rest exactly; moved rigidly with it). Before, motion QA read 'skirt: not a grid'."""
+    from charkit.sim import drape
+    NR, NC = 6, 8
+    G = np.array([(i * 0.1, 0.0, -j * 0.1) for j in range(NR) for i in range(NC)], float)
+    polys = [(j * NC + i, j * NC + i + 1, (j + 1) * NC + i + 1, (j + 1) * NC + i) for j in range(NR - 1)
+             for i in range(NC - 1)]
+    ink = np.array([(0.15, -0.002, -0.12), (0.16, -0.002, -0.22), (0.25, -0.002, -0.32)], float)
+    n0 = len(G)
+    V = np.vstack([G, ink])
+    o = dict(name='skirt', V=V, polys=polys + [(n0, n0 + 1, n0 + 2)], mat_idx=[0] * len(polys) + [1],
+             materials=[dict(name='skirt'), dict(name='skirt_ink')])
+    assert drape.grid_of(o) == (NR, NC)
+    K = cage.of_piece(o, 0.2)
+    X = K.carry(K.V)
+    assert X.shape == V.shape and np.abs(X - V).max() < 1e-9
+    shift = np.array([0.3, -0.1, 0.05])
+    assert np.abs(K.carry(K.V + shift) - (V + shift)).max() < 1e-9

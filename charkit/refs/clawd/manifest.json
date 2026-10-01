@@ -869,6 +869,132 @@
     "dress forms, not her body: no hip, waist or leg measure comes from them; the shorts are not drawn (the image model refused the shorts alone)"
    ]
   },
+  "bodice_layers": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-10-01",
+    "size": "2560x1440",
+    "quality": "high",
+    "n": 2,
+    "chosen": "take 1 of 2 by charkit.layerref --kind bodice (take 2: profile outside 0.045, iou_dc 0.871: FAIL)",
+    "inputs": [
+     "body_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "bodice_layers",
+    "ledger": "tools/ledger.jsonl",
+    "approved": "Michael, 2026-10-01 (general approval for reference generation; the coordinator's brief for tool/garments4 milestone 2: one call, n=2, registered only if the refcheck passes)",
+    "sha256": "80403e0759ab8956447e39abd11547bd7b65818b9e540f6c3b53ea54d1f9a78e"
+   },
+   "path": "charkit/refs/clawd/gen/bodice_layers.png",
+   "role": "the bodice WITHOUT the bow, a separated layer reference (Michael, 2026-10-01: the bodice without the bow): body_turnaround redrawn in its own layout, A-pose and scale (front, three-quarter, profile, back) with the bow, its knot and its tails removed and what they hide drawn as worn: the sailor collar's two front lapels lying flat on the chest (no stand), wide at the shoulders and narrowing down, their inner edges the V neckline meeting in a point at the chest's centre where the knot sat, the collar's dark stripe along their edges; the V's bare skin down to that point; the cream bodice front between the open jacket fronts below it; the collar flat over the shoulders and back, joined round the back of the neck by a low band. Everything else kept as drawn",
+   "authority_split": {
+    "shape": "what the bow hides: the lapels' shape on the chest (flat, along the V, their width along their length and their stripe), the V's lower part under the bow (its sides and its point) and the bodice front under the bow",
+    "placement": "body_turnaround: the collar, the V and the bodice wherever the turnaround shows them (the V's width above the bow), and every piece in context",
+    "map": "not in the top-level authority map (see base_body_turnaround's)"
+   },
+   "refcheck": {
+    "command": "python -m charkit.layerref charkit/spec/clawd.json charkit/refs/clawd/gen/bodice_layers.png --kind bodice",
+    "tolerances": "charkit.layerref.TOL (declared before the sheet was measured; calibrated: the turnaround against itself moved 2 px PASS every view, iou_dc 0.995-0.999; its torso band widened 6% FAIL every view, outside 0.10-0.14)",
+    "scale": 1.0007,
+    "views": {
+     "front": {
+      "shift": [
+       1,
+       1
+      ],
+      "kept_iou": {
+       "head": 0.9875,
+       "lower": 0.9875
+      },
+      "iou_dc": 0.974,
+      "recall": 0.9763,
+      "outside": 0.0013,
+      "hidden": 0.4919,
+      "v": {
+       "recall": 0.9907,
+       "outside": 0.0979,
+       "under_bow": 0.1359,
+       "px": [
+        4158,
+        3216
+       ],
+       "lowest_z": [
+        -0.881,
+        -0.712
+       ]
+      },
+      "pass": true
+     },
+     "three_quarter": {
+      "shift": [
+       3,
+       1
+      ],
+      "kept_iou": {
+       "head": 0.9894,
+       "lower": 0.9898
+      },
+      "iou_dc": 0.9961,
+      "recall": 0.9968,
+      "outside": 0.0004,
+      "hidden": 0.4513,
+      "v": {
+       "recall": 0.9979,
+       "outside": 0.0466,
+       "under_bow": 0.1053,
+       "px": [
+        2831,
+        2405
+       ],
+       "lowest_z": [
+        -0.844,
+        -0.731
+       ]
+      },
+      "pass": true
+     },
+     "profile": {
+      "shift": [
+       -3,
+       0
+      ],
+      "kept_iou": {
+       "head": 0.9894,
+       "lower": 0.9882
+      },
+      "iou_dc": 0.924,
+      "recall": 0.948,
+      "outside": 0.0155,
+      "hidden": 0.4179,
+      "pass": true
+     },
+     "back": {
+      "shift": [
+       1,
+       0
+      ],
+      "kept_iou": {
+       "head": 0.988,
+       "lower": 0.9871
+      },
+      "iou_dc": 0.9947,
+      "recall": 0.9956,
+      "outside": 0.0009,
+      "hidden": 0.0,
+      "pass": true
+     }
+    }
+   },
+   "cautions": [
+    "its V is drawn 1-3 px (0.005-0.015 L) wider each side than the turnaround's visible V above the bow (V outside 0.098 in front against the 0.10 tolerance, 0.047 in three-quarter): the V's width above the bow is the turnaround's",
+    "the V's point is drawn at z -0.88 L in front (-0.84 in three-quarter), 0.05 L under the knot's lower edge on the turnaround (-0.72..-0.83 at the midline): the knot hides it there; how far the V reaches under the knot is this sheet's reading only",
+    "a generated reading of what the bow hides: checked for consistency only (the kept parts' IoU 0.987-0.990; the bodice and collar layer against the outfit truth where the turnaround shows it, iou_dc 0.92-0.996, outside under 0.016); nothing draws the lapels under the bow to grade them against",
+    "its skin in the V carries cleavage lines the turnaround's visible V doesn't draw: no line inside the V comes from it"
+   ]
+  },
   "hull": {
    "kind": "generated_mesh",
    "tracked": false,

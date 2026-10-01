@@ -1,0 +1,92 @@
+{
+ "check": "eye_corner_three_quarter",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-10-01T11:54:34",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "face_piece_lash",
+  "face_piece_iris"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.03,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.03,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.001,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.001,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.03,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.03,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.001,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.001,
+    "PASS"
+   ]
+  },
+  "min": 0.001,
+  "max": 0.03,
+  "spread": 0.029,
+  "median": 0.0155
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the three-quarter's near eye was never flagged: it holds while the profile's far corner moves",
+ "floor": {
+  "corner_moved": {
+   "values": [
+    -0.121,
+    0.207,
+    -0.159,
+    0.204,
+    -0.118
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.118,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.036,
+  "status": "PASS",
+  "margin": 1.154
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the three-quarter's near eye was never flagged: it holds while the profile's far corner moves); the design passes and the floor does not",
+ "build": "charkit/out/face7_g2",
+ "generators": {
+  "corner_moved": "each eye's masks warped (both eyes the same way): its columns shifted 0.15-0.3 x the opening's height up or down times t^2 (0 at the inner end, 1 at the outer): the far corner moved, the inner part kept"
+ },
+ "seconds": 40.7
+}

@@ -54,6 +54,20 @@ def test_builder_round_trip():
     assert np.allclose(M.skin().keys('base')['eye_blink'][1], d)
 
 
+def test_keyed_applies_keys_to_an_eval_variant_like_its_base():
+    """Bundle.keyed (tool/face7): a key on an object whose eval variant has its base's vertices moves eval by weight x
+    its offsets; a key it doesn't name, or weight 0, leaves it."""
+    V = np.array([[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], float)
+    D = np.zeros((4, 3)); D[2, 0] = 0.5
+    b = bundle.Builder({'name': 't'}, {'L': 1.0, 'centre': [0, 0, 0], 'eyes': [], 'mouth': {}})
+    b.add('line', 'mouth', {'eval': dict(V=V, faces=[(0, 1, 2, 3)]), 'base': dict(V=V, faces=[(0, 1, 2, 3)],
+                                                                                   keys={'view_mouth_L': D})})
+    B = b.build()
+    Bk = B.keyed({'view_mouth_L': 0.5, 'other': 1.0})
+    assert np.allclose(Bk.obj('line').V('eval') - V, 0.5 * D)
+    assert B.keyed({'view_mouth_L': 0.0}) is B
+
+
 def test_reads_are_recorded():
     B = small_bundle().build()
     with B.recording() as r:
