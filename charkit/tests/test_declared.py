@@ -271,5 +271,6 @@ def test_stair_corners_folds_and_spacing():
     ctx = dict(ppl=PPL, view='front', cls=cls, dv=dict(raw=cls_x * 0 + np.where(lines, 4, cls), rgb=None),
                cls_ours=cls_x, lines=lines_x)
     c = declared.stair(Mx, M, ctx, measure='crossed')
-    assert c['value'] == 2 and c['design'] == 0
+    # the zigzag's step crossed (the middle tread, a riser at either end) counts; the end tread crossed is reported
+    assert c['value'] == 1 and c['design'] == 0 and c['count'][0][:2] == [1, 2]
     assert declared.stair(Ms, M, dict(ctx, cls_ours=cls_s, lines=None), measure='corner')['value'] > 10

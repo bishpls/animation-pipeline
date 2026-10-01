@@ -24,7 +24,7 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
                recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
   stair        a piece's stepped hem band (the skirt's and the flaps' dark staircase): the face/band boundary traced
                as risers and treads (stair_of); measure 'corner' (how far its corners are from square, degrees),
-               'crossed' (treads a fold crosses: Michael, 2026-10-01, "a fold bends a step that spans it") or 'spacing'
+               'crossed' (the zigzag's steps a fold crosses: Michael, 2026-10-01, "a fold bends a step that spans it") or 'spacing'
                (our folds' spacing where they meet the band against the drawn steps' widths, |ratio - 1|); our folds
                are our lines and our geometry's (our_folds)
 
@@ -549,15 +549,15 @@ def seg_dir(P, s, trim=0.15):
     return e / max(1e-9, np.hypot(*e))
 
 
-def stair_read(runs, creases, ppl, tol=0.02):
+def stair_read(runs, creases, ppl, tol=0.02, margin=0.035):
     """a stepped band's numbers: each corner's departure from square (90 less the acute angle between a riser's and the
-    next tread's lines, degrees), each tread a fold meets more than `tol` L inside its ends (crossed: a fold bends the
+    next tread's lines, degrees), each tread a fold meets more than `margin` L inside its ends (crossed: a fold bends the
     step), each riser no fold meets within `tol` L of it (off), and the folds' spacing (L, straight across between
     consecutive meeting points along a run; meeting points within `tol` L of each other one fold) -> dict(corners, crossed, off, risers, treads,
     spacing, creases, tread_len (L))."""
     corners, crossed, off, spacing, tl = [], 0, 0, [], []
-    nr = nt = nf = 0
-    t_ = tol * ppl
+    nr = nt = nf = steps_crossed = 0
+    t_, m_ = tol * ppl, margin * ppl
     for j, r in enumerate(runs):
         cum, g = r['cum'], r['segs']
         for s, u in zip(g[:-1], g[1:]):
@@ -575,17 +575,20 @@ def stair_read(runs, creases, ppl, tol=0.02):
         nf += len(at)
         Q = np.array([r['P'][ii].mean(0) for ii in pts]) if pts else np.zeros((0, 2))
         spacing += list(np.hypot(*np.diff(Q, axis=0).T) / ppl) if len(Q) > 1 else []
-        for s in g:
+        for q, s in enumerate(g):
             lo, hi = cum[s['i0']], cum[s['i1']]
             if s['k'] == 't':
                 nt += 1
                 tl.append(round(s['len'], 4))
-                crossed += int(any(lo + t_ < x < hi - t_ for x in at))
+                x_ = int(any(lo + m_ < x < hi - m_ for x in at))
+                crossed += x_
+                if 0 < q < len(g) - 1:                  # (a step of the zigzag: a riser at either end)
+                    steps_crossed += x_
             else:
                 nr += 1
                 off += int(not any(lo - t_ <= x <= hi + t_ for x in at))
     return dict(corners=[round(c, 1) for c in corners], crossed=crossed, off=off, risers=nr, treads=nt,
-                spacing=[round(float(s), 4) for s in spacing], creases=nf, tread_len=tl)
+                spacing=[round(float(s), 4) for s in spacing], creases=nf, tread_len=tl, steps_crossed=steps_crossed)
 
 
 def stair_inputs(M, cls, lines, ppl, reach=0.4, inset=3):
@@ -631,7 +634,7 @@ def stair_of(M, cls, lines, ppl, gap=STAIR_GAP, above=0.08, tol=0.02, folds=None
 
 def _pool(reads):
     """stair_read's readings over several pieces in one view, pooled."""
-    out = dict(corners=[], crossed=0, off=0, risers=0, treads=0, spacing=[], creases=0, tread_len=[])
+    out = dict(corners=[], crossed=0, off=0, risers=0, treads=0, spacing=[], creases=0, tread_len=[], steps_crossed=0)
     for r in reads:
         for k in out:
             out[k] = out[k] + r[k]
@@ -644,8 +647,9 @@ def stair(Mo, Md, ctx, measure='corner', above=0.08, tol=0.02, round_=2):
     geometry's folds (ctx folds: our_folds: the pleats' folds show as shading where the design draws lines), the
     design's from the drawn piece, its classes and its ink with its fainter strokes (outfit.ridges, skin left out: as
     ink_inside reads them). measure 'corner': the corners' median departure from square, ours beyond the design's
-    (degrees); 'crossed': the treads a fold crosses (Michael, 2026-10-01: "a fold bends a step that spans it"), ours
-    beyond the design's (a count); 'spacing': our folds' median spacing where they meet the band against the drawn
+    (degrees); 'crossed': the zigzag's steps (treads with a riser at either end) a fold crosses (Michael, 2026-10-01:
+    "our zigzag runs across a crease ... a fold bends a step that spans it"), ours beyond the design's (a count; every
+    tread a fold crosses, the flat band beyond the stair too, reported beside it); 'spacing': our folds' median spacing where they meet the band against the drawn
     steps' median width (the drawn pleat widths: a step is a pleat), |ours / design - 1|. A view where no drawn piece
     shows a band under it is skipped; ours showing none: FAIL."""
     from . import bodyqa, outfit
@@ -679,8 +683,11 @@ def stair(Mo, Md, ctx, measure='corner', above=0.08, tol=0.02, round_=2):
         return dict(value=round(max(0.0, mo - md), round_), ours=round(mo, round_), design=round(md, round_),
                     count=[len(o['corners']), len(d['corners'])])
     if measure == 'crossed':
-        return dict(value=max(0, o['crossed'] - d['crossed']), ours=o['crossed'], design=d['crossed'],
-                    count=[[o['treads'], o['creases']], [d['treads'], d['creases']]])
+        # the zigzag's steps (a tread with a riser at either end) a fold crosses; count: [steps crossed, every tread
+        # crossed (the flat band beyond the stair too), treads] ours, then the design's
+        return dict(value=max(0, o['steps_crossed'] - d['steps_crossed']), ours=o['steps_crossed'],
+                    design=d['steps_crossed'], count=[[o['steps_crossed'], o['crossed'], o['treads']],
+                                                      [d['steps_crossed'], d['crossed'], d['treads']]])
     if measure == 'spacing':
         if not o['spacing']:
             return dict(value=None, why='ours shows fewer than two folds meeting the band here')
