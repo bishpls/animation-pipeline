@@ -735,3 +735,13 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - Heads (2026-10-01 end of this run): stairs b4670264 (merged, pipeline-3d 0d53cb8), neck 6598251b (merged, ff41ca2),
   the V a3bb4a8b (gate PASS into 0d53cb84; merged, 9f6379e8), motion fix 880202e9 (carried PASS into ad081524; not yet
   merged), lapels this commit (not gated).
+
+## Round 5 (2026-10-01, lean agent 5): shoulders first, then the flat lapels
+- Coordinator: (1) shoulders on tool/garments4-shoulders (pipeline-3d e9cb156 merged in: 1b83a84d, CODEMAP f2a1dffe):
+  re-measure with the V open, fix the shoulder line to the drawing's level line (template or pad, on the numbers) with
+  the back collar's cream panel; guard skin/top/sleeves/collar IoUs per view; gate. (2) then the flat lapels on the
+  fixed shoulders (tool/garments4-lapels + pipeline-3d): inner edges on the V to the knot, the stripe, a low band at the
+  back of the neck, the span stopping at the front-facing columns; gate; re-judge art_outline_collar.
+- Box builds running: g5_base (the merged head's default spec, charkit/out/garments5/specs/base.json; log
+  charkit/out/garments5/build_base.log), g5_sh0 (+ body.shoulder {z -0.525, x 0.47, join}: specs/sh0.json; log
+  build_sh0.log). Outputs charkit/out/g5_base, charkit/out/g5_sh0.
