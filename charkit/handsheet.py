@@ -763,3 +763,45 @@ def landmarks(h, line=None, open_hand=None):
         R_['thumb_base_w_over_len'] = out['thumb_open']['widths'][0] * r / palm_len
     out['ratios'] = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in R_.items()}
     return out
+
+
+def sheet_ratios(path=SHEET, style='anime', pose='open'):
+    """the hand's structural ratios read off a sheet's open hand (back of the hand: every landmark visible), in the
+    template's terms (charkit.code_hand.from_ratios' R), each beside the style profile's prior range and flagged outside
+    it -> dict(ratios, measured {...}, flags {ratio: why}, wrist_line, palm_len_over_wrist (the size in wrist widths:
+    a sheet scaled without a cuff), notes). The segments aren't read (an open hand draws no joint creases): the prior's.
+    Clawd's wrist line is the cuff's edge (the cuff hides the crease): her palm length is measured from it and her
+    'wrist' is the cuff's opening, so the template takes wrist_offset (the cuff's edge past the wrist joint)."""
+    from . import code_hand
+    S = cells(path)
+    h = S[(pose, 'back')]
+    D = digits(h)
+    L = landmarks(h, open_hand=D)
+    r = L['reach_px']
+    PL = L['palm_len'] * r
+    fingers = sorted(L['fingers_open'], key=lambda d: d['angle'])     # little .. index (the thumb's side last)
+    lit, ring, mid, idx = [f['length'] * r for f in fingers]
+    th = L['thumb_open']
+    # the thumb's CMC: the wrist line's end on the thumb's side (the open hand's thumb leaves the palm there)
+    wp = np.array(L['wrist_pts'])
+    cmc = wp[np.argmin([np.linalg.norm(p - th['tip']) for p in wp])]
+    thumb = float(np.linalg.norm(th['tip'] - cmc))
+    span = (L.get('mcp_span_run') or L['mcp_span_est']) * r
+    taper = float(np.mean([f['widths'][-1] / max(f['widths'][0], 1e-9) for f in fingers]))
+    R = dict(span=span / PL, wrist=L['wrist_w'] * r / span, middle=mid / PL, index=idx / mid, ring=ring / mid,
+             little=lit / mid, taper=taper, thumb_cmc=0.0, thumb=thumb / PL, thumb_w=th['widths'][0] * r / PL)
+    prior = code_hand.ratio_prior(style)
+    flags = {}
+    for k, v in R.items():
+        if k in prior and not prior[k][1] <= v <= prior[k][2]:
+            flags[k] = 'outside the %s prior [%s, %s]' % (style, prior[k][1], prior[k][2])
+    notes = {'wrist': "the wrist line is the cuff's edge (the cuff hides the crease): 'wrist' is the cuff's opening",
+             'span': "the palm length is read from the cuff's edge, so it is shorter than from the crease: span / PL "
+                     "reads high",
+             'thumb_cmc': "the thumb's CMC taken at the wrist line's thumb-side end (under the cuff's edge)"}
+    return dict(ratios={k: round(float(v), 4) for k, v in R.items()}, flags=flags, notes=notes,
+                measured=dict(palm_len_reach=round(L['palm_len'], 4), mcp_span_run=L.get('mcp_span_run'),
+                              mcp_span_est=L.get('mcp_span_est'), wrist_w_reach=round(L['wrist_w'], 4),
+                              mcp_s=round(L['mcp_s'], 4)),
+                palm_len_over_wrist=round(PL / (L['wrist_w'] * r), 4),
+                palm_len_over_cuff=round(L['palm_len'] * D['reach'], 4))

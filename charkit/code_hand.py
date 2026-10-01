@@ -41,6 +41,11 @@ DEFAULT = dict(
                           # fingers from where they part to the tips (the design's 2-3 lines; round 6's seam gap)
     fingers=(0.93, 1.0, 0.95, 0.78),    # index, middle, ring, little: lengths over the middle's
     spread=0.0,           # degrees each finger fans out from the middle's line beyond the touching layout (- closer)
+    palm_len=None,        # L: the ratio mode's size (from_ratios: the reference's wrist line to the middle MCP); None: the
+                          # geometric knobs as given
+    wrist_offset=0.0,     # L: the reference's wrist line past the wrist joint (Clawd: the cuff's edge hides the crease)
+    ratios=None,          # the hand's structural ratios over the style profile's prior (hand_ratios)
+    segments=None, thumb_segments=None,    # a digit's segments (proximal : middle : distal), None: PHALANGES/THUMB_BONES
     fan_index=0.0, fan_middle=0.0, fan_ring=0.0, fan_little=0.0,   # degrees each finger turns toward the thumb's side
                           # beyond that (the sheet's open hand: index +14, ring -16, little -34 about the middle)
     curl=6.0,             # degrees each finger joint bends toward the palm at rest (the drawn relaxed hand)
@@ -65,7 +70,7 @@ BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.30), wrist
               thumb_len=(0.16, 0.46), thumb_w=(0.03, 0.085), thumb_out=(0.0, 60.0), thumb_down=(0.0, 60.0),
               thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0),
               fan_index=(-10.0, 30.0), fan_middle=(-15.0, 15.0), fan_ring=(-30.0, 10.0), fan_little=(-50.0, 10.0),
-              thumb_across=(0.0, 0.6), tip_gap=(-0.01, 0.01))
+              thumb_across=(0.0, 0.6), tip_gap=(-0.01, 0.01), palm_len=(0.15, 0.4))
 FINGERS = ('index', 'middle', 'ring', 'little')
 PHALANGES = (0.45, 0.3, 0.25)         # a finger's proximal, intermediate and distal shares of its length
 THUMB_BONES = (0.36, 0.36, 0.28)      # the thumb's metacarpal, proximal and distal shares
@@ -86,13 +91,66 @@ SEGS = {'thumb': ('Metacarpal', 'Proximal', 'Distal')}
 MH = {'thumb': 1, 'index': 2, 'middle': 3, 'ring': 4, 'little': 5}
 
 
+RATIO_KEYS = ('span', 'wrist', 'thick', 'middle', 'index', 'ring', 'little', 'segments', 'taper', 'thumb_cmc', 'thumb',
+              'thumb_segments', 'thumb_w')
+
+
+def ratio_prior(style='anime'):
+    """the style profile's hand prior: {ratio: [default, lo, hi]} (charkit/styles: 'hand')."""
+    from . import styles
+    return {k: v for k, v in styles.load(style).get('hand', {}).items() if not k.startswith('_')}
+
+
+def hand_ratios(spec=None, style=None):
+    """the hand's structural ratios: the style profile's defaults, the spec's body.hand.ratios over them (an open hand's
+    landmarks: charkit.handsheet.sheet_ratios) -> {ratio: value}."""
+    style = style or (spec or {}).get('style') or 'anime'
+    pr = ratio_prior(style)
+    R = {k: (list(v) if k.endswith('segments') else v[0]) for k, v in pr.items()}   # (a segments' prior: the triple)
+    R.update((((spec or {}).get('body') or {}).get('hand') or {}).get('ratios') or {})
+    return R
+
+
+def from_ratios(R, palm_len, wrist_offset=0.0):
+    """the template's knobs from the hand's structural ratios (Michael, 2026-10-01: fixed ratios, poses only rotate
+    joints): R {ratio: value} (hand_ratios), palm_len (L: the reference's wrist line to the middle finger's MCP: the
+    size), wrist_offset (L: the reference's wrist line past the wrist joint: Clawd's is the cuff's edge, which hides the
+    wrist crease) -> {knob: value} over DEFAULT's (length, palm, palm_w, wrist_w, palm_t, taper, fingers, segments,
+    thumb_base, thumb_len, thumb_w, thumb_segments)."""
+    PL = float(palm_len)
+    mcp = wrist_offset + PL
+    span = R['span'] * PL
+    length = mcp + R['middle'] * PL
+    return dict(length=length, palm=mcp / length, palm_w=span, wrist_w=R['wrist'] * span, palm_t=R['thick'] * span,
+                taper=R['taper'], fingers=(R['index'], 1.0, R['ring'], R['little']), segments=list(R['segments']),
+                thumb_base=wrist_offset + R['thumb_cmc'] * PL, thumb_len=R['thumb'] * PL, thumb_w=R['thumb_w'] * PL,
+                thumb_segments=list(R['thumb_segments']))
+
+
 def params(spec=None, **over):
-    """the hand's knobs: DEFAULT, the spec's body.hand over it, then over."""
+    """the hand's knobs: DEFAULT, the spec's body.hand over it, then over; with body.hand.palm_len (the ratio mode:
+    the hand built from its structural ratios, from_ratios) the geometric knobs derived from hand_ratios(spec) at that
+    size (and over's own palm_len / ratios)."""
     P = dict(DEFAULT)
     P.update(((spec or {}).get('body') or {}).get('hand') or {})
     P.update(over)
+    if P.get('palm_len') is not None:
+        R = hand_ratios(spec)
+        R.update(P.get('ratios') or {})
+        P.update(from_ratios(R, P['palm_len'], P.get('wrist_offset', 0.0)))
+        P.update({k: v for k, v in over.items() if k in ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'taper',
+                                                          'thumb_base', 'thumb_len', 'thumb_w')})
     P['fingers'] = tuple(P['fingers'])
     return P
+
+
+def _shares(seg, default):
+    """a digit's segment lengths as shares of its length: the ratios' triple (proximal : middle : distal) normalised,
+    else the default shares."""
+    if not seg:
+        return default
+    t = float(sum(seg))
+    return tuple(float(x) / t for x in seg)
 
 
 def _rot(axis, deg):
@@ -185,7 +243,7 @@ def digits(W, R, P):
     out = {}
     for i, name in enumerate(FINGERS):
         base = W + ex * palm_len * (1 - KNUCKLE_ARC[i]) + ey * c0[i] + ez * 0.12 * P['palm_t']
-        lens = [fl * P['fingers'][i] * s for s in PHALANGES]
+        lens = [fl * P['fingers'][i] * s for s in _shares(P.get('segments'), PHALANGES)]
         # toward its tip's place beside its neighbours (the tips converge on the middle's), plus the spread's fan
         conv = np.degrees(np.arctan2(c1[i] - c0[i], sum(lens)))
         fan = P.get('fan_' + name, 0.0)
@@ -193,7 +251,7 @@ def digits(W, R, P):
         out[name] = (J, F, (w0[i], w0[i] * P['taper']))
     # the thumb: from its CMC inside the palm's radial edge near the wrist, opened out (radial) and toward the palm
     base = W + ex * P['thumb_base'] + ey * P.get('thumb_across', 0.3) * P['wrist_w'] - ez * 0.15 * P['palm_t']
-    lens = [P['thumb_len'] * s for s in THUMB_BONES]
+    lens = [P['thumb_len'] * s for s in _shares(P.get('thumb_segments'), THUMB_BONES)]
     J, F = _chain(base, R, lens, [0.0, P['curl'] * 0.6, P['curl'] * 0.6], out_deg=P['thumb_out'],
                   down_deg=P['thumb_down'])
     out['thumb'] = (J, F, (P['thumb_w'] * 1.15, P['thumb_w'] * max(P['taper'], 0.7)))
@@ -359,7 +417,7 @@ STRUCT = 0.1     # the fit's weight on each structure measure at its PASS limit 
 STRUCT_CAP = 3.0 # a structure term's units are capped here (a FAIL either way; the deepest pocket can jump from one
                  # pocket to another as a knob moves, and an uncapped jump steers the search)
 FLOOR_W = 5.0    # the cost of each IoU point under a view's floor (Fit.floors: the guard's intent inside the fit)
-FAIL_COST = 0.5  # the cost of a graded structure term past its WARN limit (a FAIL: the gate's 'no new FAIL' inside the
+FAIL_COST = 2.0  # the cost of a graded structure term past its WARN limit (a FAIL: the gate's 'no new FAIL' inside the
                  # fit; rest1 folded the thumb in for IoU and lost the three-quarter's cleft, 0.16 vs 0.62)
 
 
