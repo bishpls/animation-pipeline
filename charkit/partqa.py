@@ -296,7 +296,7 @@ def design_lines(dvv, sh=None):
 
 
 # ------------------------------------------------------------------------------------------------------------ the part
-@qa_part('bow_parts', order=1770, table='bow_parts')
+@qa_part('bow_parts', order=1772, table='bow_parts')
 def bow_parts(B, design=None, out=None):
     """the bow's parts (knot, lobes) against the drawn parts, and the lines drawn inside them (Michael, 2026-09-30)."""
     return measure(B, design)
