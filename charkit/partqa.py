@@ -23,7 +23,9 @@ and the close-ups) use them too:
 Checks (qa3d part 'bow_parts'; flagged: the gate blocks on their regressions):
   bow_part_knot_iou, bow_part_lobe_iou   per view the part's outline agreement (bodymeasure.iou_tol) with the drawn
                                          part, the worst view (and lobe); the lobes' a guard, not a flag check (the
-                                         pillow lobes are sized to the drawn ones and pass it)
+                                         pillow lobes are sized to the drawn ones and pass it); the knot graded on the
+                                         front only (GRADED: the turnaround's three-quarter knot is drawn face-on),
+                                         its other views reported ('info')
   bow_part_knot_line                     the knot's outlined share against the lobes, the design's less ours (front)
   bow_part_knot_rect                     the knot's rectangle (front): the larger of |ours / design - 1| of its height
                                          over width and its fill of its box short of the design's over FILL_SPAN
@@ -46,6 +48,11 @@ CODES = {'knot': 6001, 'lobe_L': 6002, 'lobe_R': 6003, 'tail_L': 6004, 'tail_R':
 PARTS = ('knot', 'lobe_L', 'lobe_R')
 VIEWS = ('front', 'three_quarter', 'profile')
 MIN_PX = 60                         # a drawn part this small in a view (grid px) is not graded there
+# the views each part's shape is graded in (the rest reported, INFO). The knot on the front only (coordinator, round 4,
+# the canonical view rule's step 3; Michael may overrule): the turnaround draws its three-quarter knot face-on (ours
+# z-buffered at other azimuths matches it only at 15-20 deg against the sheet's 35.5: harness azfit.py), and in
+# profile it is a sliver within the loops; there the knot's line (bow_part_knot_line) and its seating carry the intent
+GRADED = {'knot': ('front',)}
 EDGE_BAND = 0.018                   # L: lines this close inside a lobe's silhouette are its outline, not its crease
 CREASE_MIN = 0.02                   # L: less crease than this (skeleton length) reads as none
 LINE_PPL = 400                      # px per L of the pictures with lines (the head frame's, the design's line scale)
@@ -336,6 +343,8 @@ def measure(B, design):
             x = bodymeasure.iou_tol(o, d, tol)
             T['iou'].setdefault(v, {})[part] = round(x, 3)
             k = 'knot' if part == 'knot' else 'lobe'
+            if v not in GRADED.get(part, VIEWS):
+                continue
             if worst[k] is None or x < worst[k][0]:
                 worst[k] = (x, v, part)
     for k in ('knot', 'lobe'):
@@ -345,6 +354,13 @@ def measure(B, design):
                                           note="the bow's %s against the drawn part (outfit's VIEW__bow.PART), per "
                                                "view its outline agreement (bodymeasure.iou_tol); the worst view%s" % (
                                                    'knot' if k == 'knot' else 'lobes', k == 'lobe' and ' and lobe' or ''))
+        if k == 'knot':
+            info = {v: T['iou'][v]['knot'] for v in T['iou'] if 'knot' in T['iou'][v] and v not in GRADED['knot']}
+            c['info'] = info
+            c['note'] += ('; graded on %s only: the other views reported (INFO: %s), the turnaround drawing its '
+                          'three-quarter knot face-on (view-dependent; ours matches it only turned 15-20 deg against the '
+                          "sheet's 35.5) and in profile a sliver in the loops, where the knot's line and its seating "
+                          'carry the intent' % ('/'.join(GRADED['knot']), info))
         if k == 'lobe':                     # a guard, not a flag check: the pillow lobes read 0.70-0.72 (PASS) too
             c.pop(FLAG_KEY, None)
             c['note'] += ' (a guard, not a flag check: the lobes are sized to the drawn ones, the pillows pass it)'
