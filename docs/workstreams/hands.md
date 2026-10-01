@@ -238,41 +238,33 @@ the base's values exactly (0.00244, 0.0635, 0.00601, 0.10386): the measure didn'
   base code can't rebuild the new body). Either `--accept motion_*` named by the coordinator, or the motion scene reads
   the skin's weights from the bundle instead of rebuilding them (a tool/xpbd change; the base side still rebuilds).
 
+### Gate 2 (6903882 into pipeline-3d 961037c): FAIL on 4 cells only, the coordinator's call
+Report charkit/out/gate/gate_tool-hands_6903882_into_961037c.md (989 s; CPU 1.36x; tests all ok; guard quiet; every
+calibration requirement met). The only blockers: the 2x2 couldn't measure motion_kick_skirt_inside/stretch,
+motion_squat_skirt_inside/stretch in the "old measure on the new geometry" cell (961037c's motion QA can't rebuild a
+body with hands from our npz: its vertex count differs from our bundle's skin). Base -> candidate: 0.00244 -> 0.00244,
+0.0635 -> 0.0635, 0.0060 -> 0.0062 (INFO), 0.1039 -> 0.1040. Reported, not blocking: cuff_back_flare_L and
+flap_front_width_R PASS -> WARN; the 4 new hand FAILs (hand_shape_L 0.492, hand_shape_R 0.589, hand_profile_reach_L
+-0.111, hand_three_quarter_reach_R -0.087); body_front_skirt_aline gone.
+
 ## Next steps (exact)
-1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
-   skirt's 3q flare, because our forearm hangs 6 deg steeper than drawn (tips.py: 22.5 vs 28.2-28.6 deg off vertical near
-   the cuff; that's the hull's arm chain, and pose.arm_down doesn't reach the code body). Options, in order: (a) a
-   code-body arm pose knob (the arm chain turned outward at the shoulder in her frontal plane, ~3-6 deg, as a rest-pose
-   rotation the sleeves and bands follow), checked with evalab.py (aline, body_*_arms, skin IoUs) and occl.py (the 3q
-   far hand visible), then a box build; (b) if Michael prefers the hull's arm: bodyqa.aline on the rows free in both
-   (as skirt_width's `common`) is a remeasure, but the 2x2's old measure on the new geometry still FAILs, so it needs
-   his acceptance by name (the coordinator names it). Don't loosen it.
-2. Calibration records on b2: copy it to `charkit/out/calib/cur_hands` (hard links + its qa.json), then
-   `python -m charkit calibrate 'hand_*' --build charkit/out/calib/cur_hands`; commit charkit/calib/records/hand_*.json.
-   The adapter turns our_hidden off for the label stand-ins (calib/hands.py).
-3. The review page: `python charkit/out/hands/review2.py charkit/out/hands/review_r2 mitten=charkit/out/calib/builds/mitten
-   b1=charkit/out/hands_b1 b2=charkit/out/hands_b2` (tiles at one window round each cuff, rows.json), plus
-   charkit/out/hands/review_r2/weights_fist.png (weightspic.py) and fist_report.json, the sheet
-   (charkit/refs/clawd/gen/hand_breakdown.png, refcheck_hand_breakdown_1.png). Write review_r2/index.html with the
-   summary box first (Recommended: the default hand as b2 builds it, A with out 5.5 and line 0.5; Asked of Michael:
-   the arm-angle fix (a) or acceptance (b) for the 3q aline; whether hands should hide behind the skirt in 3q; Key
-   numbers: hand_shape per view, art_bumps_legs, aline, fill share, mitten | b1 | b2), then per view design | mitten |
-   b1 | b2; `open` it.
-4. `python -m charkit pregate`, then (coordinator relaunch) `python -m charkit remote gate tool/hands --into pipeline-3d`.
-5. **(Deferred by Michael, 2026-09-30: waits for a dedicated hands/expressions session; not on this branch.)** A draft
-   was started before the scope change and parked, untracked: charkit/out/hands/draft_handposes.py (the library:
-   relaxed/open/fist/point, per digit curl (3 joints), spread, thumb oppose; pose() blends {name: weight}, blend(a, b,
-   t), per_hand {'L','R'}; posed() = numpy LBS on the template's weights; rotations() per VRM bone; grade() renders
-   each pose from the back and as the front view sees it, against handref.sheet_hands' cells; fit() Powell per pose)
-   and charkit/out/hands/draft_expressions.patch (a skeletal `hands` component: weights() leaves it out,
-   hand_poses(P) resolves it, library()/check() know it). Graded on b1's hand (the rest knobs): relaxed back/front IoU
-   0.715/0.795; fitted (posefit.log): open 0.571/0.605 (curl -4.3, spread 16.5, thumb spread 26), fist 0.591/0.742
-   (MCP 32, PIP 86, DIP 28: the sheet's fist keeps its fingers' first phalanges hanging), point 0.640/0.772. The
-   sheet's hands are 16-19% longer and broader than the turnaround's: IoU near 0.7-0.8 is its ceiling. Still to do
-   there: the Blender side (pose the finger bones from rotations() on the boards, the export and exprqa's renders),
-   fist QA on the built rig (interpenetration, knuckle area), then the original plan below.
-6. (Original plan, deferred with step 5) the `hands` expression component (relaxed, fist, open, point; per finger curl, spread, thumb opposition;
-   per hand, blendable) on the modular expression API (charkit/expressions.py, the mouth/eyes/brows presets), using
-   code_hand.curl_pose's joint convention (bend about along x -dorsal); grade per pose against hand_breakdown
-   (handref.sheet_hands gives each cell's hand at the turnaround's scale; the fist's digits/cleft); fist QA on the built
-   rig (interpenetration, knuckle area) -> correctives only if asked.
+1. **Coordinator:** the 4 motion_* 2x2 cells. Either name them for `python -m charkit remote gate tool/hands --into
+   pipeline-3d --accept motion_*` (their values are the base's to 0.0002; the step is registered in
+   charkit/steps/code_body.py; records refreshed), or have tool/xpbd's scene take the skin's weights from the bundle
+   (charkit/sim/motion.py Scene rebuilds them with code_body.build_body_data; that still can't help this merge's base side).
+   If pipeline-3d moves first: merge it, `python -m charkit pregate`, gate again.
+2. Michael's questions (the review page's summary, charkit/out/hands/review_r3/index.html): keep the elbow-only arm (the
+   forearm ~2 deg steeper than drawn, cuffs 0.03-0.05 L inside; a shoulder turn fails the panels' top edges), and
+   whether the wrist cuff's size (1.5-1.6x the drawn area; piece_cuff_R 3q 0.428 -> 0.325 now that it shows) goes to
+   a garments round.
+3. Open items on the hands (reported, new checks): reach 0.04-0.11 L short (the profile's -0.111 and the far hand's
+   3q -0.087 FAIL; refit length/out on the posed chain: `python -m charkit.code_hand fit` now uses the posed chain);
+   hand_shape_L profile 0.49 (the turn A, Michael's call); body_front_skirt_aline unmeasured with real hands (bodyqa.aline's
+   fallback: a remeasure, not done).
+4. **(Deferred by Michael, 2026-09-30: waits for a dedicated hands/expressions session; not on this branch.)** The pose
+   library draft stays parked, untracked: charkit/out/hands/draft_handposes.py and draft_expressions.patch (see the
+   round 2 section's numbers: relaxed 0.715/0.795; open 0.571/0.605, fist 0.591/0.742, point 0.640/0.772 back/front;
+   the sheet's hands 16-19% longer than the turnaround's). Still to do there: the Blender side (pose the finger bones from
+   rotations() on the boards, the export, exprqa's renders), fist QA on the built rig (interpenetration, knuckle area),
+   then the `hands` expression component (relaxed, fist, open, point; per finger curl, spread, thumb opposition; per
+   hand, blendable) on charkit/expressions.py, graded per pose against hand_breakdown (handref.sheet_hands).
