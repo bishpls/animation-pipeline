@@ -2094,6 +2094,7 @@
   {
    "kind": "belt",
    "name": "waistband",
+   "weights": "body",
    "waist": 0.70734,
    "width": 0.38114,
    "offset": 0.01,
