@@ -45,10 +45,22 @@ def setp(spec, path, v):
 
 
 def body_data(spec, npz):
+    """the body as the build assembles it (character.assemble: the body data with the head wrapped on and the neck's
+    join lofted) -> a dict like build_body_data's (verts and faces with the head's, weights, joints, parts, neck_ring,
+    head_len, n_body: the body's own vertex count; the head's appended after it)."""
     bodypage.save_body(spec, npz, log=lambda *a: None)
     sp = dict(spec, body_code=npz)
-    chin = code_base.head_sections(sp)[1]['chin']
-    return code_body.build_body_data(sp, chin, log=lambda *a: None)
+    if os.environ.get('BODYJ_RAW'):
+        chin = code_base.head_sections(sp)[1]['chin']
+        Bd = code_body.build_body_data(sp, chin, log=lambda *a: None)
+        Bd['n_body'] = len(Bd['verts'])
+        return Bd
+    from charkit import character
+    A = character.assemble(sp, keys=False)
+    B = A['body']
+    nb = max(b for _, b in B['parts'].values())
+    return dict(verts=np.asarray(A['verts'], float), faces=A['faces'], weights=A['weights'], joints=A['joints'],
+                parts=B['parts'], neck_ring=B['neck_ring'], head_len=B['head_len'], n_body=nb)
 
 
 def tris(F):
@@ -98,15 +110,21 @@ def topology(Bd):
 
 
 def labels(Bd, Bk, cut_z):
-    """our skin for the views: the body data's triangles (torso, legs, feet: TORSO; arms, bridges, hands: ARM) and the
-    build's head (its skin's triangles above the cut)."""
+    """our skin for the views: the body's triangles (torso, legs, feet: TORSO; arms, bridges, hands: ARM) and the head
+    (the assembly's own vertices past the body's, or, from the raw body data, the build's skin above the cut)."""
     V = np.asarray(Bd['verts'], float)
     T = tris(Bd['faces'])
+    nb = Bd.get('n_body', len(V))
     lab = np.full(len(V), shm.TORSO)
+    lab[nb:] = shm.HEAD
     for k, (a, b) in Bd['parts'].items():
         if k.startswith(('arm_', 'shoulder_', 'hand_')):
             lab[a:b] = shm.ARM
-    tl = np.where((lab[T] == shm.ARM).sum(1) >= 2, shm.ARM, shm.TORSO)
+    tl = np.where((lab[T] == shm.HEAD).sum(1) >= 2, shm.HEAD,
+                  np.where((lab[T] == shm.ARM).sum(1) >= 2, shm.ARM, shm.TORSO))
+    if nb < len(V):
+        ok = np.isfinite(V[T]).all((1, 2))
+        return [(V, T[ok], tl[ok])]
     Vh, Th, _, _ = Bk.skin().mesh('eval')
     Vh, Th = np.asarray(Vh, float), np.asarray(Th)
     hk = (Vh[Th][:, :, 2] > cut_z).all(1)
@@ -369,6 +387,15 @@ def main():
                     Bp = dict(Bd, verts=P)
                     R[key + '_lab'] = views(labels(Bp, Bk, 1e9)[:1], Bk, D)['front' if key == 'pose_side' else 'profile']
             R['region'] = region(Bd, 'left', L)
+        if Bd.get('n_body', 0) < len(Bd['verts']):         # (the assembled skin: the neck's join's crease, whole)
+            from charkit import faceregion
+            c_, L_, _ = faceregion.frame(Bk)
+            Tw = tris(Bd['faces'])
+            Vw = np.asarray(Bd['verts'], float)
+            Tw = Tw[np.isfinite(Vw[Tw]).all((1, 2))]
+            K = faceregion.crease_of(Vw, Tw, c_, L_)
+            rec['crease_whole'] = dict(max=K['max'], worst=K['worst'], median=K['median']) if K else None
+            print('   neck crease (whole skin)', rec['crease_whole'])
         rest_in = inside_torso(Bd, np.asarray(Bd['verts'], float), 'left', Z, L, Oz)
         rec['rest_inside'] = rest_in
         res[name] = rec

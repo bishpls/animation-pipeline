@@ -376,7 +376,8 @@ SOCKET = dict(top=0.30, bottom=-1.0, half=30.0, shift=0.0, s0=0.12, lift=(25.0, 
 # the shoulder joining the arm to the torso (body.shoulder.socket; Michael's diagnosis, 2026-10-01: the body had no
 # shoulder: the torso a tube, the arms capped tubes beside it, nothing joining them). A hole in the torso's side, its
 # rows from where the side reaches `top` L out (on the shoulder's top) down to the armpit at `bottom` (L from the eye
-# line), its columns within `half` degrees of the side (moved `shift` degrees toward the front); and a bridge from its
+# line; or `top_z`, its top row's height, under the reach of the neck's join), its columns within `half` degrees of the
+# side (moved `shift` degrees toward the front); and a bridge from its
 # rim to the arm's ring `s0` L down the arm's chain: per rim vertex one cubic leaving the torso toward the hole's
 # middle, lifted `lift` degrees off its surface (at the rim's top and its bottom, interpolated by height round it),
 # arriving along the arm, its tangents `reach` (start, end) of the chord long; `loops` rings between (the edge loops
@@ -406,7 +407,10 @@ def socket_rim(T_, side, so):
     h = max(1, int(round(np.radians(float(so['half'])) / (2 * np.pi / n))))
     cols = [(jm + o) % n for o in range(-h, h + 1)]
     js = int(np.argmin(np.abs(_wrap(F.th - th_s))))
-    i0 = next((i for i in range(2, len(F.ts)) if F.R[i, js] >= float(so['top'])), None)
+    if so.get('top_z') is not None:                       # (the rim's top row by height: under the neck's join)
+        i0 = max(2, int(np.argmin(np.abs(z - float(so['top_z'])))))
+    else:
+        i0 = next((i for i in range(2, len(F.ts)) if F.R[i, js] >= float(so['top'])), None)
     i1 = int(np.argmin(np.abs(z - float(so['bottom']))))
     if i0 is None or i1 < i0 + 2:
         raise ValueError('shoulder socket %s: the side never reaches %.3f L, or the armpit row %d is above it'

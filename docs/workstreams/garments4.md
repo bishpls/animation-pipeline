@@ -819,3 +819,35 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - Coordinator 10:4x: the build box full (16 slots, sweeps): overflow to render2 (`remote --box render2 ...`). g5_c1
   relaunched on render2 (log charkit/out/garments5/build_c1.log); the baseline built again there as g5_base_r2 (log
   build_base_r2.log) so the known-bad can be stored and the drafts calibrated on one box.
+- **The candidate's full build g5_c1 (render2; QA charkit/out/g5_c1/qa/qa.json) against g5_base_r2 (the same box's
+  baseline), under K: blocked.** The body's shoulder is right (above) but the garments, fitted round the old body,
+  don't hold on it:
+  - piece_top front 0.749 -> 0.311 (-58%), 3q 0.80 -> 0.58, back 0.93 -> 0.74; piece_sleeve_L/R front -22% / -29%.
+    tools/garments5/topiou.py: our jacket's extra area 0.038 -> 0.136 L^2, at |x| 0.4-0.6, z -0.6..-0.9: the bridge's
+    front columns (the socket's front edge at 60 deg on the torso, y ~ -0.19) stand in front of the puffs' inner front
+    (the puffs match the drawn profile, IoU 0.94). tools/garments5/confuse.py: drawn sleeve -> our jacket +0.034 (front),
+    +0.025 (3q), +0.017 (back); drawn collar -> our jacket +0.022 (back: the jacket over the raised shoulder comes up
+    through the hull collar's back flap).
+  - sleeve_*_spikes / _profile FAIL (front spikes 0 -> 0.21): the same jacket past the puffs.
+  - neck_crease 12.7 P -> 81 F (whole skin 14.4 -> 88): the neck (the head's, slender to the cut) turns into a shoulder
+    top at the cut's height within 0.006-0.03 L at the sides (the template's rows; the join's reach 0.03 there).
+  - art_outline_collar 1.44 P -> 4.67 W, art_outline_neck 1.47 P -> 4.93 W (flags), collar_*_torn 0 -> 0.013-0.071 F,
+    collar_back_rows / square / iou worse: the hull collar is walked on the body (garments.collar: from the neckline
+    outward a fixed surface length) and now walks out along the level shoulder and over the bridge.
+  - bow_front_bleed 0 -> 0.155 F (flag), hair_penetration 0 -> 0.0065 W, hand_three_quarter_reach_L P -> W (-0.0403).
+  - Better: shoulder_front_dip 0.052 F -> 0 P, shoulder_front_tilt 0.203 F -> 0.109 W, art_terminator_hair W -> P.
+  - Skin above the jacket at the shoulder tops (tools/garments5/skinpeek.py: the body's top at |x| 0.25-0.45 at
+    -0.505..-0.51 from the eye line; the jacket's top -0.553..-0.579: its neck cut, 0.04 L over the neck bone's head).
+- **Garment sweeps on g5_c1 (render2; charkit/out/garments5/sweeps/g1, g2):** g1, the jacket's neck cut 0.04 -> 0.05 /
+  0.06 / 0.08: collar_front_torn and 3q torn clear at 0.06, nothing else; 0.08 trips the guard (piece_top front -17%).
+  g2, the puffs' clearance (garments.puff_clear, e5cd247e: spec clear_body {gap, bones, inner}) with the cut at 0.06:
+  sleeve front spikes 0.21 -> 0.08, piece_top 0.613 -> 0.632-0.647 (front 0.31 -> 0.35-0.38), but piece_sleeve_R 3q
+  0.458 -> 0.36-0.40 (the far puff grows) and art_outline_neck worse: the clearance alone isn't the fix (the deltoid's
+  front-inner part is in the excluded inner sector).
+- **The neck join against the shoulder's height (run j5, tools/garments5/bodyj.py now assembles with character.assemble,
+  the neck's join included, and reads the whole skin's neck_crease):** T0 (the candidate) crease 88; T1 (the join's reach
+  at the sides 0.08 L, the rim's top under it at z -0.61 (socket.top_z)) crease 21 but the shoulder's silhouette score
+  0.029 -> 0.103 (the join's loft pulls the shoulder's top rows in: the point (0.61, -0.71) against the sheet's (0.585,
+  -0.595)). The sheet's shoulder line at |x| 0.3-0.4 sits at our cut's height (-0.50..-0.53): its trapezius flare is
+  above the cut, in the head's neck (the face workstream's). T2-T4 (reach 0.10/0.12) pending in
+  charkit/out/garments5/bodyj5.
