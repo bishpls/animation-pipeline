@@ -80,6 +80,13 @@ def test_weights_valid_on_every_finger_bone():
     assert len(bones) == 30, sorted(bones)
 
 
+def _along(J, f):
+    """the point at arc-length share f along a chain of joints."""
+    seg = np.linalg.norm(np.diff(J, axis=0), axis=1)
+    s0 = np.r_[0.0, np.cumsum(seg)]
+    return np.array([np.interp(f * s0[-1], s0, J[:, k]) for k in range(3)])
+
+
 def test_fingers_held_together():
     """neighbouring fingers touch along their length (round 4: de2fa87's four tubes fanned apart read as a comb, the
     fingertips' gaps 0.11-0.18 of the hand's span where the drawn hands show none): across the hand (the palm's plane),
@@ -92,8 +99,7 @@ def test_fingers_held_together():
         for a, b in zip(ch.FINGERS[:-1], ch.FINGERS[1:]):
             (Ja, _, wa), (Jb, _, wb) = D[a], D[b]
             for f in np.linspace(0.05, 0.95, 10):
-                pa = np.array([np.interp(f, np.linspace(0, 1, 4), Ja[:, k]) for k in range(3)])
-                pb = np.array([np.interp(f, np.linspace(0, 1, 4), Jb[:, k]) for k in range(3)])
+                pa, pb = _along(Ja, f), _along(Jb, f)
                 gap = abs((pa - pb) @ R[:, 1])
                 ra = 0.5 * (wa[0] + (wa[1] - wa[0]) * f)
                 rb = 0.5 * (wb[0] + (wb[1] - wb[0]) * f)
