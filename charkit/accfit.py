@@ -19,7 +19,7 @@ and view (front, three-quarter 1, profile 0.6: Michael's balance, 2026-09-30) is
 don't hide each other), the star shown from behind past BACK_PX (+2 + px / 40), the seat beyond 0.004 L (x 20).
 
     python -m charkit accfit shape star|crab SPEC [--minutes M] [--out DIR] [--w-alone W]
-    python -m charkit accfit place BUILD SPEC [--minutes M] [--out DIR] [--start JSON]
+    python -m charkit accfit place BUILD SPEC [--minutes M] [--out DIR] [--start JSON] [--plain W]
     python -m charkit accfit measure BUILD SPEC [--out DIR]        # the spec's clips placed and measured, a picture
     python -m charkit accfit measure BUILD SPEC --starts A.json,B.json   # several placements, the QA's and the plain measure
 """
@@ -35,6 +35,9 @@ W_ARMS = 2.0                          # the star fit's tip-reach term, per unit 
 VIS_MIN, VIS_W = 0.985, 20.0          # the non-occlusion term: VIS_W per unit of share hidden below VIS_MIN
 SEAT_TOL, SEAT_W = 0.004, 20.0
 BACK_PX = 20                          # the star shown from behind past this many pixels costs (the QA fails it at 40)
+PLAIN_W = 0.0                         # > 0: the gate's old measure (as_drawn off: the 2x2's old measure on the new
+                                      # geometry) kept off FAIL, a hinge at its FAIL limits (angle 18 deg, iou 0.62,
+                                      # size 0.23) times this (--plain W)
 ANGLE_OK, ANGLE_W = 8.0, 0.05         # a clip's axis off the drawn past this many degrees costs ANGLE_W a degree (the QA
                                       # passes 10, warns 20: an IoU aligned on centroid and area barely sees a turn)
 # the shape knobs each template fit moves, with their starting steps (the shape's own units: fractions of the star's
@@ -338,6 +341,16 @@ class Scene:
                 ang = C.get(tag + 'angle', {})
                 if ang.get('status') not in (None, 'INFO') and r['angle'] is not None:
                     loss += w * ANGLE_W * max(0.0, abs(r['angle']) - ANGLE_OK)
+                if PLAIN_W:
+                    P_, _, _ = accqa.compare(mo, md, self.ppl, kind, v)
+                    pa, pi, ps = P_.get(tag + 'angle', {}), P_.get(tag + 'iou', {}), P_.get(tag + 'size', {})
+                    r['plain'] = dict(iou=pi.get('value'), size=ps.get('value'), angle=pa.get('value'))
+                    if pa.get('status') not in (None, 'INFO') and pa.get('value') is not None:
+                        loss += PLAIN_W * 0.1 * max(0.0, abs(pa['value']) - 18.0)
+                    if pi.get('value') is not None:
+                        loss += PLAIN_W * 5 * max(0.0, 0.62 - pi['value'])
+                    if ps.get('value') is not None:
+                        loss += PLAIN_W * 5 * max(0.0, abs(ps['value'] - 1) - 0.23)
         for i, (kind, V, F, s) in enumerate(clips):
             g = self.seat(V)
             res[kind]['seat'] = None if g is None else round(g, 4)
@@ -515,6 +528,8 @@ def main(args):
         if opt('--start'):
             specs = json.load(open(opt('--start')))['specs']
         if cmd == 'place':
+            global PLAIN_W
+            PLAIN_W = float(opt('--plain', PLAIN_W))
             r = fit_place(S, specs, float(opt('--minutes', 30)))
             json.dump(dict(specs=r['specs'], result=clean(r['result']), start=clean(r['start']),
                            evaluations=r['evaluations']), open(os.path.join(out, 'place.json'), 'w'), indent=1)
