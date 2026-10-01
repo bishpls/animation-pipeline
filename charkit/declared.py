@@ -430,7 +430,7 @@ def remap_rows(m, Ro, Rd):
 
 
 def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, edge=False, relative=None,
-               with_ink=False, round_=3):
+               with_ink=False, align=None, round_=3):
     """the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's
     ink, with its fainter strokes (faint: outfit.ridges, as partqa.design_lines reads the bow's creases), inside the drawn
     region (the piece's mask, or the drawn piece `region`'s: the skirt's cream panel; closed, holes filled, its outline's
@@ -444,7 +444,9 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     region's at the same share across it (remap_rows), so a region drawn view-dependently (the skirt's cream panel, drawn
     face-on in three-quarter: wider than any 3D panel turned 35 degrees can show) still grades its lines' arrangement,
     and the region's own shape is the shape check's. with_ink: our ink strokes as our_ink draws them (at least a pixel wide:
-    a stroke thinner than a pixel still shows) with the lines (the hair's pieces: ctx 'ink')."""
+    a stroke thinner than a pixel still shows) with the lines (the hair's pieces: ctx 'ink'). align 'centroid': ours
+    (the piece and its lines) moved so its centroid meets the drawn piece's first (the hands: where our arm hangs is the
+    build pose's, body_*_arms; the lines' place on the hand is what this reads, as handqa lays hands on centroids)."""
     from scipy import ndimage
     from skimage.morphology import skeletonize
     from . import bodyqa, outfit
@@ -474,6 +476,12 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
         return dict(value=None, why=WHY_OURS)
     if with_ink and ctx.get('ink') is not None:
         lines = fit(lines, sh) | fit(ctx['ink'], sh)
+    if align == 'centroid':
+        from .calib.labels import _shift
+        yo, xo = np.nonzero(Mo)
+        yd, xd = np.nonzero(fit(Md, sh))
+        dy, dx = int(round(yd.mean() - yo.mean())), int(round(xd.mean() - xo.mean()))
+        Mo, lines = _shift(Mo, dy, dx, False), _shift(fit(lines, sh), dy, dx, False)
     zone_o = inner
     if relative:
         clo = ctx.get('cls_ours')
@@ -1028,6 +1036,8 @@ FOLD_FAMILIES = ('stair',)                        # families that read our geome
 HEAD_FAMILIES = ('line_weight',)        # families that read the head pictures (inputs' head: charkit.hairweight)
 TONE_FAMILIES = ('tones',)              # families that read our cel tones on the design grids (inputs' tones)
 HAIR = 'hair'                           # the hair as a piece: our hair_* objects, the drawing's hair class (no graph piece)
+HANDS = ('hand_L', 'hand_R')            # the hands as pieces (charkit.handqa's: the skin past the wrist cuff, ours from our
+                                        # labels as the drawn one from the drawing's; no graph piece)
 HAIR_OTHER = ('hair_bun', 'hair_ahoge')  # our hair objects that aren't the mass (with the clips: hairflagqa's `other`)
 
 
@@ -1039,7 +1049,8 @@ def grade(v, limits, better='lower'):
 
 
 # ------------------------------------------------------------------------------------------------------------ measuring
-def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair=False, head=False, tones=False):
+def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair=False, head=False, tones=False,
+           hands=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines); with hair, the hair as a piece (HAIR: our hair_* objects against the drawing's
@@ -1064,6 +1075,8 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
                graph=graph, spec=B.spec, skin=[o.name for o in B.objects(groups=('skin',))])
     if hair:
         _with_hair(B, design, out)
+    if hands:
+        _with_hands(B, out)
     if lines:
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
         if hair:
@@ -1082,6 +1095,36 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
     if folds:                                     # (the stair family: our geometry's folds, as the design's lines)
         out['folds'] = our_folds(B, ctx['ppl'], ctx['az3'], tuple(O))
     return out
+
+
+def _with_hands(B, I):
+    """the hands as pieces in the inputs I (in place): masks VIEW__hand_L/R the drawn hands (handqa.hand_mask: the
+    drawing's skin past its drawn cuff), own[view][hand_L/R] ours from our labels the same way (our skin past our cuff's
+    object: a calibration stand-in's labels give its own), pm[hand_*] empty (no graph piece)."""
+    from . import handqa, pieceqa
+    from .bodyqa import CLASS
+    names, pm, ppl = I['names'], I['pm'], I['ppl']
+    ids = [i + k for i, n in enumerate(names) if n in handqa._skin_names(B, names) for k in (0, 1000)]
+    I['masks'] = dict(I['masks'])
+    I['pm'] = dict(pm, **{h: [] for h in HANDS})
+    own = I.setdefault('own', {})
+    for v, Ov in I['O'].items():
+        d = I['dv'].get(v)
+        if d is None:
+            continue
+        cls, fg, lab = d['cls'], d['fg'], Ov['lab']
+        skin_d, skin_o = fg & (cls == CLASS['skin']), np.isin(lab, ids)
+        for s_ in handqa.sides(v):
+            md = I['masks'].get('%s__cuff_%s' % (v, s_))
+            if md is None or ('cuff_' + s_) not in pm:
+                continue
+            hd = handqa.hand_mask(skin_d, md[:cls.shape[0], :cls.shape[1]], ppl)
+            if hd is None:
+                continue
+            I['masks']['%s__hand_%s' % (v, s_)] = hd['mask']
+            mo = pieceqa.members(lab, names, pm, 'cuff_' + s_)
+            ho = handqa.hand_mask(skin_o, mo, ppl) if mo.sum() >= handqa.MIN_PX else None
+            own.setdefault(v, {})['hand_' + s_] = ho['mask'] if ho is not None else np.zeros(lab.shape, bool)
 
 
 def _with_hair(B, design, I):
@@ -1357,7 +1400,12 @@ def evaluate(decls, I):
         Md = [M.get('%s__%s' % (view, drawn or p)) for p in pieces]
         if any(m is None for m in Md):                    # (the design doesn't draw it here)
             continue
-        Mo = [pieceqa.members(lab, names, pm, p) for p in pieces]
+        if any(p in HANDS for p in pieces):
+            if any(p not in (I.get('own') or {}).get(view, {}) for p in pieces if p in HANDS):
+                continue
+            Mo = [I['own'][view][p] if p in HANDS else pieceqa.members(lab, names, pm, p) for p in pieces]
+        else:
+            Mo = [pieceqa.members(lab, names, pm, p) for p in pieces]
         oc = params.pop('ours_cls', None)
         if oc is not None:                                # (our piece's pixels of one class: its material there)
             from . import bodyqa
@@ -1433,6 +1481,8 @@ def declared(B, design=None, out=None):
                            for d in ds),
                folds=any(d['family'] in FOLD_FAMILIES for d in ds),
                hair=any(HAIR in (d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]) for d in ds),
+               hands=any(set(HANDS) & set(d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']])
+                         for d in ds),
                head=tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds
                                                   if d['family'] in HEAD_FAMILIES)),
                tones=tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds
