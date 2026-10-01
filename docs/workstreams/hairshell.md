@@ -845,3 +845,13 @@ folds 9 -> 16, so each station's ring is pushed out by its deepest vertex's need
 0.584 W, hem 2 P, hair_noise 4.37 P, scalp_px 65 W (hull 4), side locks F/P 0.601 / 0.557, lower back 0.511 / 0.610 /
 0.720, pieces_hair 905 -> 481 s, build CPU 1897 -> 1342.5 s (render2). Re-gate: `python -m charkit remote --box render2
 gate tool/hairshell3 --into pipeline-3d --accept hair_noise`.
+
+### Re-gate (140e8dbe into 60c0f1a4, `--accept hair_noise`): FAIL under K, 1 blocker
+`charkit/out/gate/gate_tool-hairshell3_140e8dbe_into_60c0f1a4.md`: penetration, the 2x2 and the CPU cleared; the one
+blocker: **hair_strokes_profile_dir 14.6 P -> 22.8 W** (the strokes milestone's flag check: our profile strokes'
+median angle to the drawn flow). Cause: the ring push (r6b) moved f20.1's whole sections out by up to 0.055 L, so the
+strokes projected onto it land elsewhere; the per-vertex push (r6_default) read 16.9 P (= r5_c1e) but folds 16.
+Reported, not blocking: scalp_px 4 P -> 65 W, body_profile_iou_skin 0.724 P -> 0.686 W, art_peeks_hair 17 -> 19 W,
+back lines 0.928 -> 0.584, lock lines up. Next: skin_clear modes (lockshell): 'narrow' (narrow the lock where its edge
+enters the head, as fold_fix narrows a fold; the visible face stays), 'ring', 'vertex'; sweep r6sw1 on r6b_default
+(render2, six placements), then the default's mode and a re-gate.
