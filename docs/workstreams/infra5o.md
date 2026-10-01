@@ -26,18 +26,18 @@ tmp/infra5o-base, tmp/infra5o-failfast) can be removed once the coordinator has 
 tool/build2's area); the iterate profile as a default for QA-only runs and sweep confirm builds (optimize.py's
 confirm builds, not touched); `CHARKIT_PREVIEW_VERIFY` (a verify build per merge) not wired.
 
-## Time
+## Time (EDT, from the commits; the agent's wall time, box jobs running in the background meanwhile)
 | task | start | end | notes |
 | --- | --- | --- | --- |
-| orientation, data | 15:38 | 15:50 | brief, code, the box's gate baselines' traces fetched |
-| 1 instrumentation + `charkit profile` | 15:50 | 16:05 | per-stage CPU recorded; profile table on stored builds |
-| 4 fail-fast, 6 denominators, 2 budget plumbing | 16:05 | 16:35 | code + unit tests (budget numbers wait on b0) |
-| b0 profile, QA cProfile, counts | 16:35 | 16:50 | b0 cold build profiled; the renderer is the QA's cost |
-| coordinator's stale-cache item | 16:50 | 17:35 | walker, depth, runtime record, verify, affected gates |
-| 3 cuts: declared buffers, render culling, memos | 17:35 | 18:20 | b1; culling measured (no gain) and taken out |
-| final builds (b2/bb, then the clean pair b4/bb3), pregate | 18:20 | 19:55 | the merge with 27a4b6c3 in between |
-| coordinator's like-for-like CPU item | 19:05 | 19:20 | gate.like_for_like + test |
-| gates (33edd0a7 build2, f36b2f07 build box), review page | 19:15 | 19:58 | both PASS |
+| orientation, data | 15:38 | 15:45 | brief, code, the box's gate baselines' traces fetched |
+| 1 instrumentation + `charkit profile` | 15:45 | 15:47 | per-stage CPU recorded; the table on stored builds |
+| 4 fail-fast, 6 denominators, 2 budget plumbing | 15:47 | 15:57 | code + unit tests; the planted fail-fast gate |
+| b0 cold profile, the QA under cProfile, counts | 15:57 | 16:08 | the renderer is the QA's cost |
+| the coordinator's stale-cache item | 16:08 | 16:34 | walker, depth, runtime record, verify, affected gates |
+| 3 cuts: declared buffers, memos, culling (measured, taken out) | 16:33 | 17:01 | b1, the cull pair |
+| merge 27a4b6c3, budget.json, first gate (PASS) | 17:01 | 17:19 | |
+| the coordinator's like-for-like CPU item | 17:19 | 17:33 | gate.like_for_like + test |
+| the clean before/after pair, QA-only pair, re-gate (PASS), review page | 17:33 | 18:05 | |
 
 ## 1. Per-stage build profile
 
