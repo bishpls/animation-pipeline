@@ -71,6 +71,10 @@ SPECK_MIN = 0.00001         # L^2: ... and over this
 MIN_SKIN = 0.01             # L^2: a view shows less face or neck skin than this: not measured there (the back view's neck
                             # is slivers between the hair and the collar, 0.003-0.005 L^2, where specks per L^2 read 740)
 EDGE_BAND = 0.006           # L: tone patches within this of a region's outline are the outline's fringe
+HAIR_SHAPE_TRUTH = False    # the hair region against its shape truth (charkit.shapetruth: the head sheet with its clips
+                            # repainted from the redraw, ours drawn without our clips; tool/hairtruth). Held off until
+                            # art_terminator_hair's and art_peeks_hair's known-bad (look_v5) can be measured again: their
+                            # calibration records can't be refreshed without it (tool/hairtruth-art flips it)
 TONE_BLUR = 0.9             # px: our tone buffer softened as a render's pixel filter (~0.5) and a drawing's cut (0.7)
 
 
@@ -1446,7 +1450,7 @@ def _hair_shape(B, design):
     repainted from the redraw), as a digest of what makes it, or None when the hair declares none."""
     import os
     from . import cache, qa3d, shapetruth
-    if shapetruth.MODE == 'off':
+    if shapetruth.MODE == 'off' or not HAIR_SHAPE_TRUTH:
         return None
     e = shapetruth.entry(B.spec, 'hair')
     if e is None:
@@ -1464,7 +1468,7 @@ def design_compute(B, design):
     fs = ref['face_sheet']
     head, chin = design.memo(design_heads, design.rgba(fs['image'])[..., :3], B.assembly['eye_knobs']['x'],
                              fs.get('facing', -1))
-    st = design.shape_head('hair') if design.hidden('hair') else None
+    st = design.shape_head('hair') if HAIR_SHAPE_TRUTH and design.hidden('hair') else None
     if st is not None:
         hh, _ = design.memo(design_heads, st, B.assembly['eye_knobs']['x'], fs.get('facing', -1))
         for v, rec in head.items():
@@ -1589,7 +1593,7 @@ def measure(B, design=None, out=None):
     pics = [] if out else None
     O = ours(B, az3, body_ppl if D.get('body') else None,
              body_page=(ctx['rgb'].shape[0] if 'rgb' in ctx else 1440), pictures=pics,
-             hide=design.hidden('hair') if design is not None else ())
+             hide=design.hidden('hair') if design is not None and HAIR_SHAPE_TRUTH else ())
     C = promote(checks(O, D))
     if note:
         C['design'] = {'status': 'INFO' if D else 'SKIPPED', 'why': note}

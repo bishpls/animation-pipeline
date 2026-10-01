@@ -70,7 +70,7 @@ class Art:
         The hair from the hair's shape truth when it declares one (qa3d.Design.shape_head: its clips repainted away),
         as the design's measures read it (artifactqa.design_compute)."""
         from .. import artifactqa as aq, refcheck
-        if sheet is None and self.design.hidden('hair'):
+        if sheet is None and aq.HAIR_SHAPE_TRUTH and self.design.hidden('hair'):
             out = self.heads(dy, dx, sheet='drawn')
             hair = self.heads(dy, dx, sheet='shape')
             for v, rec in out.items():
