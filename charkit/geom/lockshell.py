@@ -41,7 +41,11 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
                join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex',
                det=True, det_method='lm', det_step=1e-6, det_tol=1e-10, det_nfev=600, det_q_in=2.0 ** -12,
-               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0)
+               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0, skin_clear=True, skin_soft=0.002, det_join_nfev=150)
+# (round 4) det_join_nfev: a trial join's evaluations (det): one the fit can't bring within view_cost_max in that many
+# is dropped (it ran to det_nfev before: the build's CPU); one it accepts that the cap stopped is fitted again in full.
+# (round 4) skin_clear: every shell vertex held gap L outside the skin (the crown chart's skin field; a smooth max over
+# skin_soft L): a wide, twisted lock's edge swung into the temple (hair_penetration). False: as before.
 # (round 4) hug_free: the share of a lock's length at its tip where the depth pulls (prior_depth, view_depth) fade out
 # (a group's opts, e.g. the hem's flicks: on the mass along their body, free at their tips); 0 off.
 # (tool/hairshell3) det: the reproducible fit (the same shells on every machine): a smooth objective (the drawn
@@ -538,11 +542,13 @@ class Lock:
                 # (Levenberg-Marquardt, MINPACK's: the twist through tanh, unbounded)
                 f_ = lambda y: self.residuals(np.r_[y[:18], tw * np.tanh(y[18])])
                 y0 = np.r_[x0[:18], np.arctanh(np.clip(x0[18] / tw, -0.99, 0.99))]
-                sol = least_squares(f_, y0, x_scale=scale, max_nfev=self.o['det_nfev'], method='lm',
+                sol = least_squares(f_, y0, x_scale=scale, max_nfev=getattr(self, 'nfev_cap', None) or self.o['det_nfev'],
+                                    method='lm',
                                     diff_step=self.o['det_step'], ftol=tol, xtol=tol, gtol=tol)
                 sol.x = np.r_[sol.x[:18], tw * np.tanh(sol.x[18])]
             else:
-                sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=self.o['det_nfev'], jac='3-point',
+                sol = least_squares(self.residuals, x0, x_scale=scale,
+                                    max_nfev=getattr(self, 'nfev_cap', None) or self.o['det_nfev'], jac='3-point',
                                     diff_step=self.o['det_step'], ftol=tol, xtol=tol, gtol=tol, bounds=bounds)
             q = self.o.get('det_q_out')
             xs = np.asarray(sol.x, float)
@@ -647,6 +653,21 @@ class Lock:
                 sc[max(0, k_ - 2):k_ + 4] = 0.7
             Wl, Tl = Wl * sc, Tl * sc
             part = tube_(line, Wl, Tl, ch, self.twist, nr)
+        if self.o.get('skin_clear'):
+            # (round 4) every vertex at least `gap` outside the skin, as the hull's pieces hold their inner surface (S +
+            # gap on the crown chart's skin field): the fit keeps the centreline clear, but a wide, twisted lock's edge
+            # could swing into the head (f20.1 at the temple: 0.040 L inside, hair_penetration FAIL). A smooth max over
+            # skin_soft L, so a vertex well clear doesn't move
+            phv, thv, rv = ch.coords(part['V'])
+            Sv = G.sample(np.where(np.isfinite(self.F['S']), self.F['S'], -1e3), phv, thv)
+            floor_ = Sv + self.o['gap'] * self.L
+            sft = float(self.o.get('skin_soft', 0.002)) * self.L
+            rn = floor_ + _softplus(rv - floor_, sft)
+            mv = rn - rv > 1e-9
+            if mv.any():
+                V_ = part['V'].copy()
+                V_[mv] = ch.point(phv[mv], thv[mv], rn[mv])
+                part['V'] = snap(V_, 2.0 ** -26) if det else V_
         keep = self.o.get('over_ink')
         part['over'] = bool(getattr(self, 'over', False))
         if getattr(self, 'over', False) and keep is not None:
@@ -1006,9 +1027,22 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                             solo = lk.cost.get(pv, 0.0)
                             lk.drawn[vn] = pend[vn]
                             set_contain(lk)
+                            # (round 4) a trial join gets det_join_nfev evaluations (the build's CPU: the trials the
+                            # fit can't follow ran to det_nfev, 600, ~80% of the lock fit's time, and are dropped
+                            # anyway); one it accepts that the cap stopped is fitted again from the same start to
+                            # convergence, so a kept join ends where it did before
+                            cap = o.get('det_join_nfev') if o.get('det') else None
+                            lk.nfev_cap = cap
                             lk.fit()
-                            ok = all(c <= o['view_cost_max'] for v_, c in lk.cost.items() if v_ != pv) and (
+                            lk.nfev_cap = None
+                            judge = lambda: all(c <= o['view_cost_max'] for v_, c in lk.cost.items() if v_ != pv) and (
                                 o.get('primary_slack') is None or lk.cost.get(pv, 0.0) <= solo + o['primary_slack'])
+                            ok = judge()
+                            if ok and cap and getattr(lk, 'status', (1,))[0] == 0:
+                                lk.Q, lk.twist, lk.cost = keep[0].copy(), keep[1], dict(keep[2])
+                                set_contain(lk)
+                                lk.fit()
+                                ok = judge()
                             if not ok:
                                 lk.assoc.setdefault(vn, {}).update(status='dropped', cost=lk.cost.get(vn),
                                                                    primary_cost=lk.cost.get(pv))
