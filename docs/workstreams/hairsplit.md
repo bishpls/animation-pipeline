@@ -115,6 +115,13 @@ rank helpers). The design-level score is a measurement (the inputs need the prod
 tipcheck, crossview, layercheck, zoom, pics, review). Outputs (untracked): `charkit/out/hairsplit/` (final/, abl*/,
 dev/, inputs.pkl, ctx5.pkl, ref/h5_base.npz and the hair5truth scores copied from tool/hair5's out).
 
+## Gate
+
+Pregate at 7022c7e: PASS, 0 moved, 0 blocking (`charkit/out/pregate/pregate_tool-hairsplit_7022c7e3_into_de477ddc.md`).
+**Box gate running** (`python -m charkit remote gate tool/hairsplit --into pipeline-3d`, log
+`charkit/out/hairsplit/gate.log`). The branch adds a measurement and tooling only (no QA part, check or builder change):
+expected no moves.
+
 ## Step 2: the B pilot (not started; the next round's plan)
 
 1. Read the locks per view from `python -m charkit hairsplit --out DIR` (hairsplit.npz: VIEW lock images on the
