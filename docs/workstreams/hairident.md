@@ -93,6 +93,34 @@ envelope's depth pull is ours (each view's lock pulled onto the hull's first sur
 strand under the bun 60): step 2 (the reference is view-dependent there), so step 3 (compromise: the three-quarter
 weighted down, per-view costs reported).
 
+
+## Step 3: the joint fit (charkit/geom/lockident.py; opt-in: lock_shells `ident`)
+Each lock's 3D path decided once (the primary views' targets fitted alone), then rounds of: per view, every family's
+drawn targets matched to the locks at once (Hungarian with a dummy column at `assign_max` px: a lock may stay
+unassigned; the splitter's T-junction ranks as a constraint: a flipped pair pays `layer_w`), each lock refitted with
+its assigned views (`depth_two` 0: the envelope's depth pull off once two views place it; a join costing more than
+`join_cost_max` px, or raising the primary past `primary_slack`, dropped for the round); a later primary view (the side
+locks' profile) seeds locks only from the targets the first round left over. Where a lock's depth isn't placed yet the
+assignment lets its projection slide sideways by `depth_sigma` L x |sin(views' angle)| (the hull's depth is a guess:
+the oracle check on the side locks put the right target first in 6 of 9 links with the slide, 3 of 9 without).
+Scoring (`tools/hairident/ident.py`, against charkit/refs/clawd/hair_lock_links.json): a lock is an item's when its
+home-view target covers 30% of Michael's home region; per answered view right / wrong / missing (positive links),
+right / extra (not visible), points covered within 3 px; items no fitted lock covers are `unmatched` (coverage).
+Held-out views: the fit on three views, the fourth assigned without a refit, scored there.
+
+## Extending region by region (after this round; each a real build against the hull, the guard per view)
+1. Side locks (this round): the identity fit's shells; the three-quarter weighted 0.5 (drawn view-dependently).
+2. The back's hem flicks, both sides (phi [90, 270] as two groups): needs the back's lock structure (the lock map's
+   back failed: its hem isn't the body sheet's); the canonical rule's compromise: the hem's targets the splitter's cells
+   (`unit: 'cells'`), the flicks' identity from the back to the profile only (the three-quarter shows the hem edge-on).
+3. Bangs: over their wedges (`under: ['bangs']`), front primary, the profile joined through the assignment (the truth's
+   bangs names are read across front / three-quarter / profile, so their links can be scored once Michael labels them).
+4. The upper back: the lock map's profile locks as the profile's targets (registered for the profile), the back's
+   stripes from the crown as the back's; the identity across profile and back by height and side.
+5. The hooked hem: the tip curl (lockshell `tip_curl`, tested here: it doesn't help the side locks, which don't hook) on
+   the hem groups, fitted to the back's lobes and the profile's J hooks.
+6. The ahoge: its fitted template stays (it fits front + three-quarter + profile within 1.2 px at a 25-30 deg turn).
+
 ## Plan (the brief's order)
 1. `python -m charkit label serve TASK.json` (charkit/label.py, generic) + the hair identity task (~20 locks: side locks,
    back flicks; tools/hairident/mktask.py) -> hand the page to the coordinator.
