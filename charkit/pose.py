@@ -17,7 +17,8 @@ applied in this order, angles in degrees:
   swing   its direction turned toward forward (toward back when negative)
   bend    flexion about the joint's anatomical hinge: the elbow and the shoulder toward the front, the knee toward the
           back, the hip toward the front, the wrist and the fingers toward the palm, the thumb across it, the ankle toward
-          the sole, the spine, neck and head forward, the clavicle up (negative: extension)
+          the sole, the spine, neck and head forward, the clavicle up (negative: extension); the thumb across the
+          fingers toward the little finger
   spread  abduction in the palm's plane: a finger away from the middle finger, the thumb away from the index
   twist   about the bone's own axis: positive turns its front toward the midline (internal rotation; mirrored per side)
   turn, nod, tilt   about the body's axes: turn about up (toward her left; mirrored for a side bone), nod about the
@@ -33,6 +34,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LIBRARY = os.path.join(HERE, 'poses', 'rom.json')
 UP, FWD, LEFT = np.array([0.0, 0.0, 1.0]), np.array([0.0, -1.0, 0.0]), np.array([1.0, 0.0, 0.0])
 OPS = ('aim', 'raise', 'swing', 'bend', 'spread', 'twist', 'turn', 'nod', 'tilt')
+THUMB_PALM = 0.15           # the thumb's flexion: across toward the little finger, this much toward the palm (at 1.0
+                            # a fist's thumb stood out of the palm on Clawd's hand; tool/rom close-ups, 2026-10-01)
 MIDDLE = ('hips', 'spine', 'chest', 'upperChest', 'neck', 'head')
 FINGERS = ('Index', 'Middle', 'Ring', 'Little')
 NAMED = {'up': (0.0, 0.0, 1.0), 'down': (0.0, 0.0, -1.0), 'forward': (0.0, 1.0, 0.0), 'back': (0.0, -1.0, 0.0),
@@ -153,7 +156,7 @@ class Skeleton:
             elif nb == 'Shoulder':
                 f = UP
             elif nb.startswith('Thumb') and n is not None:
-                f = _unit(n - k)                      # across the palm, toward the little finger's side
+                f = _unit(THUMB_PALM * n - k)         # across the fingers toward the little finger, a little palmward
             elif (nb == 'Hand' or nb.startswith(FINGERS)) and n is not None:
                 f = n
             else:                                      # arms, hips' legs, spine, neck, head: toward the front
