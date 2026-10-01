@@ -810,14 +810,16 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
         wk_back = np.where(near & np.isfinite(wk_all), np.maximum(wk_all, neck_d), wk_all)
         tj = np.where(under, 0.0, tj)
 
+    ssm = float((face or {}).get('scale_smooth', SCALE_SMOOTH))     # (the style's face section may set it)
+
     def scaled(w):
         sc = np.where(half_all > 0, (1 - tj) * w / np.where(half_all > 0, half_all, 1) + tj, 1.0)
-        return np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), sc, np.nan), SCALE_SMOOTH / A.h), nan=1.0)
+        return np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), sc, np.nan), ssm / A.h), nan=1.0)
     scale, scale_b = scaled(wk_all), scaled(wk_back)
     if 'scale' not in terms:
         scale, scale_b = np.ones_like(scale), np.ones_like(scale)
     wc_all = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), (1 - tj) * wk_all + tj * np.minimum(half_all, 0.3), np.nan),
-                                        SCALE_SMOOTH / A.h), nan=0.3)
+                                        ssm / A.h), nan=0.3)
     g_front = np.where(np.cos(th) > 0, np.cos(th) ** 2, 0.0)          # 1 at the front, 0 from the sides back
     win = eye_window(F.C, face)                    # the style's eye region: the socket below, or the anime window
 
