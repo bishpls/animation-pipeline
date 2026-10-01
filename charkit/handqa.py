@@ -24,6 +24,15 @@ Checks (QA part 'hands', prefix hand_; lengths in L):
   hand_{view}_cleft_{L,R}    the deepest pocket between the hand's silhouette and its convex hull (the thumb's cleft,
                              the gaps between spread fingers), ours over the design's; only in views where the design's
                              is at least CLEFT_MIN deep (drawn)
+  (round 4, tool/hands2: the structure inside the silhouette the IoU can't see; Michael 2026-10-01, the comb hand)
+  hand_{view}_gaps_{L,R}     the fingers held together: the share of the hand's span across the arm with no hand in it
+                             at GAP_BANDS of the reach (the fingertips), ours minus the design's
+  hand_{view}_taper_{L,R}    the hand narrowing to its fingertips: its width at TIP_BANDS over its widest, ours minus
+                             the design's
+  hand_{view}_cleftpos_{L,R} where the deepest silhouette pocket's bottom lies along the reach (the thumb's cleft, not a
+                             gap between fingers), ours minus the design's; where the design's cleft is drawn
+  gaps and taper are report-only (INFO, the reason in `why`) where the view can't show them (EDGE_ON: the fingers
+  edge-on); the wrist's narrowing (wrist) is in the table, not graded.
 A view where either side shows less than MIN_PX of the cuff or the hand isn't measured (the far hand in profile).
 Where something of ours stands in front of our hand (the three-quarter's far hand behind the skirt: our_hidden, the
 hand z-buffered alone against the whole figure), the shape is graded on the visible part only: ours' whole silhouette
@@ -51,7 +60,9 @@ LIMITS = {                                       # (pass within, warn within); e
     'cleft': ((0.6, 1.67), (0.4, 2.5)),          # ours over the design's deepest silhouette pocket
     'gaps': (0.03, 0.06),                        # ours - design: the fingertips' span with no hand in it (share)
     'taper': (0.08, 0.15),                       # |ours - design|: the fingertips' width over the hand's widest
-    'cleftpos': (0.06, 0.12),                    # |ours - design|: the deepest pocket's bottom along the reach (share)
+    'cleftpos': (0.04, 0.055),                   # |ours - design|: the deepest pocket's bottom along the reach (share;
+                                                 # tightened from 0.06/0.12, the coordinator 2026-10-01: within about
+                                                 # the thumb's half-width of the drawn cleft)
 }
 HAND_3D = 0.9           # L: our hand is the skin's shells lying wholly within this of its wrist band's centre, below
                         # it (the palm and each digit are shells of their own: charkit/code_hand.py)
@@ -65,6 +76,19 @@ CLEFT_FLOOR = 0.01      # L: a pocket shallower than this is no cleft (cleft_at:
 GAP_BANDS = (0.8, 0.85, 0.9, 0.95)                              # the fingertips' bands (gaps)
 PROFILE_BANDS = tuple(np.round(np.arange(0.05, 0.96, 0.05), 2))  # the width profile's bands (taper, profile)
 TIP_BANDS = (0.85, 0.9, 0.95)                                   # the fingertips' width (taper)
+WRIST_BAND = 0.05                                               # the wrist's band (wrist: reported, not graded)
+# report-only (INFO, the reason recorded) where the view can't show the structure (the coordinator, 2026-10-01: graded
+# wherever the drawing shows it): {check: {(view, side): why}}
+EDGE_ON = {
+    'gaps': {('profile', 'L'): "the fingers edge-on: at rest A (the back of the hand turned 62 deg toward the viewer, "
+                               "Michael's call) the profile sees our fingers stacked one behind the other, so no gap "
+                               "between them can show (de2fa87's comb of fanned fingers reads 0.023 here)",
+             ('three_quarter', 'R'): "the far hand, edge-on and partly behind the skirt: the drawing shows it 0.16 L "
+                                     "across (0.20-0.26 elsewhere), no gap between its fingers can show (the comb reads "
+                                     "0 here)"},
+    'taper': {('three_quarter', 'R'): "the far hand drawn edge-on: the drawing itself ends square there (taper 0.70, "
+                                      "0.40-0.51 elsewhere), its fingertips one behind the other"},
+}
 
 
 def grade(key, v, ours=None):
@@ -428,6 +452,15 @@ def taper(h, ppl):
     return float(W[tip].mean() / W.max())
 
 
+def wrist(h, ppl):
+    """the wrist's narrowing: the hand's width across the arm at WRIST_BAND of the reach over its widest (reported in
+    the table, not graded: the drawn hands 0.66-0.84, a block palm 0.84-0.93)."""
+    W, _ = bands_across(h, ppl, PROFILE_BANDS)
+    if not W.max():
+        return 0.0
+    return float(W[np.argmin(np.abs(np.asarray(PROFILE_BANDS) - WRIST_BAND))] / W.max())
+
+
 def cleft_at(m, h, ppl):
     """where the deepest silhouette pocket's bottom lies along the reach past the cuff (a share of the reach): the
     thumb's cleft where the design draws one (0.56-0.64 front, back and three-quarter), and not a gap between fingers
@@ -450,7 +483,7 @@ def cleft_at(m, h, ppl):
 
 
 def features(h, seams, ppl):
-    """what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width, gaps, taper,
+    """what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width, gaps, taper, wrist,
     cleft_at, profile (its width across the arm at PROFILE_BANDS of the reach over the reach))."""
     m = h['mask']
     n, per = digits(h, seams, ppl)
@@ -461,7 +494,7 @@ def features(h, seams, ppl):
     W, _ = bands_across(h, ppl, PROFILE_BANDS)
     return dict(px=int(m.sum()), reach=round(r, 4), digits=int(n), per_band=per, cleft=round(cd, 4),
                 pockets=pk, width=round(float(np.percentile(t[m], 99) - np.percentile(t[m], 1)), 4),
-                gaps=round(gaps(h, ppl), 4), taper=round(taper(h, ppl), 4),
+                gaps=round(gaps(h, ppl), 4), taper=round(taper(h, ppl), 4), wrist=round(wrist(h, ppl), 4),
                 cleft_at=None if ca is None else round(ca, 4), profile=[round(float(x) / max(r, 1e-9), 3) for x in W])
 
 
@@ -550,6 +583,11 @@ def measure(B, design, out=None):
                                          "of it: the drawn thumb's cleft, not a gap between fingers), ours minus the "
                                          "design's")):
                 if (k == 'digits' and fd['digits'] < 2) or (k in ('cleft', 'cleftpos') and fd['cleft'] < CLEFT_MIN):
+                    continue
+                if (v, s) in EDGE_ON.get(k, {}):
+                    ko = {'cleftpos': 'cleft_at'}.get(k, k)
+                    C['%s_%s_%s' % (v, k, s)] = {'value': None, 'status': 'INFO', 'design': fd[ko], 'ours': fo[ko],
+                                                 'why': EDGE_ON[k][(v, s)], 'note': note}
                     continue
                 if k != 'reach' and vis < VISIBLE_MIN:
                     C['%s_%s_%s' % (v, k, s)] = {'value': None, 'status': 'INFO', 'design': fd[k], 'ours': fo[k],
