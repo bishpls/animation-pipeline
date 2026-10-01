@@ -1834,7 +1834,7 @@ def _outline(m):
 
 
 def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), kind='block', over=0.25, loop_starts=1,
-              scene=None, tails=False, tail_iters=500, outline_w=0.0, method=None):
+              scene=None, tails=False, tail_iters=500, outline_w=0.0, method=None, start=None):
     """a block bun's pose and size fitted to the drawn bun: from bun_block's frame and extents (the hull's points), the
     centre, a rotation and the three half-sizes that best cover each view's drawn bun, then with the fold's slab free
     too (its place and size in the bun's frame), then (tails) the tails' fan (bun_tails) with the rest held
@@ -1849,7 +1849,10 @@ def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), ki
     terms on soft silhouettes with a pull toward the start, by L-BFGS-B: stable under tiny input moves. The soft path
     covers the default construction (no scene, no outline term, no tails); with any of those the fit is Nelder-Mead's.
     -> (bun_block's fit {c, R, half, slab, tails}, per-view IoU before/after (the hard silhouettes'), the method that
-    ran, and outline F after; the soft path adds its losses and stages)."""
+    ran, and outline F after; the soft path adds its losses and stages).
+    start (the soft path; tools and tests): the first stage started there (the 9 block parameters, in the fit's units:
+    centre x |half|, rotation vector, log size) instead of block_frame's pose, the prior still centred on that pose: a
+    probe of whether the fit's optimum is one (tools/bunorient/orient.py's multistart)."""
     method = method or BUN_METHOD
     if method not in ('nm', 'soft'):
         raise ValueError('fit_block: method %r (nm or soft)' % method)
@@ -1947,7 +1950,7 @@ def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), ki
     before = loss(np.zeros(9), True)
     if method == 'soft':
         x, soft = _fit_block_soft(targets, views, hull_frame, unpack, meshes, len(U1), nx, w_over, kind, loop_starts,
-                                  o0)
+                                  o0, start)
         c, R, half, slab, tl = unpack(x)
         return dict(c=c, R=R, half=half, slab=slab, tails=None), dict(before=before, after=loss(x, True), soft=soft,
                                                                         method='soft', tails=None)
@@ -2105,7 +2108,7 @@ BUN_SOFT_PRIOR = 0.003    # the soft fit's pull toward its start (block_frame's 
                           # 9e-7 L for 4e-6 L in; 0.003 fits best (IoUs within 0.03 of Nelder-Mead's or above)
 
 
-def _fit_block_soft(targets, views, hull_frame, unpack, meshes, npart, nx, w_over, kind, loop_starts, o0):
+def _fit_block_soft(targets, views, hull_frame, unpack, meshes, npart, nx, w_over, kind, loop_starts, o0, start=None):
     """fit_block's 'soft' path (no scene, no tails): its loss (per view, the drawn bun missed, ours outside it, and ours
     over the drawing's other hair weighted w_over, over the drawn bun's area) on _support_cover's soft silhouettes of
     our bun's parts (each its projected points' convex outline, as the hard loss fills them; npart points each), plus
@@ -2172,7 +2175,7 @@ def _fit_block_soft(targets, views, hull_frame, unpack, meshes, npart, nx, w_ove
     u = BUN_SOFT_UNIT
     unit9 = np.r_[[u[0]] * 3, [u[1]] * 3, [u[2]] * 3]
     unit = np.r_[unit9, [u[3]] * 3, [u[4]] * 3, [u[5]] * (nx - 15)]
-    x, _ = run(np.zeros(9), unit9, BUN_SOFT)
+    x, _ = run(np.zeros(9) if start is None else np.asarray(start, float)[:9], unit9, BUN_SOFT)
     x0 = np.r_[x, np.zeros(nx - 9)]
     x, v = run(x0, unit, BUN_SOFT[1:] or BUN_SOFT)
     if kind == 'ribbon' and loop_starts > 1:
