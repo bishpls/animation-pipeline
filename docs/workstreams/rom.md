@@ -67,6 +67,17 @@ default; the joined-shoulder candidate), calibrated against known-bads, wired in
   rom_finger_finger after it (the thumb's flex changed in pose.py, THUMB_PALM 0.15). B
   (shoulder_torso + shoulder_open on rom_cand2) relaunched after adding rom_shoulder_open.
 
+## Calibration (2026-10-01, local: the build box was loaded, 86 min in one group; killed my box jobs)
+- CALIBRATED on rom_base2 (records committed 26e06b0e): rom_vol_elbow (design DQS 0.995-0.996, known-bad rom_lbs
+  0.382), rom_vol_knee (0.991-0.993 / 0.384), rom_vol_fingers (0.982-0.984 / 0.643), rom_hair_shoulders (5e-5..1.1e-4 /
+  hair_on_chest 0.0106), rom_finger_finger (0 / fingers_shifted 0.0228), rom_weights_stray (0 / stray 0.0152),
+  rom_garment_strain (rigid 0 / shuffled 102.6; current 0.62 FAIL).
+- Shoulder (RomShoulder on rom_cand2, known-bad stored rom_rigid_shoulder): the first run read shoulder_torso
+  MISCALIBRATED (arm_across nudged 5% put the hand 0.11 L into the head: arm_head). Fixed: arm_torso pairs only, the
+  shoulder poses (forward, side, overhead, arms forward); recalibration running (log charkit/out/rom/calibB_local.log).
+- The candidate's skin has stray neck weight on its bridge (0.53% of the skin, 10% of the jacket): rom_weights_stray
+  (calibrated) will FAIL on tool/garments4-shoulders' merge until the bridge drops it (a new FAIL under K: blocks).
+
 ## Box jobs
 - Boards: charkit/out/rom/box_base2/boards, rom-cand's charkit/out/rom/box_cand2/boards (112 each, toon renderer).
 - Calibration (build box): A (logs charkit/out/rom/calibA.log, -> charkit/out/rom/calibA/cal.json), B (calibB, the
