@@ -91,5 +91,58 @@ default; the joined-shoulder candidate), calibrated against known-bads, wired in
   shoulder on rom_cand2). Records: write locally from the JSON (the box's synced files are read-only).
 - Close-ups: --closeups on both (cu_base2.log / cu_cand2.log -> box_*/closeups).
 
+## Michael's answers (2026-10-01, through the coordinator)
+1. Volume at the elbows, knees and knuckles: **A**, helper bones driven by VRM node constraints (not corrective shapes).
+2. A joined hip built like the joined shoulder: **yes**.
+3. The garment failures on the raised arms go to the garments' round 8 (told), not the motion round.
+
+## The next motion round's brief (launches when tool/rom merges): each failure, its measure, its fix
+Measure everything with `python -m charkit rom BUILD [--boards] [--closeups]` (the suite, 28 poses) and the QA part
+(`rom_*` in qa.json); numbers below are rom_base2 (the default) / rom_cand2 (the joined shoulder), 2026-10-01. Every fix
+keeps the pieces' shape IoUs (the guard) and reports them per view next to the check it targets.
+
+1. **Elbow, knee and knuckle volume (both bodies; blocks every arm and leg motion).** Measure: rom_vol_elbow (the ring
+   at the joint posed over rest, elbows_135) 0.382 FAIL, rom_vol_knee 0.384 FAIL (knees_135; squat 0.463), rom_vol_fingers
+   0.643 FAIL (the fist's PIP); 90 deg reads 0.71 (WARN); rom_knee_folded 4.8% (INFO). The band at each joint is a 50/50
+   blend, so linear blend skinning keeps cos(angle / 2); the same weights under dual quaternion skinning keep 0.99 (the
+   calibration's design leg), so the weights' layout is fine and the skinning is the issue. Fix (Michael: A): a helper
+   bone per elbow, knee and finger joint (PIP, DIP, MCP; the thumb's two) at the joint, child of the parent bone,
+   turning half the joint's rotation through a VRMC_node_constraint rotation constraint (source the child bone, weight
+   0.5); the blend band's middle weights move onto it (the parent / helper / child split the band in thirds). The
+   export writes the constraint (charkit/gltf.py: VRMC_node_constraint on the helper node) and the suite's rig
+   evaluates it (charkit.rom.Rig: constraints applied after charkit.pose.solve; add a test that the helper turns half).
+   Target: rom_vol_* >= 0.8 at 135 deg (PASS), no new garment penetration at the elbows (rom_sleeve_body elbows_135
+   0.043 today).
+2. **The hip (both bodies).** Measure: rom_leg_torso (thigh skin newly inside the torso) 0.28 L FAIL in the squat, 0.27
+   in the front kick; rom_leg_open (the thigh shell's buried top out of the pelvis) 0.21 L. The legs are separate rigid
+   shells (thigh + shin one shell, weighted to the leg bones only). Fix (Michael: yes): a joined hip built like the joined
+   shoulder (code_body.socket_rim / shoulder_bridge generalised: a socket in the torso's hip, a bridge of edge loops to
+   the thigh's ring, weights eased hips -> upperLeg over the bridge, the rig's hip joint where the thigh's rotation
+   centre is); under the shorts, so garments' shape IoUs stay. Target: rom_leg_torso <= 0.01 L, rom_leg_open 0, the
+   hip zone's strain and folding reported (add hip_folded to the QA when it has a joined hip).
+3. **The joined shoulder's bridge (the candidate, tool/garments4-shoulders' body).** (a) Neck weight on the bridge's
+   top rows: rom_weights_stray (skin) 0.53% FAIL (the default 0); the jacket inherits it (10% of its vertices stray);
+   a head turn pulls the shoulders (shoulder strain 0.15) and the jacket and sleeves (sleeve_top 1.3%, sleeve_body 0.04
+   L). Fix: clamp the neck influence to the neck join's own rows (code_base's neck join), renormalise. This check will
+   FAIL the shoulder branch's merge under K until it's fixed. (b) The bridge stretches and folds: rom_shoulder_strain
+   (zone within 0.35 L of the joint, edges >= 0.015 L) p95 1.11 forward, 0.65 side, 1.30 overhead; rom_shoulder_folded
+   4.7% / 0.4% / 5.8% (INFO: no shoulder passes yet). Fix: more edge loops on the armpit side of the bridge, the
+   clavicle following the raise (a VRMC_node_constraint rotation on the shoulder bone, a third of the upper arm's
+   elevation), the arm's weight spread wider over the bridge. (c) The rim against the torso stretches 0.71 in the spine
+   twist: blend the rim's weights chest / upperChest as the torso round it. Targets: strain p95 <= 0.5 (WARN) then
+   0.25, folded <= 1%; rom_shoulder_torso and rom_shoulder_open stay 0 (calibrated, PASS on the candidate).
+4. **Reported, not this round:** the neck stretches 0.29 (default) / 0.18 (joined) at a 60 deg turn (rom_neck_strain,
+   INFO WARN); the hands through the skirt flaps in the spine twist 0.7% of their edges (rom_hand_skirt, INFO WARN); the
+   hair through the joined body's shoulder line at the head turn 0.14% (rom_hair_shoulders WARN on the candidate) and
+   the arms through the buns overhead; the boots' instep and heel weighted to the toes bone (2%, up to 0.40: toes only
+   from the ball forward).
+5. **Garments (round 8, Michael: yes):** puffs inside the arm at the raises 0.07-0.24 L (rom_sleeve_body), sleeves
+   through the jacket, collar and bow 1-4% of their edges (rom_sleeve_top), the jacket into the skin 0.035-0.10 L
+   (rom_top_body), the skirt into the legs 0.11 L (squat, spine bend; rom_skirt_legs), garment strain p95 0.62 (the
+   skirt in the squat), 0.57-0.61 (the collar at the head turn: neck weight on the collar), 0.75-0.78 (the joined
+   body's jacket at the raises; rom_garment_strain calibrated, FAIL). The garment checks other than strain are INFO:
+   neither the body's weights on the garments nor the garments riding the skin as shells keep the puffs and the skirt
+   out (calib/rom.py), so they wait for a cloth or spring solution to calibrate against.
+
 ## Findings on the way
 - motion QA ran SKIPPED on hands2_after (`skirt: not a grid`) but runs on rom_base2 (kick inside WARN): fixed upstream.
