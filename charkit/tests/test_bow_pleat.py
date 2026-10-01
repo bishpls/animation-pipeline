@@ -66,3 +66,37 @@ def test_the_pleated_bow_splits_into_its_named_parts():
     assert set(got) == set(partqa.CODES.values())                  # knot, both lobes (with their strips and almonds), tails
     kx = V[np.unique(T[codes == partqa.CODES['knot']])][:, 0]
     assert abs(kx.mean()) < 0.01 * SZ
+
+
+def test_strip_ov_raises_the_strips_top_behind_the_panel_and_leaves_the_panel():
+    Vp0, Up0 = band('panel', strip_ov=0.07)
+    Vp1, Up1 = band('panel')
+    assert np.allclose(Vp0, Vp1)                                      # the panel's edge (the crease's line) kept
+    Vs0, Us0 = band('strip')
+    Vs1, Us1 = band('strip', strip_ov=0.07)
+    for u in (0.2, 0.5):
+        assert at(Vs1, Us1, u, 0.04)[:, 2].max() > at(Vs0, Us0, u, 0.04)[:, 2].max() + 0.04 * SZ
+
+
+def test_tuck_brings_the_strips_lower_half_forward_by_the_knot_only():
+    Vs0, Us0 = band('strip')
+    Vs1, Us1 = band('strip', tuck=[0.04, 0.3])
+    near0, near1 = at(Vs0, Us0, 0.1), at(Vs1, Us1, 0.1)
+    low = lambda S: S[S[:, 2] < np.percentile(S[:, 2], 25)][:, 1].mean()
+    top = lambda S: S[S[:, 2] > np.percentile(S[:, 2], 90)][:, 1].mean()
+    assert low(near1) < low(near0) - 0.02 * SZ                        # forward (-y) low down by the knot
+    assert abs(top(near1) - top(near0)) < 0.005 * SZ                  # its top stays behind the panel
+    assert np.allclose(at(Vs0, Us0, 0.85, 0.01), at(Vs1, Us1, 0.85, 0.01), atol=1e-3 * SZ)   # the outer end untouched
+
+
+def test_the_tails_root_reaches_up_into_the_knot_and_changes_nothing_else():
+    kw = dict(depth=DEPTH, pleat=P, knot_box=[0.10, 0.09, 0.145, 0.02])
+    rb = {'w': [0.204, 0.338], 'turn': 20, 'hinge': 1.0}
+    G0 = g._bow_mesh(np.zeros(3), SZ, 0.65, 0.25, ribbon=rb, **kw)
+    G1 = g._bow_mesh(np.zeros(3), SZ, 0.65, 0.25, ribbon=dict(rb, root=0.08), **kw)
+    assert G0.get('root_v') is None and len(G1['root_v']) == 24      # two rows of six per tail
+    V1, K = np.asarray(G1['verts']), np.asarray(G1['verts'])[G1['knot_v']]
+    rz = V1[G1['root_v'], 2]
+    assert rz.min() > K[:, 2].min() and rz.max() < K[:, 2].max()      # the root rows inside the knot's height
+    keep = np.setdiff1d(np.arange(len(V1)), G1['root_v'])
+    assert np.allclose(np.asarray(G0['verts']), V1[keep])            # every other vertex where it was
