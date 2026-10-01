@@ -14,4 +14,8 @@ MEASUREMENT_STEPS = [
      "them taken in, holes filled, both sides): the drawn creases cost the parts-only IoU a share per line; the "
      "calibration set keeps its grades (turnaround 0.871 -> 0.917 PASS, b2_close 0.744 -> 0.772 WARN, b2_before 0.616 "
      "-> 0.679 FAIL, g3_render3 0.659 -> 0.724 FAIL)"),
+    # tool/garments4 Part 2: creases as a line layer
+    ('iso_bow_crease_*', 'a17ec74c', "a piece's crease strokes (garments.with_ink: faces on a *_ink slot) read as lines by the "
+     "QA's render drawing, as the numpy drawing read them (qarender mapped the export's ink primitives to the cloth); "
+     "a bow without strokes reads as before"),
 ]
