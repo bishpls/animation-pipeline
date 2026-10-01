@@ -144,6 +144,9 @@ if __name__ == '__main__':
         B = splice(B, opt('--pieces'))
     n = int(opt('--n', 6))
     views = tuple(opt('--views', 'back').split(','))
+    for k_ in ('--png', '--json'):
+        if opt(k_):
+            os.makedirs(os.path.dirname(os.path.abspath(opt(k_))), exist_ok=True)
     out, pics = run(B, OFFSETS[:n], views, pictures=bool(opt('--png')))
     print(json.dumps(out, indent=1))
     if opt('--png'):
