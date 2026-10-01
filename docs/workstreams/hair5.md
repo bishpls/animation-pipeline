@@ -313,38 +313,58 @@ Pregate at 86ed60d: PASS (13 moved, 0 blocking). pipeline-3d moved to 342e88c (f
 The render builds hair5_b3 / hair5_bB3 were synced at 86ed60d (hair5 on 3f7b730, before face5): the review page's
 pictures and numbers are hair5's own.
 
-## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
+**Final render builds** (at 86ed60d, hair5 on 3f7b730): `charkit/out/hair5_b3` (A), `charkit/out/hair5_bB3` (B).
+Against pipeline-3d's preview 3f7b730: no flag check's grade worsens. art_terminator_hair 1.804 -> 1.762 (A) / 1.771
+(B), art_speckle_neck 0.833 -> 0.836, art_peeks_hair 18 -> 17, art_fragments_hair 1.414 -> 1.482 (PASS),
+collar_back_square 0.345 -> 0.325 and collar_back_iou 0.7461 -> 0.7454 (FAIL both: the hem over the collar), hair_folds
+4 -> 5. Flags: ahoge F 0.689 WARN, bend 19.2 PASS, attached 0 PASS, back ink 0.573 WARN (B 2.042 FAIL), hem 3 WARN,
+lines 3q 0.193 / profile 0.088 (B 0.192 / 0.158), FAIL both (new). Guard: every hair_piece_* within 0.004 per view,
+the ahoge 0.32 -> 0.62, the flyaways 0.196 -> 0.208.
 
-Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed
-0f77b9b). Nothing of mine is running. Local: `charkit/out/h5_base` (box, 004efc3, its qa.json with the hair flags added
-by tools/hair5/addqa.py), the known-bad `hair5_1580f95` stored, lab batches `charkit/out/hair5/b1`-`b6` (lab.json,
-NAME.npz labels, NAME.pieces.npz). Tools: tools/hair5/ (lab via `hairlab --batch`, table, review, inkpic, flypic,
-ahogepic, ahogemask, stability, addqa; variants in tools/hair5/v/, tracked so the box sees them).
+**Review page:** `charkit/out/hair5/review_r2/index.html` (summary box: A recommended; asked: seams A/B, the ahoge in one
+tone yes/no, F, G, H; key numbers; the guard per view; per flag design | start | before | after (| B); the ahoge's
+shading before/after; the seams A against B; F/G/H with the truth's regions; the reference attempt). Made by
+`python tools/hair5/review.py charkit/out/hair5/review_r2 charkit/out/hair5_b3 --b charkit/out/hair5_bB3 --summary
+charkit/out/hair5/review_r2/summary.json --ref charkit/out/hair5/review_r2/ref.json`.
 
-**Next steps, in order:**
-1. (Optional, one lab variant first, ~2 min on the box) ink upper 0 / lower 0.25 with ink_phi 135: if it holds the
-   profile's lines (about 0.15) with the back's ink near 1, it beats both A and B: put it in OPTS. Command:
-   `python -m charkit remote run --fetch charkit/out/hair5/b7 hairlab charkit/out/h5_base --batch tools/hair5/v/b7.json
-   charkit/out/hair5/b7` (write b7.json like b5's P6 with "ink_phi": 135).
-2. The render-box build with the previews' boards: `python -m charkit remote --box render build charkit/spec/clawd.json
-   --out charkit/out/h5_fix --boards views,body,design --no-blend` (export CLOUDSDK_CONFIG first). Read from its
-   qa.json: the 7 hair flags (expect the lab's P6 numbers), every hair_piece_* per view (the guard), art_terminator_hair
-   (base 1.804 PASS; keep < 2.5), art_peeks_hair (18), hair_noise (0.0716), hair_folds (4 -> ~6), body_*_iou_hair. Check
-   the render's back for the seams (the outline_w vertex group: scene.hair_pieces_objects) and the ahoge's look.
-3. The review page: `python tools/hair5/review.py charkit/out/hair5/review charkit/out/h5_fix --summary S.json`
-   (S.json: recommended = the defaults with their numbers; asked = the seam-ink A/B above, the sub-agent's calls F, G,
-   H and the one-more-reference question (docs/workstreams/hair5-truth.md); notes = the bisect). Open it.
-4. `python -m charkit pregate`, then `python -m charkit remote gate tool/hair5 --into pipeline-3d` (merge pipeline-3d
-   first if it moved). The 7 hair flags are new: records exist (charkit/calib/records/hair_*.json, eeafe0e); if the
-   measuring code changed since, rerun `python -m charkit calibrate 'hair_ahoge_*,hair_attached,hair_back_*,
-   hair_lock_lines_*' --build charkit/out/h5_base` and move the steps' commit (charkit/steps/hairflagqa.py: 31e6654;
-   the ink's zero-width faces changed at 1587dec, the build's numbers unchanged since its shrink has no zeros). New FAILs
-   under K: hair_lock_lines_three_quarter / _profile stay FAIL (new checks, failing on the base too): the coordinator
-   accepts them by name or they block.
-5. The layering round: the side locks and the back's locks from the drawing / the extended lock truth (not the hull
-   labels), so a face edit can't move them; the stability check: `python tools/hair5/stability.py BUILD_A BUILD_B`
-   on a face-only pair (face5's f5_before / f5_after: side_lock_L tips 38/58/74/102 -> 34/58/82/102, side_lock_R gains a
-   lock); the envelope-depth test from hairlocks round 3; the back's dark band (a tone measure, not built).
+## State (2026-09-30 late night)
+
+Branch `tool/hair5` (pipeline-3d 342e88c merged), never pushed.
+
+**Gate 1** (83f503c into 342e88c): FAIL, one blocker: art_speckle_neck 0.678 PASS -> 1.7 WARN (face5's jaw moved the
+neck: the hem's drawn cuts at notch 3 leave the speck there too). art_terminator_hair 2.111 -> 2.008 (WARN both: face5's,
+accepted by Michael), the lock-lines checks new at FAIL (0.1054 / 0.1825: reported, not blocking). Report
+charkit/out/gate/gate_tool-hair5_83f503c_into_342e88c.md. Per the coordinator: the drawn cuts off (5899da7), re-gated
+once.
+
+**Gate 2 (5899da7 into 342e88c): PASS** under K, nothing blocks; report
+charkit/out/gate/gate_tool-hair5_5899da7_into_342e88c.md. New checks at FAIL (reported): hair_lock_lines_profile 0.1045,
+_three_quarter 0.1825. Flag values moved (grade unchanged): art_speckle_neck 0.678 -> 1.355 PASS (front), art_terminator_hair
+2.111 -> 2.064 WARN (face5's, accepted), collar_back_square 0.345 -> 0.325 and collar_back_iou 0.7461 -> 0.7454 (FAIL
+both). New flags: ahoge F 0.689 WARN, bend 19.2 PASS, attached 0 PASS, back ink 0.894 WARN, hem 3 WARN. hair_folds 6 -> 9,
+art_fragments_hair 1.42 -> 1.578 (INFO, its grade PASS -> WARN), build CPU 1.19x. Guard: no piece below -0.3% in any
+view; the ahoge +55-130%, the flyaways' back +30%.
+b10 (the no-cuts notch-3 hem on the old head, hair5_b3's bundle): art_terminator_hair 2.054 WARN there (1.762 with the
+cuts), art_speckle_neck 1.355 (front), back ink 0.891, hem 3: on 3f7b730 the cut-off hem would read a terminator WARN;
+on face5's head (the merge target) the gate reads 2.064, below face5's accepted 2.111.
+Render builds of the gated default for the page: `charkit/out/hair5_b4` (A), `charkit/out/hair5_bB4` (B), at 5899da7
+(face5 merged).
+
+**Scope change (coordinator, 2026-09-30):** the hair bulk moves to per-lock shells (tool/hairsplit builds the lock
+splitter). No more hull-shell fixes and **no layering round on the hull approach**. The layering, the profile's and
+three-quarter's lock lines (hair_lock_lines_*), the side locks' stability under a face edit, and the outer masses' locks
+belong to tool/hairsplit, graded against the lock truth (charkit/refs/clawd/hair_locks_truth, with calls F/G/H as
+Michael answers them on the review page). The checks of this round (charkit/hairflagqa.py), the ahoge fit, the flyaway
+attachment and the seam cut-off carry over.
+
+**Next steps:**
+1. Read the gate report. If it blocks on art_speckle_neck or anything else from the hem's drawn cuts, set drawn_cuts
+   off (hairpieces.OPTS `drawn_cuts=()`), keep everything else, re-gate once, and report. Don't iterate further.
+2. Michael's answers (review page): the seams A/B (B is `ink_fade {'upper_back': 0.15, 'lower_back': 0.35}`,
+   `ink_phi 135`), the ahoge's one tone (no: `strand_tone_families: ['flyaways']` in the style), F/G/H (the lock
+   truth's source, for tool/hairsplit).
+3. The side-lock stability check (`tools/hair5/stability.py BUILD_A BUILD_B`) is for tool/hairsplit's splitter on a
+   face-only edit pair.
 
 ## Jobs
 
