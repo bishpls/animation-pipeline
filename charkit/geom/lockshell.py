@@ -30,10 +30,11 @@ import numpy as np
 
 DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('front', 'profile'),
                                                              'lower_back': ('back', 'front', 'profile')},
-               share=0.5, min_px=60, bins=14, samples=40, depth_ratio=0.35, inset=0.010, root_in=0.03, gap=0.006,
+               share=0.5, min_px=150, bins=14, samples=40, depth_ratio=0.35, inset=0.010, root_in=0.03, gap=0.006,
                prior_depth=0.15, prior_smooth=0.02, prior_twist=0.5, assoc=0.35, assoc_cover=0.3, tip_w=0.12,
                w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'), facing=0.2,
-               assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0)
+               assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0, frag_L2=0.008, frag_reach=4,
+               widen_lw=1.0, contain=1.0, dedup=0.5, unit='locks', over=0.004)
 VIEWS_AZ = None
 
 
@@ -48,7 +49,8 @@ def load_split(path):
     for n, v in J['views'].items():
         if n not in Z.files:
             continue
-        out['views'][n] = dict(img=Z[n], az=float(v['az']), ppl=float(v.get('ppl', 0) or 0),
+        out['views'][n] = dict(img=Z[n], cells=Z[n + '__cells'] if n + '__cells' in Z.files else None,
+                               az=float(v['az']), ppl=float(v.get('ppl', 0) or 0),
                                col_axis=v.get('col_axis'), row_eye=v.get('row_eye'), box=v['box'],
                                locks={int(k): x for k, x in v['locks'].items()})
     return out
@@ -300,6 +302,14 @@ class Lock:
             wd = d['W'][np.argmin(dd, 1)]
             out.append(0.5 * (cvec * Wt - wd))
         out.append(np.array([self.o['prior_twist'] * twist * 10.0]))
+        # every view the lock faces: its centreline at least half a drawn width inside the drawn hair (the multi-view
+        # constraint the visual hull carves with; a lock fitted in one view otherwise wanders out of the others)
+        from scipy.ndimage import map_coordinates
+        for vn, (az, sd, hw) in getattr(self, 'contain', {}).items():
+            from .hairpieces import view_px
+            c, r = view_px(P, self.views[vn], az, False, self.hull_frame)
+            d = map_coordinates(sd, [r, c], order=1, mode='nearest')
+            out.append(self.o['contain'] * np.maximum(0.0, d + 0.5 * hw))
         return np.concatenate([np.ravel(q) for q in out])
 
     def fit(self):
@@ -339,6 +349,7 @@ class Lock:
         t, a, b = frames(P, self.F['chart'], self.twist)
         ds = np.linalg.norm(np.gradient(P, axis=0), axis=1) + 1e-12
         kb = np.abs(np.einsum('ij,ij->i', np.gradient(t, axis=0) / ds[:, None], b))
+        W = W + 2 * self.o['widen_lw'] * self.o.get('lw_px', 2.0) / ppl * s_ * np.clip((1 - u) / 0.2, 0, 1)
         W = np.minimum(W, 1.6 / np.maximum(gaussian_filter1d(kb, 1.0, mode='nearest'), 1e-9))
         Tk = self.o['depth_ratio'] * W
         # the root on the scalp: carried from the lock's start in to the skin's clearance under it (or root_in L on
@@ -390,27 +401,69 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
         r = [x.get('layer') or 0.0 for x in lk.values()]
         return (min(r), max(r)) if r else (0.0, 0.0)
 
-    def targets(vn, fam):
+    def targets(vn, fam, unit='locks'):
         """the view's drawn targets for a family: each lock's part in the family's mask (a lock the splitter ran on
         across two families gives each its part), components of min_px or more; a view without family masks (the
         three-quarter): its locks whole."""
         from scipy import ndimage
         V = S['views'][vn]
         fm = masks.get('%s__%s' % (vn, fam))
-        out_ = []
-        for lid, x in V['locks'].items():
+        parts_ = []
+        if unit == 'cells' and V.get('cells') is not None:
+            # the splitter's cells (closed by the strokes and the hem's tone necks) in place of its locks: a hem
+            # flick is a cell its stripe lock carries down from the crown (the canonical rule's sub-cut)
+            for cid in np.unique(V['cells'][V['cells'] > 0]):
+                m = V['cells'] == cid
+                if fm is not None and fm.shape == m.shape:
+                    m = m & fm
+                elif any(k.startswith(vn + '__') for k in masks):
+                    continue
+                if not m.any():
+                    continue
+                lid = int(np.bincount(V['img'][m]).argmax())
+                if lid not in V['locks']:
+                    continue
+                lab, n = ndimage.label(m)
+                for j in range(1, n + 1):
+                    parts_.append([lid, int(cid) * 100 + j, lab == j])
+        else:
+          for lid, x in V['locks'].items():
             m = V['img'] == lid
             if fm is not None and fm.shape == m.shape:
                 m = m & fm
             elif any(k.startswith(vn + '__') for k in masks):
                 continue
-            if m.sum() < o['min_px']:
-                continue
             lab, n = ndimage.label(m)
             for j in range(1, n + 1):
-                mj = lab == j
-                if mj.sum() < o['min_px']:
-                    continue
+                parts_.append([int(lid), j, lab == j])
+        # fragments (a lock's sliver in the family, a splitter cell cut off) join the neighbour they touch most across
+        # the ink between them, the smallest first: an animator's lock, not the splitter's every piece
+        frag = o['frag_L2'] * (V['ppl'] or 212.5) ** 2
+        r_ = int(round(o['frag_reach']))
+        while True:
+            sizes = [q[2].sum() for q in parts_]
+            small = [i for i in np.argsort(sizes) if sizes[i] < frag]
+            done = True
+            for i in small:
+                g = ndimage.binary_dilation(parts_[i][2], iterations=r_)
+                best = max(((int((g & q[2]).sum()), k) for k, q in enumerate(parts_) if k != i), default=(0, None))
+                if best[0] > 0:
+                    k = best[1]
+                    if sizes[k] >= sizes[i]:
+                        parts_[k][2] = parts_[k][2] | parts_[i][2]
+                    else:
+                        parts_[k] = [parts_[i][0], parts_[i][1], parts_[k][2] | parts_[i][2]]
+                    parts_.pop(i)
+                    done = False
+                    break
+            if done:
+                break
+        out_ = []
+        for lid, j, mj in parts_:
+            x = V['locks'][lid]
+            if mj.sum() < o['min_px']:
+                continue
+            if True:
                 rr, cc = np.nonzero(mj)
                 r0, c0 = full_rc(vn, x['root_rc'])
                 q = int(np.argmin(np.hypot(rr - r0, cc - c0)))
@@ -422,12 +475,36 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                                  area=int(mj.sum()), D=None if cl is None else cl[0]))
         return sorted(out_, key=lambda t_: -t_['area'])
 
+    # each view's drawn hair as a signed distance (px: + outside, - inside): the shells' containment
+    from scipy import ndimage as _nd
+    sdist = {}
+    for vn, W_ in S['views'].items():
+        hm = W_['img'] > 0
+        for k_, m_ in masks.items():
+            if k_.startswith(vn + '__') and m_.shape == hm.shape:
+                hm = hm | m_
+        sdist[vn] = (_nd.distance_transform_edt(~hm) - _nd.distance_transform_edt(hm)).astype(np.float32)
+
+    def facing(P, az):
+        rad = (P - F['chart'].c)[:, :2].mean(0)
+        rad /= np.linalg.norm(rad) + 1e-12
+        a_ = math.radians(az)
+        return rad @ np.array([math.sin(a_), -math.cos(a_)]) >= o['facing']
+
+    def set_contain(lk):
+        P_ = lk.curve()
+        hw = float(np.median(lk.drawn[lk.primary]['W'])) / 2
+        lk.contain = {vn: (W_['az'], sdist[vn], hw) for vn, W_ in S['views'].items()
+                      if vn in views and facing(P_, W_['az'])}
+
     jobs = [(f, None) for f in o['families']] + [(g['family'], g) for g in o['groups']]
     for fam, grp in jobs:
         key = fam if grp is None else grp.get('name', '%s_%s' % (fam, grp.get('view', '')))
         parts = []
         prim = [grp['view']] if grp else list(o['primary'].get(fam, ('front',)))
-        tg = {vn: targets(vn, fam) for vn in S['views'] if vn in views}
+        unit = (grp or {}).get('unit', o['unit'].get(fam, 'locks') if isinstance(o['unit'], dict) else o['unit'])
+        tg = {vn: targets(vn, fam, unit) for vn in S['views'] if vn in views}
+        lks = []
         for pv in prim:
             if pv not in S['views'] or pv not in views:
                 continue
@@ -444,10 +521,38 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                 lk = Lock('%s:%s%d.%d' % (key, pv[0], lid, T_['id'][1]), fam, pv, F, views, hull_frame, L, o)
                 lay = x.get('layer') or 0.0
                 lk.offset = o['inset'] * L * ((hi - lay) / max(1e-6, hi - lo) if hi > lo else 0.0)
+                if grp and not grp.get('replace', True):
+                    lk.offset = -o['over'] * L         # laid over the family's own pieces, not in place of them
                 if not lk.add_view(pv, V['az'], T_['mask'], T_['root'], lid, lay):
                     continue
                 claimed[pv].add(T_['id'])
                 lk.init()
+                if pv != prim[0] and lks:
+                    # a later primary view: a target an earlier lock's shell already covers is that lock seen again
+                    # (the association missed it), not a new lock: it joins that lock if the joint fit follows both
+                    best = None
+                    for L2 in lks:
+                        if pv in L2.drawn or not facing(L2.curve(), V['az']):
+                            continue
+                        p2 = L2.shell()
+                        sil = silhouette(p2['V'], p2['T'], views[pv], V['az'], hull_frame, T_['mask'].shape)
+                        cov = float((sil & T_['mask']).sum()) / T_['mask'].sum()
+                        if cov >= o['dedup'] and (best is None or cov > best[0]):
+                            best = (cov, L2)
+                    if best is not None:
+                        L2 = best[1]
+                        keep = (L2.Q.copy(), L2.twist, dict(L2.cost))
+                        L2.drawn[pv] = lk.drawn[pv]
+                        L2.fit()
+                        if L2.cost.get(pv, 1e9) > o['view_cost_max'] or any(
+                                c > o['view_cost_max'] for vn, c in L2.cost.items() if vn != L2.primary and vn != pv):
+                            L2.drawn.pop(pv)
+                            L2.Q, L2.twist, L2.cost = keep
+                        report.setdefault('dedup', []).append(dict(target='%s:%s' % (pv, T_['id']), into=L2.name,
+                                                                    cover=round(best[0], 3),
+                                                                    joined=pv in L2.drawn))
+                        continue
+                set_contain(lk)
                 lk.fit()
                 # the other views: the drawn lock this shell covers most claims it
                 if o['refit']:
@@ -500,6 +605,9 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                                 lk.cost.pop(vn, None)
                             lk.init()
                             lk.fit()
+                lks.append(lk)
+        for lk in lks:
+            if True:
                 part = lk.shell()
                 # each view's IoU of the shell's silhouette with its drawn lock
                 ious = {}

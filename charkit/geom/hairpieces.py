@@ -2909,8 +2909,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
             if LS is not None:
                 # a group of this family's locks as shells: the wedges whose tips fall in its azimuths go
                 for g in LS['opts']['groups']:
-                    if g['family'] == R['family'] and g.get('phi') and LS['parts'].get(g.get('name', '%s_%s' % (
-                            g['family'], g.get('view', '')))):
+                    if g['family'] == R['family'] and g.get('phi') and g.get('replace', True) and LS['parts'].get(
+                            g.get('name', '%s_%s' % (g['family'], g.get('view', '')))):
                         L_ = [q for q in L_ if not (g['phi'][0] <= q[2] <= g['phi'][1])]
             parts = [lock_shell(F, piece, a, b, t, ph, R['top'], edge, style, o, L, efn) for a, b, t in L_]
             if LS is not None:
