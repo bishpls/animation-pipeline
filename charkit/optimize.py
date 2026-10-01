@@ -2375,8 +2375,9 @@ def _box(args):
     if not os.path.exists(env):
         raise SystemExit('optimize: no box %r (infra/gcp/%s.env)' % (name, name))
     d = json.load(open(sw._abs(decl)))
-    base = d.get('base')
-    if base and d.get('stage') != 'python':
+    # the base build (a python stage's args.build: accfit's scene) pushed to a box whose copy lacks it
+    base = d.get('base') if d.get('stage') != 'python' else (d.get('args') or {}).get('build')
+    if base:
         brel = os.path.relpath(sw._abs(base, ROOT), ROOT)
         remote.BOX['env'], remote.BOX['chosen'] = env, True
         remote.up()
