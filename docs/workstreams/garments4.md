@@ -281,3 +281,18 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   Keep: grow_line (straight sides), the trim band + front tab (back trim 0.03 P, front 0.09 W), cuff_R 3q ungraded
   (the drawing's skirt covers the far cuff: Michael's "far cuff shows in 3q", an arm-placement matter).
 - Items 3 (shoulders + the back collar's cream section) and 4 (the neck-to-bow V) not started this round.
+
+## Milestone 2: cuffs, relaunch (2026-10-01, lean agent 2)
+- tool/garments4-cuffs 918aad4f + pipeline-3d d0d6304 (creases merged) = 9f471f7d.
+- **The size remeasured against the drawn silhouette** (bffdfe4a): `declared.area` ref 'silhouette' (default) reads the
+  drawn piece from `bodymeasure.drawn_labels` (the drawing as our label image: the lines inside the figure given to the
+  nearest piece; calib.labels.Garments now builds its stand-in with the same function); `ratio`, `fill`, `ratio_fill`
+  carried into qa.json. Unit test test_declared.test_area_against_the_drawn_silhouette. Limits [0.1, 0.2] from the
+  defect. Step registered (charkit/steps/cuffqa.py: cuff_*_size, bffdfe4a).
+- **Calibrated** (log charkit/out/garments4/calib_cuffs2.log, records 79c99706): all six CALIBRATED: design 0 every
+  move, g4_before 0.237-0.331 FAIL, voronoi floor FAIL. g4_cuffs reads 0.168-0.214 (0.79-0.83x: WARN/FAIL).
+- Readings (tools/cuffm2.py; cuffdim.py, pcent.py: extents): ours sits medial and short of the drawn silhouette: front
+  cuff_L x [0.818, 1.190] vs drawn [0.851, 1.256], top z -1.766 vs -1.724 (bottom -2.10 vs -2.11); back/3q: inner edge
+  as drawn, outer 0.033-0.037 short; profile: ours 0.334 tall x 0.268 wide vs drawn 0.301 x 0.311.
+- Refit sweep k10 (tools/garments4/k10.json, base g4_cuffs, box; out sweeps/k10): `out` radius +0.03/+0.04, shift out
+  0.01, front/back radii +0.02, span [0.45, 0.73], scale 1.1, combinations.
