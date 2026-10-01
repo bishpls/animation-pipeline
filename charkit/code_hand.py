@@ -57,8 +57,8 @@ DEFAULT = dict(
 # (rest orientation A, Michael 2026-09-30: yaw and out stay the joint fit's; tool/hands2 refits the shape only)
 FIT_KNOBS = ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'taper', 'overlap', 'spread', 'curl', 'bend', 'dev',
              'thumb_base', 'thumb_len', 'thumb_w', 'thumb_out', 'thumb_down')
-BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.24), wrist_w=(0.07, 0.18),
-              palm_t=(0.04, 0.085), taper=(0.35, 0.9), overlap=(0.0, 0.35), spread=(-4.0, 8.0), curl=(0.0, 30.0),
+BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.30), wrist_w=(0.07, 0.18),
+              palm_t=(0.04, 0.085), taper=(0.35, 0.9), overlap=(-0.1, 0.35), spread=(-4.0, 8.0), curl=(-15.0, 30.0),
               thumb_len=(0.16, 0.46), thumb_w=(0.03, 0.085), thumb_out=(0.0, 60.0), thumb_down=(0.0, 60.0),
               thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0),
               fan_index=(-10.0, 30.0), fan_middle=(-15.0, 15.0), fan_ring=(-30.0, 10.0), fan_little=(-50.0, 10.0),
@@ -501,7 +501,8 @@ def set_knob(P, k, v):
     return P
 
 
-KNOB_BOUNDS = dict(BOUNDS, **{'fingers.0': (0.75, 1.05), 'fingers.2': (0.75, 1.05), 'fingers.3': (0.6, 0.95)})
+KNOB_BOUNDS = dict(BOUNDS, **{'fingers.0': (0.75, 1.05), 'fingers.2': (0.75, 1.05), 'fingers.3': (0.6, 0.95),
+                              'view_turn_side': (-50.0, 50.0), 'view_turn_back': (-30.0, 30.0)})
 
 
 def _to_P(P0, knobs, lo, hi, x):

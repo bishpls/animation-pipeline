@@ -171,11 +171,12 @@ ROW_AXES = {'back': (1, 1.0), 'side': (2, -1.0)}   # row -> (the frame's column 
                                                    # left hand; the thumb's side, the palm to the right
 
 
-def draw(H_, row, ppl, cuff_end=0.0, pad=12, rings=None):
+def draw(H_, row, ppl, cuff_end=0.0, pad=12, rings=None, turn=0.0):
     """a template hand (code_hand.hand's dict) drawn as the sheet draws it: orthographic in the hand's own frame, the
     arm straight down the image (the frame's along axis), the row's axis across; the part past cuff_end L from the
     wrist -> dict(mask, c, u, end, ppl) as cells() gives (c: the wrist's pixel). rings: {part: rings} posed
-    (charkit.handposes.posed) in place of the rest's."""
+    (charkit.handposes.posed) in place of the rest's. turn: degrees the view turns about the hand's long axis from the
+    row's (+ toward the back of the hand: the sheet's 'side' is drawn partly turned toward the viewer)."""
     from PIL import Image, ImageDraw
     from . import code_hand
     W, R = H_['frame']
@@ -184,7 +185,9 @@ def draw(H_, row, ppl, cuff_end=0.0, pad=12, rings=None):
         H_ = dict(H_, parts={n: (rings[n],) + tuple(H_['parts'][n][1:]) for n in code_hand.PARTS})
     V, T, _ = code_hand.mesh(H_)
     Q = V - W
-    x, y = sgn * (Q @ R[:, k]), Q @ R[:, 0]
+    t = np.radians(turn)
+    ax = R[:, k] * np.cos(t) + R[:, 3 - k] * np.sin(t) * (1.0 if k == 2 else -1.0)
+    x, y = sgn * (Q @ ax), Q @ R[:, 0]
     keep = y[T].mean(1) > cuff_end
     T = T[keep]
     x0, x1, y1 = x[T].min() - pad / ppl, x[T].max() + pad / ppl, y[T].max() + pad / ppl
@@ -287,7 +290,7 @@ class SheetFit:
         V, T, _ = code_hand.mesh(H_)
         reach = float(np.percentile((V - W) @ R[:, 0], 99.9)) - CUFF_END
         ppl = self.D[row]['reach'] * self.sheet[row]['ppl'] / max(reach, 1e-6)
-        h = draw(H_, row, ppl, CUFF_END)
+        h = draw(H_, row, ppl, CUFF_END, turn=P.get('view_turn_' + row, 0.0))
         return h, digits(h)
 
     def score(self, P, detail=False):
@@ -334,7 +337,7 @@ def picture(F, P, out):
 
 OPEN_KNOBS = ('palm', 'palm_w', 'wrist_w', 'palm_t', 'taper', 'overlap', 'fingers.0', 'fingers.2', 'fingers.3',
               'thumb_base', 'thumb_across', 'thumb_len', 'thumb_w', 'thumb_out', 'thumb_down', 'curl', 'dev',
-              'fan_index', 'fan_middle', 'fan_ring', 'fan_little')
+              'fan_index', 'fan_middle', 'fan_ring', 'fan_little', 'view_turn_side')
 
 
 def main(args):
