@@ -85,6 +85,21 @@ unchanged by construction.
 - Coordinator: Michael wants a checkpoint today: gate items as they're ready (a coherent pair), the rest later. Gate 1 =
   the upper face (forehead + profile eye), sw7 picks the brow arch; gate 2 = the lower face and the mouth override.
 
+- **sw6/sw8** (the refit, the override, the forehead's two bumps): the cheek refit moves the mouth block's cage column
+  (x 0.16 at the mouth row: col 38 -> 37) and the mouth changes with the topology (face_piece_mouth 0.47/0.43/0.61 ->
+  0.44/0.38/0.49). Pinning the blocks' columns on the pre-refit head (S.layout) kept the counts but reassigned the jaw
+  band's vertices (the refit cage moved up to 0.17 L against the base's; eye_hollow 0.012 -> 0.064 FAIL, smile curve
+  FAIL, mouth IoU front 0.32): reverted. Now the refit has its own bump (cheek_refit_peak 0.85-0.9: at x 0.16 it nearly
+  vanishes; sw9). The override: slide 0.09 L reads mouth_place_three_quarter_override 0.0012 PASS on the refit (lead
+  0.1727 vs the design's 0.1726); 0.08: 0.0129, 0.10: 0.0134 (past it). The forehead as two bumps (fh2_c: depth 0.03
+  at peak 0.55 + 0.045 at 0.85, z 0.22, dz 0.1): brow_len_closeup_profile 0.713 -> 0.934 PASS, brow_shape 0.471 ->
+  0.799 PASS, brow_arch_closeup_profile 0.013 W -> -0.016 W (one bump read FAIL), front arch unchanged, eye_hollow
+  0.0119 -> 0.0043 PASS; brow IoU profile 0.47 -> 0.80.
+- **Gate 1 = item 4** (the eye wrap; the coordinator: land items as ready). Render2 build `charkit/out/face7_g1`
+  (d7d3038c's settings; log charkit/out/face7/build_g1.log). Gate 2 = items 3 (fh2_c), 2 (the refit), 1 (the override).
+  The known-bad face7_before is stored on the laptop (from the 52f6324 preview) and on the build box (from face7_b0,
+  same face checks; the box's known_bad json write was refused: read-only synced file, the laptop's is the record).
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
