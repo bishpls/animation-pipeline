@@ -3234,7 +3234,12 @@ def shade_normals(pieces, L, style, ls=None):
     as the default builds them (a piece's `proxy`: its wedges), so the shells shade as the hull's one mass does where
     they lie, and the pieces the shells don't touch keep the default's normals exactly (round 1's union of the shells
     turned every piece's normals by up to 3 degrees and tore the back's terminator: art_terminator_hair 2.009 -> 2.32);
-    shade_lock: the lock_shading weight on the shells' vertices (their own relief across a narrow tube)."""
+    shade_lock: the lock_shading weight on the shells' vertices (their own relief across a narrow tube).
+    shade_ellipsoid (0..1, tool/hairstrokes (d)): the mass envelope's normals blended toward a smooth head envelope's,
+    an ellipsoid round the hair's mass pieces (head_envelope_normals), before each lock's own is blended in: the
+    turnaround shades the hair by height (the locks' lower ends, the hem band, the buns' undersides, both sides
+    alike), which a key light that turns with the camera gives on normals that turn down below the mass's middle;
+    shade_squash (< 1: its vertical semi-axis shortened, so its normals turn up and down sooner)."""
     from .mesh import Mesh
     from .smooth import envelope_normals
     names = list(pieces)
@@ -3266,6 +3271,13 @@ def shade_normals(pieces, L, style, ls=None):
                              at=Mesh(Ve, T))
     else:
         N = envelope_normals(Mesh(V, T), h=h, close=close, blur=blur)
+    mix = float(style.get('shade_ellipsoid', 0.0) or 0.0)
+    if mix > 0:                                  # (the smooth head envelope's normals blended in: shading by height)
+        mass = [k for k, n in enumerate(names) if pieces[n].get('family') in MASS] or list(range(len(names)))
+        Vm = np.concatenate([np.asarray(pieces[names[k]]['V'], float) for k in mass])
+        Ne_ = head_envelope_normals(V, Vm, style.get('shade_squash', 1.0))
+        N = (1 - mix) * N + mix * Ne_
+        N /= np.linalg.norm(N, axis=1, keepdims=True) + 1e-12
     w = style.get('lock_shading', 0.0)          # the locks' own normals blended in: their relief shades as drawn
     w_shell = w if not ls or ls.get('shade_lock') is None else float(ls['shade_lock'])
     for k, n in enumerate(names):
@@ -3303,6 +3315,18 @@ def shade_normals(pieces, L, style, ls=None):
                     r = m[np.argmin(np.linalg.norm(p['V'][m] - np.asarray(ch[0]), axis=1))]
                     Ne[m] = Ne[r]
         p['vn_shade'] = Ne
+
+
+def head_envelope_normals(P, Vm, squash=1.0):
+    """the outward normals at points P of an ellipsoid round the hair's mass (Vm: the mass pieces' vertices): centred on
+    their bounding box's middle, its semi-axes their half-extents, the vertical one times `squash` (the gradient of
+    (x/a)^2 + (y/b)^2 + (z/(c squash))^2) -> (n, 3) unit vectors. A head envelope as smooth as a shading proxy gets:
+    its terminator one clean curve round the head."""
+    lo, hi = Vm.min(0), Vm.max(0)
+    c = 0.5 * (lo + hi)
+    ax = np.maximum(0.5 * (hi - lo), 1e-6) * np.array([1.0, 1.0, float(squash)])
+    G = (np.asarray(P, float) - c) / ax ** 2
+    return G / (np.linalg.norm(G, axis=1, keepdims=True) + 1e-12)
 
 
 def geometric_normals(V, T):
