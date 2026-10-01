@@ -1304,6 +1304,50 @@ sessions share its 16 GB.
 
 ## Known issues and work items
 
+### Known gaps before motion testing (Michael's requirements sweep, 2026-10-01): read before planning
+
+Order agreed with Michael: the default hand first, then the range-of-motion measurement; hair and garments run
+alongside throughout.
+
+1. **The default hand** (merged de2fa87 as the mitten's replacement) is still clearly off-model to Michael's eye, while
+   its checks pass on shape IoU (0.50-0.77). A check-versus-eye disagreement: measure what's off (proportions, finger
+   form, palm, thumb, thickness; the generated hand sheet's hands are 16-19% longer than the turnaround's), calibrate,
+   fix. The hand-pose library stays deferred to a dedicated session.
+2. **Rig deformation: the skeleton is the easy part, deformation isn't.** The VRM skeleton, humanoid mapping and skin
+   weights exist (body, transferred garments, hands); how the model deforms across a range of motion has never been
+   measured. Known or likely trouble:
+   - the shoulders: open skinning issue, where the puff sleeves, collar and shoulders work meet;
+   - elbows and knees under linear blend skinning: volume loss, twisting;
+   - hips and the skirt: cloth is parked, squat-inside is ungraded;
+   - neck and head bone orientation: open (keep near upright, or ship `charkit_rig.calibrate`);
+   - no pose-space correctives yet.
+   Next: a range-of-motion pose suite (arms up/forward/across, elbows and knees bent, spine twist, squat, head turns),
+   scored on joint volume, interpenetration (arm-torso, sleeve-body, skirt-legs, hair-shoulders), garment stretch and
+   outline artefacts; then weights and correctives where it fails. The cloth's kick/squat motion checks are the seed.
+3. **Secondary motion:** hair locks (one chain or weights per lock once the shells cover the head), the bow's tails and
+   the flaps need spring chains or baked cloth. Parked with the cloth (our own solver; Michael, 2026-09-30).
+4. **Toon-look artefacts on garments:** several art checks still FAIL as INFO: art_bumps_collar, art_fragments_bow and
+   _skirt, art_terminator_bow and _collar (torn shadow patches). Look polish, more visible in motion.
+5. **Eyes, face and expressions:** detail, not blocking motion. The 12 presets, eye and brow variants, visemes and the
+   hand-pose library wait for a dedicated session. Base-shape items approved by Michael (2026-10-01): keep the rigid
+   three-quarter mouth by default with the drawn placement as a per-shot override; a head-fit round widening the lower
+   face at mouth height (3q far contour 0.515 vs the design's 0.656 of the front half-width); a head-fit round
+   rounding the forehead at brow height (profile brow 0.097 vs 0.136 L deep); an eye-shape round on the profile eye
+   (its far corner sits below the opening's middle). Also the jaw's three honest WARNs (chin_angle 1.5, chin_v 0.09,
+   jaw_taper_shape 0.0157).
+6. **Hair** (running): per-lock shells across the head; the strokes and tones layers; the buns' orientation ambiguity
+   (`docs/workstreams/bunorient.md`).
+7. **Garments** (running): the staircase (crease-aligned, right angles), the body's neck-chest join, the bow-less bodice
+   and flat collar reference, the V to skin, flat lapels.
+8. **Accessories:** remake and place the clips from the separated references (hair without clips, clips alone) under the
+   non-occlusion rule.
+9. **Calibration and gate follow-ups:** promote art_mirror_self_boots (approved); the guard's visibility floor;
+   art_speckle_neck's sub-pixel sensitivity; gate fixes (acceptances covering a batch's branches, no-op remeasure
+   detection, the CPU rule warm against warm, motion QA reading the skin from the bundle, gate latency); the sweep's
+   look-check fidelity.
+
+### Older items
+
 - **Tune triage (73 items):** 45 need body-fitter knobs; 9 need a capability (hair noise, framing/cull, fold-free
   expression shapes, poke-through, eye-highlight side); 9 are trade-offs; 2 have a knob at its bound (the nose tip is
   capped at 0.04 L); 6 are within measurement error. Re-run `charkit triage` after the baseline test.
