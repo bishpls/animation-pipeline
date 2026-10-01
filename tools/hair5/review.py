@@ -11,6 +11,7 @@ reference attempt against its pass rule.
               views,body,design`); its head crops are made here (charkit.preview.crops)
   --b         option B's build (the same boards): shown beside ours where B differs (the back, the profile)
   SUMMARY     {"recommended": html, "asked": [html, ...], "key": [check, ...], "notes": [html, ...],
+               "sections": [{"title", "html", "rows": [[[path, caption], ...], ...], "height"}, ...],
                "calls": [{"q": html, "default": html, "pics": [[path, caption], ...]}, ...]}
   --truth     the hair-5 truth's review pictures (tools/hair5truth/review.py: VIEW.png per view)
   --ref       {"sheets": [path, ...], "rule": html, "rows": [[take, view, ...cells], ...], "head": [...], "outcome": html}
@@ -129,6 +130,11 @@ def main(args):
              '15%% in any view while a flag check improves blocks the merge (marked red).</p>' +
              guard(Q, 'base 004efc3', [c for c in ('after A', 'B') if c in Q]))
     h.append('<p>The other hair checks:</p>' + table(Q, GUARD))
+    for k, sec in enumerate(S.get('sections', [])):       # {title, html, rows: [[[path, caption], ...], ...]}
+        h.append('<h2>%s</h2>%s' % (sec['title'], sec.get('html', '')))
+        for j, row in enumerate(sec.get('rows', [])):
+            h.append('<div>' + ''.join(fig(img, src, 'sec%d_%d_%d.png' % (k, j, i), cap, sec.get('height', 300))
+                                       for i, (src, cap) in enumerate(row)) + '</div>')
     for title, checks, views, withB in FLAGS:
         h.append('<h2>%s</h2>%s' % (title, table(Q, checks)))
         for v in views:
