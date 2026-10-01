@@ -240,10 +240,32 @@ def frames(P, chart, twist=0.0, smooth=False):
         a = a - t * np.einsum('ij,ij->i', a, t)[:, None]
         a /= np.linalg.norm(a, axis=1, keepdims=True) + 1e-12
     b = np.cross(t, a)
-    if twist:
+    if np.ndim(twist):
+        # (tool/hairident) a twist per point (the ribbon's twist along the lock)
+        c, s = np.cos(twist)[:, None], np.sin(twist)[:, None]
+        a, b = c * a + s * b, c * b - s * a
+    elif twist:
         c, s = math.cos(twist), math.sin(twist)
         a, b = c * a + s * b, c * b - s * a
     return t, a, b
+
+
+def curl_tip(P, chart, curl, share=0.3):
+    """(tool/hairident) a lock's tip curled, as anime hem flicks hook: over the last `share` of the centreline's length
+    each segment's direction turns toward the outside of the head (out of the chart's centre, square to the segment;
+    a negative curl turns it in) by curl rad times a smoothstep from 0 at the curl's start to 1 at the tip; the root's
+    end stays where it is. -> the curled points."""
+    P = np.asarray(P, float)
+    d = np.diff(P, axis=0)
+    ln = np.linalg.norm(d, axis=1)
+    t = d / (ln[:, None] + 1e-12)
+    sm = (np.cumsum(ln) - ln / 2) / max(float(ln.sum()), 1e-12)
+    phi = curl * _smoothstep((sm - (1.0 - share)) / share)
+    mid = (P[1:] + P[:-1]) / 2 - chart.c
+    a0 = mid - t * np.einsum('ij,ij->i', mid, t)[:, None]
+    a0 /= np.linalg.norm(a0, axis=1, keepdims=True) + 1e-12
+    d2 = ln[:, None] * (np.cos(phi)[:, None] * t + np.sin(phi)[:, None] * a0)
+    return np.r_[P[:1], P[0] + np.cumsum(d2, axis=0)]
 
 
 def tube(P, W, Tk, chart, twist=0.0, n_ring=10):
@@ -340,6 +362,9 @@ class Lock:
         self.drawn = {}           # view -> dict(D (k,2) cols rows, W (k,) px, mask, lock id, layer)
         self.Q = None
         self.twist = 0.0
+        # (tool/hairident) the ribbon's extra parameters, fitted when the options ask: the twist's change root to tip
+        # (rad; twist_axis) and the tip's curl (rad; tip_curl)
+        self.slope, self.curl = 0.0, 0.0
         self.offset = 0.0         # m: how far under the envelope the lock's outer surface sits (its layer)
         self.cost = {}
         self.assoc = {}
@@ -386,8 +411,41 @@ class Lock:
         self.ts = np.linspace(0, 1, self.o['samples'])
         self.target_r = None
 
-    def curve(self, Q=None):
-        return bernstein(self.Q if Q is None else Q, self.ts)
+    def curve(self, Q=None, ts=None, curl=None):
+        P = bernstein(self.Q if Q is None else Q, self.ts if ts is None else ts)
+        c = self.curl if curl is None else curl
+        return curl_tip(P, self.F['chart'], c, self.o.get('curl_len', 0.3)) if c else P
+
+    def tw(self, P, twist=None, slope=None):
+        """the twist along a centreline: the lock's twist, plus (twist_axis) its slope times the arc length's share
+        from the middle -> a scalar, or one per point."""
+        tw0 = self.twist if twist is None else twist
+        sl = self.slope if slope is None else slope
+        if not sl:
+            return tw0
+        sd = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+        return tw0 + sl * (sd / max(sd[-1], 1e-12) - 0.5)
+
+    def nx(self):
+        """the parameters past the curve and twist: (slope?, curl?)."""
+        return int(bool(self.o.get('twist_axis'))) + int(bool(self.o.get('tip_curl')))
+
+    def split_x(self, x):
+        """the parameter vector -> (Q, twist, slope, curl)."""
+        k = 19
+        sl = cu = 0.0
+        if self.o.get('twist_axis'):
+            sl = x[k]; k += 1
+        if self.o.get('tip_curl'):
+            cu = x[k]; k += 1
+        return x[:18].reshape(6, 3), x[18], sl, cu
+
+    def state(self):
+        return (self.Q.copy(), self.twist, dict(self.cost), self.slope, self.curl)
+
+    def restore(self, keep):
+        self.Q, self.twist, self.cost = keep[0].copy(), keep[1], dict(keep[2])
+        self.slope, self.curl = keep[3], keep[4]
 
     def drawn_width(self, pc, d):
         """the drawn width (px) at projected points pc: with soft_width, the drawn stations' widths weighted by a
@@ -433,10 +491,10 @@ class Lock:
     def residuals(self, x, views=None):
         from .hairpieces import _seg_dist
         det = bool(self.o.get('det'))
-        Q = x[:18].reshape(6, 3)
-        twist = x[18]
-        P = self.curve(Q)
-        Pd = bernstein(Q, self.ts_dense) if det else None
+        Q, twist0, slope, curl = self.split_x(x)
+        P = self.curve(Q, curl=curl)
+        Pd = self.curve(Q, self.ts_dense, curl=curl) if det else None
+        twist = self.tw(P, twist0, slope)
         out = []
         for vn, d in self.drawn.items():
             if views and vn not in views:
@@ -526,7 +584,11 @@ class Lock:
             cvec = (ab_(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * ab_(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
             wd = self.drawn_width(pc, d)
             out.append(0.5 * (cvec * Wt - wd))
-        out.append(np.array([self.o['prior_twist'] * twist * 10.0]))
+        out.append(np.array([self.o['prior_twist'] * twist0 * 10.0]))
+        if self.o.get('twist_axis'):
+            out.append(np.array([self.o.get('prior_slope', 0.5) * slope * 10.0]))
+        if self.o.get('tip_curl'):
+            out.append(np.array([self.o.get('prior_curl', 0.2) * curl * 10.0]))
         # every view the lock faces: its centreline at least half a drawn width inside the drawn hair (the multi-view
         # constraint the visual hull carves with; a lock fitted in one view otherwise wanders out of the others)
         from scipy.ndimage import map_coordinates
@@ -562,9 +624,15 @@ class Lock:
             dr = float(np.median(R0 - r0))                 # how far under the envelope the start lies
             self.target_r = lambda ph, th: G.sample(self.F['R'], ph, th) - dr
         tw = self.o['twist_max']
-        x0 = np.r_[self.Q.ravel(), np.clip(self.twist, -0.99 * tw, 0.99 * tw)]
-        scale = np.r_[np.full(18, 0.01 * self.L), 0.3]
-        bounds = (np.r_[np.full(18, -np.inf), -tw], np.r_[np.full(18, np.inf), tw])
+        # the bounded scalars after the curve: the twist, then (tool/hairident) the twist's slope and the tip's curl
+        lim = [tw] + ([self.o.get('slope_max', 1.6)] if self.o.get('twist_axis') else []) + \
+            ([self.o.get('curl_max', 2.4)] if self.o.get('tip_curl') else [])
+        lim = np.array(lim, float)
+        cur = np.array([self.twist] + ([self.slope] if self.o.get('twist_axis') else []) +
+                       ([self.curl] if self.o.get('tip_curl') else []), float)
+        x0 = np.r_[self.Q.ravel(), np.clip(cur, -0.99 * lim, 0.99 * lim)]
+        scale = np.r_[np.full(18, 0.01 * self.L), np.full(len(lim), 0.3)]
+        bounds = (np.r_[np.full(18, -np.inf), -lim], np.r_[np.full(18, np.inf), lim])
         if det:
             # (tool/hairshell3) the smooth objective's Jacobian by central differences of a micrometre, converged:
             # the fit's end a function of its inputs, not of the path (round 2's millimetre secant stopped wherever
@@ -572,12 +640,17 @@ class Lock:
             tol = self.o['det_tol']
             if self.o.get('det_method', 'trf') == 'lm':
                 # (Levenberg-Marquardt, MINPACK's: the twist through tanh, unbounded)
-                f_ = lambda y: self.residuals(np.r_[y[:18], tw * np.tanh(y[18])])
-                y0 = np.r_[x0[:18], np.arctanh(np.clip(x0[18] / tw, -0.99, 0.99))]
+                if len(lim) == 1:
+                    f_ = lambda y: self.residuals(np.r_[y[:18], tw * np.tanh(y[18])])
+                    y0 = np.r_[x0[:18], np.arctanh(np.clip(x0[18] / tw, -0.99, 0.99))]
+                else:
+                    f_ = lambda y: self.residuals(np.r_[y[:18], lim * np.tanh(y[18:])])
+                    y0 = np.r_[x0[:18], np.arctanh(np.clip(x0[18:] / lim, -0.99, 0.99))]
                 sol = least_squares(f_, y0, x_scale=scale, max_nfev=getattr(self, 'nfev_cap', None) or self.o['det_nfev'],
                                     method='lm',
                                     diff_step=self.o['det_step'], ftol=tol, xtol=tol, gtol=tol)
-                sol.x = np.r_[sol.x[:18], tw * np.tanh(sol.x[18])]
+                sol.x = np.r_[sol.x[:18], tw * np.tanh(sol.x[18])] if len(lim) == 1 else \
+                    np.r_[sol.x[:18], lim * np.tanh(sol.x[18:])]
             else:
                 sol = least_squares(self.residuals, x0, x_scale=scale,
                                     max_nfev=getattr(self, 'nfev_cap', None) or self.o['det_nfev'], jac='3-point',
@@ -588,8 +661,8 @@ class Lock:
                 # the parameters snapped (a power of two: exact): every machine's fit ends within ~1e-12 m of the same
                 # point, so the snapped ones agree bit for bit unless a value sits that close to a step
                 xs = np.r_[snap(xs[:18], q), snap(xs[18:], q)]
-            self.Q = xs[:18].reshape(6, 3)
-            self.twist = float(xs[18])
+            self.Q, tw_, sl_, cu_ = self.split_x(xs)
+            self.twist, self.slope, self.curl = float(tw_), float(sl_), float(cu_)
             self.status = (int(sol.status), int(sol.nfev))
         else:
             # diff_step: the Jacobian's finite-difference step (relative; under 1 m, in m: 1e-3 is a millimetre, about
@@ -597,8 +670,8 @@ class Lock:
             # so the fit's end moved with input noise
             sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=300, diff_step=self.o.get('diff_step'),
                                 bounds=bounds)
-            self.Q = sol.x[:18].reshape(6, 3)
-            self.twist = float(sol.x[18])
+            self.Q, tw_, sl_, cu_ = self.split_x(np.asarray(sol.x, float))
+            self.twist, self.slope, self.curl = float(tw_), float(sl_), float(cu_)
         P = self.curve()
         for vn, d in self.drawn.items():
             from .hairpieces import _seg_dist
@@ -615,7 +688,7 @@ class Lock:
         sd = np.r_[0, np.cumsum(np.linalg.norm(np.diff(Pd, axis=0), axis=1))]
         su = np.linspace(0, sd[-1], n)
         P = np.stack([np.interp(su, sd, Pd[:, j]) for j in range(3)], 1)
-        Wt = self.widths(P, self.twist)
+        Wt = self.widths(P, self.tw(P))
         s_ = self.hull_frame[0]
         ppl = self.views[self.primary].ppl
         Wd = np.max([d['W'].max() for d in self.drawn.values()]) / ppl * s_
@@ -631,7 +704,7 @@ class Lock:
         if wb != 1.0:
             # (tool/hairshell3) the edge toward the back of the head widened wb as much as the front's (a side lock
             # widened at its back covers the lower back in profile): the centreline moved toward the front edge
-            _, _, b_ = frames(P, self.F['chart'], self.twist, bool(self.o.get('det')))
+            _, _, b_ = frames(P, self.F['chart'], self.tw(P), bool(self.o.get('det')))
             sg = np.sign(b_[:, 1])[:, None]                       # +1 where +b points to the back (+y)
             P = P - sg * b_ * ((1.0 - wb) * ext / 2.0)[:, None]
         # the root carried on into the hair: along the lock's own direction root_in L, diving toward the scalp as it
@@ -651,8 +724,11 @@ class Lock:
         E = ch.point(ph, th, rr)
         line = np.r_[E, P]
         Wl = np.r_[W[0] * (1 - 0.4 * f), W]
+        twl = self.tw(P)
+        if np.ndim(twl):
+            twl = np.r_[np.full(len(E), twl[0]), twl]           # the root's carried-in part keeps the root's twist
         # no fold where the lock bends across its broad side: half its width within 0.8 of the bend's radius
-        t, a, b = frames(line, ch, self.twist)
+        t, a, b = frames(line, ch, twl)
         ds = np.linalg.norm(np.gradient(line, axis=0), axis=1) + 1e-12
         kb = np.abs(np.einsum('ij,ij->i', np.gradient(t, axis=0) / ds[:, None], b))
         ka = np.abs(np.einsum('ij,ij->i', np.gradient(t, axis=0) / ds[:, None], a))
@@ -668,7 +744,7 @@ class Lock:
                 for k_ in ('V', 'vn_env', 'strand'):
                     p_[k_] = snap(p_[k_], 2.0 ** -26)
             return p_
-        part = tube_(line, Wl, Tl, ch, self.twist, self.o['n_ring'])
+        part = tube_(line, Wl, Tl, ch, twl, self.o['n_ring'])
         from .hairpieces import fold_mask
         nr = self.o['n_ring']
         S_ = np.where(np.isfinite(self.F['S']), self.F['S'], -1e3)
@@ -691,7 +767,7 @@ class Lock:
                 for k_ in ks:
                     sc[max(0, k_ - 1):k_ + 2] = 0.85
                 Wl = Wl * sc
-                part = tube_(line, Wl, Tl, ch, self.twist, nr)
+                part = tube_(line, Wl, Tl, ch, twl, nr)
         for _ in range(int(self.o.get('fold_fix', 0))):
             # (tool/hairshell2) a folded tube (a lock whose fit bends tighter than its width: the clamp above reads the
             # curvature at the stations, a fold can start between them) narrowed where it folds, 0.7 a step over the
@@ -705,7 +781,7 @@ class Lock:
             for k_ in ks:
                 sc[max(0, k_ - 2):k_ + 4] = 0.7
             Wl, Tl = Wl * sc, Tl * sc
-            part = tube_(line, Wl, Tl, ch, self.twist, nr)
+            part = tube_(line, Wl, Tl, ch, twl, nr)
         if mode:
             # (round 4) the shell at least `gap` outside the skin, as the hull's pieces hold their inner surface (S + gap
             # on the crown chart's skin field): the fit keeps the centreline clear, but a wide, twisted lock's edge could
@@ -745,6 +821,8 @@ class Lock:
         from .hairpieces import folds
         nf = folds(part['V'], part['T'], part['outer'], part['vn_env'])
         part['fit'] = dict(views=sorted(self.drawn), cost_px=self.cost, twist_deg=round(math.degrees(self.twist), 1),
+                           **({'twist_slope_deg': round(math.degrees(self.slope), 1)} if self.o.get('twist_axis') else {}),
+                           **({'curl_deg': round(math.degrees(self.curl), 1)} if self.o.get('tip_curl') else {}),
                            width_L=round(float(W.max()) / self.L, 4), length_L=round(float(
                                np.linalg.norm(np.diff(P, axis=0), axis=1).sum()) / self.L, 4),
                            locks={vn: int(d['lock']) for vn, d in self.drawn.items()}, folds=int(nf))
@@ -1004,14 +1082,14 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                             best = (cov, L2)
                     if best is not None:
                         L2 = best[1]
-                        keep = (L2.Q.copy(), L2.twist, dict(L2.cost))
+                        keep = L2.state()
                         L2.drawn[pv] = lk.drawn[pv]
                         set_contain(L2)
                         L2.fit()
                         if L2.cost.get(pv, 1e9) > o['view_cost_max'] or any(
                                 c > o['view_cost_max'] for vn, c in L2.cost.items() if vn != L2.primary and vn != pv):
                             L2.drawn.pop(pv)
-                            L2.Q, L2.twist, L2.cost = keep
+                            L2.restore(keep)
                         report.setdefault('dedup', []).append(dict(target='%s:%s' % (pv, T_['id']), into=L2.name,
                                                                     cover=round(best[0], 3),
                                                                     joined=pv in L2.drawn))
@@ -1086,7 +1164,7 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                                         key=lambda v_: lk.assoc.get(v_, {}).get('dist', 1e9))
                         pend = {vn: lk.drawn.pop(vn) for vn in others}
                         for vn in others:
-                            keep = (lk.Q.copy(), lk.twist, dict(lk.cost))
+                            keep = lk.state()
                             solo = lk.cost.get(pv, 0.0)
                             lk.drawn[vn] = pend[vn]
                             set_contain(lk)
@@ -1102,7 +1180,7 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                                 o.get('primary_slack') is None or lk.cost.get(pv, 0.0) <= solo + o['primary_slack'])
                             ok = judge()
                             if ok and cap and getattr(lk, 'status', (1,))[0] == 0:
-                                lk.Q, lk.twist, lk.cost = keep[0].copy(), keep[1], dict(keep[2])
+                                lk.restore(keep)
                                 set_contain(lk)
                                 lk.fit()
                                 ok = judge()
@@ -1112,7 +1190,7 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                                 d = lk.drawn.pop(vn)
                                 claimed[vn] = {q for q in claimed[vn] if q[0] != d['lock'] or q not in
                                                [T2['id'] for T2 in tg[vn] if T2['mask'] is d['mask']]}
-                                lk.Q, lk.twist, lk.cost = keep
+                                lk.restore(keep)
                                 set_contain(lk)
                     elif len(lk.drawn) > 1:
                         solo = lk.cost.get(pv, 0.0)
