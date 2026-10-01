@@ -107,7 +107,16 @@ resolved by taking pipeline-3d's and reapplying the body_hull routing at its Fit
   - the full test suite on the merged tree (logs: charkit/private/c3/out/tests/);
   - the pregate on the box (`python -m charkit pregate --box auto`, log charkit/private/c3/out/pregate.log; report
     into charkit/out/pregate/).
-  - JOB IDS / RESULTS: see "Checkpoint results" below (appended when known).
+  - JOB IDS (2026-10-01 14:13): build `build-char3-1001-141348-1817` on the build box (log
+    charkit/private/c3/out/b1_build.log; outputs fetched into charkit/private/c3/out/b1 when it ends; if the local
+    follow died: `python -m charkit remote attach build-char3-1001-141348-1817`); pregate
+    `pregate-char3-1001-140854-89f4` on render2 (of 6a30512e; log charkit/private/c3/out/pregate.log; attach likewise).
+  - The full test suite on the merged tree (6a30512e): 99 files, 0 failed.
+  - The first launch of the build failed in the sync: a blob's sha256 mismatched on the box (a file that changed
+    between the laptop's hash and its upload: the local test suite was rewriting transient files in the worktree,
+    e.g. test_cache's charkit/probe.py). The box caught it loudly; rerun after the tests: synced in 1.9 s. Finding
+    (infra): the laptop could re-hash at upload and name the file. Also: keep private review pages under
+    charkit/private/<name>/out/ (54 MB of review images were synced as inputs).
 
 ## Exact next steps
 
