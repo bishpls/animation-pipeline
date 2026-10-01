@@ -1159,3 +1159,14 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   right shoulder's skin sliver (x 0.2-0.33 z -0.5, a fragment).
 - Sweep s3 (render2, re-mask on; tools/garments7/s3.json): collar side/back depth, rise, neck_drop, lift, v_half OAT +
   opt1's best -> charkit/out/garments7/sweeps/s3.
+- **Sweep s3** (re-mask on, g7_c4; tools/garments7/stab.py charkit/out/garments7/sweeps/s3/sweep.json): art_outline_neck
+  control 11.1; opt1's best 5.79 (but neck_crease 41 F, bleed 0.16 F, collar front torn F); opt1's puff+tuck only 8.96
+  (piece_top front/3q 0.496/0.652, sleeve_L front 0.941, mirror_waist PASS, ao_collar 2.14); side_depth 0.455: piece_top
+  0.476/0.662, ao_neck 14.5, speckle 4.2 W; lift 0: collar front 0.963; back_depth 0.51: top back 0.95, mirror PASS.
+  No hull-lapel setting reaches art_outline_neck (<= 1.5): the hull-conformed lapels' crumpled tips and the jacket
+  edge they leave are the corners. -> the flat lapels move ahead of the gate.
+- **Merged tool/garments4-lapels** (d73c9a50): collar_hull flat_front, front_length, collar 'lapel' (project/walk);
+  declared band_rows; lapelqa.py parked as tools/garments7/drafts/lapelqa.py (uncalibrated). Unchanged with them off.
+- Sweep s4 (render2, re-mask on, boards): the projected flat lapels on c4 (L0 = the lapels round's Q2 settings; L2 the
+  V's point at the bow (z -0.72) and the drawn shoulder point (0.34, -0.50); v_half, spread, off variants)
+  -> charkit/out/garments7/sweeps/s4.
