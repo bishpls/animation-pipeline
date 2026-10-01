@@ -19,6 +19,8 @@ PAGE.json:
   sweep       a sweep's result (charkit/sweep.py: OUT/sweep.json): its table (with deltas against its control) and each
               row's board
   notes       extra paragraphs (HTML-escaped) after the summary
+  figures     extra sections of given pictures after the notes: [{"title", "text", "height", "images": [{"path",
+              "caption"}]}] (a round's own measurement pictures: the drawn locks, a fit's overlay)
 
 Writes DIR/index.html and DIR/img/ (default charkit/out/review_pages/<title slug>/); every picture links its source.
 The design's pictures come from the manifest's head and body turnarounds (charkit.preview.design_refs); a build's from
@@ -340,6 +342,25 @@ def sweep_section(page, path):
     return ''.join(H)
 
 
+def figures_section(page, sec):
+    """a section of given pictures (a round's own measurement pictures: the drawn locks, a fit's overlay): {"title",
+    "text", "height", "images": [{"path", "caption"}]}, each copied under img/ and shown in one row at one height."""
+    import shutil
+    H = ['<h2>%s</h2>' % esc(sec.get('title') or '')]
+    if sec.get('text'):
+        H.append('<p class="k">%s</p>' % esc(sec['text']))
+    figs = []
+    for k, f in enumerate(sec.get('images') or ()):
+        src = os.path.abspath(os.path.expanduser(f['path']))
+        if not os.path.exists(src):
+            continue
+        dst = os.path.join(page.img, 'fig_%s_%d_%s' % (_slug(sec.get('title'))[:24], k, os.path.basename(src)))
+        shutil.copyfile(src, dst)
+        figs.append(page.fig(dst, esc(f.get('caption') or ''), h=sec.get('height')))
+    H.append('<div class="row cmp">%s</div>' % ''.join(figs))
+    return ''.join(H)
+
+
 # ------------------------------------------------------------------------------------------------------------ the page
 def make(spec, out=None, log=print):
     """the page from a PAGE.json's dict -> its index.html path."""
@@ -376,6 +397,8 @@ def make(spec, out=None, log=print):
     H.append('</div>')
     for p in spec.get('notes') or ():
         H.append('<p>%s</p>' % esc(p))
+    for sec in spec.get('figures') or ():
+        H.append(figures_section(page, sec))
     # per view: the design beside every build, the full figure at one height, the head at one px per L
     if builds:
         H.append('<h2>Per view: the design and %s</h2><p class="k">Full figures at %d px tall; heads at %d px per L '
