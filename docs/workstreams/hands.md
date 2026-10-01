@@ -110,8 +110,21 @@ variants: `evalab.py NAME '{"path": value}'`, ~150 s), legbumps.py, tips.py, ali
 - **The 3q skirt aline is not the clearance:** clear_hands off changes nothing (-0.313 both; IoUs +0.003). The design's
   3q rows are all "a hand against it" (aline falls back to all rows); ours leaves 52 rows free because our far hand
   (R) is 63% hidden behind the skirt in 3q (occl.py), so a few odd rows decide it. Same cause as hand_shape_R 3q 0.21.
-- Our arms hang steeper than drawn (body_front_arms: ours 15.5 deg shoulder to hand, the design 18.3-19.0; it was
-  17 with the mitten): pose.arm_down 11.05 was fitted with the mitten. Testing arm_down 8-9.5 with evalab.
+- Our arms hang steeper than drawn (body_front_arms: ours 15.5 deg shoulder to hand, the design 18.3-19.0). pose.arm_down
+  is MakeHuman's: the code body ignores it (evalab arm8/arm6: no check moves); our arm is the hull's chain. Near the
+  cuff (handqa.arm_axis) the drawn forearm is 28.2-28.6 deg off vertical in front/back, ours 22.5; the drawn hand
+  flares 4.3-5.6 deg past its forearm, ours -0.4..-0.9 (tips.py).
+- **Placement fix (09ddfa2): body.hand.out 5.5** (the hand turned out in her frontal plane at the wrist, matching the
+  drawn flare past the forearm). Fit.score (outscan.py, folds fixed): IoU front 0.736/0.743 -> 0.750/0.753, 3q
+  0.695/0.718 -> 0.712/0.762, back 0.729/0.740 -> 0.747/0.750, profile 0.503 -> 0.507; reach errors <= 0.024 L.
+  Fingertips -2.631/-2.620 -> -2.608/-2.597 L (above LEG_TOP). The forearm's own 6 deg is the hull's (not this
+  workstream): out 11 would match the drawn absolute angle (tips -2.58) at a 6 deg excess flare on our forearm.
+- **Line (09ddfa2): body.hand.line 0.5** (character.outline_weights: the hand's outline at half the skin's).
+- **handqa (09ddfa2, step registered 44b05dd):** our_hidden; a partly hidden hand's shape is graded over what shows,
+  with `visible` and `whole` beside it; digits/cleft INFO below 75% visible. On b1: hand_shape_R 3q 0.207 -> 0.372
+  (visible 0.369, whole 0.629: the far hand is both hidden and drawn broader than ours shows edge-on).
+- **Box build b2** (a1bbeb7 + 09ddfa2 + 44b05dd: folds/winding, out, line): `charkit/out/hands_b2`, log
+  charkit/out/hands/b2.log (render box, boards body,design).
 
 ## Next steps (exact)
 1. Clear the two K blockers above (art_bumps_legs, body_three_quarter_skirt_aline) and the 3q R hand; rebuild.
