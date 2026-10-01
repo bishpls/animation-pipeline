@@ -11,13 +11,12 @@ branch doesn't edit calibrate.py, boxjob.py or the sweep worker launch. These no
 
 Started 15:38 EDT. Wall time per task is logged in "Time" below.
 
-**Done; gated.** Gate K **PASS** f36b2f07 into pipeline-3d 27a4b6c3 (`--code tool/infra5-o`, build box; report
-charkit/out/gate/gate_tool-infra5-o_f36b2f07_into_27a4b6c3.md): nothing blocks, no check changed, 104 test files
-pass, CPU 1660 -> 1887 s (1.14x: the candidate rebuilt the produced references once under this branch's keys). The
-earlier gate 33edd0a7 into 27a4b6c3 (build2) also PASS. Commits after f36b2f07: notes only. Review page:
-charkit/out/infra5/page/html/index.html (`charkit review page charkit/out/infra5/page/page.json`). The measurement
-worktree ~/animation-pipeline-infra5o-base (branch tmp/infra5o-base2: pipeline-3d + the instrumentation; also
-tmp/infra5o-base, tmp/infra5o-failfast) can be removed once the coordinator has the numbers.
+**Done; gated.** Gate K **PASS** 30290fb8 into pipeline-3d 27a4b6c3 (`--code tool/infra5-o`, build box; report
+charkit/out/gate/gate_tool-infra5-o_30290fb8_into_27a4b6c3.md): nothing blocks, no check changed, 104 test files
+pass. Earlier PASSes: f36b2f07 (build box), 33edd0a7 (build2), both into 27a4b6c3. Commits after 30290fb8: notes only.
+Review page: charkit/out/infra5/page/html/index.html (`charkit review page charkit/out/infra5/page/page.json`). The
+measurement worktree ~/animation-pipeline-infra5o-base (branch tmp/infra5o-base2: pipeline-3d + the instrumentation;
+also tmp/infra5o-base, tmp/infra5o-failfast) can be removed once the coordinator has the numbers.
 
 **Box state changed by this round:** the stale shared hull entry 60a77c6f-b021909c was moved aside on the build box
 (/tmp/stale-hull-...-moved-by-infra5o: recoverable).
