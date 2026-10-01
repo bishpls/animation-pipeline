@@ -1267,3 +1267,25 @@ findings. CPU 1.01x (candidate built, baseline cached). Tests 76 files, 0 failin
   WARN) and on the terminator (an acceptance the gate can record: gate.judge's accepted kinds to include 'flag check
   regressed', tool/calib's change). Then recalibrate any check whose grading changes (`python -m charkit calibrate CHECK
   --build charkit/out/f5m --seeds 9`), commit, re-gate. tool/face6 merges face5 after it lands.
+
+## Round 7, second part (2026-09-30 night): the jaw checks made discriminating; Michael's terminator acceptance
+
+The coordinator's brief: each check discriminating from its triple, never looser; neck_front_wiggle must measure under a
+1-2 px move; neck_to_face must FAIL Michael's flagged jaw. Michael accepted art_terminator_hair 1.804 PASS -> 2.111
+WARN for tool/face5 by name (2026-09-30: the side locks' partition, tool/hair5's).
+
+- **The acceptance**: `gate --accept-fail` now takes `--status` (gate.py: a recorded acceptance covers a 'flag check
+  regressed' block when the candidate reads the recorded status and its value is within ACCEPT_TOL 1% of the recorded
+  one; test_calibrate's test_an_accepted_flag_regression_covers_its_reading_only). Recorded in
+  `charkit/accepted/art_terminator_hair.json` (WARN, 2.111, branch tool/face5), commit 4dda46b.
+- **The measures** (72eb64a; steps 6a57a71): chin_angle, chin_underside, chin_v valued as the graded deviation;
+  chin_v's rise sub-pixel on the outline; neck_to_face remeasured as the face's share of the figure's width over the
+  0.05 L above the design's chin against the design's; neck_front_wiggle read on the design's 0.25 L band, ended at
+  the neck's foot (NECK_STEP 0.01 L). PASS lines from the triple (min of halfway design median -> floor, and midway
+  design worst move -> nearest floor generator's median); WARN lines kept (neck_to_face's new: 0.24, its floor).
+- **All 15 records calibrated** (`charkit/out/calib_jaw/calib_r7.json`, `calib_r7c.json`). f5m now reads:
+  chin_angle 1.5 WARN (PASS <= 1.45), chin_v 0.09 WARN (PASS <= 0.042), jaw_taper_shape 0.0157 WARN (PASS <= 0.0141),
+  chin_underside 0.4 PASS (on its line), jaw_taper 0.0052 PASS, neck_to_face 0.0465 PASS, neck_front_wiggle 4.8 PASS,
+  tq_cheek_hollow 0.0056 WARN (unchanged). Findings for Michael: face5's V opening, its rise and its taper's shape
+  sit about halfway between the design and an 8-15% sloppy fit (margins 0.69, -0.07, 0.43).
+- Merged pipeline-3d 640ca7c (tool/xpbd rounds 2-3).
