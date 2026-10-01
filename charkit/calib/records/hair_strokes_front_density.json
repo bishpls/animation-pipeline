@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T06:05:55",
+ "at": "2026-10-01T21:54:21",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -15,23 +15,23 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.025,
+    0.024,
     "PASS"
    ],
    "+0,+2": [
-    0.047,
+    0.045,
     "PASS"
    ],
    "+1,+0": [
-    0.018,
+    0.019,
     "PASS"
    ],
    "+2,+0": [
-    0.034,
+    0.033,
     "PASS"
    ],
    "+0,-1": [
-    0.025,
+    0.027,
     "PASS"
    ],
    "+0,-2": [
@@ -39,18 +39,18 @@
     "PASS"
    ],
    "-1,+0": [
-    0.021,
+    0.022,
     "PASS"
    ],
    "-2,+0": [
-    0.037,
+    0.038,
     "PASS"
    ]
   },
-  "min": 0.018,
+  "min": 0.019,
   "max": 0.047,
-  "spread": 0.029,
-  "median": 0.029500000000000002
+  "spread": 0.028,
+  "median": 0.03
  },
  "known_bad": {
   "name": "hst_base",
@@ -60,37 +60,37 @@
  "floor": {
   "scattered_strokes": {
    "values": [
-    0.736,
-    0.537,
-    0.645,
-    0.645,
-    0.813
+    0.687,
+    0.706,
+    0.501,
+    0.568,
+    0.654
    ],
    "statuses": [
     "FAIL",
-    "WARN",
+    "FAIL",
     "WARN",
     "WARN",
     "FAIL"
    ],
-   "median": 0.645,
-   "status": "WARN",
+   "median": 0.654,
+   "status": "FAIL",
    "passing": 0
   }
  },
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.384,
+  "value": 0.371,
   "status": "WARN",
-  "margin": 0.424
+  "margin": 0.454
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.029), hst_base reads 1.0 FAIL, the floor scattered_strokes WARN",
+ "why": "the design passes every move (spread 0.028), hst_base reads 1.0 FAIL, the floor scattered_strokes FAIL",
  "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
- "build": "charkit/out/hst_s1",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "scattered_strokes": "the drawn strands inside the hair's mass each put anywhere in the mass at random (their length and direction kept: strokes in the wrong places)"
  },
- "seconds": 251.7
+ "seconds": 1025.1
 }

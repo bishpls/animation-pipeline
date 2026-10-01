@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T08:07:02",
+ "at": "2026-10-01T21:54:21",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -60,11 +60,11 @@
  "floor": {
   "blunt_strokes": {
    "values": [
-    0.182,
-    0.182,
-    0.273,
-    0.273,
-    0.273
+    0.25,
+    0.25,
+    0.25,
+    0.25,
+    0.25
    ],
    "statuses": [
     "FAIL",
@@ -73,7 +73,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 0.273,
+   "median": 0.25,
    "status": "FAIL",
    "passing": 0
   }
@@ -81,15 +81,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.682,
+  "value": 0.667,
   "status": "PASS",
-  "margin": 0.563
+  "margin": 0.556
  },
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0.0), hst_base reads None FAIL, the floor blunt_strokes FAIL",
- "build": "charkit/out/hst_s1",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "blunt_strokes": "the head sheet's strands repainted at their own colour and middle weight with square ends (no taper)"
  },
- "seconds": 304.1
+ "seconds": 1025.1
 }

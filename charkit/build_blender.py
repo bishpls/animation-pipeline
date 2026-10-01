@@ -94,8 +94,8 @@ def main(a, worker=False, t0=None):
                                              default=str))
         product('vrm', vrm, [gltf.export_scene, gltf.check], opts=[os.path.basename(path)])
     if '--look' in a:
-        # what charkit.render draws (the QA's drawing, the build box's boards): the export without its shape keys or
-        # weights (gltf.export look_only), a fraction of the full export's cost
+        # what charkit.render draws (the QA's drawing, the build box's boards) and charkit.rom poses: the export without
+        # its shape keys (gltf.export look_only), a fraction of the full export's cost
         from charkit import gltf
         path = os.path.join(out, spec['name'] + '.look.glb')
 

@@ -1,0 +1,87 @@
+{
+ "check": "rom_vol_knee",
+ "part": "rom",
+ "adapter": "RomVolume",
+ "module": "charkit.calib.rom",
+ "at": "2026-10-01T16:26:47",
+ "better": "higher",
+ "kind": "defect",
+ "shape": [
+  "piece_boot_L",
+  "piece_boot_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9911,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.9905,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.9922,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.9928,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9917,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.9917,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.9917,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.9917,
+    "PASS"
+   ]
+  },
+  "min": 0.9905,
+  "max": 0.9928,
+  "spread": 0.0023,
+  "median": 0.9917
+ },
+ "known_bad": {
+  "name": "rom_lbs",
+  "value": 0.3838,
+  "status": "FAIL"
+ },
+ "floor": {
+  "shuffled_weights": {
+   "values": [
+    1.0,
+    1.0
+   ],
+   "statuses": [
+    "PASS",
+    "PASS"
+   ],
+   "median": 1.0,
+   "status": "PASS",
+   "passing": 2
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.3838,
+  "status": "FAIL",
+  "margin": 74.241
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0023), rom_lbs reads 0.3838 FAIL; a random stand-in passes it (shuffled_weights); shape guarded by piece_boot_L, piece_boot_R",
+ "build": "charkit/out/rom_base2",
+ "generators": {
+  "shuffled_weights": "the skin's weights shuffled among its vertices (seeded): a random rig"
+ },
+ "seconds": 1577.2
+}

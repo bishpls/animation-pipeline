@@ -50,6 +50,9 @@ regenerate it after changing a module's docstring or public functions. The curat
 - **Review pages**: reviewpage.py (`charkit review page`: the standard page), preview.py (per-merge previews),
   review.py, flags.py, checkpoint.py, *page.py.
 - **Simulation**: sim/ (xpbd.py cloth, springbone.py, drape.py, motion.py, motionqa.py).
+- **Range of motion**: pose.py and poses/*.json (named poses as data, in anatomical terms, any humanoid), rom.py (the
+  suite: the shipped export's rig posed and measured, `charkit rom BUILD`), romqa.py (QA part 'rom', report-only),
+  calib/rom.py (its reference rigs and known-bads).
 - **Renderer**: render/ (charkit's WebGPU toon renderer: gpu.py, buffers.py, views.py, softras.py, parity.py);
   qarender.py (the QA's drawing through it).
 - **Geometry kernel**: geom/ (mesh IO, repair, booleans, BVH, raster, loft, hull, solidify, subsurf).

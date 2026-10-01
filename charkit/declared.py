@@ -1181,13 +1181,18 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
         if hair:
             out['ink'] = our_ink(B, ctx['ppl'], ctx['az3'], tuple(O))
+            if out.get('hair_hide'):                # (the hair's shape truth: ours drawn without our clips)
+                out['lines_hair'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O), hide=out['hair_hide'])
+                out['ink_hair'] = our_ink(B, ctx['ppl'], ctx['az3'], tuple(O), hide=out['hair_hide'])
     if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
         out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
     if head:                                      # (the head sheet's pictures and ours at its scale: line_weight)
         from . import hairweight
         Dh = hairweight.design_head(B, design)
         hv = tuple(v for v in (head if isinstance(head, (tuple, list)) else views) if v in Dh)
-        out['head'] = dict(D=Dh, O=hairweight.our_head(B, next(iter(Dh.values()))['az3'], hv) if hv else {})
+        hh = design.hidden('hair')
+        out['head'] = dict(D=Dh, O=(hairweight.our_head(B, next(iter(Dh.values()))['az3'], hv, hide=hh) if hh else
+                                    hairweight.our_head(B, next(iter(Dh.values()))['az3'], hv)) if hv else {})
     if tones:                                     # (our cel tones on the design grids: the tones family)
         from . import hairtones
         tv = tuple(v for v in (tones if isinstance(tones, (tuple, list)) else views) if v in O)
@@ -1231,18 +1236,26 @@ def _with_hair(B, design, I):
     """the hair as a piece in the inputs I (in place): pm[HAIR] our hair_* objects, masks VIEW__hair the drawing's hair
     class in its figure (hairflagqa.drawn_hair), hair_D hairflagqa's design side (None without the hair truth), and per
     view our hair objects that aren't the mass (HAIR_OTHER) with the clips (hair_other, from the labels: read when
-    measured, so a stand-in's labels give theirs)."""
-    from . import hairflagqa
+    measured, so a stand-in's labels give theirs). Against the hair's shape truth (charkit.shapetruth: the drawing's
+    clips repainted away, qa3d.Design.shape_views), the drawn hair is that, and ours is drawn without our clips:
+    O_hair (our labels without them), dv_hair (the design's views it reads) and hair_hide (what is left out)."""
+    from . import hairflagqa, pieceqa
     names = I['names']
     I['pm'] = dict(I['pm'], **{HAIR: [(n, None) for n in names if n.startswith('hair_')]})
+    hide = design.hidden('hair')
+    dvh = design.shape_views('hair') if hide else I['dv']
     masks = dict(I['masks'])
-    for v, d in I['dv'].items():
+    for v, d in dvh.items():
         masks['%s__%s' % (v, HAIR)] = hairflagqa.drawn_hair(d)
     I['masks'] = masks
     I['hair_D'] = hairflagqa.design_inputs(B, design)[0]
     oth = [(n, None) for n in names if n.startswith(HAIR_OTHER)] + \
-        [(o.name, None) for o in B.objects(groups=('accessory',)) if o.name in names]
+        [(o.name, None) for o in B.objects(groups=('accessory',)) if o.name in names and o.name not in hide]
     I['hair_other_members'] = oth
+    if hide:
+        I['O_hair'], _ = pieceqa.our_labels(B, I['ppl'], design.sheet_context()['az3'], views=tuple(I['O']),
+                                            hide=hide)
+        I['dv_hair'], I['hair_hide'] = dvh, hide
 
 
 class _Grid:
@@ -1259,21 +1272,21 @@ class _Grid:
         return raster.window_zbuffer(items, az, self.origin, 1.0, self.pix, self.win, ids=ids)
 
 
-def our_lines(B, ppl, az3, views=VIEWS):
+def our_lines(B, ppl, az3, views=VIEWS, hide=()):
     """our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls
     (charkit.qa3d.draw, numpy) and the pixels whose nearest surface is a hull (an ink stroke's too) -> {view: bool
-    image}. The generic calibration's stand-in patches it (the drawing's own ink moved with the labels, or none for a
-    random floor)."""
-    return _line_images(B, ppl, az3, tuple(views))
+    image}; hide: objects left out (a part's shape truth: the hair without our clips). The generic calibration's
+    stand-in patches it (the drawing's own ink moved with the labels, or none for a random floor)."""
+    return _line_images(B, ppl, az3, tuple(views), tuple(sorted(hide)))
 
 
-def our_ink(B, ppl, az3, views=VIEWS):
+def our_ink(B, ppl, az3, views=VIEWS, hide=()):
     """our ink strokes' pixels per view on the design's grids (a piece's ink slot, qa3d.is_ink: the creases, the
     hair's strokes), drawn at least a pixel wide where nothing of ours is nearer (a stroke thinner than a pixel still
     shows, as the drawing's faint strokes do: geom.raster's thin labels), without the outlines -> {view: bool image}.
     The hair's lock lines (geom.hairink.LOCK_MATERIAL: lines drawn as ink where the lock shells aren't) are lines, not
-    strokes: they occlude here and aren't ink (our_lines draws them as it draws an outline). The stand-in patches it
-    as it does our_lines."""
+    strokes: they occlude here and aren't ink (our_lines draws them as it draws an outline). hide: objects left out (as
+    our_lines'). The stand-in patches it as it does our_lines."""
     def make():
         from . import bodyqa, qa3d
         from .geom import raster
@@ -1284,7 +1297,7 @@ def our_ink(B, ppl, az3, views=VIEWS):
         items, ink = [], []
         for o in B.objects():
             variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
-            if not o.has(variant):
+            if not o.has(variant) or o.name in hide:
                 continue
             for s_ in qa3d.surfaces(B, o, variant):
                 is_ink = bool(s_['hull']) and len(s_['slots']) > 0 and \
@@ -1309,10 +1322,11 @@ def our_ink(B, ppl, az3, views=VIEWS):
             out[v] = np.isin(lab, ink)
         shape = next((x.shape for x in out.values() if x is not None), None)
         return {v: (x if x is not None else np.zeros(shape or (1, 1), bool)) for v, x in out.items()}
-    return B.memo(('declared_ink', float(ppl), float(az3), tuple(views)), make)
+    return B.memo(('declared_ink', float(ppl), float(az3), tuple(views)) + ((tuple(sorted(hide)),) if hide else ()),
+                  make)
 
 
-def _line_images(B, ppl, az3, views):
+def _line_images(B, ppl, az3, views, hide=()):
     def make():
         from . import bodyqa, qa3d
         As = B.assembly
@@ -1321,7 +1335,7 @@ def _line_images(B, ppl, az3, views):
         surfs = []
         for o in B.objects():
             variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
-            if o.has(variant):
+            if o.has(variant) and o.name not in hide:
                 surfs += qa3d.surfaces(B, o, variant)
         hull = np.array([bool(s['hull']) for s in surfs] + [False])
         out = {}
@@ -1332,7 +1346,7 @@ def _line_images(B, ppl, az3, views):
             mesh = aux['mesh']
             out[v] = hull[np.where(mesh >= 0, mesh, len(surfs))]
         return out
-    return B.memo(('declared_lines', float(ppl), float(az3), views), make)
+    return B.memo(('declared_lines', float(ppl), float(az3), views) + ((hide,) if hide else ()), make)
 
 
 FOLD_DEG = 15.0          # degrees: a fold where the surface turns by at least this ...
@@ -1491,6 +1505,11 @@ def evaluate(decls, I):
         pieces = d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]
         if any(p not in pm for p in pieces):
             continue
+        # the hair against its shape truth (_with_hair): our labels without our clips, the views it reads
+        sht = HAIR in pieces and view in (I.get('O_hair') or {})
+        dvv = (I['dv_hair'] if sht else dv).get(view) or {}
+        if sht:
+            lab = I['O_hair'][view]['lab']
         params = dict(d.get('params') or {})
         M = masks
         if params.pop('fold', False) and I.get('graph') is not None:      # (the drawn pieces we don't build folded in)
@@ -1513,9 +1532,9 @@ def evaluate(decls, I):
             if cl is None:
                 continue
             Mo = [m & (cl[:m.shape[0], :m.shape[1]] == bodyqa.CLASS[oc]) for m in Mo]
-        ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=(dv.get(view) or {}).get('fg'), cls=(dv.get(view) or {}).get('cls'),
-                   dv=dv.get(view),
-                   lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
+        ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=dvv.get('fg'), cls=dvv.get('cls'), dv=dvv or None,
+                   lines=(I.get('lines_hair' if sht else 'lines') or {}).get(view), piece=pieces[0], names=names,
+                   masks=masks,
                    cls_ours=(I.get('cls_ours') or {}).get(view), folds=(I.get('folds') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
@@ -1525,7 +1544,7 @@ def evaluate(decls, I):
         if HAIR in pieces:                                # (the hair as a piece: its design side, our non-mass parts)
             from .bodymeasure import member_mask
             ctx['hair_D'] = I.get('hair_D')
-            ctx['ink'] = (I.get('ink') or {}).get(view)
+            ctx['ink'] = (I.get('ink_hair' if sht else 'ink') or {}).get(view)
             ctx['hair_other'] = member_mask(lab, {n: i for i, n in enumerate(names)}, I.get('hair_other_members') or [])
             ctx['head'] = I.get('head')
             ctx['tones'] = (I.get('tones') or {}).get(view)
@@ -1636,6 +1655,7 @@ class Declared(_calib_base()):
     other floor has no strokes there."""
     part = 'declared'
     generators = dict(_calib_base().generators, **STROKE_FLOORS, **WEIGHT_FLOORS, **TONE_FLOORS)
+    views_for = 'hair'          # (the design's views as the hair's checks read them: its shape truth, when declared)
 
     def labels(self, kind, arg):
         if kind in STROKE_FLOORS or kind in WEIGHT_FLOORS or kind in TONE_FLOORS:
@@ -1793,7 +1813,7 @@ class Declared(_calib_base()):
         import sys
         from .calib.labels import _shift
 
-        def lines(B, ppl, az3, views=VIEWS):
+        def lines(B, ppl, az3, views=VIEWS, hide=()):
             if kind == 'design':
                 return {v: _shift(self._drawn(v), arg[0], arg[1], False) for v in views if v in self.cls}
             if kind in STROKE_FLOORS:
@@ -1806,7 +1826,7 @@ class Declared(_calib_base()):
                 return out
             return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
 
-        def ink(B, ppl, az3, views=VIEWS):
+        def ink(B, ppl, az3, views=VIEWS, hide=()):
             if kind == 'design':
                 return {v: _shift(self._strands(v)[0] if self._strands(v)[0] is not None else
                                   np.zeros(self.cls[v].shape, bool), arg[0], arg[1], False) for v in views if v in self.cls}
@@ -1817,7 +1837,7 @@ class Declared(_calib_base()):
 
         from . import hairtones
 
-        def our_head(B, az3, views=hairweight.VIEWS, ss=hairweight.SS):
+        def our_head(B, az3, views=hairweight.VIEWS, ss=hairweight.SS, hide=()):
             return self.head(kind, arg, views)
 
         def our_tones(B, ppl, az3, views):

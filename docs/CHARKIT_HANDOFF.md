@@ -726,7 +726,63 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
-## Day 2 (2026-10-01, new account): START HERE, then the wrap-up below
+## Day 2 evening (2026-10-01, ~19:00 EDT): START HERE
+
+**Merged and pushed today (pipeline-3d):**
+- 07f305e8 clips remade and placed;
+- 9be5b320 hair strokes milestone + face7 gate 1 (profile eye);
+- e003960d face7 gate 2b (forehead, 3/4 mouth per-shot override, off);
+- 25ff0f25 `charkit sweep optimize` (CMA-ES batch fits, `--box auto`, `pregate --box auto`);
+- d44db780 bow test fix;
+- 60c0f1a4 hands2 interim (the comb replaced);
+- 59c93f38 load-aware box routing (default; build2 c3-standard-44 joined);
+- cd1c327f c3 onboarding's generic fixes (private character; references reach the model end to end);
+- 27a4b6c3 batch: crab detail + relational placement A, infra part B (copy-on-write box copies, stall alarm,
+  sweeps niced below gates);
+- 4c8bad0b the range-of-motion suite (29 poses, rom QA part);
+- 241f0547 hair truth without the clips (fill).
+
+**In flight (worktree / branch: state -> next):**
+- `~/animation-pipeline-infra5o` merged as `merge/infra5o` (+ romqa's check count, a hairweight union), gating with
+  `--code merge/infra5o`: build profile (`charkit profile`), budget (report only), QA cost cuts, `--profile iterate`,
+  fail-fast tests, QA denominators, like-for-like CPU, cache keys see runtime imports (~60 gates today may have
+  restored a stale hull). Michael's three asks pending: budget blocking rule, QA drawing on a GPU box, iterate profile
+  default.
+- `~/animation-pipeline-garments4` tool/garments4-shoulders: the joined shoulder ON by default (Clawd's values
+  explicit in clawd.json), 15 garment regressions + motion_*_skirt_* + rom_weights_stray accepted by name (Michael),
+  gate 4 cold running -> merge, then message garments8.
+- `~/animation-pipeline-garments8` tool/garments8: separated references registered (top_layers, collar_ghost;
+  bodice_layers as the collar/lapel truth), shape_truth in Clawd's manifest, collar/top/V checks calibrated; step 2
+  (flat lapels along the truth's path to the V's point at z -0.88, the puff dome, the ROM garment failures) waits for
+  the shoulder merge.
+- `~/animation-pipeline-hairshell` tool/hairshell3: the default switch ABANDONED (Michael: the identity refactor
+  replaces it); landing the lock-shell code switched OFF.
+- `~/animation-pipeline-hairident` tool/hairident: cross-view lock identity (brief charkit/out/coord/brief_hairident.md):
+  the label tool first (Michael labels ~20 locks), the ribbon test, the joint fit with held-out views; owns the default
+  switch and the shadow-edge clean reading (tool/hairtruth-art: art_terminator_hair 3.21 FAIL against the clean
+  drawing).
+- `~/animation-pipeline-hands` tool/hands2: hands3, the hand as fixed structural ratios from the open hand's landmarks
+  (Michael: the palm "disagreement" was the thumb; posed drawings validate pose only); style-profile defaults.
+- `~/animation-pipeline-motion1` tool/motion1: the RIG SPEC first (docs/RIG.md: skeleton, twist chains, helper bones
+  with VRM constraints, joint placement from landmarks, weighting per region, deformation target per joint = a ROM
+  check, export mapping); STOPS for Michael's review; then Michael's arm kink, volume helpers, the joined hip, the
+  bridge weights.
+- `~/animation-pipeline-char3` tool/char3: c3 round 2 (private): beard as hair layer, face from the beardless sheet,
+  crown ring of 5, his own face features, the per-character shoulder fit (scratch/c3-shoulder).
+- tool/hairstrokes (checkpointed a7013c7a): highlights B, screen-width strokes, the variety check; relaunch a fresh
+  agent after the hair shell code lands.
+
+**Queued (briefs in charkit/out/coord/):** incremental builds + checkpoint gating (brief_incremental.md: high
+priority, right after infra5o lands); piece kinds (after c3's report; memory project-piece-kinds); the jaw-band round;
+the pen-spinning benchmark for the hands session (reference video at ~/Movies/charkit_refs/penspin, never in the repo).
+
+**Michael's calls today (beyond the above):** crab A and long legs; per-shot 3/4 mouth automatic but deferred to the
+mouth session; Sonnet-vs-Opus TABLED; hair checks against no-accessory references (done); a covering piece's shape
+truth is the layer without its cover; separated references must be drawn worn over their own layer (ghost);
+structure from landmark ratios, never from posed silhouettes; don't polish what a queued rework replaces; the
+notification hook and per-area agent types are personal config (~/.claude), not the repo.
+
+## Day 2 morning (2026-10-01, new account), then the wrap-up below
 
 **Merged today** (pipeline-3d, pushed after each merge, Michael's standing OK; main untouched): garments4-neck (ff41ca2:
 neck-chest join; neck_crease remeasured, it never measured a real crease), garments4-stairs (0d53cb8: the staircase
