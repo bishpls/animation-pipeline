@@ -2,7 +2,7 @@
 relative CPU rule, so nobody saw where): wall and CPU seconds per stage, from what the build already records, and two
 builds side by side.
 
-    python -m charkit profile BUILD [--vs OTHER] [--gate GATE.json] [--json] [--md OUT.md] [--top N]
+    python -m charkit profile BUILD [--vs OTHER] [--gate GATE.json] [--json] [--md OUT.md] [--top N] [--budget]
     python -m charkit profile qa BUNDLE [--parts a,b] [--top N] [--out DIR] [--profile full|iterate]
         # the QA's parts one by one under cProfile on a bundle: per part its wall and CPU and the functions that cost it
 
@@ -20,6 +20,11 @@ scene's save and snapshots between stages), qa (each part, `other`: the design's
 figure the build didn't record is None (shown '-'), never guessed; an older build's venv steps are one row, 'before
 Blender' (its wall: the build's wall less the trace's, its CPU unknown). A stage restored from a cache reads `cached`.
 --gate: a gate report's json supplies an older build's step walls (its base_build or cand_build `steps`).
+
+The budget (charkit/budget.json, infra round 5 task 2; REPORT ONLY: what blocks under policy K is Michael's call): the
+default build's CPU seconds in total and per stage (gate conditions: the default spec, threads capped at 4, no boards),
+set from the round's measured profile with headroom. `--budget` reads one build against it; the merge gate reports each
+budgeted stage's CPU, baseline and candidate, against it (budget_rows), flagged WARN past it.
 """
 import json, os, sys, time
 
@@ -250,6 +255,49 @@ def markdown(P, Q=None, n=5):
     return '\n'.join(lines) + '\n'
 
 
+# ------------------------------------------------------------------------------------------------------------ budget
+BUDGET = os.path.join(ROOT, 'charkit', 'budget.json')
+
+
+def load_budget(path=None):
+    """the build-CPU budget (charkit/budget.json, or path) -> dict(total, stages {'group/stage': seconds}, ...), or
+    None without one."""
+    return _load(path or BUDGET)
+
+
+def cpu_by_stage(P):
+    """a profile's CPU per 'group/stage' key, with each group's total as 'group/*' and 'total' -> {key: seconds or
+    None}."""
+    out = {'%s/%s' % (r['group'], r['stage']): r['cpu'] for r in P['rows']}
+    for g, v in groups(P).items():
+        out[g + '/*'] = v['cpu']
+    if out.get('blender/*') is None and P['total']['cpu'] is not None:
+        # (a build that recorded no stage CPU: Blender and the venv steps together, as the build's total less the QA's)
+        out['blender+venv'] = rest(P)
+    out['total'] = P['total']['cpu']
+    return out
+
+
+def budget_rows(cand, base=None, budget=None):
+    """each budgeted stage's CPU on the candidate (and baseline) build folder against the budget -> [dict(stage,
+    budget, base, cand, ratio (cand / budget), flag 'WARN: over budget' or '')], the total first; [] without a
+    budget."""
+    budget = load_budget() if budget is None else budget
+    if not budget:
+        return []
+    C = cpu_by_stage(stages(cand))
+    A = cpu_by_stage(stages(base)) if base else {}
+    rows = []
+    keys = ['total'] + [k for k in budget.get('stages') or {}]
+    for k in keys:
+        lim = budget.get('total') if k == 'total' else budget['stages'][k]
+        c = C.get(k)
+        r = dict(stage=k, budget=lim, base=A.get(k), cand=c, ratio=round(c / lim, 2) if (c is not None and lim) else None)
+        r['flag'] = 'WARN: over budget' if (c is not None and lim and c > lim) else ''
+        rows.append(r)
+    return rows
+
+
 # ------------------------------------------------------------------------------------------------ the QA under cProfile
 def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print):
     """the QA's parts one by one on a bundle (no cache), each under cProfile -> {part: dict(wall, cpu, checks,
@@ -315,6 +363,18 @@ def main(args):
     st = lambda d: steps.get(os.path.basename(os.path.normpath(d)))
     P = stages(args[0], st(args[0]))
     Q = stages(opt('--vs'), st(opt('--vs'))) if opt('--vs') else None
+    if '--budget' in args:
+        rows = budget_rows(opt('--vs') or args[0], args[0] if opt('--vs') else None)
+        if not rows:
+            print('no budget (charkit/budget.json)')
+            return 1
+        print('| stage | budget s | %scandidate s | of budget | |' % ('baseline s | ' if Q else ''))
+        print('| --- | --- | %s--- | --- | --- |' % ('--- | ' if Q else ''))
+        for r in rows:
+            print('| %s | %s | %s%s | %s | %s |' % (r['stage'], _f(r['budget']), (_f(r['base']) + ' | ') if Q else '',
+                                                  _f(r['cand']), '%.2fx' % r['ratio'] if r['ratio'] is not None else '',
+                                                  r['flag']))
+        return 0
     if '--json' in args:
         print(json.dumps(dict(a=P, b=Q) if Q else P, indent=1))
         return 0

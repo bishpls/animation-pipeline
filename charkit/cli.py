@@ -1,7 +1,7 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--boards-renderer eevee|toon]
-                                     [--no-blend] [--no-fit] [--no-qa] [--vrm] [--no-look]
+                                     [--no-blend] [--no-fit] [--no-qa] [--vrm] [--no-look] [--profile full|iterate]
                                      [--base code|anime|makehuman] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
                                      [--cache on|off|refresh|stages|verify] [--no-cache] [--no-worker]
     python -m charkit qa OUT/bundle [--out OUT/qa] [--cache on|off|refresh]   # the QA on a build's geometry bundle
@@ -80,6 +80,8 @@ have restored (CHARKIT_CACHE_STALE). The geom hair cut is cached the same way, v
 The QA (docs/CHARKIT.md §4): Blender builds and exports the geometry bundle (out/bundle, charkit/bundle.py); the venv
 measures it (charkit/qa3d.py, numba z-buffers, no Blender): out/qa/qa.json and the overlays, each QA part cached on what
 it read of the bundle and its code. --qa blender runs the old Blender-side pass instead (charkit/qa3d_blender.py).
+--profile iterate (an iteration build: the QA profile qa3d.PROFILES) leaves out the parts that declare it (motion QA's
+cloth solve, ~100 s of CPU), each reported SKIPPED 'skipped by profile iterate'; gates and full builds run 'full'.
 
 The build worker (charkit/worker.py): `worker start` keeps one Blender running with charkit loaded; build sends its job
 there when it runs (a clean scene and freshly imported code per job) and starts a fresh Blender otherwise or with
@@ -293,6 +295,10 @@ def _build(args):
     print('CHARKIT_THREADS %s' % (os.environ.get('NUMBA_NUM_THREADS') or 'uncapped'), flush=True)
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
+    if opt('--profile'):                        # (the QA's profile: iterate leaves out motion QA, reported as skipped)
+        from . import qa3d
+        os.environ[qa3d.PROFILE_ENV] = qa3d.profile_of(opt('--profile'))
+        print('CHARKIT_QA_PROFILE %s' % os.environ[qa3d.PROFILE_ENV], flush=True)
     from . import cache
     n = cache.unshare(out)                      # the build rewrites its outputs: not through links to another worktree
     if n:

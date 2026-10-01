@@ -2383,6 +2383,29 @@ def evaluate(B, parts=('shape', 'sheet_body', 'sheet_palette'), design=None, ref
     return checklib.authorize(out, design.ref().get('authority') or {})
 
 
+PROFILES = ('full', 'iterate')     # the QA's profiles: full (gates, full builds), iterate (QA-only and sweep iterations)
+PROFILE_ENV = 'CHARKIT_QA_PROFILE'
+
+
+def profile_of(profile=None):
+    """the QA profile in force: the argument, else CHARKIT_QA_PROFILE, else 'full' -> its name (ValueError: unknown)."""
+    p = profile or os.environ.get(PROFILE_ENV) or 'full'
+    if p not in PROFILES:
+        raise ValueError('QA profile %r: one of %s' % (p, ', '.join(PROFILES)))
+    return p
+
+
+def skipped_by(profile=None):
+    """the parts a QA profile leaves out (each part's registry skip_in) -> {name}: none under 'full'."""
+    p = profile_of(profile)
+    return set() if p == 'full' else {P.name for P in registry.parts() if p in P.skip_in}
+
+
+def measured_count(C):
+    """a part's checks that it measured (any status but SKIPPED): its count against its denominator."""
+    return sum(1 for v in (C or {}).values() if not (isinstance(v, dict) and v.get('status') == 'SKIPPED'))
+
+
 def _strip(x):
     """a part's table for the report (the measurement's own arrays and pictures left out)."""
     if isinstance(x, dict):
@@ -2390,8 +2413,12 @@ def _strip(x):
     return x
 
 
-def run(B, out, ref_image=None, mode='on', parts=None):
-    """every check on a bundle (a Bundle or its folder), the report and overlays into out -> the report (qa.json's)."""
+def run(B, out, ref_image=None, mode='on', parts=None, profile=None):
+    """every check on a bundle (a Bundle or its folder), the report and overlays into out -> the report (qa.json's).
+    profile: the QA profile (profile_of: 'iterate' leaves out the parts that declare it in skip_in, each reported
+    SKIPPED 'skipped by profile iterate'). Each part's status against its denominator (registry `checks`) is in
+    measured.part_status: {part: dict(status ok | short | crashed | skipped | undeclared, checks (measured), expected,
+    why)}; the merge gate blocks a candidate whose part crashed, fell short or was skipped."""
     from . import bundle as bundlelib, cache, trace
     if isinstance(B, str):
         B = bundlelib.load(B)
@@ -2404,8 +2431,19 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     t0, c0 = time.perf_counter(), time.process_time()
     timing = {}                     # per part: wall and CPU seconds (the process's, every thread: llvmpipe's included)
     owner = {}                      # per part: the checks it reported (the gate's measure-change check: charkit.codediff)
+    status = {}                     # per part: its status against its denominator (registry `checks`)
+    profile = profile_of(profile)
+    skip = skipped_by(profile)
     for P in registry.parts():
         if parts is not None and P.name not in parts:
+            continue
+        n_exp, why_exp = registry.expected(P, B, design)
+        if P.name in skip:
+            why = 'skipped by profile %s' % profile
+            rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': why}
+            owner[P.name] = [P.skip_key]
+            status[P.name] = dict(status='skipped', checks=0, expected=n_exp, why=why)
+            print('CHARKIT_QA_SKIPPED %s: %s' % (P.name, why), flush=True)
             continue
         args = (ref_image,) if P.ref_image else ()
         try:
@@ -2418,7 +2456,14 @@ def run(B, out, ref_image=None, mode='on', parts=None):
             import traceback; traceback.print_exc()
             rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
             owner[P.name] = [P.skip_key]
+            status[P.name] = dict(status='crashed', checks=0, expected=n_exp,
+                                  why='%s: %s' % (type(e).__name__, str(e)[:300]))
             continue
+        n = measured_count(C)
+        status[P.name] = dict(status='undeclared' if n_exp is None else 'short' if n < n_exp else 'ok', checks=n,
+                              expected=n_exp, **({'why': why_exp} if why_exp else {}))
+        if n_exp is not None and n < n_exp:
+            status[P.name]['why'] = 'measured %d of the %d checks it declares' % (n, n_exp)
         if P.table == 'views':
             rep['views'] = table
         elif P.table is not None and table is not None:
@@ -2434,6 +2479,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     from . import qarender
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
                        'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
+                       'part_status': status, 'profile': profile,
                        'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B),
                                     export=os.path.basename(qarender.export_of(B) or '') or None)}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
@@ -2444,10 +2490,12 @@ def run(B, out, ref_image=None, mode='on', parts=None):
 
 def main(args):
     """python -m charkit qa BUNDLE_DIR [--out QA_DIR] [--cache on|off|refresh|verify] [--trace TRACE.jsonl]
-                              [--draw numpy|render] [--threads N]
+                              [--draw numpy|render] [--threads N] [--profile full|iterate]
     the QA on a build's geometry bundle (default out: the build's qa folder); --trace appends its records to a trace
     (a build's own does it: python -m charkit build). --draw: the QA's drawing for this run (CHARKIT_QA_DRAW,
-    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS)."""
+    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS).
+    --profile iterate: an iteration's QA, the parts that declare it left out (motion QA's cloth solve), each reported
+    SKIPPED 'skipped by profile iterate' (CHARKIT_QA_PROFILE; profile_of)."""
     if not args or args[0] in ('-h', '--help'):
         print(main.__doc__); return
     from . import trace
@@ -2457,6 +2505,8 @@ def main(args):
         os.environ[qarender.ENV] = opt('--draw')
     if opt('--threads'):
         os.environ['LP_NUM_THREADS'] = str(int(opt('--threads')))
+    if opt('--profile'):
+        os.environ[PROFILE_ENV] = profile_of(opt('--profile'))
     bdir = os.path.abspath(args[0])
     out = os.path.abspath(opt('--out', os.path.join(os.path.dirname(bdir), 'qa')))
     tp = opt('--trace')

@@ -577,6 +577,39 @@ def test_docs_and_tests_can_reach_no_build():
     assert not closure.unreadable([('A', 'charkit/notes/x.txt')], C)           # in a folder the build lists
     assert not closure.unreadable([('M', 'docs/a.md'), ('M', 'charkit/gate.py')], C)
 
+def test_fail_fast_a_failing_test_is_reported_the_moment_it_fails(tmp_path=None):
+    """the gate's fail-fast (infra round 5): _tests calls on_fail as soon as a test file fails, while the slower ones
+    are still running, and still runs every file (the report names each failing one)."""
+    import pathlib, time
+    tmp_path = tmp_path or pathlib.Path(tempfile.mkdtemp())
+    t = tmp_path / 'charkit' / 'tests'
+    t.mkdir(parents=True)
+    (t / 'test_a_fails.py').write_text('raise SystemExit(1)\n')
+    (t / 'test_b_slow.py').write_text('import time\ntime.sleep(4)\n')
+    t0, when = time.time(), []
+    res, secs = gate._tests(str(tmp_path), jobs=2, on_fail=lambda n: when.append((n, time.time() - t0)))
+    assert [n for n, _ in when] == ['test_a_fails.py'], when
+    assert when[0][1] < 3.0, when                      # (long before the slow file ends)
+    assert res['test_b_slow.py'] == 'ok' and res['test_a_fails.py'] != 'ok'
+
+
+def test_fail_fast_a_build_started_after_the_failure_is_stopped(tmp_path=None):
+    """a build whose stop event is already set when it starts is stopped at once (the race between a test failing and
+    a build starting): _build reports it killed, not built."""
+    import pathlib, threading, time
+    tmp_path = tmp_path or pathlib.Path(tempfile.mkdtemp())
+    pkg = tmp_path / 'charkit'
+    pkg.mkdir(parents=True)
+    (pkg / '__init__.py').write_text('')
+    (pkg / '__main__.py').write_text('import time\ntime.sleep(60)\n')
+    stop = threading.Event()
+    stop.set()
+    t0 = time.time()
+    r = gate._build(str(tmp_path), 'spec.json', str(tmp_path / 'out'), [], record=False, procs=[], stop=stop)
+    assert r['killed'] and not r['ok'], r
+    assert time.time() - t0 < 20, time.time() - t0
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
