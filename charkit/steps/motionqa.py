@@ -9,4 +9,8 @@ MEASUREMENT_STEPS = [
     ('motion_*', '4eb2c02b', 'the stretch edges and the penetration surface leave the ink strokes out (their edges set the '
                        'stretch p99 at 0.36 / 0.93); no ink (g4_part1) reads as before: kick inside 0.00244, kick '
                        'stretch 0.06346, squat stretch 0.10404'),
+    # tool/garments4-shoulders (2026-10-01, the coordinator's decision): the kick's inside reported, not graded
+    ('motion_kick_skirt_inside', 'ffefc509', 'report-only (INFO): miscalibrated on the current staircase skirt: the design '
+     'stand-in reads WARN in 7 of 8 moves; ungraded like its squat sibling in round 3; recalibration belongs to the motion '
+     'work on the current skirt, tool/motion1'),
 ]
