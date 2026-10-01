@@ -64,3 +64,26 @@ p1 against before (pipeline-3d's bow), the moves:
   to 0.068 L behind the jacket's front at their (x, z). Fix at the source: the jacket bedded under the bow
   (garments.bed, a shell knob `bed` {under, gap, margin, ease}: the shell set `gap` behind the bow's back where the
   bow covers it and `margin` round its outline, easing back over `ease`; only ever backward). On top and bodice_panel.
+
+## Part 1, fixed (sweeps on g4_p1, box: `charkit sweep run tools/garments4/sN.json --box`; outputs sweeps/s1-s4)
+- **(c) the bleed: the jacket bedded under the bow** (`top.bed` {gap .01, margin .02, ease .04}; the lobes only:
+  `parts` 'lobes', the knot's and the tails' root's deep backs at the middle left out). bow_front_bleed 0.2825 F -> 0 P;
+  also bow_profile_loop_thick 0.0431 -> 0.0306 W, loop_lean 4.84 -> 0.62, bow_three_quarter_torn 0.0037 -> 0.0007,
+  piece_top 3q/profile +0.024/+0.030; piece_bow front 0.951 -> 0.934 (-1.8%: the strips' lower rims now show, no longer
+  under the jacket). The bib bedded deeper (`bodice_panel.bed` gap .035, margin .03, ease .05) so it stays behind the
+  dented jacket. **Guard note:** piece_bodice_panel's profile view 0.342 -> 0.19 against the sweep's control: the drawn
+  bib in profile is a 224 px sliver (0.005 L^2), ours 40 px (pieceov.py, review/bib_profile_p1.png): a visibility-floor
+  case (the guard's planned floor); against pipeline-3d's 0.169 it is up. Reported, not hidden.
+- **(b) the sleeve caps: tool/sleeves' V1 pear table** (sleeve_L.profile; sleeve_R mirrors it): spikes_L/R 0.0286 /
+  0.0188 F -> 0 P, **shoulder_back_line (flag) 0.0565 F -> 0.0047 P**, sleeve_profile_profile_L 0.0429 F -> 0.0297 W,
+  sleeve_front_profile_L 0.0365 -> 0.0256 W, piece_sleeve_L front 0.865 -> 0.948, R front 0.894 -> 0.954. Costs:
+  piece_sleeve_R three_quarter 0.419 -> 0.322 (-23% against the control; -9% against pipeline-3d's 0.353: the far sleeve
+  in 3q, where our top is already 0.03-0.06 L above the drawn one while the front's is 0.06 L under: the views disagree),
+  piece_sleeve_L profile -4%, back -4%; sleeve_back_profile_L/R 0.066 F -> 0.083/0.086 F (FAIL both; tool/sleeves: the
+  drawn back view labels the cap's top as jacket), sleeve_front_profile_R 0.0161 P -> 0.0205 W. `cap` 0.18 (s1/s2)
+  cleared the spikes too but made sleeve_front_profile_L a new FAIL (0.0433).
+- **(a) the lapels: no change** (measured above: the corner meets the bow as drawn on this base; art_outline_collar
+  1.402 P, 1.44 with V1).
+- Spec (2b4653d): close_hung.on, pleat.on, sleeve_L.profile = V1, top.bed, bodice_panel.bed (tools/garments4/part1.json,
+  setspec.py keeps the file's formatting). Pregate (2b4653d+dirty into 257222b): PASS, 57 moved, 0 blocking.
+  pipeline-3d 257222b (tool/hairsplit + the handoff) merged (fe90cb19).
