@@ -67,3 +67,12 @@ The second character's hair under his crown uses the same rule: keep it generic.
   the render box is stopped): their records can't be refreshed -> the gate blocks on them (calibration rows can't be
   --accept'ed). ck7_blotchy (hairshell's store) can't stand in: its spec predates 'base' (the QA refuses it).
   The Art stand-in now reads no peeks for the design (dbae8593).
+
+## The artifact detectors: held (98453674), ready on tool/hairtruth-art (55640985)
+- On tool/hairtruth `artifactqa.HAIR_SHAPE_TRUTH = False`: art_*_hair read as before (verified bit-identical). The
+  calibration's design leg passes under the switch (terminator 1..1, peeks 0..0 with the Art stand-in's no-peeks fix);
+  the known-bad look_v5 is missing, so their records would read `unmeasured` and the gate blocks (calibration rows
+  can't be accepted). tool/hairtruth-art = tool/hairtruth + the flip (2eb75288) + its step (55640985). To land it:
+  restore look_v5 (the stopped render box ran perceptual on it, 2026-09-29: it may hold it) into charkit/out/calib/
+  builds, `python -m charkit calibrate art_terminator_hair,art_peeks_hair --build BUILD`, store the design measures
+  (`python -m charkit.artifactqa design BUNDLE_DIR`: a new stamp, hair_shape), gate.
