@@ -162,3 +162,10 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
 5. Neck to bow V (item 4): the jacket's `opening` table starts at z -0.72 (half 0), so the V between the lapels above
    the knot is jacket (orange); extend the opening up the collar's V (collar round 1's variant D: the jacket's opening
    carrying the collar's V) so the skin shows, and check neck_crease (26.9 W now) for the neck-chest join.
+
+## Part 2, relaunch (2026-10-01, lean agent)
+- tool/garments4-part2 3f2d550d + pipeline-3d c18b0c1 (Part 1 merged) = 5d3a7167.
+- Known-bad stored: `calibrate store g4_before charkit/out/g4_before` (charkit/calib/known_bad/g4_before.json; the store
+  is charkit/out/calib/builds/g4_before, local).
+- Box build g4_ink1 (ink1.json: Part 1's spec + the traced skirt and bow strokes): job build-garments4-1001-005337-96fd,
+  out `charkit/out/g4_ink1`, log `charkit/out/garments4/build_ink1.log`.
