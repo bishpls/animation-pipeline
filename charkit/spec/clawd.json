@@ -30,6 +30,7 @@
   },
   "source": "code",
   "hand": {"length": 0.6536, "palm": 0.4703, "palm_w": 0.1991, "wrist_w": 0.1737, "palm_t": 0.0825, "finger_w": 0.056, "taper": 0.6837, "fingers": [0.93, 1.0, 0.95, 0.78], "spread": 1.082, "curl": 7.082, "thumb_len": 0.2499, "thumb_w": 0.056, "thumb_out": 5.3976, "thumb_down": 5.087, "thumb_base": 0.0993, "yaw": 61.8814, "bend": -0.9774, "dev": -3.142, "out": 5.5, "line": 0.5},
+  "shoulder": {"z": -0.525, "x": 0.38, "round": 0.03, "hold": 0.0, "fall": 0.1, "az": 50, "join": [[0, 0.12], [45, 0.12], [75, 0.03], [180, 0.03]], "socket": {"top": 0.36, "lift": [65, 75], "reach": [0.45, 0.5], "arm_w": [0.5, 1.0], "pivot": 0.18}},
   "arm": {"elbow_out": 3.9, "elbow_fwd": 0.7}
  },
  "head": {
