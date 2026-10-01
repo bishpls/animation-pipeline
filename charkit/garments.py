@@ -2477,7 +2477,21 @@ def bow_spec(spec):
     with `on` false is dropped, and the knobs that belong to it with it; on (the default when present), its `knot_box`
     is the bow's knot and its `tails` (the tails' root under the knot: root, root_back, root_seat) join the ribbon's
     keys, and its `pillow` keys (the pillow lobes' knot, end, end_p, drop) are dropped. So one switch turns the pleated
-    bow and the fixes that go with it on together. -> a copy (or the spec itself when there is no pleat)."""
+    bow and the fixes that go with it on together. `close_hung` the same way (Michael's choice, tool/bow2: the tails
+    hung close, turned 20 deg, narrower, the pillow's lower edge dropped): on, its `ribbon` keys join the ribbon's and
+    its other keys (drop) the bow's; off, it is dropped (deferred with the pleat, round 5: on pipeline-3d's
+    geometry the close-hung pillows read bow_front_bleed 0.205 F and loop_end 0.244 W). -> a copy (or the spec itself
+    when it has neither)."""
+    C = spec.get('close_hung')
+    if C:
+        spec = dict(spec)
+        spec.pop('close_hung')
+        if C.get('on', True) is not False:
+            for k, v in C.items():
+                if k == 'ribbon':
+                    spec['ribbon'] = dict(spec.get('ribbon') or {}, **v)
+                elif k != 'on':
+                    spec[k] = v
     P = spec.get('pleat')
     if not P:
         return spec
