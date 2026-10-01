@@ -17,8 +17,10 @@ they disagree: layerrefs.md section 6).
   both clips; 4. guard (the clips' and hair pieces' IoU per view, palette_iris_* clean); 5. review page, pregate, gate.
 
 ## State
-Round 1: measured, remade, re-placed (fit A3), box-built (`charkit/out/acc5/after2`), calibrated (34 records), review
-page `charkit/out/acc5/review/index.html`; gate running (see "Gate" at the end). Baseline box build of pipeline-3d
+Round 1 DONE: measured, remade, re-placed (fit A3), box-built (`charkit/out/acc5/after2`), calibrated (34 records),
+review page `charkit/out/acc5/review/index.html`; **gate PASS under K** (e3ac59b0 into e9cb156a). For the coordinator
+to merge. Open for Michael: the crab's new spot (under the star's lower tip), the side lock's 5% front IoU cost, the
+crab's short legs (see the review page's questions). Baseline box build of pipeline-3d
 00494de: `charkit/out/acc5/base` (its QA under the new measure: `charkit/out/acc5/base_qa_new`; the pair for the review
 page: `charkit/out/acc5/before`, links).
 
@@ -167,3 +169,19 @@ bucketsync hashes, then uploads the file as it is then). Repaired by uploading t
 ### Pregate
 Not run: the coordinator's directive (laptop memory critical, no local heavy jobs) and the box copy has no git for its
 target worktree. The box builds above measure the clips; the gate checks the rest.
+
+## Gate
+- **Gate 1** (daf10b87 into ad081524, `charkit/out/gate/gate_tool-accessories5_daf10b87_into_ad081524.md`): FAIL under
+  K, 2 blockers, both mine: `acc_crab_back_shown` / `acc_star_back_shown` "remeasured with no record": the step pattern
+  `acc_*_shown` caught the back view, whose measure didn't change (as_drawn applies only where both sides draw the
+  clip; 0 PASS / 17-18 PASS on every cell of the 2x2). Fixed (e480371c): the shown step per drawn view; the INFO checks
+  acc_KIND_shape / alone registered. Everything else as measured: 34 records good (3 calibrated, 31 guard); the 2x2's
+  old measure on the new geometry reproduces the fit's plain reading (crab three-quarter axis -18.0, iou 0.684, size
+  1.178, front iou 0.716, profile axis -15.6: all WARN, none FAIL); no new FAIL; flag checks' values moved, grades
+  unchanged (art_terminator_hair 2.002 -> 2.269 WARN, hair_lock_lines_profile 0.104 -> 0.107 FAIL both,
+  three_quarter 0.176 -> 0.177 FAIL both); art_speckle_face 0.408 -> 0.251, art_fragments_face 0.401 -> 0.330 (INFO).
+- pipeline-3d merged again (c04f9a77: garments4-motionfix, sim only). **Gate 2: PASS under K** (e3ac59b0 into
+  e9cb156a, `charkit/out/gate/gate_tool-accessories5_e3ac59b0_into_e9cb156a.md`): nothing blocks (before K: FAIL, on
+  the 2x2's old-measure drops to WARN: crab front iou 0.728 -> 0.716, three-quarter iou 0.732 -> 0.684, size 1.071 ->
+  1.178, axis -4.8 -> -18.0, profile axis -3.4 -> -15.6); build CPU 1123.8 -> 1177.5 s (1.05x); every test file ok; the
+  34 records good; the guard's shapes as in "The polish" (no piece down more than 5.4% in a view).
