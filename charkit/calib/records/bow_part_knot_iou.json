@@ -3,7 +3,7 @@
  "part": "bow_parts",
  "adapter": "BowParts",
  "module": "charkit.calib.parts",
- "at": "2026-09-30T21:25:05",
+ "at": "2026-09-30T21:56:39",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -52,7 +52,7 @@
  "known_bad": {
   "name": "g3_render3",
   "value": 0.4669,
-  "status": "WARN"
+  "status": "FAIL"
  },
  "floor": {
   "voronoi_parts": {
@@ -101,12 +101,12 @@
   "status": "PASS",
   "margin": 1.0
  },
- "verdict": "blind",
- "why": "the known-bad g3_render3 reads 0.4669 WARN",
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), g3_render3 reads 0.4669 FAIL, the floor voronoi_parts FAIL, affine_parts FAIL",
  "build": "charkit/out/pr3",
  "generators": {
   "voronoi_parts": "the drawn bow's knot and lobes cut into random cells (3 per part), each a random part (weighted by the parts' drawn areas): the bow's silhouette kept, its parts gone",
   "affine_parts": "each drawn part (knot, lobes) moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
  },
- "seconds": 105.6
+ "seconds": 79.6
 }
