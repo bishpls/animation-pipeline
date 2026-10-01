@@ -28,6 +28,14 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
     python -m charkit remote up | status | stop
     python -m charkit remote --box render build SPEC --boards views,body ...   # the GPU box (infra/gcp/render.env): boards render
 
+Which box (build, tune, run, gate): --box NAME (infra/gcp/NAME.env), else --box auto, the default (CHARKIT_BOX=NAME
+changes the default): every box read at once (its slots, cores and 1-minute load: box_slots) and the one with the most
+free CPU taken (cores less the load, times its per-core speed, CPU_SPEED in its env file) among those with a free slot
+beyond the reserve (pick_box, choose). A build whose boards render (--boards not '', and not --boards-renderer toon)
+prefers a render box with room (its GPU draws them in EEVEE; a CPU box draws them with the toon renderer); --gpu
+takes only a render box. When every running box is busy, a stopped CPU box is started (CHARKIT_BOX_WAKE=0: never).
+up, status and stop default to the build box; jobs and load to every box; attach and kill to the job's own box.
+
 Builds, tunes, runs and gates run on the box as detached jobs (charkit/boxjob.py): the box runs the job under a
 supervisor no ssh session owns, and this command follows its log. A dropped connection drops only the follow: it
 reattaches by itself at the byte it had reached, with backoff, and never runs the job again. The job's exit code is this
@@ -52,13 +60,13 @@ def _detach():
     return os.environ.get('CHARKIT_DETACH', '1') != '0'
 
 
-def _sh(*args, check=True, capture=False, input=None, retry=False):
-    """build.sh ARGS. retry: rerun while it fails as ssh itself fails (exit 255: a dropped or refused connection),
-    for the steps that are safe to repeat (sync, push, pull, an idempotent ssh)."""
+def _sh(*args, check=True, capture=False, input=None, retry=False, box=None):
+    """build.sh ARGS (box: an env file, default the chosen box's). retry: rerun while it fails as ssh itself fails
+    (exit 255: a dropped or refused connection), for the steps that are safe to repeat (sync, push, pull, an idempotent
+    ssh)."""
     waits = [5, 15, 30, 60] if retry else []
     for i in range(len(waits) + 1):
-        r = subprocess.run([BUILD_SH, *args], text=True, capture_output=capture, input=input,
-                           env=dict(os.environ, CHARKIT_BOX_ENV=BOX['env']))
+        r = subprocess.run([BUILD_SH, *args], text=True, capture_output=capture, input=input, env=_genv(box))
         if r.returncode != SSH_FAIL or i == len(waits):
             break
         print('remote: %s: the connection failed (ssh exit 255); retrying in %d s' % (args[0], waits[i]),
@@ -357,31 +365,6 @@ def pregate(args):
     return code
 
 
-PREFER = 'build'               # pick_box: the build box while it has room; the render boxes take the overflow
-MIN_FREE = 4                   # ... room: at least this many free slots beyond the reserve
-
-
-def pick_box(reserve=1, log=print):
-    """`--box auto` (sweep optimize, pregate): every running box's free slots (box_slots), the build box when it has
-    MIN_FREE beyond the reserve, else the box with the most free (overflow rather than wait) -> (name, readings)."""
-    got = []
-    for env in _boxes():
-        try:
-            got.append(box_slots(env))
-        except Exception as e:                      # (a box we can't read is skipped)
-            got.append(dict(name=os.path.basename(env)[:-4], status='unreadable', why=str(e)[:200]))
-    for g in got:
-        log('box %-8s %s' % (g['name'], '%d of %d slots free (%d held, %d waiting)' % (
-            g['free'], g['count'], g['held'], g['waiting']) if 'free' in g else g['status']))
-    up_ = [g for g in got if 'free' in g]
-    if not up_:
-        raise SystemExit('--box auto: no running box could be read')
-    pref = next((g for g in up_ if g['name'] == PREFER), None)
-    if pref and pref['free'] - reserve >= MIN_FREE:
-        return pref['name'], got
-    return max(up_, key=lambda g: (g['free'], g['name'] == PREFER))['name'], got
-
-
 def gate_report(folder, branch, tip, head):
     """the report in a gate's own folder (its collected files) of branch at tip into head (shas: a prefix of either
     side matches) -> the .md's path, or None. Never another gate's: the folder is this gate's, and its json must say
@@ -438,24 +421,37 @@ def _gate_label(label):
 
 
 def supersede(branch, spec=None):
-    """one live gate per branch: this branch's gates still running on the box for the same spec are stopped (remote
-    kill: their processes only; a gate's trap then removes its clone), since a new gate replaces them."""
+    """one live gate per branch, on any box: this branch's gates still running for the same spec are stopped (remote
+    kill: their processes only; a gate's trap then removes its clone), since a new gate replaces them. The chosen box
+    first, then every other running box (--box auto may have sent the older gate elsewhere)."""
+    here = BOX['env']
+    vm = _env('VM', here)
+    old = _supersede_on(here, branch, spec)
+    for env in _boxes():
+        if _env('VM', env) != vm and _box_status(env) == 'RUNNING':
+            old += _supersede_on(env, branch, spec)
+    return old
+
+
+def _supersede_on(env, branch, spec):
     from charkit import boxjob
-    cfg, vm = _cfg()
+    name = os.path.basename(env)[:-4]
+    cfg, vm = _cfg(env)
     r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - list --days 0'], input=open(boxjob.__file__, 'rb').read(),
-                       capture_output=True)
+                       capture_output=True, env=_genv(env))
     if r.returncode:
-        print('remote gate: could not list the box\'s jobs (exit %d): older gates of %s left alone' % (r.returncode, branch),
-              file=sys.stderr)
+        print('remote gate: could not list the %s box\'s jobs (exit %d): older gates of %s there left alone' % (
+            name, r.returncode, branch), file=sys.stderr)
         return []
     rows = [json.loads(l) for l in r.stdout.decode().splitlines() if l.startswith('{')]
     old = [x['jid'] for x in rows if x.get('kind') == 'gate' and x.get('state') == 'running' and
            _gate_label(x.get('label')) == (branch, spec)]
     for jid in old:
         k = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - kill %s' % shlex.quote(jid)],
-                           input=open(boxjob.__file__, 'rb').read(), capture_output=True)
-        print('remote gate: stopped the older gate of %s still running, %s (%s)' % (
-            branch, jid, (k.stdout.decode().strip() or k.stderr.decode().strip())[-120:]), file=sys.stderr, flush=True)
+                           input=open(boxjob.__file__, 'rb').read(), capture_output=True, env=_genv(env))
+        print('remote gate: stopped the older gate of %s still running on the %s box, %s (%s)' % (
+            branch, name, jid, (k.stdout.decode().strip() or k.stderr.decode().strip())[-120:]), file=sys.stderr,
+            flush=True)
     return old
 
 
@@ -464,17 +460,20 @@ STILL_RUNNING = 75                # this command stopped following, the job goes
 LOST = 70                         # the job ended without an exit code (its box stopped or rebooted under it)
 
 
-def _cfg():
-    """build.sh's ssh config for the box (ProxyCommand: the IAP tunnel) and the host name in it."""
-    vm = _env('VM')
+def _cfg(env=None):
+    """build.sh's ssh config for the box (env: its env file, default the chosen box's; ProxyCommand: the IAP tunnel)
+    and the host name in it."""
+    vm = _env('VM', env)
     cfg = os.path.expanduser('~/.ssh/charkit-%s.config' % vm)
-    mark = '# gcloud: %s\n' % (_gcloud() or os.environ.get('CLOUDSDK_CONFIG') or 'default')
+    if env is None:
+        _gcloud()                     # (this process's own gcloud calls: the chosen box's config)
+    mark = '# gcloud: %s\n' % (_genv(env).get('CLOUDSDK_CONFIG') or 'default')
     try:
         fresh = mark in open(cfg).read()
     except OSError:
         fresh = False
     if not fresh:                     # build.sh writes it on first use, and rewrites it for another gcloud config
-        _sh('ssh', 'true', check=False, retry=True)
+        _sh('ssh', 'true', check=False, retry=True, box=env)
     return cfg, vm
 
 
@@ -486,6 +485,26 @@ def _gcloud():
     if c:
         os.environ['CLOUDSDK_CONFIG'] = os.path.expanduser(c)
     return c and os.path.expanduser(c)
+
+
+OWN_GCLOUD = os.environ.get('CLOUDSDK_CONFIG')   # the caller's own gcloud config, before any box's was put in
+
+
+def _genv(env=None):
+    """the environment for a box's gcloud and build.sh calls (env: its env file, default the chosen box's), without
+    touching this process's: CHARKIT_BOX_ENV, and CLOUDSDK_CONFIG from the env file, else the caller's own (so boxes
+    read side by side never see each other's). The multi-box ssh calls run with it too: an ssh config written for the
+    default login has no CLOUDSDK_CONFIG in its ProxyCommand, whose tunnel would otherwise take whatever an earlier
+    box put in this process's environment."""
+    e = dict(os.environ, CHARKIT_BOX_ENV=env or BOX['env'])
+    c = _env('CLOUDSDK_CONFIG', env)
+    if c:
+        e['CLOUDSDK_CONFIG'] = os.path.expanduser(c)
+    elif OWN_GCLOUD:
+        e['CLOUDSDK_CONFIG'] = OWN_GCLOUD
+    else:
+        e.pop('CLOUDSDK_CONFIG', None)
+    return e
 
 
 CHECKED = set()                   # the gcloud configs whose credential worked in this process
@@ -521,11 +540,15 @@ def _record(rec):
     os.replace(p + '.tmp', p)
 
 
-def _box_status():
-    """the box's state from gcloud (RUNNING, TERMINATED, ...), or None when gcloud can't say."""
-    _gcloud()
-    r = subprocess.run(['gcloud', 'compute', 'instances', 'describe', _env('VM'), '--zone', _env('ZONE'), '--project',
-                        _env('PROJECT'), '--format=value(status)'], capture_output=True, text=True)
+def _box_status(env=None):
+    """the box's state from gcloud (RUNNING, TERMINATED, ...; env: its env file, default the chosen box's), or None
+    when gcloud can't say."""
+    try:
+        r = subprocess.run(['gcloud', 'compute', 'instances', 'describe', _env('VM', env), '--zone', _env('ZONE', env),
+                            '--project', _env('PROJECT', env), '--format=value(status)'], capture_output=True, text=True,
+                           env=_genv(env), stdin=subprocess.DEVNULL, timeout=120)
+    except subprocess.TimeoutExpired:
+        return None
     return (r.stdout.strip() or None) if r.returncode == 0 else None
 
 
@@ -733,34 +756,185 @@ def _boxes():
     for name in ['build', 'render'] + sorted(f[:-4] for f in os.listdir(os.path.join(ROOT, 'infra', 'gcp')) if f.endswith('.env')):
         p = os.path.join(ROOT, 'infra', 'gcp', name + '.env')
         if os.path.exists(p):
-            BOX['env'] = p
-            if _env('VM') and _env('VM') not in seen:
-                seen.add(_env('VM'))
+            vm = _env('VM', p)
+            if vm and vm not in seen:
+                seen.add(vm)
                 out.append(p)
     return out
 
 
+READ_TIMEOUT = 90                 # s for a box's reading (one ssh through the IAP tunnel)
+
+
 def box_slots(env=None):
-    """a box's build slots now (env: its infra/gcp/NAME.env; default the chosen box) -> dict(name, status, count, held,
-    waiting, free), or with status only when it isn't running or can't say. Read over ssh as `remote jobs` reads its
-    jobs (charkit/boxjob.py's `slots`), so nothing is synced or started."""
+    """a box's reading now (env: its infra/gcp/NAME.env; default the chosen box) -> dict(name, status, gpu (a render
+    box: MACHINE_GPU in its env file), speed (CPU_SPEED: its per-core speed against the build box's, measured; 1 when
+    unset)) and, when it runs: count, held, waiting, free (its build slots), ncpu, load (1 minute), cpu_free (cores less
+    the load, times speed), mem_avail_gb; with status only when it isn't running or can't say. Read over ssh as `remote
+    jobs` reads its jobs (charkit/boxjob.py's `slots`), so nothing is synced or started, and the chosen box stays."""
     from charkit import boxjob
-    if env:
-        BOX['env'] = env
-    name = os.path.basename(BOX['env'])[:-4]
-    st = _box_status()
+    env = env or BOX['env']
+    base = dict(name=os.path.basename(env)[:-4], gpu=bool(_env('MACHINE_GPU', env)),
+                speed=float(_env('CPU_SPEED', env) or 1.0))
+    st = _box_status(env)
     if st != 'RUNNING':
-        return dict(name=name, status=st or 'unknown')
-    cfg, vm = _cfg()
-    r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - slots'], input=open(boxjob.__file__, 'rb').read(),
-                       capture_output=True)
+        return dict(base, status=st or 'unknown')
+    cfg, vm = _cfg(env)
+    try:
+        r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - slots'], input=open(boxjob.__file__, 'rb').read(),
+                           capture_output=True, timeout=READ_TIMEOUT, env=_genv(env))
+    except subprocess.TimeoutExpired:
+        return dict(base, status='unreadable', why='no answer in %d s' % READ_TIMEOUT)
     line = next((l for l in r.stdout.decode(errors='replace').splitlines() if l.startswith('{')), None)
     if r.returncode or not line:
-        return dict(name=name, status='unreadable', why=r.stderr.decode(errors='replace')[-200:])
+        return dict(base, status='unreadable', why=r.stderr.decode(errors='replace')[-200:])
     s = json.loads(line)
-    count = int(_env('SLOTS') or s.get('count') or 0)      # (the env file's: what a job sets the box to)
-    return dict(name=name, status=st, count=count, held=s.get('held', 0), waiting=s.get('waiting', 0),
-                free=max(0, count - s.get('held', 0) - s.get('waiting', 0)))
+    count = int(_env('SLOTS', env) or s.get('count') or 0)      # (the env file's: what a job sets the box to)
+    held, waiting = s.get('held', 0), s.get('waiting', 0)
+    out = dict(base, status=st, count=count, held=held, waiting=waiting, free=max(0, count - held - waiting),
+               ncpu=s.get('ncpu'), load=(s.get('load') or [None])[0], mem_avail_gb=s.get('mem_avail_gb'))
+    out['cpu_free'] = (round(max(0.0, out['ncpu'] - out['load']) * out['speed'], 1)
+                       if out['ncpu'] and out['load'] is not None else None)
+    return out
+
+
+MIN_FREE = 4.0       # cores (speed-weighted) free for a box to have room: about one build's Python stages (4 threads)
+GPU_KEEP = 4.0       # cores a render box keeps for its board renders when it takes CPU work
+STOPPED = ('TERMINATED', 'STOPPED', 'SUSPENDED')
+
+
+def choose(readings, reserve=1, gpu=False, need=False, wake=True):
+    """the box for one job, from every box's reading (box_slots) -> (name, why); name None when no box will do.
+    A box has room with a free slot beyond the reserve; among those, the most free CPU (cpu_free; a render box taking
+    CPU work counts GPU_KEEP fewer cores), ties to a CPU box, then the readings' order. No slot beyond the reserve
+    anywhere: the most free slots (the shortest wait). gpu: a render box with room and MIN_FREE cores free first, else
+    as a CPU job (a CPU box draws the boards with the toon renderer); need: only a render box. wake: when the choice is
+    busy (under MIN_FREE free, or no slot), a stopped box of the job's kind (a CPU box; a render box for need) is
+    started rather than queue on a busy one."""
+    order = {r['name']: i for i, r in enumerate(readings)}
+    up = [r for r in readings if 'free' in r]
+
+    def score(r, cpu_job):
+        c = r.get('cpu_free')
+        c = 0.0 if c is None else c
+        return c - (GPU_KEEP * r['speed'] if cpu_job and r['gpu'] else 0.0)
+
+    def best(pool, cpu_job):            # -> (reading, roomy, why)
+        room = [r for r in pool if r['free'] - reserve >= 1]
+        if room:
+            b = max(room, key=lambda r: (score(r, cpu_job), cpu_job and not r['gpu'], -order[r['name']]))
+            return b, score(b, cpu_job) >= MIN_FREE, '%.1f cores free, the most of %d with a free slot beyond the ' \
+                'reserve of %d' % (score(b, cpu_job), len(room), reserve)
+        if pool:
+            b = max(pool, key=lambda r: (r['free'], score(r, cpu_job), -order[r['name']]))
+            return b, False, 'no box has a free slot beyond the reserve of %d: the most free slots (%d)' % (
+                reserve, b['free'])
+        return None, False, 'no %sbox running' % ('render ' if need else '')
+
+    def sleeping(gpu_box):
+        s = [r for r in readings if r.get('status') in STOPPED and r['gpu'] == gpu_box]
+        return max(s, key=lambda r: (r['speed'], -order[r['name']])) if s else None
+
+    if gpu or need:
+        b, roomy, why = best([r for r in up if r['gpu']], False)
+        if b is not None and (roomy or need and not (wake and sleeping(True))):
+            return b['name'], 'render box: ' + why + ('' if roomy else ' (busy)')
+        if need:
+            z = sleeping(True) if wake else None
+            if z is not None:
+                return z['name'], '%s: starting the stopped %s box' % (why if b is None else 'busy: ' + why, z['name'])
+            return None, why
+    b, roomy, why = best(up, True)
+    if not roomy and wake:
+        z = sleeping(False)
+        if z is not None:
+            return z['name'], '%s: starting the stopped %s box' % ('every running box is busy (%s: %s)' % (
+                b['name'], why) if b is not None else why, z['name'])
+    if b is None:
+        return None, why
+    return b['name'], why + ('' if roomy else ' (every box is busy: the freest)') + (
+        '; no render box has room: the boards drawn by the toon renderer' if gpu and not b['gpu'] else '')
+
+
+def describe(r):
+    """a box's reading as one line."""
+    if 'free' not in r:
+        return 'box %-8s %s%s' % (r['name'], r['status'], ' (%s)' % r['why'].strip()[-100:] if r.get('why') else '')
+    return 'box %-8s %s vCPU, load %s: %s cores free%s; %d of %d slots free (%d held, %d waiting)%s' % (
+        r['name'], r['ncpu'], '?' if r['load'] is None else '%.1f' % r['load'],
+        '?' if r['cpu_free'] is None else '%.1f' % r['cpu_free'],
+        ' (x%.2f per core)' % r['speed'] if r['speed'] != 1 else '', r['free'], r['count'], r['held'], r['waiting'],
+        '; GPU' if r['gpu'] else '')
+
+
+def _read(env):
+    try:
+        return box_slots(env)
+    except Exception as e:                          # (a box we can't read is skipped)
+        return dict(name=os.path.basename(env)[:-4], gpu=bool(_env('MACHINE_GPU', env)), speed=1.0,
+                    status='unreadable', why=str(e)[:200])
+
+
+def pick_box(reserve=1, log=print, gpu=False, need=False, wake=None):
+    """`--box auto` (the default for build, tune, run and gate; sweep, sweep optimize and pregate --box): every box
+    read at once (box_slots), each reading logged, then choose -> (name, readings). wake: start a stopped box when every
+    running one is busy (default: unless CHARKIT_BOX_WAKE=0). With no box running and none to start: the build box
+    (render for need), which the command's up() starts."""
+    from concurrent.futures import ThreadPoolExecutor
+    envs = _boxes()
+    with ThreadPoolExecutor(max(1, len(envs))) as ex:
+        got = list(ex.map(_read, envs))
+    for g in got:
+        log(describe(g))
+    if wake is None:
+        wake = os.environ.get('CHARKIT_BOX_WAKE', '1') != '0'
+    name, why = choose(got, reserve, gpu, need, wake)
+    if name is None:
+        name = 'render' if need else 'build'
+        why += ': the %s box (started)' % name
+    log('--box auto: %s (%s)' % (name, why))
+    return name, got
+
+
+def use(name):
+    """the box named NAME (infra/gcp/NAME.env) chosen for this command."""
+    env = os.path.join(ROOT, 'infra', 'gcp', name + '.env')
+    if not os.path.exists(env):
+        raise SystemExit('remote: no box %r (infra/gcp/%s.env)' % (name, name))
+    BOX['env'], BOX['chosen'] = env, True
+    return env
+
+
+AUTO = ('build', 'tune', 'run', 'gate')        # the commands --box auto routes (their default)
+
+
+def wants_gpu(cmd, rest):
+    """does this command's job draw boards in EEVEE (a render box's GPU)? A build whose --boards isn't '' (its default
+    draws four sets), unless --boards-renderer toon; tune's steps draw their views. Gates, runs: no (--gpu says so)."""
+    if cmd == 'tune':
+        return True
+    if cmd != 'build' or _opt(rest, '--boards-renderer') == 'toon':
+        return False
+    return _opt(rest, '--boards', 'views,body,expressions,mouths') != ''
+
+
+def route(cmd, rest, need=False, log=None, reserve=1):
+    """--box auto for this command: pick_box (a render box preferred when its boards render, required with need), the
+    box chosen; a stopped one is started now, and when it won't start, the best running box instead -> its name."""
+    log = log or (lambda m: print('remote: ' + m, file=sys.stderr, flush=True))
+    name, got = pick_box(reserve, log=log, gpu=need or wants_gpu(cmd, rest), need=need)
+    use(name)
+    if not any(g['name'] == name and 'free' in g for g in got):
+        try:
+            up()
+        except (subprocess.CalledProcessError, SystemExit) as e:
+            alt, why = choose(got, reserve, need or wants_gpu(cmd, rest), need, wake=False)
+            if alt is None:
+                raise
+            log('the %s box did not start (%s): %s instead (%s)' % (name, str(e)[-120:], alt, why))
+            name = alt
+            use(name)
+    return name
 
 
 def box_has(path):
@@ -788,7 +962,7 @@ def jobs(args):
             continue
         cfg, vm = _cfg()
         r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - list --days %s' % shlex.quote(days)],
-                           input=open(boxjob.__file__, 'rb').read(), capture_output=True)
+                           input=open(boxjob.__file__, 'rb').read(), capture_output=True, env=_genv(env))
         if r.returncode:
             print('%s box: could not list jobs (exit %d) %s' % (name, r.returncode, r.stderr.decode(errors='replace')[-300:]))
             continue
@@ -833,7 +1007,7 @@ def silences(args):
             continue
         cfg, vm = _cfg()
         r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - silences --days %s' % shlex.quote(days)],
-                           input=open(boxjob.__file__, 'rb').read(), capture_output=True)
+                           input=open(boxjob.__file__, 'rb').read(), capture_output=True, env=_genv(env))
         rows = [json.loads(l) for l in r.stdout.decode().splitlines() if l.startswith('{')]
         print('%s box: the longest silence of each job, by kind (minutes; %s day(s) of samples)' % (name, days))
         print('  %-14s %-8s %5s %6s %6s %6s %6s  %s' % ('kind', 'ended', 'jobs', 'p50', 'p90', 'max', 'limit', 'worst'))
@@ -884,9 +1058,10 @@ def _slots():
     return int(v) if v else BOX_SLOTS
 
 
-def _env(key):
-    """KEY's value in the box's env file (a bash file: `export KEY=...` too, and $HOME expanded)."""
-    for line in open(BOX['env']):
+def _env(key, env=None):
+    """KEY's value in the box's env file (env, default the chosen box's; a bash file: `export KEY=...` too, and $HOME
+    expanded)."""
+    for line in open(env or BOX['env']):
         line = line[len('export '):] if line.startswith('export ') else line
         if line.startswith(key + '='):
             return os.path.expandvars(line.split('=', 1)[1].split('#')[0].strip())
@@ -908,14 +1083,26 @@ def put(local, remote):
 
 
 def main(args):
+    name = None
     if '--box' in args:                     # another box: infra/gcp/NAME.env (render: the GPU box, where boards render)
         i = args.index('--box')
-        BOX['env'] = os.path.join(ROOT, 'infra', 'gcp', args[i + 1] + '.env')
-        BOX['chosen'] = True
+        name = args[i + 1] if i + 1 < len(args) else 'auto'
         args = args[:i] + args[i + 2:]
+        if name != 'auto':
+            use(name)
+    need = '--gpu' in args                  # only a render box will do (--box auto)
+    args = [a for a in args if a != '--gpu']
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return 0
     cmd, rest = args[0], args[1:]
+    if cmd in AUTO and not BOX.get('chosen'):
+        want = name or os.environ.get('CHARKIT_BOX') or 'auto'
+        if want == 'auto':
+            route(cmd, rest, need)
+        else:
+            use(want)
+    elif name == 'auto' and cmd not in AUTO:
+        raise SystemExit('remote: --box auto picks the box for %s; %s takes a box name' % (', '.join(AUTO), cmd))
     if cmd in ('build', 'tune'):
         return build(rest, cmd)
     if cmd == 'gate':

@@ -80,9 +80,10 @@ the OAT probe's effect, the effect across its range fitted on every feasible poi
 correlation, the search's final spread); convergence.png; sweep.json (control, references, best and the top
 candidates in the sweep's own form: `charkit sweep table`, review pages); confirm.json; review/ (the review page).
 
-Boxes: `--box NAME` runs on that box (build, render, render2: infra/gcp/NAME.env); `--box auto` reads every running
-box's free slots and takes the build box while it has MIN_FREE beyond the reserve, else the box with the most free
-(overflow rather than wait). The base build is pushed to the chosen box when its copy of this worktree lacks it.
+Boxes: `--box NAME` runs on that box (build, build2, render, render2: infra/gcp/NAME.env); `--box auto` (or `--box`
+alone) reads every box's slots, cores and load and takes the running box with the most free CPU among those with a
+free slot beyond the reserve (charkit.remote.pick_box: overflow by load rather than wait; a stopped CPU box is started
+when every running one is busy). The base build is pushed to the chosen box when its copy of this worktree lacks it.
 
 Resume: `--resume` (or the same command again on an OUT holding state.json) carries on from the last finished
 generation; the history is the cache, so a generation cut short reruns only what it hadn't evaluated. The
@@ -2236,7 +2237,8 @@ def main(args):
 
 
 def pick_box(reserve=1, log=print):
-    """--box auto: charkit.remote.pick_box (the build box while it has room, else the box with the most free slots)."""
+    """--box auto: charkit.remote.pick_box (the running box with the most free CPU among those with a free slot beyond
+    the reserve; a stopped CPU box started when every running one is busy)."""
     from . import remote
     return remote.pick_box(reserve, log=lambda m: log('optimize: ' + m))
 
@@ -2257,10 +2259,10 @@ def _box(args):
     if drel.startswith('charkit/out/') and not drel.startswith('charkit/out/remote/'):
         raise SystemExit('sweep optimize --box: the declaration must reach the box: put it under charkit/out/remote/ '
                          '(synced) or a tracked folder, not %s' % drel)
-    if name == 'auto':
+    if name in (None, 'auto'):              # (--box alone: auto, as remote's default)
         name, _ = pick_box(int(_opt(rest, '--reserve', 1)))
         print('optimize: --box auto: %s' % name)
-    env = os.path.join(ROOT, 'infra', 'gcp', (name or 'build') + '.env')
+    env = os.path.join(ROOT, 'infra', 'gcp', name + '.env')
     if not os.path.exists(env):
         raise SystemExit('optimize: no box %r (infra/gcp/%s.env)' % (name, name))
     d = json.load(open(sw._abs(decl)))
@@ -2272,10 +2274,10 @@ def _box(args):
         if not brel.startswith('..') and not remote.box_has(brel + '/bundle'):
             if not os.path.isdir(os.path.join(ROOT, brel, 'bundle')):
                 raise SystemExit('optimize: the base %s is neither on the %s box nor here to push' % (brel, name))
-            print('optimize: pushing the base %s to the %s box (its copy lacks it)' % (brel, name or 'build'))
+            print('optimize: pushing the base %s to the %s box (its copy lacks it)' % (brel, name))
             remote.put(os.path.join(ROOT, brel), '/srv/work/%s/%s' % (os.path.basename(ROOT), os.path.dirname(brel)))
     rest = [drel if x == decl else rel if x == out else x for x in rest]
-    code = remote.main((['--box', name] if name else []) + ['run', '--fetch', rel, 'sweep', 'optimize'] + rest)
+    code = remote.main(['--box', name, 'run', '--fetch', rel, 'sweep', 'optimize'] + rest)
     if os.path.exists(os.path.join(sw._abs(out), 'history.jsonl')):
         try:
             report(sw._abs(out))
