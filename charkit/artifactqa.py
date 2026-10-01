@@ -1581,7 +1581,7 @@ def store_design(bdir):
     return path
 
 
-@qa_part('artifacts', order=2200, prefix='art_', table='artifacts')
+@qa_part('artifacts', order=2200, prefix='art_', table='artifacts', checks=58)
 def measure(B, design=None, out=None):
     """the artifact part (QA part 'artifacts', after the look): ours on the QA's numpy drawings, the design's turnarounds
     measured the same way (stored: design_measures), graded against the design -> (table, checks). A check CALIBRATED on

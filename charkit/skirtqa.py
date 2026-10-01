@@ -224,7 +224,9 @@ def drawn_pieces(dv, masks, marks, ppl):
         full['skirt'] = full.get('skirt', np.zeros((H, W), bool)) & ~fl        # (the flaps' faces over it aren't it)
         full.update(F[view])
         face = {p: m & ~dk for p, m in full.items()}
-        cells = design_bands(face, dv[view]['rgb'], dk, ppl)
+        # (kept on disk, cache.venv_memo: a pure function of the drawing's arrays, 20 s a QA pass; off with the cache)
+        from . import cache
+        cells = cache.venv_memo(design_bands, face, dv[view]['rgb'], dk, ppl)
         none = np.zeros((H, W), bool)
         band_ = {}
         for p in full:                      # a band cell's owner keeps it where another piece's mask covers it too

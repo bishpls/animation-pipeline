@@ -377,7 +377,7 @@ def face_folds(A):
     return dict(rest=rest, keys=keys, total=rest + sum(keys.values()))
 
 
-@qa_part('face_folds', order=500)
+@qa_part('face_folds', order=500, checks=1)
 def folds(B, design=None, out=None):
     """the face_folds check on a bundle -> ({}, checks)."""
     from .character import base_of
@@ -1071,7 +1071,7 @@ def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE, az=0.0):
     return np.concatenate([np.where(a > 1e-6, img[..., :3] / np.maximum(a, 1e-6), 0), a], -1)
 
 
-@qa_part('eyes', order=700, prefix='eye_', table='eyes', skip_key='eye')
+@qa_part('eyes', order=700, prefix='eye_', table='eyes', skip_key='eye', checks=8)
 def eyes(B, design, out=None, ss=EYE_SS):
     """our eyes against the eye design (the generated head sheet's front eyes, or the design rig's eye layers;
     charkit.eyeqa), measured the same way at its scale -> (table, checks)."""
@@ -1119,7 +1119,7 @@ def sheet_measure(B, design, covers=True):
     return O, D, ppl, az3, C
 
 
-@qa_part('sheet', order=900, prefix='sheet_', table='sheet')
+@qa_part('sheet', order=900, prefix='sheet_', table='sheet', checks=12)
 def sheet(B, design, out=None, covers=True):
     """our face against the design's model sheet (charkit.sheetqa): the sheet measured at its scale (from the rig's
     front figure), ours z-buffered in class labels at the same scale and angles. -> (table, checks)."""
@@ -1136,7 +1136,7 @@ def sheet(B, design, out=None, covers=True):
     return table, C
 
 
-@qa_part('sheet_expr', order=1200, table='sheet_expr')
+@qa_part('sheet_expr', order=1200, table='sheet_expr', checks=12)
 def sheet_expressions(B, design, out=None):
     """the sheet's expression heads against the kit's expression library (charkit.exprqa) -> (table, checks)."""
     from . import exprqa
@@ -1154,7 +1154,7 @@ def sheet_expressions(B, design, out=None):
     return table, C
 
 
-@qa_part('sheet_body', order=1100, prefix='body_', table='sheet_body')
+@qa_part('sheet_body', order=1100, prefix='body_', table='sheet_body', checks=78)
 def sheet_body(B, design, out=None):
     """the whole character against the design's full figures (charkit.bodyqa): front, three-quarter, profile, back, each
     z-buffered at the sheet's scale from the same azimuth with a class per triangle, aligned on the eyes. -> (table,
@@ -1349,7 +1349,7 @@ def hair_tips(mask, ppl, prom=None):
     return int(((tip[1:] & ~tip[:-1]).sum()) + int(tip[0]))       # a flat tip's columns count once
 
 
-@qa_part('hair_pieces', order=1400, table='hair_pieces')
+@qa_part('hair_pieces', order=1400, table='hair_pieces', checks=15)
 def hair_pieces(B, design, out=None):
     """the hair's pieces (hair.shape.mode 'pieces': objects hair_NAME, charkit.geom.hairpieces) against the design's
     families: every visible surface z-buffered on the design's grids with each hair object labelled by its family,
@@ -1520,7 +1520,7 @@ PIECE_PASS, PIECE_WARN = 0.75, 0.5     # a piece's overlap (bodymeasure.iou_tol)
                                        # own figures, so a PASS asks for what they can show
 
 
-@qa_part('sheet_pieces', order=1500, prefix='piece_', table='sheet_pieces')
+@qa_part('sheet_pieces', order=1500, prefix='piece_', table='sheet_pieces', checks=32)
 def sheet_pieces(B, design, out=None):
     """the outfit piece by piece against the design's (the outfit's per-view piece masks, cut from the body sheet):
     every object z-buffered on the design's grids with its own index, so a piece shows only where nothing of ours is in
@@ -1624,7 +1624,7 @@ def drawn_low(graph, pid, share=0.25):
 PIECE3D_PASS, PIECE3D_WARN = 0.04, 0.08     # L: a piece's median reach to the design's in 3D (bodymeasure.piece_depths)
 
 
-@qa_part('pieces_3d', order=1600, prefix='piece3d_', table='pieces_3d')
+@qa_part('pieces_3d', order=1600, prefix='piece3d_', table='pieces_3d', checks=19)
 def pieces_3d(B, design, out=None):
     """the outfit piece by piece against the visual hull's pieces in 3D (the target's per-vertex pieces, carried in the
     bundle: bodymeasure.piece_depths): checks <piece id> valued by its median reach (L), with the 90th percentile, the
@@ -1711,7 +1711,7 @@ def pieces_picture(labels, names, masks, graph, spec, dv):
     return np.concatenate([np.pad(c, ((0, H - c.shape[0]), (0, 8), (0, 0)), constant_values=1.0) for c in cols], 1)
 
 
-@qa_part('sheet_palette', order=1300, prefix='palette_', table='sheet_palette')
+@qa_part('sheet_palette', order=1300, prefix='palette_', table='sheet_palette', checks=13)
 def sheet_palette(B, design, out=None):
     """the design's colours per class (the sheet's own pixels, charkit.paletteqa) against the flat tones our materials
     render unlit -> (table, checks)."""
@@ -1729,7 +1729,7 @@ def sheet_palette(B, design, out=None):
     return table, paletteqa.compare(O, D)
 
 
-@qa_part('sheet_figures', order=1000, prefix='figures_', table='sheet_figures')
+@qa_part('sheet_figures', order=1000, prefix='figures_', table='sheet_figures', checks=1)
 def sheet_figures(B, design, out=None):
     """what figure detection found on the sheet (charkit.sheetqa.detect_figures) against the spec's hand-typed head boxes
     -> (table, checks); overlay qa_sheet_figures.png."""
@@ -1753,7 +1753,7 @@ def sheet_figures(B, design, out=None):
 
 
 # --------------------------------------------------------------------------------------------------- face shape
-@qa_part('face_shape', order=1800, prefix='face_shape_', table='face_shape', keep='face_shape')
+@qa_part('face_shape', order=1800, prefix='face_shape_', table='face_shape', keep='face_shape', checks=8)
 def face_shape(B, design, out=None, covers=True, tcache=None):
     """our face against the generated character's (charkit.faceqa), from the bundle's meshes. -> (result, checks)."""
     from . import faceqa
@@ -1821,7 +1821,7 @@ def coverage(fr, items, az, ss=FIG_SS, sigma=FIG_FILTER):
     return _blur_down(m[..., None], ss, sigma)[..., 0] > 0.5
 
 
-@qa_part('shape', order=100, table='views', ref_image=True)
+@qa_part('shape', order=100, table='views', ref_image=True, checks=6)
 def shape(B, design, out=None, ref_image=None):
     """silhouette IoU against the generated shape per azimuth and height band, and the front against the reference
     image -> (views, checks)."""
@@ -2194,7 +2194,7 @@ def tone_edges(lum, grp, min_px=50):
     return e, n
 
 
-@qa_part('hair_noise', order=400)
+@qa_part('hair_noise', order=400, checks=1)
 def hair_noise(B, design=None, out=None):
     """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
     drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
@@ -2234,7 +2234,7 @@ def hair_noise(B, design=None, out=None):
     return per, C
 
 
-@qa_part('scalp', order=200)
+@qa_part('scalp', order=200, checks=1)
 def scalp(B, design=None, out=None):
     """pixels of scalp showing through the hair: the skin's base polygons over the upper cranium and the back of the head
     drawn pure green (its outline off, as before), everything else as it renders, from 0, 90, 180 and 270 degrees; a
@@ -2278,7 +2278,7 @@ def scalp(B, design=None, out=None):
     return per, {'scalp_px': {'value': worst, 'per_view': per, 'status': _grade('scalp_px', worst, False)}}
 
 
-@qa_part('poke', order=300)
+@qa_part('poke', order=300, checks=1)
 def poke(B, design=None, out=None):
     """body vertices (the unmasked ones) lying just outside a garment's surface, where the garment is close: the body
     showing through it (3D, so legs seen below a skirt or an arm in front of it don't count). A short ray inward from
@@ -2327,7 +2327,7 @@ def poke(B, design=None, out=None):
     return None, {'poke_share': {'value': round(share, 4), 'per_garment': per_g, 'status': _grade('poke_share', share, False)}}
 
 
-@qa_part('mesh', order=600)
+@qa_part('mesh', order=600, checks=2)
 def mesh_info(B, design=None, out=None):
     """open edges and loose parts per hair and garment object's own mesh (information)."""
     mh = {}
@@ -2399,7 +2399,7 @@ def face_presets(B, ppl=200.0, data=None):
     return out
 
 
-@qa_part('face', order=1900, prefix='face_', table='face')
+@qa_part('face', order=1900, prefix='face_', table='face', checks=19)
 def face_part(B, design=None, out=None):
     """the face's expressions and mouth shapes (face()) as a part, with the open mouths' cover (mouth_cover) and the
     combined expressions against the template's targets (face_presets: face_preset_<name>, value the furthest feature
@@ -2424,7 +2424,7 @@ def face_part(B, design=None, out=None):
     return table, C
 
 
-@qa_part('eye_views', order=800, prefix='eye_', table='eye_views')
+@qa_part('eye_views', order=800, prefix='eye_', table='eye_views', checks=18)
 def eye_views(B, design=None, out=None):
     """each eye the head sheet draws, ours from the same azimuth (front, three-quarter, profile; charkit.eyeqa.views):
     where the iris sits in the opening, the front's pupil, the profile's edge and lash flick."""
@@ -2432,7 +2432,7 @@ def eye_views(B, design=None, out=None):
     return eyeqa.views(B, design, out)
 
 
-@qa_part('face_region', order=2000, table='face_region')
+@qa_part('face_region', order=2000, table='face_region', checks=26)
 def face_region(B, design=None, out=None):
     """the face's region on the assembled figure (charkit.faceregion): the eye's hollow, bowl and the cheek's lead, the
     eye's width in three-quarter and profile against the design's, the profile's edge from the chin to the chest and the
@@ -2441,7 +2441,7 @@ def face_region(B, design=None, out=None):
     return faceregion.measure(B)
 
 
-@qa_part('details', order=1700, table='details')
+@qa_part('details', order=1700, table='details', checks=35)
 def details(B, design=None, out=None):
     """the midriff's and the boots' details against the design (charkit.detailqa): the torso outline's steps and the
     top's junction with the band, the cream panel's edge; the boots' ankle, folds, heel, doubled lines, soles and
@@ -2450,7 +2450,7 @@ def details(B, design=None, out=None):
     return detailqa.measure(B, design, out)
 
 
-@qa_part('look', order=2100, table='look')
+@qa_part('look', order=2100, table='look', checks=12)
 def look(B, design=None, out=None):
     """the look's measures (charkit.lookqa): the face's shading noise, its shadows against the design's, the outlines'
     widths."""
@@ -2458,7 +2458,7 @@ def look(B, design=None, out=None):
     return lookqa.measure(B, design, out)
 
 
-@qa_part('skirt', order=2300, table='skirt')
+@qa_part('skirt', order=2300, table='skirt', checks=48)
 def skirt(B, design=None, out=None):
     """the skirt and the overskirt flaps against the design (charkit.skirtqa): the flaps' shape per view (IoU, width
     down their length, attach, hang angle, the profile's sweep, the clearance behind the leg), the stepped band's steps
@@ -2490,6 +2490,29 @@ def evaluate(B, parts=('shape', 'sheet_body', 'sheet_palette'), design=None, ref
     return checklib.authorize(out, design.ref().get('authority') or {})
 
 
+PROFILES = ('full', 'iterate')     # the QA's profiles: full (gates, full builds), iterate (QA-only and sweep iterations)
+PROFILE_ENV = 'CHARKIT_QA_PROFILE'
+
+
+def profile_of(profile=None):
+    """the QA profile in force: the argument, else CHARKIT_QA_PROFILE, else 'full' -> its name (ValueError: unknown)."""
+    p = profile or os.environ.get(PROFILE_ENV) or 'full'
+    if p not in PROFILES:
+        raise ValueError('QA profile %r: one of %s' % (p, ', '.join(PROFILES)))
+    return p
+
+
+def skipped_by(profile=None):
+    """the parts a QA profile leaves out (each part's registry skip_in) -> {name}: none under 'full'."""
+    p = profile_of(profile)
+    return set() if p == 'full' else {P.name for P in registry.parts() if p in P.skip_in}
+
+
+def measured_count(C):
+    """a part's checks that it measured (any status but SKIPPED): its count against its denominator."""
+    return sum(1 for v in (C or {}).values() if not (isinstance(v, dict) and v.get('status') == 'SKIPPED'))
+
+
 def _strip(x):
     """a part's table for the report (the measurement's own arrays and pictures left out)."""
     if isinstance(x, dict):
@@ -2497,8 +2520,12 @@ def _strip(x):
     return x
 
 
-def run(B, out, ref_image=None, mode='on', parts=None):
-    """every check on a bundle (a Bundle or its folder), the report and overlays into out -> the report (qa.json's)."""
+def run(B, out, ref_image=None, mode='on', parts=None, profile=None):
+    """every check on a bundle (a Bundle or its folder), the report and overlays into out -> the report (qa.json's).
+    profile: the QA profile (profile_of: 'iterate' leaves out the parts that declare it in skip_in, each reported
+    SKIPPED 'skipped by profile iterate'). Each part's status against its denominator (registry `checks`) is in
+    measured.part_status: {part: dict(status ok | short | crashed | skipped | undeclared, checks (measured), expected,
+    why)}; the merge gate blocks a candidate whose part crashed, fell short or was skipped."""
     from . import bundle as bundlelib, cache, trace
     if isinstance(B, str):
         B = bundlelib.load(B)
@@ -2513,8 +2540,19 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     t0, c0 = time.perf_counter(), time.process_time()
     timing = {}                     # per part: wall and CPU seconds (the process's, every thread: llvmpipe's included)
     owner = {}                      # per part: the checks it reported (the gate's measure-change check: charkit.codediff)
+    status = {}                     # per part: its status against its denominator (registry `checks`)
+    profile = profile_of(profile)
+    skip = skipped_by(profile)
     for P in registry.parts():
         if parts is not None and P.name not in parts:
+            continue
+        n_exp, why_exp = registry.expected(P, B, design)
+        if P.name in skip:
+            why = 'skipped by profile %s' % profile
+            rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': why}
+            owner[P.name] = [P.skip_key]
+            status[P.name] = dict(status='skipped', checks=0, expected=n_exp, why=why)
+            print('CHARKIT_QA_SKIPPED %s: %s' % (P.name, why), flush=True)
             continue
         args = (ref_image,) if P.ref_image else ()
         try:
@@ -2527,7 +2565,14 @@ def run(B, out, ref_image=None, mode='on', parts=None):
             import traceback; traceback.print_exc()
             rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
             owner[P.name] = [P.skip_key]
+            status[P.name] = dict(status='crashed', checks=0, expected=n_exp,
+                                  why='%s: %s' % (type(e).__name__, str(e)[:300]))
             continue
+        n = measured_count(C)
+        status[P.name] = dict(status='undeclared' if n_exp is None else 'short' if n < n_exp else 'ok', checks=n,
+                              expected=n_exp, **({'why': why_exp} if why_exp else {}))
+        if n_exp is not None and n < n_exp:
+            status[P.name]['why'] = 'measured %d of the %d checks it declares' % (n, n_exp)
         if P.table == 'views':
             rep['views'] = table
         elif P.table is not None and table is not None:
@@ -2543,6 +2588,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     from . import qarender
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
                        'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
+                       'part_status': status, 'profile': profile,
                        'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B),
                                     export=os.path.basename(qarender.export_of(B) or '') or None)}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
@@ -2553,10 +2599,12 @@ def run(B, out, ref_image=None, mode='on', parts=None):
 
 def main(args):
     """python -m charkit qa BUNDLE_DIR [--out QA_DIR] [--cache on|off|refresh|verify] [--trace TRACE.jsonl]
-                              [--draw numpy|render] [--threads N]
+                              [--draw numpy|render] [--threads N] [--profile full|iterate]
     the QA on a build's geometry bundle (default out: the build's qa folder); --trace appends its records to a trace
     (a build's own does it: python -m charkit build). --draw: the QA's drawing for this run (CHARKIT_QA_DRAW,
-    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS)."""
+    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS).
+    --profile iterate: an iteration's QA, the parts that declare it left out (motion QA's cloth solve), each reported
+    SKIPPED 'skipped by profile iterate' (CHARKIT_QA_PROFILE; profile_of)."""
     if not args or args[0] in ('-h', '--help'):
         print(main.__doc__); return
     from . import trace
@@ -2566,6 +2614,8 @@ def main(args):
         os.environ[qarender.ENV] = opt('--draw')
     if opt('--threads'):
         os.environ['LP_NUM_THREADS'] = str(int(opt('--threads')))
+    if opt('--profile'):
+        os.environ[PROFILE_ENV] = profile_of(opt('--profile'))
     bdir = os.path.abspath(args[0])
     out = os.path.abspath(opt('--out', os.path.join(os.path.dirname(bdir), 'qa')))
     tp = opt('--trace')

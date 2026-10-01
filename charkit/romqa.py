@@ -153,7 +153,7 @@ def measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, max_e
     return rep
 
 
-@qa_part('rom', order=2600, prefix='', table='rom')
+@qa_part('rom', order=2600, prefix='', table='rom', checks=len(CHECKS) + len(WEIGHT_CHECKS))
 def rom_qa(B, design=None, out=None):
     """the range-of-motion suite at the checks' poses on the build's export (report-only)."""
     rep = measure(B)

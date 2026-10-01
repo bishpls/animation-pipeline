@@ -159,7 +159,18 @@ except ImportError:                                  # (outside the package)
         return lambda f: f
 
 
-@qa_part('motion', order=2500, prefix='motion_', table='motion')
+def expected_checks(B, design=None):
+    """the part's denominator (registry `checks`): inside and stretch per pose per loose skirt-kind garment, from the
+    spec and the style profile (what measure() grades) -> int."""
+    from . import motion
+    gm = settings(B)
+    pieces = loose_pieces(B, gm) or list(motion.PIECES)
+    kinds = {g['name']: g.get('kind') for g in B.spec.get('garments') or ()}
+    return 2 * len(POSES) * sum(1 for n in pieces if kinds.get(n) == 'skirt')
+
+
+# (skip_in: the 'iterate' QA profile leaves the cloth solve out, ~100 s of CPU a build; gates and full builds run it)
+@qa_part('motion', order=2500, prefix='motion_', table='motion', checks=expected_checks, skip_in=('iterate',))
 def motion_qa(B, design=None, out=None):
     """the loose garments (the skirt and the panels) at the kick and the squat, moved as the style profile says
     (physics.garment_motion): the skirt's new penetration into the skin and its stretch, worst over the motion."""

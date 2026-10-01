@@ -372,6 +372,8 @@ class Frames:
                 out['depth'] = np.where(part >= 0, a[..., 3], np.inf).astype(np.float64)
                 out['normal'] = n[..., :3].astype(np.float64) @ model_.C3        # glTF -> Blender
         self.timing['frames'].append(round(time.time() - t0, 4))
+        self.timing.setdefault('keys', []).append(_frame_key(cam, draw, off, paint, light, line, transparent, aux_ss,
+                                                             picture, aux, colour, world, streaks, variants))
         return out
 
     def _scaled(self, cam, k):
@@ -407,6 +409,21 @@ class Frames:
         """primitive k's triangles on the original surface (the outline off), world Blender frame -> (V (n, 3), T (m, 3))."""
         P = self.prims[k]
         return P.co().astype(np.float64) @ model_.C3, np.asarray(P.index, np.int64).reshape(-1, 3)
+
+
+def _frame_key(cam, *rest):
+    """a frame's inputs as a short digest (charkit.profile counts the frames the QA draws twice)."""
+    import hashlib
+    h = hashlib.sha1()
+    for a in (cam.view, cam.proj, np.asarray(cam.res)):
+        h.update(np.ascontiguousarray(np.asarray(a, np.float64)).tobytes())
+    for x in rest:
+        if isinstance(x, dict):
+            x = sorted((str(k), v) for k, v in x.items())
+        if isinstance(x, (set, frozenset)):
+            x = sorted(x)
+        h.update(repr(x if not isinstance(x, np.ndarray) else x.tobytes()).encode())
+    return h.hexdigest()[:12]
 
 
 def picture_from(img):
