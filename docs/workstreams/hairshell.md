@@ -740,3 +740,13 @@ hem's flicks phi [100, 175] laid over, opts prior_depth 10, contain 5, hug_free 
 BOARDS`: the build, then its six placements on the same box, logs in charkit/out/hairshell3/r5/): r5_hull (render2,
 boards), r5_c1e (render2, boards), r5_c2 (render2, boards), r5_c2e (render2, boards), r5_c1 (build box), r5_hull_e
 (build box).
+
+## Gate (round 4)
+Pregate: not run (the box copy has no git refs: `remote run pregate` stops at `git rev-parse pipeline-3d`; the laptop
+is out of memory, the coordinator's rule; the diff reaches none of the evaluator's checks). Gate 1 (c2977768 into
+9be5b320): FAIL under K, one blocker: test_tune.py asserted hair_noise's severities on the old scale (0.12 -> 2.0);
+moved to the new scale (16 -> 2.0, the same severities) and test_hairnoise.py added (qa3d.speckles). **Gate 2: PASS
+under K** (2c1966ef into pipeline-3d 9be5b320, `charkit/out/gate/gate_tool-hairshell3_2c1966ef_into_9be5b320.md`):
+nothing blocks; hair_noise remeasured 0.0756 W -> 4.4 P (record CALIBRATED), hair_tone_edges new INFO (0.0756);
+measuring code changed with no step reported for parts that read qa3d.LIMITS / lockshell / shade_normals (nothing
+moved: the geometry is the same); 95 test files pass; build CPU 1432.7 -> 1198.2 s (0.84x).
