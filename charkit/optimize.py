@@ -1943,6 +1943,21 @@ def sensitivity_plot(out, P, sens):
     plt.close(fig)
 
 
+def local_build(out, path):
+    """a confirm row's build folder here: as recorded, else the same place under this run's folder or this tree (a
+    run made on a box records the box's paths; its folder was fetched here) -> path or None."""
+    if not path:
+        return None
+    cands = [path]
+    m = re.search(r'/confirm/[^/]+/build$', path)
+    if m:
+        cands.append(os.path.join(out, m.group(0).lstrip('/')))
+    if '/srv/work/' in path:
+        rel = path.split('/srv/work/', 1)[1].split('/', 1)[-1]
+        cands.append(os.path.join(ROOT, rel))
+    return next((c for c in cands if os.path.exists(os.path.join(c, 'qa', 'qa.json'))), None)
+
+
 def review_json(out, decl, P, st, H, summ, conf):
     """the review page's declaration (charkit review page): the summary box first."""
     o = decl.get('optimize') or {}
@@ -1973,11 +1988,10 @@ def review_json(out, decl, P, st, H, summ, conf):
             chosen['name'], json.dumps(P.overrides(chosen['knobs'])), _fmt(chosen.get('f')), _fmt((ctrl or {}).get('f')),
             round(100 * P.constraints['guard']), '; confirmed by a real build' if conf and conf.get('pick') == chosen[
                 'name'] else '') if chosen and chosen.get('feasible') else 'No feasible candidate: see the history.')
-    notes = ['%d evaluations (%d cache hits) in %s s over %s workers (population %s, %s generations); stopped: %s. '
-             'Splice set %s. Context %s s a worker.' % (summ['evaluations'], summ['cache_hits'], summ.get('seconds'),
-                                                         summ.get('workers'), summ.get('lam'), summ.get('generations'),
-                                                         summ.get('stop'), summ.get('objects'),
-                                                         summ.get('context_seconds')),
+    notes = ['%d evaluations (%d cache hits) in %s s over %s workers (population %s, %s generations; %s s of it '
+             'waiting for slots); stopped: %s. Splice set %s.' % (
+                 summ['evaluations'], summ['cache_hits'], summ.get('seconds'), summ.get('workers'), summ.get('lam'),
+                 summ.get('generations'), st.get('waited'), summ.get('stop'), summ.get('objects')),
              'Files: history.md / history.csv (every evaluation: knobs, objective, constraints, every check, every '
              'piece\'s shape IoU per view), sensitivity.md, best_override.json, opt.json.']
     if summ.get('dead'):
@@ -1999,8 +2013,9 @@ def review_json(out, decl, P, st, H, summ, conf):
     builds = []
     if conf:
         for r in conf.get('rows') or ():
-            if r.get('build') and os.path.exists(os.path.join(r['build'], 'qa', 'qa.json')):
-                builds.append(dict(label='real: %s' % r['name'], path=r['build']))
+            b = local_build(out, r.get('build'))
+            if b:
+                builds.append(dict(label='real: %s' % r['name'], path=b))
     page = dict(title=o.get('title') or 'Optimizer: %s' % os.path.basename(out.rstrip('/')),
                 summary=dict(recommended=rec, asked=o.get('asked') or ['nothing: informational'],
                              numbers=dict(columns=cols, rows=nums)),
