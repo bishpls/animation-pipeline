@@ -204,3 +204,11 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   `tops_tips` (strokes 0, 1, 2, 7 of ink1.json: the almond tops and tips) reads front 0.46 W -> 0.337 P, 3q 0.407 ->
   0.379 W, bow_part_crease_len 0.221 -> 0.026 P, knot_iou 1.0 P, piece_bow unchanged (0.934/0.855/0.683).
 - k6 running: the skirt creases' f at top/bottom (power 0.7 panel).
+- k6 (crease f top/bottom on the power-0.7 panel): front (relative) 0.002 P at f 0.65 -> 0.45 (t65b45); 3q 0.63-0.79 F at
+  every placement (front and 3q pull opposite ways; the drawn 3q panel widens on its far side at the hem).
+- **Milestone 1 (creases) spec, e3891817:** skirt panel_shape {top .15, power .7, scale 1.1}; skirt creases (panel
+  space) f +-0.65 (v .15) -> +-0.45 (hem) and edge folds f +-0.97; bow creases = ink1's strokes 0, 1, 2, 7 (tools/
+  garments4/creases.json via setspec.py). Draft `_at` checks dropped; skirt_panel_profile_shape not declared (reported);
+  cuffqa.py moved to charkit/out/garments4/defer/ until the cuffs milestone (its checks FAIL until fixed).
+- Box build g4_creases running (log charkit/out/garments4/build_creases.log). Next: calibrate the crease checks
+  (`calibrate 'skirt_panel_*,bow_*_creases' --build charkit/out/g4_creases`), pregate, remote gate.
