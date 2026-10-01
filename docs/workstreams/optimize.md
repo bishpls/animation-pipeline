@@ -78,10 +78,14 @@ get a slot; budget ~15-25 generations (population 16: 240-400 rows) for 5-10 kno
   bound, the boards' folder.
 - Busy box: the first full launch found 16 of 16 slots held (hair-shell sweeps): sized to 1 worker, killed. Now the
   pool is dynamic (workers join as they get slots; at least 4 queued).
-- **Running:** the staircase acceptance, job `sweep-optim-1001-103226-7799` (10 workers queued for slots; out
-  `charkit/out/optimize/stairs`, log `charkit/out/optimize/stairs.log`). If the local follow dies: `python -m charkit
-  remote attach sweep-optim-1001-103226-7799`; if the minutes budget cuts it (it counts the slot wait): rerun the same
-  command with `--resume --minutes 200`.
+- The second launch (10 workers queued on the build box, job sweep-optim-1001-103226-7799) waited behind the hair-shell
+  sweeps; killed on the coordinator's word (render2 had 9 of 10 free). Built in: `--box auto` (every running box's free
+  slots over ssh: remote.box_slots / boxjob `slots`; the build box while it has 4 free beyond the reserve, else the
+  most free), the base pushed to a box whose copy lacks it, the minutes budget counted from the first ready worker.
+  At launch: build 0 of 16 free (6 waiting), render 3 of 3, render2 7 of 10 -> render2.
+- **Running:** the staircase acceptance with `--box auto` (render2), out `charkit/out/optimize/stairs`, log
+  `charkit/out/optimize/stairs.log` (the job id is in the log). If the local follow dies: `python -m charkit remote
+  --box render2 attach JID`; resume: the same command with `--box render2 --resume`.
 
 ## Next steps
 1. Read the staircase run (OUT/review, opt.json, confirm.json); compare with the hand loop (st1-st5: 5 sweeps, ~42
