@@ -148,6 +148,15 @@ unchanged by construction.
 - **Gate 2 = items 3 and 1** (commit after db97f7ed): anime face.forehead fB, spec brows.arch 0.1, spec mouth.view
   slide 0.11. Render2 build `charkit/out/face7_g2` running (log charkit/out/face7/build_g2.log). Item 2 stays open.
 
+- **Build g2** (`charkit/out/face7_g2`, render2, items 4+3+1; CPU 1333 s): as the sweep read. brow_len_closeup_profile
+  0.721 F -> 0.861 W, brow_shape_closeup_profile 0.472 F -> 0.755 P, brow_arch profile 0.009 -> 0.001 P, front arch 0.003
+  -> 0.009 P, front shape 0.832 -> 0.808 P, eye_hollow 0.012 -> 0.0035 P; mouth_place_three_quarter_override 0.0025 PASS
+  (rigid default 0.0753 unchanged); brow IoU 0.818/0.472 -> 0.798/0.755; other pieces unchanged. Records rewritten on g2.
+- **Gate 2** launched (tool/face7 with items 3+1, into pipeline-3d 9be5b32), log charkit/out/face7/gate2.log.
+- **Review page**: `charkit/out/face7/review/page/index.html` (from `charkit/out/face7/review/page.json`: summary box,
+  design | before face7_a | after face7_g2 per view and the face close-ups, the profile eye/brow crops, the 3/4 mouth
+  design | rigid | override, the numbers). Scripts: `an/override_pic.py`.
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
