@@ -17,6 +17,14 @@ up), else 2.
 The build worker (charkit/worker.py) is recorded the same way in charkit/out/worker/, and a build it runs is recorded
 in its output folder with the worker's pid: stopping that build stops the worker. The worker takes a slot per job
 (acquire_slot, with its memory check) and releases it between jobs.
+
+Gates before sweeps. Three priorities: a gate's (CHARKIT_SLOT_PRIO=gate: set for a box job of kind gate or pregate by
+charkit/boxjob.py, and read from the tree for a gate's or pre-gate's clone under /srv/work), normal (the default) and
+background (low: sweeps, optimize and their workers, which call background()). A free slot goes to a waiting gate
+first (nothing else takes one while a gate waits), and a background holder gives its slot back between rows when a
+gate waits for one (Slot.yield_point: an optimize run's persistent workers held their slots for an hour while gates
+queued behind them), then waits for a slot again behind it. Background work also runs at CPU niceness 10 (NICE), so on
+a box whose cores are oversubscribed everything else gets the CPU first. CHARKIT_SLOT_YIELD=0: holders never yield.
 """
 import contextlib, fcntl, glob, json, os, signal, subprocess, sys, time
 
@@ -24,7 +32,60 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIDFILE = '.pid.json'
 
 
-SLOTS_DIR = os.path.expanduser('~/.cache/charkit/slots')
+SLOTS_DIR = os.environ.get('CHARKIT_SLOTS_DIR') or os.path.expanduser('~/.cache/charkit/slots')
+PRIO_ENV = 'CHARKIT_SLOT_PRIO'
+PRIO = {'low': 0, 'normal': 1, 'gate': 2}
+NICE = 10                            # background work's CPU niceness (nice -n 10)
+GATE_ROOTS = ('/srv/work/gates/', '/srv/work/pregates/')   # gates' and pre-gates' clones (remote.gate, .pregate)
+
+
+def priority(env=None):
+    """this process's slot priority (PRIO): CHARKIT_SLOT_PRIO, else a gate's when charkit runs from a gate's or a
+    pre-gate's clone, else normal."""
+    v = (env if env is not None else os.environ).get(PRIO_ENV)
+    if v in PRIO:
+        return PRIO[v]
+    return PRIO['gate'] if (ROOT + '/').startswith(GATE_ROOTS) else PRIO['normal']
+
+
+def background(nice=NICE):
+    """this process, and what it starts, as background work (sweeps, optimize and their workers): build slots taken
+    at the lowest priority (given back to a waiting gate between rows) and the CPU at niceness `nice` (raised only,
+    never lowered) -> the niceness now."""
+    os.environ[PRIO_ENV] = 'low'
+    try:
+        cur = os.nice(0)
+        if cur < nice:
+            cur = os.nice(nice - cur)
+    except OSError:
+        cur = None
+    return cur
+
+
+def _waiter_prio(w):
+    """a wait record's priority: its own, else a gate's when it waits from a gate's tree, else normal."""
+    p = w.get('prio')
+    if isinstance(p, int):
+        return p
+    return PRIO['gate'] if (str(w.get('root') or '') + '/').startswith(GATE_ROOTS) else PRIO['normal']
+
+
+def outranked(prio, why=None):
+    """the live waiters of a priority above prio (slots/wait/*.json; only those waiting for slots when why='slots')
+    -> [record]."""
+    out = []
+    for f in glob.glob(os.path.join(SLOTS_DIR, 'wait', '*.json')):
+        try:
+            w = json.load(open(f))
+            pid = int(w['pid'])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if pid == os.getpid() or not _alive(pid) or _waiter_prio(w) <= prio:
+            continue
+        if why and w.get('why') != why:
+            continue
+        out.append(w)
+    return out
 
 
 def slots():
@@ -57,13 +118,19 @@ def available_gb():
     return pages * page / 2 ** 30 if vals else None
 
 
-def _waiting(label, why, since):
-    """slots/wait/<pid>.json while this process waits (the box's load sampler counts the queue from these)."""
+def _waiting(label, why, since, prio=None):
+    """slots/wait/<pid>.json while this process waits (the box's load sampler counts the queue from these; a lower
+    priority's acquire_slot defers to it, a background holder yields to it)."""
     try:
         d = os.path.join(SLOTS_DIR, 'wait')
         os.makedirs(d, exist_ok=True)
         p = os.path.join(d, '%d.json' % os.getpid())
-        json.dump({'pid': os.getpid(), 'label': label, 'root': ROOT, 'since': since, 'why': why}, open(p, 'w'))
+        rec = {'pid': os.getpid(), 'label': label, 'root': ROOT, 'since': since, 'why': why,
+               'prio': priority() if prio is None else prio}
+        tmp = p + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(rec, f)
+        os.replace(tmp, p)                  # (read by other processes: never half written)
         return p
     except OSError:
         return None
@@ -88,6 +155,12 @@ class _Held:
 
     def close(self):
         pass
+
+    def claim(self):
+        return None
+
+    def yield_point(self, poll=2.0, log=None):
+        return 0.0
 
 
 @contextlib.contextmanager
@@ -143,24 +216,101 @@ def cap_threads():
     return int(v) if v and v.isdigit() else None
 
 
-def acquire_slot(label='build', poll=2.0, mem=None):
-    """take a machine-wide build slot once enough memory is free, waiting while all slots are held or memory is short
-    -> the open lock file (keep it; closing releases). The wait is recorded (slots/wait/<pid>.json while waiting, a
-    line in slots/waits.jsonl once a slot is taken): the numbers behind the box's capacity (charkit/boxjob.py). Inside
-    a build that holds one (build_slot: CHARKIT_SLOT_HELD) -> a stand-in: the build's slot covers it."""
+class Slot:
+    """a held build slot (acquire_slot): close() gives it back (as the process ending does). A background holder (a
+    sweep's shard, an optimize worker) calls yield_point() between rows: when a gate waits for a slot it gives this
+    one back and waits for a slot again behind the gate."""
+
+    def __init__(self, f, index, label, prio):
+        self.f, self.index, self.label, self.prio = f, index, label, prio
+        self.yields = 0
+
+    def close(self):
+        if self.f is not None:
+            self.f.close()
+            self.f = None
+
+    @property
+    def closed(self):
+        return self.f is None
+
+    def claim(self):
+        """a gate waiting for a slot that no other holder has given one to yet, claimed for this one (a background holder
+        only, and not with CHARKIT_SLOT_YIELD=0) -> its wait record, or None. One holder gives way per waiting gate:
+        the claim is slots/wait/<gate pid>.given, made once (O_EXCL) for that wait (its `since`)."""
+        if self.f is None or self.prio >= PRIO['normal'] or os.environ.get('CHARKIT_SLOT_YIELD', '1') == '0':
+            return None
+        for g in sorted(outranked(PRIO['gate'] - 1, why='slots'), key=lambda w: w.get('since') or 0):
+            mark = os.path.join(SLOTS_DIR, 'wait', '%s.given' % g['pid'])
+            stamp = '%s %d\n' % (g.get('since'), os.getpid())
+            try:
+                fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            except FileExistsError:
+                try:
+                    old = open(mark).read().split()
+                except OSError:
+                    continue
+                if old and old[0] == str(g.get('since')) and len(old) > 1 and old[1].isdigit() and _alive(int(old[1])):
+                    continue                    # (another holder gives this gate its slot)
+                tmp = mark + '.%d' % os.getpid()     # a claim left from an earlier wait, or by a holder now gone
+                open(tmp, 'w').write(stamp)
+                os.replace(tmp, mark)
+                return g
+            except OSError:
+                continue
+            os.write(fd, stamp.encode())
+            os.close(fd)
+            return g
+        return None
+
+    def give(self, gate, poll=2.0, log=None):
+        """this slot given to the claimed gate (claim()), and one taken again behind it -> the seconds without one."""
+        t0 = time.time()
+        (log or (lambda m: sys.stderr.write(m + '\n')))(
+            'charkit: build slot %d given to a waiting gate (%s pid %s); waiting for a slot again' % (
+                self.index, gate.get('label', '?'), gate['pid']))
+        self.close()
+        again = acquire_slot(self.label, poll=poll, prio=self.prio, why='yield')
+        self.f, self.index = again.f, again.index
+        self.yields += 1
+        return time.time() - t0
+
+    def yield_point(self, poll=2.0, log=None):
+        """between rows: when a gate waits for a slot (claim()), give it this one and take one again behind it -> the
+        seconds given up (0.0: nothing was waiting)."""
+        g = self.claim()
+        return self.give(g, poll, log) if g else 0.0
+
+
+def acquire_slot(label='build', poll=2.0, mem=None, prio=None, why=None):
+    """take a machine-wide build slot once enough memory is free, waiting while all slots are held, memory is short or
+    a gate waits for one (a free slot goes to a waiting gate first; prio: priority()'s) -> a Slot (keep it; closing
+    releases). The wait is recorded (slots/wait/<pid>.json while waiting, with its reason and priority, a line in
+    slots/waits.jsonl once a slot is taken): the numbers behind the box's capacity (charkit/boxjob.py). Inside a build
+    that holds one (build_slot: CHARKIT_SLOT_HELD) -> a stand-in: the build's slot covers it."""
     if os.environ.get(HELD):
         return _Held()
     os.makedirs(SLOTS_DIR, exist_ok=True)
     need = float(os.environ.get('CHARKIT_BUILD_MEM_GB', '3')) if mem is None else mem
-    waited, why, wf, t0 = False, None, None, time.time()
+    prio = priority() if prio is None else prio
+    waited, wf, t0 = False, None, time.time()
+
+    def wait(reason, msg):
+        nonlocal waited, why, wf
+        if not waited or why != reason:
+            if not waited:
+                sys.stderr.write(msg)
+            waited, why = True, reason
+            wf = _waiting(label, reason, t0, prio)
     try:
         while True:
             free = available_gb()
             if free is not None and free < need:
-                if not waited:
-                    sys.stderr.write('charkit: %.1f GB free, waiting for %.1f GB (CHARKIT_BUILD_MEM_GB)\n' % (free, need))
-                    waited, why = True, 'memory'
-                    wf = _waiting(label, why, t0)
+                wait('memory', 'charkit: %.1f GB free, waiting for %.1f GB (CHARKIT_BUILD_MEM_GB)\n' % (free, need))
+                time.sleep(poll)
+                continue
+            if prio < PRIO['gate'] and outranked(PRIO['gate'] - 1):
+                wait(why if why == 'yield' else 'gate', 'charkit: a gate waits for a build slot: it goes first; waiting\n')
                 time.sleep(poll)
                 continue
             for i in range(slots()):
@@ -174,18 +324,16 @@ def acquire_slot(label='build', poll=2.0, mem=None):
                 if waited:
                     sys.stderr.write('charkit: got build slot %d\n' % i)
                 _got(i, label, t0, why)
-                return f
-            if not waited:
-                sys.stderr.write('charkit: all %d build slots busy (CHARKIT_BUILD_SLOTS); waiting\n' % slots())
-                waited, why = True, 'slots'
-                wf = _waiting(label, why, t0)
+                return Slot(f, i, label, prio)
+            wait('slots', 'charkit: all %d build slots busy (CHARKIT_BUILD_SLOTS); waiting\n' % slots())
             time.sleep(poll)
     finally:
         if wf:
-            try:
-                os.remove(wf)
-            except OSError:
-                pass
+            for f in (wf, wf[:-len('.json')] + '.given'):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
 
 
 def write(out, pid, label, cmd):

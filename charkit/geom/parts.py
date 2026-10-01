@@ -533,8 +533,12 @@ def face_cone(az, el):
 
 
 def hair_color(case, sample=None):
-    """the hair's colour family, fitted to the generated crown (its top, well above the eyes and within the head's width:
-    all hair)."""
+    """the hair's colour family: the character's palette's hair roles where it declares one (charkit.palette: a crown or
+    a hat on top would make the sample below the headwear's), else fitted to the generated crown (its top, well above
+    the eyes and within the head's width: all hair, as Clawd's is)."""
+    from .. import palette
+    if palette.active() is not None:
+        return palette.RoleClass(palette.active(), ('hair', 'hair_shade'))
     G = case.gen
     c = case.centre; L = case.L
     m = (G.V[:, 2] > c[2] + 0.3 * L) & (np.abs(G.V[:, 0]) < 0.35 * L)
@@ -568,6 +572,44 @@ def hair(case, h=None, verbose=True, **kw):
     kw.setdefault('hidden', dict(color=skin_color(case), centre=hc))
     E = extract(case, reg, cc, h=h, seeds=seeds, cover=cover, post=post, verbose=verbose, name='hair', **kw)
     R = finish(E['sdf'], verbose=verbose, name='hair', **fin)
+    R.update(E)
+    R['stats']['keep_color'] = cc.to_dict() if hasattr(cc, 'to_dict') else None
+    return R
+
+
+def facial_region(case, top=None, length=None, reach=None):
+    """where facial hair may be: from `top` L under the eye line (default 0.12: the moustache under the nose, the
+    sideburns' lower half) down to `length` L under the chin (default 1.2), in front of the head's vertical axis and
+    within `reach` degrees of straight ahead from the hair's centre (default 100: the jaw's sides, not the nape)."""
+    top = 0.12 if top is None else top
+    length = 1.2 if length is None else length
+    reach = 100.0 if reach is None else reach
+    Hd = case.A['head']
+    hc = case.centre + np.array([0.0, (Hd['H'].db - Hd['H'].df) / 2, 0.06 * case.L])
+    z1, z0 = case.eye_z - top * case.L, case.chin_z - length * case.L
+
+    def region(P):
+        Q = P - hc
+        az = np.degrees(np.arctan2(Q[:, 0], -Q[:, 1]))
+        return (P[:, 2] < z1) & (P[:, 2] > z0) & (np.abs(az) < reach)
+    return region
+
+
+def facial_hair(case, h=None, verbose=True, **kw):
+    """a design's facial hair (beard and moustache) as one closed surface: the hair-coloured generated character over the
+    lower face (facial_region), which hair() leaves out (its cover keeps the face, jaw and throat clear: Clawd has none).
+    kw: extract()'s and finish()'s options."""
+    reg = facial_region(case, kw.pop('top', None), kw.pop('length', None), kw.pop('reach', None))
+    cc = kw.pop('keep_color', None) or hair_color(case)
+    fin = {k: kw.pop(k) for k in list(kw) if k in FINISH_KW}
+    fin.setdefault('close', 0.12 * case.L)                  # the locks' gaps closed, finer than the hair's envelope
+    fin.setdefault('blur', 0.08 * case.L)
+    fin.setdefault('decimate_to', 30000)
+    Hd = case.A['head']
+    front = case.centre[1] - Hd['H'].df                     # the face's front (toward -y)
+    seeds = np.array([[0.0, front, case.chin_z]])
+    E = extract(case, reg, cc, h=h, seeds=seeds, verbose=verbose, name='facial_hair', **kw)
+    R = finish(E['sdf'], verbose=verbose, name='facial_hair', **fin)
     R.update(E)
     R['stats']['keep_color'] = cc.to_dict() if hasattr(cc, 'to_dict') else None
     return R

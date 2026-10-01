@@ -114,3 +114,20 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_the_design_sheets_are_the_characters_own():
+    """faceflags read charkit/refs/clawd/gen/NAME.png whatever the character; its sheets come from the build's manifest
+    (part() sets it), the default spec's otherwise, and a manifest without the sheet raises."""
+    import json, tempfile
+    from charkit import faceflags as ff
+    assert ff.sheet_path('head_turnaround').endswith('charkit/refs/clawd/gen/head_turnaround.png')
+    d = tempfile.mkdtemp(prefix='charkit-ff-')
+    mp = os.path.join(d, 'manifest.json')
+    json.dump({'name': 'x', 'references': {'head_turnaround': {'path': os.path.join(d, 'ht.png')}}}, open(mp, 'w'))
+    assert ff.sheet_path('head_turnaround', mp) == os.path.join(d, 'ht.png')
+    try:
+        ff.sheet_path('head_construction', mp)
+        assert False, 'expected ValueError'
+    except ValueError:
+        pass

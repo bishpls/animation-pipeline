@@ -11,6 +11,7 @@ PAGE.json:
                "numbers": {"columns": [...], "rows": [[...], ...]}} (or numbers from `checks` below when omitted)
   builds      [{"label": "before", "path": BUILD}, ...]: build folders (a preview's, a box build fetched here); each
               with boards (views,body,design) or a bundle to draw from
+  manifest    the character's manifest, whose turnarounds are the design's pictures (default: the first build's)
   views       the views shown (default front, three_quarter, profile, back)
   regions     the close-ups (default face, hair, bow, hands; REGIONS): named windows in L round the eye line, each
               cut from the design and every build and resampled to one px per L, so a column's scale is the next's
@@ -98,6 +99,7 @@ class Page:
         self.img = os.path.join(out, 'img')
         os.makedirs(self.img, exist_ok=True)
         self._design = None
+        self.manifest = None                    # the character's manifest (the design's pictures): make() sets it
 
     def rel(self, p):
         return os.path.relpath(p, self.out)
@@ -116,8 +118,27 @@ class Page:
     def design(self):
         if self._design is None:
             from . import preview as P
-            self._design = P.design_refs()
+            if self.manifest:                   # its sheets read with its own palette and window (charkit.palette)
+                from . import manifest, palette
+                from .bodyqa import use_window
+                M = manifest.load(self.manifest)
+                palette.activate(M.get('palette'))
+                use_window(M.get('window'))
+            self._design = P.design_refs(manifest_path=self.manifest)
         return self._design
+
+
+def manifest_of(build):
+    """a build folder's character manifest (its resolved NAME.spec.json's ref.manifest), or None."""
+    import glob
+    for p in sorted(glob.glob(os.path.join(build, '*.spec.json'))):
+        try:
+            ref = json.load(open(p)).get('ref')
+        except ValueError:
+            continue
+        if isinstance(ref, dict) and ref.get('manifest'):
+            return ref['manifest']
+    return None
 
 
 def build_crops(page, d, k, log=print):
@@ -427,6 +448,8 @@ def make(spec, out=None, log=print):
     out = os.path.abspath(out or os.path.join(ROOT, 'charkit', 'out', 'review_pages', _slug(title)))
     page = Page(out)
     builds = [dict(b, path=os.path.abspath(os.path.expanduser(b['path']))) for b in spec.get('builds') or ()]
+    # the design is the character's own (PAGE.json's 'manifest', else the first build's): it was always Clawd's
+    page.manifest = spec.get('manifest') or next((m for m in (manifest_of(b['path']) for b in builds) if m), None)
     views = [v for v, _ in VIEWS if v in (spec.get('views') or [v for v, _ in VIEWS])]
     regions = [r for r in (spec.get('regions') or list(REGIONS)) if r in REGIONS]
     patterns = spec.get('checks') or []
