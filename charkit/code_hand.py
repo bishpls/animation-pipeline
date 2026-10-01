@@ -205,12 +205,15 @@ def digit_rings(J, F, widths, nth, bones, inset=INSET):
 
 
 def _avg_frame(A, B):
-    """two segment frames' mean, re-orthonormalised (a knuckle loop's plane)."""
+    """two segment frames' mean, re-orthonormalised (a knuckle loop's plane), of their handedness (the left hand's
+    frames are mirrored: a right-handed loop between them turned its ring the other way round, and the tube folded
+    over itself at every knuckle, b1's knobs)."""
     M = A + B
     x = M[:, 0] / np.linalg.norm(M[:, 0])
     z = M[:, 2] - (M[:, 2] @ x) * x
     z /= np.linalg.norm(z)
-    return np.stack([x, np.cross(z, x), z], 1)
+    y = np.cross(z, x) * np.sign(np.linalg.det(A))
+    return np.stack([x, y, z], 1)
 
 
 def _weights(s, s0, rad):
@@ -252,17 +255,21 @@ def hand(J, side, P):
     """a hand at the arm chain's wrist -> dict(parts {name: (rings, W, bones)}, joints {MakeHuman name: point},
     frame (W, R))."""
     W, R = frame(J, side, P)
-    S_ = 'Left' if side == 'left' else 'Right'
     s_ = side
     D = digits(W, R, P)
-    parts = {'palm': palm_rings(W, R, P) + ([s_ + 'Hand'] * 4,)}
+    # the right hand's frame is mirrored (ey = -(ex x ez)), which turns its rings the other way round: reversed there,
+    # so every part's faces point out on both hands (b1 rendered the right hand inside out: its outline hull went
+    # inside the skin, no line, the shading flipped)
+    o = (lambda r: r[:, ::-1]) if side == 'right' else (lambda r: r)
+    rp, wp = palm_rings(W, R, P)
+    parts = {'palm': (o(rp), wp, [s_ + 'Hand'] * 4)}
     joints = {}
     for name in ('thumb',) + FINGERS:
         Jd, F, widths = D[name]
         segs = SEGS.get(name, ('Proximal', 'Intermediate', 'Distal'))
         bones = [s_ + 'Hand'] + ['%s%s%s' % (s_, VRM[name], g) for g in segs]
         rings, Wt = digit_rings(Jd, F, widths, NTH['thumb' if name == 'thumb' else 'finger'], bones)
-        parts[name] = (rings, Wt, bones)
+        parts[name] = (o(rings), Wt, bones)
         k = MH[name]
         L_ = 'L' if side == 'left' else 'R'
         for seg in range(3):
