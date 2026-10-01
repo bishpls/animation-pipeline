@@ -28,7 +28,9 @@
    "leg_in": 5.66828,
    "elbow": 2.18607
   },
-  "source": "code"
+  "source": "code",
+  "hand": {"length": 0.6536, "palm": 0.4703, "palm_w": 0.1991, "wrist_w": 0.1737, "palm_t": 0.0825, "finger_w": 0.056, "taper": 0.6837, "fingers": [0.93, 1.0, 0.95, 0.78], "spread": 1.082, "curl": 7.082, "thumb_len": 0.2499, "thumb_w": 0.056, "thumb_out": 5.3976, "thumb_down": 5.087, "thumb_base": 0.0993, "yaw": 61.8814, "bend": -0.9774, "dev": -3.142, "out": 5.5, "line": 0.5},
+  "arm": {"elbow_out": 3.9, "elbow_fwd": 0.7}
  },
  "head": {
   "chin": 2.03821,

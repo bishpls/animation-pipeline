@@ -3,7 +3,7 @@
  "part": "motion",
  "adapter": "Motion",
  "module": "charkit.calib.motion",
- "at": "2026-09-30T20:30:47",
+ "at": "2026-09-30T22:27:15",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -12,42 +12,42 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.12946,
+    0.12947,
     "PASS"
    ],
    "+0,+2": [
-    0.09588,
+    0.09584,
     "PASS"
    ],
    "+1,+0": [
-    0.13543,
+    0.1356,
     "PASS"
    ],
    "+2,+0": [
-    0.13064,
+    0.13098,
     "PASS"
    ],
    "+0,-1": [
-    0.09643,
+    0.09629,
     "PASS"
    ],
    "+0,-2": [
-    0.10633,
+    0.10632,
     "PASS"
    ],
    "-1,+0": [
-    0.10618,
+    0.10658,
     "PASS"
    ],
    "-2,+0": [
-    0.11412,
+    0.11531,
     "PASS"
    ]
   },
-  "min": 0.09588,
-  "max": 0.13543,
-  "spread": 0.0395,
-  "median": 0.11022499999999999
+  "min": 0.09584,
+  "max": 0.1356,
+  "spread": 0.0398,
+  "median": 0.11094499999999999
  },
  "known_bad": {
   "name": "motion_skinned",
@@ -78,15 +78,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.10386,
+  "value": 0.10404,
   "status": "PASS",
   "margin": 1.0
  },
  "verdict": "calibrated",
- "why": "a defect detector: the design passes every move (spread 0.0395), motion_skinned reads 0.87191 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
- "build": "charkit/out/xpbd/r2/build",
+ "why": "a defect detector: the design passes every move (spread 0.0398), motion_skinned reads 0.87191 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
+ "build": "charkit/out/hands_b4",
  "generators": {
   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
  },
- "seconds": 177.6
+ "seconds": 217.9
 }

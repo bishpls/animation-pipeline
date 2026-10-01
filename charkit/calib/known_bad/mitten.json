@@ -1,0 +1,10 @@
+{
+ "name": "mitten",
+ "why": "pipeline-3d 1580f95's preview build: the authored body's hand is the arm's tube ending in a capped stub 0.21-0.25 L past the wrist cuff where the drawn hands reach 0.59-0.62 L, no digits, no thumb (docs/ROADMAP.md item 7: 'Today the authored body's hand is a mitten')",
+ "flag": "the hand is a mitten (Michael, 2026-09-30, docs/ROADMAP.md item 7)",
+ "commit": "1580f95",
+ "source": "~/animation-pipeline-3d/charkit/out/previews/1580f95",
+ "stored": "2026-09-30",
+ "bundle": "b37ed795a314d2b9",
+ "qa_checks": 534
+}

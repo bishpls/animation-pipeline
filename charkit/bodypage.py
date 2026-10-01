@@ -34,20 +34,37 @@ def save_body(spec, path, log=print):
     graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
     sk = skeleton(graph)
     B = body(H, sk, drawn=drawn_extents(graph), drawn_back=drawn_extents(graph, 'back'),
-             shoulder=(spec.get('body') or {}).get('shoulder'))
+             shoulder=(spec.get('body') or {}).get('shoulder'), arm=(spec.get('body') or {}).get('arm'))
     T_ = B['torso']
     ax, F = T_['ax'], T_['F']
     TT, TH = np.meshgrid(F.ts, F.th, indexing='ij')
     arrays = {'torso_P': ax.point(TT, TH, F.R), 'torso_z': T_['rows'], 'torso_cy': T_['params'][:, 4],
               'sole_z': np.array(float(H.V[:, 2].min()))}
+    from . import code_hand
+    HP = code_hand.params(spec)
+    hand_parts = []
     for n, L_ in B['limbs'].items():
         ch, P, rows, th = L_['chain'], L_['params'], L_['rows'], L_['th']
         R = np.stack([section_r(P[k], th, 0.0) for k in range(len(rows))])
+        if n.startswith('arm_'):                     # the arm's tube ends at the wrist: the hand template takes over
+            keep = rows <= ch.s0[2] + code_hand.WRIST_KEEP
+            rows, R = rows[keep], R[keep]
         S, THl = np.meshgrid(rows, th, indexing='ij')
         arrays[n + '_P'] = ch.point(S, THl, R)
         arrays[n + '_s'] = rows
         arrays[n + '_J'] = ch.J
         arrays[n + '_s0'] = np.r_[ch.s0, ch.total]
+        if n.startswith('arm_'):
+            side = n.split('_')[1]
+            Hd = code_hand.hand(ch.J, side, HP)
+            for part in code_hand.PARTS:
+                rings, Wt, bones = Hd['parts'][part]
+                key = 'hand_%s_%s' % (side, part)
+                arrays[key + '_P'], arrays[key + '_W'], arrays[key + '_B'] = rings, Wt, np.array(bones)
+                hand_parts.append(key)
+            arrays['hand_%s_joints' % side] = np.array(json.dumps({k: [float(x) for x in v]
+                                                                   for k, v in Hd['joints'].items()}))
+    arrays['hand_parts'] = np.array(hand_parts)
     from .code_body import foot_rings
     for n, F_ in B['feet'].items():
         arrays[n + '_P'] = foot_rings(F_)
@@ -190,7 +207,7 @@ def main(args):
     graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
     sk = skeleton(graph)
     B = body(H, sk, drawn=drawn_extents(graph), drawn_back=drawn_extents(graph, 'back'),
-             shoulder=(spec.get('body') or {}).get('shoulder'))
+             shoulder=(spec.get('body') or {}).get('shoulder'), arm=(spec.get('body') or {}).get('arm'))
     T = B['torso']
     rep = {'out': measure(H, T, sk), 'measured_rows': [round(float(x), 3) for x in T['measured']],
            'rows': [round(float(z), 3) for z in T['rows']],

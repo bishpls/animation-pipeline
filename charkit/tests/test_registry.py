@@ -136,6 +136,47 @@ def test_a_modules_steps_are_one_literal():
             assert [tuple(x) for x in runpy.run_path(path).get(name, [])] == registry.module_steps(path), path
 
 
+def _part_orders(root):
+    """every `@qa_part(name, order=...)` decorating a function under root (charkit's files as parts() scans them: tests
+    and outputs left out), read with ast, nothing imported -> {order: {name: [module, ...]}}."""
+    import ast
+    out = {}
+    for path in registry._py_files(root):
+        src = open(path, encoding='utf-8').read()
+        if not registry.PART_MARK.search(src):
+            continue
+        for node in ast.walk(ast.parse(src)):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for d in node.decorator_list:
+                f = getattr(d, 'func', None)
+                if not isinstance(d, ast.Call) or getattr(f, 'id', getattr(f, 'attr', None)) != 'qa_part':
+                    continue
+                name = ast.literal_eval(d.args[0])
+                kw = {k.arg: k.value for k in d.keywords}
+                order = ast.literal_eval(kw['order'] if 'order' in kw else d.args[1])
+                out.setdefault(order, {}).setdefault(name, []).append(registry._module(path, root))
+    return out
+
+
+def test_no_two_parts_share_an_order():
+    """each QA part has an order of its own, read from the source (nothing imported), so a merged tree whose parts
+    clash fails here with every clash named, rather than at the QA's import on the first (registry.qa_part raises
+    there and the whole QA stops loading). tool/hands' `hands` and tool/pieceref's `bow_parts` both took 1770 on
+    their branches: each branch was fine alone; merged, the QA wouldn't load (an all-in preview, 2026-09-30)."""
+    d = tempfile.mkdtemp()
+    for m, n in (('a', 'x'), ('b', 'y')):
+        open(os.path.join(d, m + '.py'), 'w').write(
+            "from .registry import qa_part\n\n@qa_part('%s', order=5, table='t')\ndef f(B): pass\n" % n)
+    assert {k: sorted(v) for k, v in _part_orders(d).items()} == {5: ['x', 'y']}       # (the check sees a clash)
+    got = _part_orders(registry.HERE)
+    clash = {o: v for o, v in got.items() if len(v) > 1}
+    assert not clash, 'QA parts sharing an order (pick a free one; leave gaps): %s' % '; '.join(
+        '%s: %s' % (o, ', '.join('%s (%s)' % (n, ', '.join(ms)) for n, ms in sorted(v.items())))
+        for o, v in sorted(clash.items()))
+    assert sorted(n for v in got.values() for n in v) == sorted(p.name for p in registry.parts())
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
