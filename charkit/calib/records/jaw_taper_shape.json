@@ -3,7 +3,7 @@
  "part": "face_region",
  "adapter": "Jaw",
  "module": "charkit.calib.jaw",
- "at": "2026-09-30T20:46:03",
+ "at": "2026-09-30T21:20:53",
  "better": "lower",
  "kind": "shape",
  "shape": [],
@@ -67,9 +67,9 @@
    ],
    "statuses": [
     "FAIL",
-    "PASS",
-    "PASS",
-    "PASS",
+    "WARN",
+    "WARN",
+    "WARN",
     "WARN",
     "WARN",
     "WARN",
@@ -78,21 +78,22 @@
    ],
    "median": 0.0251,
    "status": "WARN",
-   "passing": 3
+   "passing": 0
   }
  },
  "probes": {},
  "blind_to": [],
  "current": {
   "value": 0.0157,
-  "status": "PASS",
+  "status": "WARN",
   "margin": 0.429
  },
- "verdict": "coarse",
- "why": "the current build passes at the floor (margin 0.43 of the way from the floor to the design)",
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0081), jaw0_flagged reads 0.1799 FAIL, the floor widths_jaw WARN",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
  "build": "charkit/out/f5m",
  "generators": {
   "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)"
  },
- "seconds": 69.4
+ "seconds": 86.3
 }

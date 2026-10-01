@@ -141,10 +141,13 @@ def test_the_taper_checks_grade_the_level_camera():
     r = 1.0 - t
     arms = {'L': dict(rms=0.001, bow=0.0, bend=3.0, bend_z=-0.3)}
     D = {'front': dict(t=t, r=r, z0=-0.18, w0=0.26, w90=0.05, chin_angle=129.7, tip_share=0.83, arms=arms)}
-    lvl = dict(D['front'], chin_angle=128.0, tip_share=0.8)
+    lvl = dict(D['front'], chin_angle=129.0, tip_share=0.8)
     brd = dict(D['front'], r=r * 0.9, chin_angle=118.0, tip_share=0.4, arms={'L': dict(arms['L'], bend=12.0)})
     C = fr.taper_compare(D, {'front': lvl}, {'front': brd})
-    assert C['chin_angle']['value'] == 128.0 and C['chin_angle']['board'] == 118.0 and C['chin_angle']['status'] == 'PASS'
+    # (the value is |ours - the design's| since face5 round 7; ours beside)
+    assert C['chin_angle']['value'] == 0.7 and C['chin_angle']['ours'] == 129.0 and C['chin_angle']['board'] == 118.0
+    assert C['chin_angle']['status'] == 'PASS'
+    assert fr.taper_compare(D, {'front': dict(lvl, chin_angle=127.0)})['chin_angle']['status'] == 'WARN'
     assert C['chin_tip']['status'] == 'PASS' and C['chin_tip']['board'] == 0.4
     assert C['jaw_taper_shape']['value'] == 0.0 and C['jaw_taper_shape']['board'] > 0.05
     assert C['jaw_line_bend']['value'] == 3.0 and C['jaw_line_bend']['board'] == 12.0
@@ -417,3 +420,20 @@ if __name__ == '__main__':
         if name.startswith('test_'):
             fn()
             print('ok', name)
+
+
+def test_the_face_share_over_the_chin_reads_a_face_running_into_the_neck():
+    """neck_to_face (face5 round 7): over the rows just above the design's chin, the face's share of the figure's width:
+    a V chin with its jaw lines over the neck reads low; a face running straight into a neck as wide as it (no jaw line,
+    Michael's jaw_0 flag) reads near 1."""
+    from scipy.ndimage import binary_erosion
+    U, Z = _grid()
+    head = (Z > -0.2) & (np.abs(U) < 0.25)
+    neck = (Z <= -0.2) & (np.abs(U) < 0.12)
+    v_ = (Z <= -0.2) & (Z > -0.36) & (np.abs(U) < 0.25 * (Z + 0.36) / 0.16)
+    V = np.where(head | neck | v_, 1, 0)
+    V[v_ & ~binary_erosion(v_) & (Z < -0.21)] = 4                                # the V's jaw lines
+    run = np.where(head | neck, 1, 0)                                            # no jaw line: the face into the neck
+    a = fr.jaw_front(V, PPL, -0.36)['chin_share']
+    b = fr.jaw_front(run, PPL, -0.36)['chin_share']
+    assert a is not None and b is not None and a < 0.6 and b > 0.9, (a, b)

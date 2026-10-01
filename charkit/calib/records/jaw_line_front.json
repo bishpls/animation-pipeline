@@ -3,7 +3,7 @@
  "part": "face_region",
  "adapter": "Jaw",
  "module": "charkit.calib.jaw",
- "at": "2026-09-30T20:46:03",
+ "at": "2026-09-30T21:20:53",
  "better": "higher",
  "kind": "defect",
  "shape": [],
@@ -122,5 +122,5 @@
   "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
   "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
  },
- "seconds": 69.4
+ "seconds": 86.3
 }

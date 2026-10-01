@@ -3,7 +3,7 @@
  "part": "face_region",
  "adapter": "Jaw",
  "module": "charkit.calib.jaw",
- "at": "2026-09-30T20:46:03",
+ "at": "2026-09-30T21:20:53",
  "better": "lower",
  "kind": "defect",
  "shape": [],
@@ -94,5 +94,5 @@
  "generators": {
   "warp_jaw": "each view's picture (and head_construction's region) displaced by a smooth random field: three sines 0.004-0.008 L, wavelengths 0.06-0.2 L, across and down (slope under 0.5)"
  },
- "seconds": 69.4
+ "seconds": 86.3
 }

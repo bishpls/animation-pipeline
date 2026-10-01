@@ -3,7 +3,7 @@
  "part": "face_region",
  "adapter": "Jaw",
  "module": "charkit.calib.jaw",
- "at": "2026-09-30T20:46:03",
+ "at": "2026-09-30T21:20:53",
  "better": "lower",
  "kind": "shape",
  "shape": [],
@@ -93,19 +93,19 @@
     0.0136
    ],
    "statuses": [
-    "PASS",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
     "WARN",
     "PASS",
     "WARN",
-    "PASS",
-    "PASS",
-    "PASS",
-    "PASS",
-    "PASS"
+    "WARN",
+    "WARN"
    ],
    "median": 0.0125,
-   "status": "PASS",
-   "passing": 7
+   "status": "WARN",
+   "passing": 1
   },
   "other_view": {
    "values": [
@@ -142,13 +142,13 @@
   "status": "PASS",
   "margin": 0.942
  },
- "verdict": "coarse",
- "why": "a random baseline passes (widths_jaw: 0.0125)",
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0079), jaw0_flagged reads 0.0343 FAIL, the floor affine_jaw FAIL, widths_jaw WARN, other_view FAIL",
  "build": "charkit/out/f5m",
  "generators": {
   "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
   "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)",
   "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
  },
- "seconds": 69.4
+ "seconds": 86.3
 }

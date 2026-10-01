@@ -3,152 +3,153 @@
  "part": "face_region",
  "adapter": "Jaw",
  "module": "charkit.calib.jaw",
- "at": "2026-09-30T20:46:03",
+ "at": "2026-09-30T21:20:53",
  "better": "lower",
  "kind": "shape",
  "shape": [],
  "design": {
   "moves": {
    "+0,+1": [
-    1.0,
+    0.0,
     "PASS"
    ],
    "+0,+2": [
-    1.0,
+    0.0,
     "PASS"
    ],
    "+1,+0": [
-    1.0,
+    0.0,
     "PASS"
    ],
    "+2,+0": [
-    1.003,
+    0.0,
     "PASS"
    ],
    "+0,-1": [
-    1.0,
+    0.0,
     "PASS"
    ],
    "+0,-2": [
-    1.0,
+    0.0,
     "PASS"
    ],
    "-1,+0": [
-    1.0,
+    0.0,
     "PASS"
    ],
    "-2,+0": [
-    1.0,
+    0.0,
     "PASS"
    ]
   },
-  "min": 1.0,
-  "max": 1.003,
-  "spread": 0.003,
-  "median": 1.0
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
  },
  "known_bad": {
   "name": "jaw0_flagged",
-  "value": 2.418,
+  "value": 1.672,
   "status": "FAIL"
  },
  "floor": {
   "affine_jaw": {
    "values": [
-    1.334,
-    1.211,
-    0.96,
-    1.043,
-    1.084,
-    1.043,
-    0.957,
-    1.084,
-    1.291
+    0.334,
+    0.217,
+    0.037,
+    0.047,
+    0.084,
+    0.047,
+    0.037,
+    0.09,
+    0.298
    ],
    "statuses": [
     "FAIL",
     "WARN",
     "PASS",
+    "WARN",
+    "WARN",
+    "WARN",
     "PASS",
-    "PASS",
-    "PASS",
-    "PASS",
-    "PASS",
+    "WARN",
     "WARN"
    ],
-   "median": 1.084,
-   "status": "PASS",
-   "passing": 6
+   "median": 0.084,
+   "status": "WARN",
+   "passing": 2
   },
   "widths_jaw": {
    "values": [
-    1.167,
-    1.0,
-    1.127,
-    0.916,
-    0.916,
-    1.0,
-    1.0,
-    0.836,
-    0.916
+    0.171,
+    0.007,
+    0.13,
+    0.084,
+    0.084,
+    0.0,
+    0.0,
+    0.157,
+    0.084
    ],
    "statuses": [
     "WARN",
     "PASS",
+    "WARN",
+    "WARN",
+    "WARN",
     "PASS",
     "PASS",
-    "PASS",
-    "PASS",
-    "PASS",
-    "WARN",
-    "PASS"
-   ],
-   "median": 1.0,
-   "status": "PASS",
-   "passing": 7
-  },
-  "other_view": {
-   "values": [
-    1.207,
-    1.211,
-    1.211,
-    1.207,
-    1.211,
-    1.211,
-    1.211,
-    1.211,
-    1.207
-   ],
-   "statuses": [
-    "WARN",
-    "WARN",
-    "WARN",
-    "WARN",
-    "WARN",
-    "WARN",
-    "WARN",
     "WARN",
     "WARN"
    ],
-   "median": 1.211,
+   "median": 0.084,
    "status": "WARN",
+   "passing": 3
+  },
+  "other_view": {
+   "values": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 1.0,
+   "status": "FAIL",
    "passing": 0
   }
  },
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 1.084,
-  "status": "PASS",
-  "margin": -0.0
+  "value": 0.09,
+  "status": "WARN",
+  "margin": -0.071
  },
- "verdict": "coarse",
- "why": "a random baseline passes (affine_jaw: 1.084)",
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), jaw0_flagged reads 1.672 FAIL, the floor affine_jaw WARN, widths_jaw WARN, other_view FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
  "build": "charkit/out/f5m",
  "generators": {
   "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
   "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)",
   "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
  },
- "seconds": 69.4
+ "seconds": 86.3
 }

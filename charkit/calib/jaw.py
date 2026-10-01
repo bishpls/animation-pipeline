@@ -54,8 +54,8 @@ Known-bads (stored with `calibrate store`, measured with this tree's code; chark
 import numpy as np
 
 CALIBRATION = [
-    # agreement with the design (graded on a difference or ratio to the design's value; better None where it's two-sided:
-    # ours' value either side of the design's reads worse)
+    # agreement with the design (graded on a difference or ratio to the design's value; the values are the graded
+    # deviations since face5 round 7, so lower is better; chin_point_z stays signed: its floor fails both ways)
     dict(check='jaw_outline_hidden', part='face_region', adapter='Jaw', known_bad='f5_base',
          baseline=['affine_jaw', 'widths_jaw'], shape=[], better='lower'),
     dict(check='jaw_taper', part='face_region', adapter='Jaw', known_bad='jaw0_flagged',
@@ -63,15 +63,17 @@ CALIBRATION = [
     dict(check='chin_point_z', part='face_region', adapter='Jaw', known_bad='jaw0_flagged',
          baseline=['affine_jaw'], shape=[], better=None),
     dict(check='chin_v', part='face_region', adapter='Jaw', known_bad='jaw0_flagged',
-         baseline=['affine_jaw', 'widths_jaw', 'other_view'], shape=[], better=None),
+         baseline=['affine_jaw', 'widths_jaw', 'other_view'], shape=[], better='lower'),
+    # (neck_to_face, face5 round 7: the face's share of the figure's width over the chin's rows against the design's;
+    # widths_jaw stretches a row's face and neck alike, so it leaves the share as it was: not its floor)
     dict(check='neck_to_face', part='face_region', adapter='Jaw', known_bad='jaw0_flagged',
-         baseline=['affine_jaw', 'widths_jaw', 'other_view'], shape=[], better=None),
+         baseline=['affine_jaw', 'other_view'], shape=[], better='lower'),
     dict(check='chin_underside', part='face_region', adapter='Jaw', known_bad='jaw0_flagged',
-         baseline=['affine_jaw', 'widths_jaw'], shape=[], better=None),
+         baseline=['affine_jaw', 'widths_jaw'], shape=[], better='lower'),
     dict(check='jaw_taper_shape', part='face_region', adapter='Jaw', known_bad='jaw0_flagged',
          baseline=['widths_jaw'], shape=[], better='lower'),
     dict(check='chin_angle', part='face_region', adapter='Jaw', known_bad='jaw0_flagged',
-         baseline=['affine_jaw', 'widths_jaw', 'other_view'], shape=[], better=None),
+         baseline=['affine_jaw', 'widths_jaw', 'other_view'], shape=[], better='lower'),
     # detectors of one flagged defect (graded on an absolute limit): a blunt tip, a kink, a hollow, a notch, a wiggle, a
     # missing jaw line
     dict(check='chin_tip', part='face_region', adapter='Jaw', known_bad='jaw0_flagged', kind='defect',
