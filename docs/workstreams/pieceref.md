@@ -194,6 +194,12 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      (`bleedpic.py SRC`: the strip's lower edge at the outer ends has no line: its back sits in the jacket). Baseline
      (b2_before = pipeline-3d's bow): loop_end 0.121 P, bleed 0.0 P: both flag checks, so both must PASS. Next:
      v1-v4 (rounder caps, `shear` slanting the ends, the strip shallower: step 1.0, thin 0.3).
+   - v-runs (+ collar_flags): rounder caps fix loop_end (cap .3, end_p [2, 1.2]: 0.106 P) but cost the close-up's
+     silhouette (iso body 0.744 F: the close-up's ends are squarer); shear .3 on the square cap: loop_end 0.014 P, iso
+     0.729 F; a shallower strip (step 1.0, thin .3) costs loop_thick (0.057 F). Bleed (`bleeddepth.py SRC`: per
+     touching pixel the jacket's depth less the bow's, by part): the strips' lower edges sit 0.003-0.01 L BEHIND the
+     jacket's surface (u3, v2). Added `tilt` (the strip's bottom forward by tilt panel half-depths, none at the crease):
+     w1-w5 (tilt .5-1, caps .27-.3 or shear .1-.15).
 
 ## Next steps, in order
 1. **The crease line** (State 10a): probe, then fix the fold so the hull draws it; tune pleat to the design:

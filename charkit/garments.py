@@ -2816,6 +2816,7 @@ def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
     if kind == 'almond':
         return _almond(P, sx, sz, depth, nu, top, bot, crease, ov, pinch, nw)
     zend = 0.5 * (top(1.0) + bot(1.0))                  # the outer end's middle (shear's pivot)
+    tilt = P.get('tilt', 0.0)
     rows = [0.5 * (1 - math.cos(math.pi * i / nw)) * (1 - capw) for i in range(nw)]
     if kind == 'panel':
         rows += [1 - capw + capw * math.sin(0.5 * math.pi * q / 8) for q in range(9)]
@@ -2844,6 +2845,11 @@ def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
             zs_ = zm + math.sin(ph) * hh * k_
             zz = zs_ * sz
             yy = yc - math.cos(ph) * dd * max(k_, 0.25)
+            if kind == 'strip' and tilt:
+                # tilt: the lower layer's bottom brought forward (tilt half-depths at its lower edge, none at the
+                # crease): the panel still overlaps its top (the crease's line), its lower edge stands off the jacket
+                # (its outline there: bow_front_bleed) and in profile the loops' lower rows come forward, as drawn
+                yy -= tilt * dd / thin * (0.5 * (1 - math.sin(ph)))
             vs.append(np.array([x + sx * sh_ * (zs_ - zend) * sz, yy, zz])); us.append((j / nu, u))
     nr = len(rows)
     fs = []
