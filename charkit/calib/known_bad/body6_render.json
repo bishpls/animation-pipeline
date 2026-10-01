@@ -1,0 +1,10 @@
+{
+ "name": "body6_render",
+ "why": "tool/body round 6: the hull sleeves' pointed and spiky caps, the zigzag hem band (artifactqa.PROMOTED's calibration)",
+ "flag": "round 6 (Michael)",
+ "commit": null,
+ "source": "~/animation-pipeline-body/charkit/out/body6_render",
+ "stored": "2026-09-30",
+ "bundle": "b9c5972ff12a8dc6",
+ "qa_checks": 251
+}

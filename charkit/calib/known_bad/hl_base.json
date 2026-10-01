@@ -1,0 +1,10 @@
+{
+ "name": "hl_base",
+ "why": "pipeline-3d 2f42155: our bang locks score at a random split's level against the lock truth (0.439 against 0.441, tool/hairlocks) while hair_piece_bangs reads 0.79 PASS",
+ "flag": "the bangs' locks (Michael 2026-09-30)",
+ "commit": "2f42155",
+ "source": "~/animation-pipeline-hair4/charkit/out/hl_base",
+ "stored": "2026-09-30",
+ "bundle": "6ee74cb83d430251",
+ "qa_checks": 496
+}

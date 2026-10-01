@@ -1,0 +1,112 @@
+{
+ "check": "shorts_profile_hem",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "piece_shorts"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0047,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0047,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0094,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0141,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0047,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0047,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0047,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0141,
+  "spread": 0.0141,
+  "median": 0.0047
+ },
+ "known_bad": {
+  "name": "body6_render",
+  "value": 0.0518,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    1.8591,
+    2.2026,
+    2.0426,
+    null,
+    2.3532
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 2.1226000000000003,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_pieces": {
+   "values": [
+    0.047,
+    0.0589,
+    0.0377,
+    0.0612,
+    0.0517
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0517,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0047,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0141), body6_render reads 0.0518 FAIL, the floor voronoi_pieces FAIL, affine_pieces FAIL",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 204.7
+}
