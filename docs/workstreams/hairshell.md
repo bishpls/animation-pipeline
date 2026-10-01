@@ -816,3 +816,24 @@ hair_back_lines 0.928 W -> 0.584 W, hair_back_hem 3 W -> 2 P, art_peeks_hair 17 
 IoU 0.664 -> 0.610 (-8%), side locks up, the lock lines up; build CPU up by the lock fit (~2-3 min). Pregate
 `python -m charkit pregate --box auto`, then `python -m charkit remote --box render2 gate tool/hairshell3 --into
 pipeline-3d`.
+
+### The switch gate (63e20dce into pipeline-3d 60c0f1a4): FAIL under K, 3 blockers
+`charkit/out/gate/gate_tool-hairshell3_63e20dce_into_60c0f1a4.md` (render2). Pregate (build box) PASS, 24 moved, 0
+blocking (body_profile_iou_skin 0.727 P -> 0.692 W; sheet_shown_front 0.465 -> 0.524, profile 0.34 -> 0.29). Blockers:
+1. **hair_penetration 0.0 P -> 0.0398 F**: side_lock_L's shell f20.1 (joined front + three-quarter, 0.29 L wide,
+   twist -46 deg at its bound): stations 9-41 of 55 cut 0.040 L into the head at the temple (72 vertices; x 0.32 L,
+   0.04 L over the eye line). The fit keeps the centreline gap off the skin, not a wide twisted tube's edge. It was in
+   every shells build since round 2 (my sweep tables left it out). Fix: `skin_clear` (lockshell, on): every shell
+   vertex held gap outside the crown chart's skin field (a smooth max over 0.002 L), as the hull's pieces are.
+2. **hair_noise's 2x2**: the old tone-edge measure on the new geometry 0.0748 W -> 0.0808 F; the speckle measure 4.81
+   -> 4.4 P. Michael's named acceptance (the coordinator): `charkit/accepted/hair_noise.json` ("superseded by the speckle
+   remeasure..."), and the gate runs with `--accept hair_noise`.
+3. **Build CPU 1.67x** (1190.5 -> 1989.8 s): pieces_hair 100 -> 900 s, all the lock fit. Profile
+   (`tools/hairshell3/profile_fit.py` on the build box, charkit/out/hairshell3/prof/): 893 s CPU over 34 fits; the trial
+   joins the fit can't follow (dropped anyway) ran to det_nfev 600 (six of them ~630 s, two more ~100 s); every
+   accepted join converged within 40 evaluations. Fix: `det_join_nfev` 150 (a trial's evaluations; an accepted one the
+   cap stopped is fitted again in full, so kept joins end where they did). Hot functions for later: frames() 188 s own,
+   _seg_dist 68 s, norm 66 s.
+Also reported: scalp_px 4 P -> 65 W (the scalp between the side shells), art_peeks_hair 17 -> 18 W, the flag values
+(back lines 0.928 -> 0.584, lock lines up). Checks: `tools/hairshell3/capcheck.py` (cap bit-identity, skin_clear's moves),
+real build r6_default (render2) with six placements.
