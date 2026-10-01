@@ -516,9 +516,12 @@ class Lock:
                 m_ = self.o.get('trim_px', 6.0)
                 cl_ = _smoothstep if det else (lambda z: np.clip(z, 0, 1))
                 wr = cl_((pc[:, 1] - lo_) / m_) * cl_((hi_ - pc[:, 1]) / m_)
-                out += [_seg_dist(d['D'], pcd), wr * _seg_dist(pc, Dd), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
+                terms = [_seg_dist(d['D'], pcd), wr * _seg_dist(pc, Dd), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
             else:
-                out += [_seg_dist(d['D'], pcd), _seg_dist(pc, Dd), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
+                terms = [_seg_dist(d['D'], pcd), _seg_dist(pc, Dd), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
+            # (tool/hairident) a view's weight in the fit (view_w: {view: w}; a view drawn view-dependently counts less)
+            vw = (self.o.get('view_w') or {}).get(vn)
+            out += terms if vw is None else [vw * q for q in terms]
         # depth: the curve's radius about the chart's centre near its start's (the envelope less its offset)
         ch, G = self.F['chart'], self.F['grid']
         ph, th, r = ch.coords(P)
@@ -583,7 +586,8 @@ class Lock:
             ab_ = _sabs if det else np.abs
             cvec = (ab_(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * ab_(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
             wd = self.drawn_width(pc, d)
-            out.append(0.5 * (cvec * Wt - wd))
+            vw = (self.o.get('view_w') or {}).get(vn)
+            out.append(0.5 * (cvec * Wt - wd) if vw is None else vw * 0.5 * (cvec * Wt - wd))
         out.append(np.array([self.o['prior_twist'] * twist0 * 10.0]))
         if self.o.get('twist_axis'):
             out.append(np.array([self.o.get('prior_slope', 0.5) * slope * 10.0]))

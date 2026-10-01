@@ -30,6 +30,29 @@ tool/hairtruth-art is this round's to land). Harness `tools/hairident/`, outputs
   screen; 1600x1000, 1440x900, 1280x800) in `charkit/out/hairident/label_test/shots*`; a keys-only pass of all 21 locks
   (Enter each) 12 s.
 
+## Michael's first pass (2026-10-01, ~13 min): 21 / 21 locks; views accepted 35, fixed 3, hidden 22, unsure 3
+His flag (via the coordinator): lock 7's profile lock exists inside the back mass the splitter never segmented, so the
+page had no region to click: some 'hidden' / 'unsure' answers are "present but unsegmented". Asked: (1) a point mark
+answer in the tool, a short second pass (every unsure; every 'hidden' where the hull's projection says mostly visible);
+point marks scored as location truth; (2) a lock-delineated hair reference (Michael authorised up to ~4 image calls,
+n=2, same model and tooling, ledger): the head turnaround's three-quarter, profile and back redrawn at the same pose and
+scale with every lock's boundary inked, not exploded; refcheck before it is an authority; if it passes: register,
+re-split, fold the back-mass locks into the second pass.
+
+### The lock map reference: the pass rule (declared before the calls)
+Prompts: `charkit/out/hairident/refgen/prompts.py` (`hair_lock_map_lines`: the sheet redrawn with the hair one flat
+orange cut into closed locks by ink lines; `hair_lock_map_colours`: each lock its own flat colour), ref
+head_turnaround, gpt-image-2.5-sunburst 2560x1440 high n=2. History: tool/hair5's `hair_lock_lineart` failed (open
+strokes, 10-22 closed regions per view, no structure the turnaround lacks; its prompt told it NOT to cut the smooth
+masses). A view passes when all hold (three-quarter, profile, back; front reported):
+1. silhouette: hair IoU >= 0.80 against the turnaround's hair on the design grid after registration (shapetruth's:
+   the eyes, then scale +-4%, shift +-0.04 L), the views' scales within 5% of each other;
+2. structure the turnaround lacks: the back view's hair below the buns cut into >= 6 closed regions of >= 0.01 L^2,
+   >= 5 of them reaching >= 0.3 L up from the hem; the profile's back mass (behind the side locks) >= 4 such regions;
+3. agreement with the drawn locks: each of the back's 7 hem-flick truth regions >= 70% inside one region of the
+   redraw, >= 5 of the 7 in different regions; the turnaround's drawn lock lines recalled >= 0.5 within 2.5 px.
+Registered (structure only; placement stays the turnaround's) for the views that pass; else reported, not registered.
+
 ## Plan (the brief's order)
 1. `python -m charkit label serve TASK.json` (charkit/label.py, generic) + the hair identity task (~20 locks: side locks,
    back flicks; tools/hairident/mktask.py) -> hand the page to the coordinator.
