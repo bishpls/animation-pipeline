@@ -200,16 +200,58 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      touching pixel the jacket's depth less the bow's, by part): the strips' lower edges sit 0.003-0.01 L BEHIND the
      jacket's surface (u3, v2). Added `tilt` (the strip's bottom forward by tilt panel half-depths, none at the crease):
      w1-w5 (tilt .5-1, caps .27-.3 or shear .1-.15).
+   - **w-runs (checkpoint, 2026-09-30).** All on u3's pleat (knot .08, top .24, bottom .30, top_p .6, bottom_p .7, sag
+     .06, crease [.27, 0] p2, almond u [.06,.5] f [.54,.60] h .025 d .012 gap .004, hang [.1,.15,.15], step 1.4,
+     thin .4, pinch .6), knot_box [.10,.09,.145,.02], no stand/seat. Res: `harness/NAME/res.json` (+ splice.pkl).
 
-## Next steps, in order
-1. **The crease line** (State 10a): probe, then fix the fold so the hull draws it; tune pleat to the design:
-   crease_dir (-37/-40 deg; ours ~-17 to -20), crease_len (1.45-1.53 lobe widths), the almond fold near the top if the
-   length needs it; iso_bow_body (>= 0.85 against the close-up: the turnaround reads 0.871).
-2. **The knot in profile and three-quarter** (10b) and **the profile loop checks** (10c) with the guard (10, profile
-   >= 0.556), then set the fitted pleat and knot_box in clawd.json's bow and remove the pillow knobs it replaces.
-3. `bow_front_loop_end` and `bow_front_bleed` (were items 4: the pleat changes the lobes' ends and edges; re-read
-   them on the fitted splice, and on a box build for bleed).
-4. Calibration records (State 11) for bow_profile_ribbon, bow_part_*, iso_bow_body/knot_line/crease_*.
-5. Review page (summary box first; the close-up refcheck table, before/after per sub-piece with the guard IoUs),
-   pregate, box build, gate `python -m charkit remote gate tool/pieceref --into pipeline-3d`.
+     | run | changes on u3 | piece_bow F/3q/P | knot F/3q/P | lobe_L F/3q/P | lobe_R F/3q | loop_end | bleed | thick | lean | hang | crease len/dir | iso body |
+     |---|---|---|---|---|---|---|---|---|---|---|---|---|
+     | v0 (b2_close, default now) | (pillows) | 0.925/0.828/0.654 | 0.536/0.127/0 | 0.937/0.851/0.919 | 0.923/0.722 | 0.244 W | 0.205 F | 0.035 W | 2.6 P | 4.2 P | 1.0 F / None F | 0.744 F |
+     | u3 | - | 0.954/0.857/0.682 | 1.0/0.008/0 | 0.994/0.843/0.850 | 0.988/0.904 | 0.567 F | 0.275 F | 0.045 W | 1.1 P | 0 P | 0.14 P / 11.0 P | 0.839 W |
+     | w1 | cap .3, end_p [2,1.2], tilt .5 | 0.939/0.849/0.675 | 1.0/0.008/0 | 0.964/0.824/0.874 | 0.946/0.907 | 0.106 P | 0.190 F | 0.060 F | 2.5 P | 0 P | 0.18 P / 11.5 P | 0.744 F |
+     | w2 | cap .3, end_p [2,1.2], tilt 1 | 0.939/0.850/0.674 | 1.0/0.008/0 | 0.962/0.821/0.883 | 0.945/0.897 | 0.106 P | 0.178 F | 0.058 F | 3.3 P | 0 P | 0.18 P / 11.5 P | 0.744 F |
+     | w3 | cap .27, end_p [2.5,1.2], tilt 1 | 0.950/0.854/0.686 | 1.0/0.008/0 | 0.979/0.831/0.896 | 0.967/0.894 | 0.21 W | 0.203 F | 0.056 F | 3.6 P | 0 P | 0.18 P / 11.1 P | 0.778 W |
+     | **w4** | shear .15, tilt 1 | 0.951/0.852/0.685 | 1.0/0.008/0 | 0.989/0.834/0.894 | 0.980/0.887 | **0.123 P** | 0.250 F | **0.046 W** | 4.2 P | 0 P | 0.17 P / 11.4 P | 0.811 W |
+     | w5 | shear .1, tilt .5 | 0.953/0.855/0.685 | 1.0/0.008/0 | 0.992/0.838/0.885 | 0.984/0.895 | 0.26 W | 0.265 F | 0.048 W | 2.6 P | 0 P | 0.16 P / 11.3 P | 0.826 W |
+
+     Every run also: knot_line 0 P, knot_rect 0.094 P, iso creases P, ribbon 0 P, tail_reach ~0.03.
+     **Best: w4** (`harness/w4/res.json`'s sets): every flag check at PASS or WARN except bow_front_bleed; piece_bow
+     above v0 in every view (+3%/+3%/+5%); lobes within 3% of v0 or better except profile lobe_L 0.894 (-2.7%) and 3q
+     lobe_L 0.834 (-2.0%); the knot's 3q 0.127 -> 0.008 is the view-dependent drawing (azfit above), not a drop the
+     guard means (both FAIL). Rounder caps (w1-w2) pass loop_end but cost the close-up's silhouette (iso 0.744 F) and
+     loop_thick; the tilt didn't clear the bleed.
+   - **w4's bleed** (`bleeddepth.py w4`, `bleedpic.py w4` -> `bleed_w4.png`): 0.25 L, rows 250-265 at 400 ppl (the lobes'
+     lowest rows, outer half), on the strips (parts 1, 5: the jacket 0.004-0.009 L in front of their edge pixels) and
+     7 px on a panel's lower corner (bow 0.02 L in front, no line). Tilt 1 (0.046 L forward at the strip's bottom) left
+     it: the bleeding pixels are likely the strip's outer end (u 0.65-0.85, where `close` folds its bottom onto the
+     crease and the wrap pushes it back), not its mid-lobe bottom.
+   - pipeline-3d 3f7b730 (tool/softras round 4) merged (beb1492, no conflicts). g3_render3 stored locally
+     (`charkit/out/calib/builds/g3_render3`, gitignored; `calibrate store` rewrote no tracked file).
+   - Harness added this round (untracked): probe.py, dcrease.py, partov.py, depth.py, isofill.py, azfit.py, caltry.py,
+     caltry2.py, qaonly.py PARTS SRC.., bleedpic.py, bleeddepth.py, clear.py (unreliable: binned jacket fronts), batch.sh
+     NAME JSON .. (EXTRA="--parts ...,collar_flags" for loop_end/bleed; ~70-130 s a run), wbatch.sh, setspec.py RUN
+     (writes a run's pleat + knot_box into clawd.json's bow, drops knot/end/end_p/drop), tiles.py OUT SRC.. (review
+     pictures at 400 px/L: design crops and qa3d.draw of ours), review.py BEFORE AFTER (needs review/summary.json:
+     recommended, asked, key_cols, key, checks); `charkit/out/pieceref/review/` has design_*.png, b2_before_*.png (drawn
+     before tiles.py's frame fix: redo) and closeup_front.png.
+
+## Next steps, in order (round 4; plan steps 1-3 of round 3 done but bleed)
+1. **bow_front_bleed on w4** (flag; baseline b2_before 0.0 P: must PASS, <= 0.03): add u (along the lobe) to
+   bleeddepth.py's touching pixels to confirm where; then try, one knob at a time with collar_flags in EXTRA: the strip
+   ending earlier or closing sooner (`close` .3-.4), `tilt` 2-3, the strip's step smaller only toward the end; or the
+   lobes' outer bottoms held off the jacket (bow_hull `conform_k` < 1, or a new per-vertex stand-off ramped over the
+   outer half). Keep w4's other numbers (loop_end <= 0.15, thick <= 0.05, iso body >= 0.75) and the guard (piece_bow and
+   every part's IoU per view within 15% of v0's, table above).
+2. `python setspec.py RUN` (the pleated bow into clawd.json, pillow knobs out), commit; `python -m charkit pregate`
+   (background).
+3. Box build `python -m charkit remote build charkit/spec/clawd.json --out charkit/out/pr3` (background); calibration
+   records on it: `python -m charkit calibrate 'bow_part_*,iso_bow_*,bow_profile_*' --build charkit/out/pr3` (adapters
+   charkit/calib/parts.py: BowParts, IsoParts, BowProfile; labels.py's ribbon_line patch covers bow_profile_ribbon,
+   whose record is for the old measure: rerun it too); commit charkit/calib/records/*.json.
+4. Review page (tiles.py on b2_before and pr3, then review.py with summary.json), gate
+   `python -m charkit remote gate tool/pieceref --into pipeline-3d`.
+5. Decisions for Michael (put on the page): (a) bow_part_knot_iou graded on the front only (the turnaround's 3q knot is
+   drawn as if face-on: azfit), 3q/profile reported? (b) the loops' ends: the close-up's square ends (iso body) against
+   the turnaround's slanted ones (loop_end, his flag): w4's shear .15 the compromise; (c) the profile draws the loops
+   27% taller than the front (0.448 against 0.353 L): bottom .30 the compromise (loop_thick WARN).
 6. If room: the cuffs and boots in isoqa. Not the collar, sleeves or accessories (paused, Michael).
