@@ -1080,3 +1080,24 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   (every row breaks a constraint against the control g6_c2), best f 33.2 (the from_t low probe); rows take ~6 min each
   on 13 workers. If it stays infeasible, read history.md for the broken constraints (likely a flag check or a
   no-new-fail on the control's WARN/FAIL set) before relaunching with `keep`/looser knob bounds.
+- **The skin strip, found** (tools/garments7/stripsrc.py traces the visible skin to body vertices; the shell's
+  tests replayed): the neck's head sits at y +0.099 L (behind the throat), so the shoulder top's front lies at 59 deg
+  round it, where gh's radial table interpolated r 0.45 (40 deg 1 -> 70 deg 0.15): the jacket was cut over the shoulder
+  front out to x 0.34 above the neck plane (z -0.563), and the strip is the border skin along that edge, outside the
+  puff (margin -inf / -0.12) and not under the collar. Table [[0,1],[30,1],[45,0.18],[70,0.15],[90,0.15],[150,0.2],
+  [180,0.23]]: the bridge skin showing (skinwhere) front 0.0242 -> 0.0009 L^2, 3q 0.0145 -> 0.0001; the jacket through
+  the collar (poke) 45 -> 51 vertices front, depths unchanged.
+- **The V's notch, found** (tools/garments7/vjacket.py): the opening applies only before the chest's head (y < -0.065 L);
+  the joined shoulder's throat at the neck base lies at y -0.058..-0.063, so its faces counted as the back and stayed,
+  the offset carrying them 0.07 L into the V (29 jacket vertices inside the opening at z -0.55..-0.6; 77 without the
+  beds; the old body 7). New opt-in `opening.ahead` (L): ahead 0.02 -> 0 there (7 left lower down, the old body's).
+- Garment set tools/garments7/gi.json = gh + that neck table + opening.ahead 0.02 + collar.symmetric.
+- body-shoulder checks: charkit/bodyshoulderqa.py (from the draft; front/back IoU only, the line checks guarded by them);
+  first calibration on c2 (draft, cal_body_c2.json): top/side/axilla/IoU front+back CALIBRATED (axilla 0.038/0.047 WARN),
+  profile IoU BLIND (known-bad 0.8785 WARN), 3q IoU COARSE (margin 0.42). declared.py's floor stand-in lacked an import
+  (fixed). Module calibration rerunning (render2) -> tools/garments7/box_records/cal_body_mod.json (log
+  charkit/out/garments6/cal_body3.log); the records then go to charkit/calib/records.
+- opt1: each evaluation ~6 min (13 workers); gen 0: 0/13 feasible, the best so far the probe from_t at its low end
+  (-0.38): f 33.19 v 0 (control 37.50). Its follower died at 13:58; reattached (log charkit/out/garments6/opt1_attach.log).
+- Builds running (render2): g7_base (today's clawd.json, the K baseline with the hands2 hand) and g7_c4 (clawd.json +
+  body_F1_fl3 + gi; specs charkit/out/garments7/specs; logs charkit/out/garments7/build_*.log).
