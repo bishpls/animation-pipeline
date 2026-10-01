@@ -2608,10 +2608,11 @@ def _seg_dist(P, A):
 def ahoge_fit(masks, views, hull_frame, L, tpl=None, log=None):
     """the ahoge as a template fitted to the drawings (tool/hair5: the 2-d pairing's kinks and root bulge read as
     "bent and jagged"): a cubic Bezier centreline in 3-d whose projections into the front, profile and back match the
-    drawn strokes' centrelines (least squares on both ways' distances and the root and tip), a crescent's width
-    profile (root_w of the widest at the root, widest at `peak` of its length, tapering to tip_w), the widest the drawn
-    strokes' (front and back), and the root carried root_in L on into the crown so it grows out of the hair.
-    -> a blade dict (with 'fit': the per-view mean distances, px) or None without the strokes."""
+    drawn strokes' centrelines (least squares on both ways' distances and the root and tip); its width the drawn
+    strands' along their length (front and back, smoothed, to a point at the tip; tpl width 'crescent': a fixed
+    crescent's profile instead), its depth the profile's width over theirs; the root carried root_in L on into the
+    crown so it grows out of the hair.
+    -> a blade dict (with 'fit': the per-view mean distances, px, the widest and the depth) or None without strokes."""
     from scipy.optimize import least_squares
     tp = dict(AHOGE_TEMPLATE, **(tpl or {}))
     s_, tr = hull_frame
@@ -2664,10 +2665,23 @@ def ahoge_fit(masks, views, hull_frame, L, tpl=None, log=None):
         [np.sort(W)[-3:].mean() / views[n].ppl * s_ for n, (_, (D, W)) in got.items()]
     wmax = float(np.median(ws))
     t = np.linspace(0, 1, len(B))
-    pk = tp['peak']
-    prof = np.where(t <= pk, tp['root_w'] + (1 - tp['root_w']) * np.sin(0.5 * np.pi * np.clip(t / pk, 0, 1)),
-                    tp['tip_w'] + (1 - tp['tip_w']) * np.cos(0.5 * np.pi * np.clip((t - pk) / (1 - pk), 0, 1)))
-    w = wmax * prof
+    depth = tp['depth_ratio']
+    if tp.get('width', 'drawn') == 'drawn':
+        # the drawn widths along the strand (front and back: its broad side; their mean), smoothed, to a point at the
+        # tip; its depth the profile's width over the front's (the drawn ahoge is nearly round, not a flat blade)
+        from scipy.ndimage import gaussian_filter1d
+        prof_w = lambda n: np.interp(t, np.linspace(0, 1, len(got[n][1][1])), got[n][1][1]) / views[n].ppl * s_
+        fb = [prof_w(n) for n in ('front', 'back') if n in got] or [prof_w(n) for n in got]
+        w = gaussian_filter1d(np.mean(fb, 0), 1.0, mode='nearest')
+        w = w * np.clip((1 - t) / 0.15, tp['tip_w'], 1.0) ** 0.5
+        wmax = float(w.max())
+        if 'profile' in got and ('front' in got or 'back' in got):
+            depth = float(np.clip(np.median(prof_w('profile') / np.maximum(np.mean(fb, 0), 1e-9)), 0.3, 1.0))
+    else:
+        pk = tp['peak']
+        prof = np.where(t <= pk, tp['root_w'] + (1 - tp['root_w']) * np.sin(0.5 * np.pi * np.clip(t / pk, 0, 1)),
+                        tp['tip_w'] + (1 - tp['tip_w']) * np.cos(0.5 * np.pi * np.clip((t - pk) / (1 - pk), 0, 1)))
+        w = wmax * prof
     # the root carried on into the crown along the strand's own direction there
     d0 = B[0] - B[1]
     d0 /= np.linalg.norm(d0) + 1e-12
@@ -2675,8 +2689,8 @@ def ahoge_fit(masks, views, hull_frame, L, tpl=None, log=None):
     ext = B[0] + d0 * (tp['root_in'] * L) * np.linspace(1, 1.0 / k, k)[:, None]
     line = np.r_[ext, B]
     width = np.r_[np.full(k, w[0]), w]
-    bl = blade(line, width, tp['depth_ratio'])
-    bl['fit'] = dict(mean_px=fit, cost=round(float(sol.cost), 1), width_L=round(wmax / L, 4))
+    bl = blade(line, width, depth)
+    bl['fit'] = dict(mean_px=fit, cost=round(float(sol.cost), 1), width_L=round(wmax / L, 4), depth=round(depth, 3))
     if tp.get('dump'):
         import json as _j
         _j.dump(dict(Q=Q.tolist(), fit=fit, wmax=wmax), open(tp['dump'], 'w'))
