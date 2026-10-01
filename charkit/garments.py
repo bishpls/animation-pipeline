@@ -3625,9 +3625,10 @@ def collar(A, spec, normals=None, neckline=None):
             pts[0] = p0
             if bad[1:].any():
                 pts[1:][bad[1:]] = p0
+            lo = float(lap.get('off', spec.get('offset', 0.03))) * L       # (over the jacket eased out on the bust)
             for j in range(nr + 1):
                 grid[j, k] = pts[j] + (ns[j] if np.isfinite(ns[j]).all() and j > 0 else
-                                       Nt[int(np.argmin(((Vt - pts[j]) ** 2).sum(1)))]) * off
+                                       Nt[int(np.argmin(((Vt - pts[j]) ** 2).sum(1)))]) * (lo if j > 0 else off)
             continue
         if lap and abs(a) <= math.radians(float(lap.get('a', 85))):
             # the flat lapels: the column walked on past its length and cut where it crosses the lapels' outer edge
