@@ -105,5 +105,10 @@ Truth checks on fetched builds (tools/garments8/truthlab.py, the views front/3q/
   2026-10-01). With the a-priori limits [0.75, 0.5] the flagged lapels read WARN (0.51-0.62): the triple decides the
   limits (the collarqa precedent: limits between the design's moves and the flagged build). top_*_truth: no flagged
   build separates it (0.73 vs 0.80 front): kind shape without a known-bad (guard) unless one does.
-- Running: box build g8_base (charkit/spec/clawd.json at 5336dcb6, --boards '' --no-blend), log
-  charkit/out/garments8/build_g8_base.log -> charkit/out/g8_base.
+- Running: box build g8_base (charkit/spec/clawd.json at 5336dcb6, --boards '' --no-blend) on build2, job
+  build-garments8-1001-174757-7b36 (`python -m charkit remote attach build-garments8-1001-174757-7b36` if the follow
+  dies), log charkit/out/garments8/build_g8_base.log -> charkit/out/g8_base. (The first try failed at the sync: a blob's
+  sha256 mismatch on download, transient; the retry synced.)
+- Then on build2: `calibrate store g8_lapels0 charkit/out/g8_base --why ...` (and locally for the JSON), then
+  `remote run --box build2 --fetch charkit/calib/records python -m charkit calibrate
+  'collar_*_truth,top_*_truth,neck_v_*_skin' --build charkit/out/g8_base`.
