@@ -7,18 +7,23 @@ ours is drawn the way that sheet draws the outfit: without the covering pieces' 
 turnaround stays the placement authority: the piece checks (piece_<id>, in context) are unchanged.
 
 Declared checks (charkit.declared's shape_iou family with `truth`: bodymeasure.iou_tol at OUTLINE_TOL, the guard's
-metric; graded as the piece checks are, qa3d.PIECE_PASS / PIECE_WARN):
+metric):
   collar_{view}_truth   the sailor collar and its lapels drawn without the bow, against bodice_layers' collar (the
-                        lapels flat on the chest down to the V's point under the knot): front, three-quarter, back.
+                        lapels flat on the chest down to the V's point under the knot): front and three-quarter, where
+                        the bow hides them. Limits [0.85, 0.70] from the calibration triple (the design moved 1-2 px
+                        reads 0.927-0.964, the flagged lapels g8_lapels0 0.617 / 0.514, the affine floor 0.26 / 0.35).
                         Not in profile: there the collar is edge-on, a band ~0.04 L thick, and the truth moved 6 px
-                        (0.028 L) reads 0.58, 8 px 0.29 (the other views 0.76-0.97 at 8 px): an offset, not a shape
+                        (0.028 L) reads 0.58, 8 px 0.29 (the other views 0.76-0.97 at 8 px): an offset, not a shape.
+                        Not in back: the bow hides nothing there (the panel is collar_back_iou's), the flagged build
+                        reads 0.87 and the affine floor 0.81
   top_{view}_truth      the jacket drawn without the collar and the bow, against top_layers' jacket (its V neckline,
-                        the tops of its shoulders and its back under the collar)
+                        the tops of its shoulders and its back under the collar); graded as the piece checks are
+                        (qa3d.PIECE_PASS / PIECE_WARN); a guard (no flagged build of the jacket under the collar)
 """
 
 DECLARED_CHECKS = [                 # (a literal: read with ast)
-    dict(check='collar_{view}_truth', family='shape_iou', piece='collar', views=['front', 'three_quarter', 'back'],
-         params=dict(truth='collar'), limits=[0.75, 0.5], better='higher',
+    dict(check='collar_{view}_truth', family='shape_iou', piece='collar', views=['front', 'three_quarter'],
+         params=dict(truth='collar'), limits=[0.85, 0.7], better='higher',
          flag="the lapels bunch into lumps beside the neck; the drawn lapels are wide flat panels whose inner edges "
               "form the V down to the knot, and their shape under the bow was never defined (Michael / the "
               "coordinator, 2026-10-01)",
@@ -30,6 +35,9 @@ DECLARED_CHECKS = [                 # (a literal: read with ast)
          params=dict(truth='top'), limits=[0.75, 0.5], better='higher',
          note="the jacket drawn without the collar and the bow against top_layers' jacket (the top without the collar "
               "and the bow, registered: charkit.layerref --kind top): iou_tol at OUTLINE_TOL",
-         calibrate=dict(known_bad='g8_lapels0', baseline=['voronoi_pieces', 'affine_pieces'],
-                        shape=['piece_top'], kind='shape')),
+         calibrate=dict(known_bad=None, baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_top'],
+                        kind='shape',
+                        no_known_bad="no build has a flagged defect of the jacket under the collar: the flagged "
+                                     "lapels' build (g8_lapels0) reads 0.80 / 0.74 / 0.83 / 0.91, the joined shoulder's "
+                                     "jacket over the puffs (round 7) 0.73 / 0.68 / 0.78 / 0.88: a guard until one is")),
 ]

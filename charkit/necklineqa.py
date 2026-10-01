@@ -10,7 +10,9 @@ Declared checks (charkit.declared's `class_iou` family: a model-sheet class insi
 Against the V's shape truth (tool/garments8: the manifest's shape_truth neck_v, bodice_layers' skin in the V: the
 outfit without the bow, registered for what the bow hides), ours drawn without the bow (declared's `truth`): the V
 down to its point (z -0.88 in front, -0.84 in three-quarter). Until garments8 the windows stopped at -0.75 above the
-knot and read the turnaround, where the bow hides the V's lower half on both sides.
+knot and read the turnaround, where the bow hides the V's lower half on both sides. The three-quarter's limits
+recalibrated for it: [0.8, 0.6] -> [0.75, 0.6] (the V's narrow point there: the design moved 2 px across reads 0.794;
+the known-bad g4_v0 0.298 and the flagged lapels' build 0.505 FAIL either way).
 """
 
 DECLARED_CHECKS = [                 # (a literal: read with ast)
@@ -24,7 +26,7 @@ DECLARED_CHECKS = [                 # (a literal: read with ast)
          calibrate=dict(known_bad='g4_v0', baseline=['voronoi_pieces'], shape=['piece_top', 'piece_collar'],
                         kind='defect')),
     dict(check='neck_v_three_quarter_skin', family='class_iou', piece='top', views=['three_quarter'],
-         params=dict(cls='skin', window=[-0.1, 0.35, -0.45, -0.90], truth='neck_v'), limits=[0.8, 0.6],
+         params=dict(cls='skin', window=[-0.1, 0.35, -0.45, -0.90], truth='neck_v'), limits=[0.75, 0.6],
          flag="the V between the neck and the bow: the design shows skin, ours the jacket's orange (Michael, "
               "2026-09-30, item 4)",
          note="the skin in the V between the collar's lapels to its point, three-quarter, ours drawn without the bow: "
