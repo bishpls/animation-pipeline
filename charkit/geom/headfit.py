@@ -863,6 +863,7 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
     sock = max(0.0, -y_eye) * ('socket' in terms) * (not window)
     R = np.full_like(R0, np.nan)
     dfill = None
+    c2_applied = None
     if window:
         # the anime eye region (eye_fill): the smoothest correction that lays the eye's opening on the design's plane
         # and holds the brow and the cheek behind it, in place of the socket; on the right half's front columns, mirrored
@@ -899,61 +900,79 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
             c2 = np.nan_to_num(_smooth_rows(c2, cst['cheek_smooth'] / A.h), nan=0.0)
             c2 *= _smoothstep((top_r - zs) / CHEEK_REFIT_EASE)
             cheek = cheek + c2
+            c2_applied = c2
             LAST.update(cheek_refit_raw=raw_c2, cheek_refit=c2)
-    fh = (face or {}).get('forehead', FOREHEAD)
-    for k in valid:
-        x, shaped = row(k)
-        yy = shaped(cheek[k])
-        if dfill is not None:
-            yy = yy.copy()
-            yy[jr] += dfill[k]; yy[jl] += dfill[k]                     # (the midline's 0 either way)
-        if fh and abs(zs[k] - fh['z']) < fh['dz']:                    # the forehead rounded at the brow's height
-            band = 0.5 * (1 + np.cos(np.pi * (zs[k] - fh['z']) / fh['dz']))
-            yy = yy + front * fh['depth'] * band * _cheek(x / max(wc_all[k], 1e-3), fh.get('peak', 0.75))
-        if sock > 0 and abs(zs[k]) < 4 * SOCKET[1]:
-            yy = yy + fr * sock * np.exp(-0.5 * ((np.abs(x) - F.C['eye_x']) / SOCKET[0]) ** 2 - 0.5 * (zs[k] / SOCKET[1]) ** 2)
-        tn = np.arctan2(x, -(yy - cy[k])); o = np.argsort(tn)
-        R[k] = np.interp(th, tn[o], np.hypot(x, yy - cy[k])[o], period=2 * np.pi)
-    # under the chin the front onto the design's drawn skin edge (head_turnaround's profile: the jaw's underside, then
-    # the neck), row by row, as a correction on the section's front that fades out by its sides: the back of the neck
-    # (under the hair in the design) stays the construction's
-    if F.C.get('neck_y') is not None and np.isfinite(F.C['neck_y']).any():
-        okn = np.isfinite(F.C['neck_y'])
-        target = np.interp(-zs, -F.C['neck_z'][okn], _smooth_rows(F.C['neck_y'], 1)[okn], left=np.nan, right=np.nan)
-        below = zs < zc_d
-        front_now = np.array([cy[k] - R[k, j0] if np.isfinite(R[k]).all() else np.nan for k in range(len(zs))])
-        # first the neck whole, by its offset from the design's neck (its depth is the construction's, under the hair in
-        # the design), ramped in over the jaw's underside so the back moves smoothly; then the front alone for the rest
-        neck_rows = (zs < zc_d - 0.06) & np.isfinite(target) & np.isfinite(front_now)
-        if neck_rows.any():
-            # the neck's offset: its front moves by it under the chin; its back, the nape, moves gradually from the ears
-            # down, so the back of the head runs on into the neck's back without a ledge
-            off = float(np.median((target - front_now)[neck_rows]))
-            w_front = _smoothstep((zc_d - zs) / 0.06)
-            w_back = _smoothstep((NAPE[0] - zs) / (NAPE[0] - (zc_d - 0.06)))
-            for k in np.nonzero(np.isfinite(R).all(1) & (w_back > 1e-4))[0]:
-                x, y = np.sin(th) * R[k], cy[k] - np.cos(th) * R[k]
-                y = y + off * (w_back[k] * (1 - g_front) + w_front[k] * g_front)
-                tn = np.arctan2(x, -(y - cy[k])); o = np.argsort(tn)
-                R[k] = np.interp(th, tn[o], np.hypot(x, y - cy[k])[o], period=2 * np.pi)
-            front_now = front_now + off * w_front
-        d = np.where(below & np.isfinite(target) & np.isfinite(front_now), target - front_now, np.nan)
-        last = np.nonzero(np.isfinite(d))[0]
-        if len(last):
-            d = np.where(below & (np.arange(len(zs)) > last[-1]), d[last[-1]], d)   # under the drawn neck: held
-            d = np.nan_to_num(_smooth_rows(d, 0.006 / A.h), nan=0.0) * _smoothstep((zc_d - zs) / 0.01)
-            for k in np.nonzero(below & (np.abs(d) > 1e-6) & np.isfinite(R).all(1))[0]:
-                x, y = np.sin(th) * R[k], cy[k] - np.cos(th) * R[k]
-                y = y + d[k] * g_front
-                tn = np.arctan2(x, -(y - cy[k])); o = np.argsort(tn)
-                R[k] = np.interp(th, tn[o], np.hypot(x, y - cy[k])[o], period=2 * np.pi)
-    ok = np.isfinite(R).all(1) & np.isfinite(cy)
-    Rs = R.copy()
-    Rs[ok] = gaussian_filter(R[ok], (smooth_z / A.h, smooth_th * Sections.N / (2 * np.pi)), mode=('nearest', 'wrap'))
+
+    def finish(cheek_v):
+        """the sections from a cheek term: each row's front with the window, forehead and socket terms, the neck under
+        the chin onto the design's, smoothed -> (R smoothed, ok rows)."""
+        R = np.full_like(R0, np.nan)
+        fh = (face or {}).get('forehead', FOREHEAD)
+        for k in valid:
+            x, shaped = row(k)
+            yy = shaped(cheek_v[k])
+            if dfill is not None:
+                yy = yy.copy()
+                yy[jr] += dfill[k]; yy[jl] += dfill[k]                     # (the midline's 0 either way)
+            if fh and abs(zs[k] - fh['z']) < fh['dz']:                    # the forehead rounded at the brow's height
+                band = 0.5 * (1 + np.cos(np.pi * (zs[k] - fh['z']) / fh['dz']))
+                yy = yy + front * fh['depth'] * band * _cheek(x / max(wc_all[k], 1e-3), fh.get('peak', 0.75))
+            if sock > 0 and abs(zs[k]) < 4 * SOCKET[1]:
+                yy = yy + fr * sock * np.exp(-0.5 * ((np.abs(x) - F.C['eye_x']) / SOCKET[0]) ** 2 - 0.5 * (zs[k] / SOCKET[1]) ** 2)
+            tn = np.arctan2(x, -(yy - cy[k])); o = np.argsort(tn)
+            R[k] = np.interp(th, tn[o], np.hypot(x, yy - cy[k])[o], period=2 * np.pi)
+        # under the chin the front onto the design's drawn skin edge (head_turnaround's profile: the jaw's underside, then
+        # the neck), row by row, as a correction on the section's front that fades out by its sides: the back of the neck
+        # (under the hair in the design) stays the construction's
+        if F.C.get('neck_y') is not None and np.isfinite(F.C['neck_y']).any():
+            okn = np.isfinite(F.C['neck_y'])
+            target = np.interp(-zs, -F.C['neck_z'][okn], _smooth_rows(F.C['neck_y'], 1)[okn], left=np.nan, right=np.nan)
+            below = zs < zc_d
+            front_now = np.array([cy[k] - R[k, j0] if np.isfinite(R[k]).all() else np.nan for k in range(len(zs))])
+            # first the neck whole, by its offset from the design's neck (its depth is the construction's, under the hair in
+            # the design), ramped in over the jaw's underside so the back moves smoothly; then the front alone for the rest
+            neck_rows = (zs < zc_d - 0.06) & np.isfinite(target) & np.isfinite(front_now)
+            if neck_rows.any():
+                # the neck's offset: its front moves by it under the chin; its back, the nape, moves gradually from the ears
+                # down, so the back of the head runs on into the neck's back without a ledge
+                off = float(np.median((target - front_now)[neck_rows]))
+                w_front = _smoothstep((zc_d - zs) / 0.06)
+                w_back = _smoothstep((NAPE[0] - zs) / (NAPE[0] - (zc_d - 0.06)))
+                for k in np.nonzero(np.isfinite(R).all(1) & (w_back > 1e-4))[0]:
+                    x, y = np.sin(th) * R[k], cy[k] - np.cos(th) * R[k]
+                    y = y + off * (w_back[k] * (1 - g_front) + w_front[k] * g_front)
+                    tn = np.arctan2(x, -(y - cy[k])); o = np.argsort(tn)
+                    R[k] = np.interp(th, tn[o], np.hypot(x, y - cy[k])[o], period=2 * np.pi)
+                front_now = front_now + off * w_front
+            d = np.where(below & np.isfinite(target) & np.isfinite(front_now), target - front_now, np.nan)
+            last = np.nonzero(np.isfinite(d))[0]
+            if len(last):
+                d = np.where(below & (np.arange(len(zs)) > last[-1]), d[last[-1]], d)   # under the drawn neck: held
+                d = np.nan_to_num(_smooth_rows(d, 0.006 / A.h), nan=0.0) * _smoothstep((zc_d - zs) / 0.01)
+                for k in np.nonzero(below & (np.abs(d) > 1e-6) & np.isfinite(R).all(1))[0]:
+                    x, y = np.sin(th) * R[k], cy[k] - np.cos(th) * R[k]
+                    y = y + d[k] * g_front
+                    tn = np.arctan2(x, -(y - cy[k])); o = np.argsort(tn)
+                    R[k] = np.interp(th, tn[o], np.hypot(x, y - cy[k])[o], period=2 * np.pi)
+        ok = np.isfinite(R).all(1) & np.isfinite(cy)
+        Rs = R.copy()
+        Rs[ok] = gaussian_filter(R[ok], (smooth_z / A.h, smooth_th * Sections.N / (2 * np.pi)), mode=('nearest', 'wrap'))
+        return Rs, ok
+
+    Rs, ok = finish(cheek)
+    layout = None
+    if cst['cheek_refit'] is not None and window and c2_applied is not None:
+        # the head without the refit, for the cage's layout (headgeom.cylinder_cage: its feature blocks' columns): the
+        # refit carries the cheek forward where the mouth block's edge meets the surface, and a block's edge moving
+        # across a column changed the cage's topology (and the mouth's rings) for a change that isn't the mouth's
+        Rl, okl = finish(cheek - c2_applied)
+        layout = Sections(zs, np.where(okl, cy, np.nan), np.where(okl[:, None], Rl, np.nan))
     rep = {'socket_L': round(sock, 4), 'eye_window': win if window else None, 'align_dy_L': round(dy, 4), 'skull_chin': round(zc_s, 4), 'design_chin': round(zc_d, 4),
            'cheek_range_L': [round(float(np.min(cheek)), 4), round(float(np.max(cheek)), 4)],
            'cheek_fit_noise_L': round(float(np.nanstd(raw_cheek - cheek)), 4) if np.isfinite(raw_cheek).any() else None}
-    return Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], Rs, np.nan)), rep
+    S_out = Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], Rs, np.nan))
+    S_out.layout = layout
+    return S_out, rep
 
 
 def banding(S, span=np.radians(60), zlo=None, zhi=0.1, scale=0.02):

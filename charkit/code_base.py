@@ -108,7 +108,9 @@ def save_head(spec, path, log=print):
     """the authored head's sections and the contours' landmarks computed venv-side (they read the reference images) into
     `path` (.npz), for the build's Blender side, which loads them (spec['head_code'])."""
     S, C, rep = head_sections(dict(spec, head_code=None), log)
-    np.savez_compressed(path, zs=S.zs, cy=S.cy, r=S.r, th=S.th,
+    lay = getattr(S, 'layout', None)                # (the cage's layout sections, when the fit keeps them apart)
+    extra = {} if lay is None else dict(layout_cy=lay.cy, layout_r=lay.r)
+    np.savez_compressed(path, zs=S.zs, cy=S.cy, r=S.r, th=S.th, **extra,
                         C=json.dumps(dict({k: float(C[k]) for k in ('chin', 'eye_x', 'nose_z', 'az3')}, jaw=C.get('jaw'))),
                         rep=json.dumps(rep, default=str))
     return path
@@ -122,6 +124,7 @@ def head_sections(spec, log=print):
     if spec.get('head_code') and os.path.exists(spec['head_code']):
         z = np.load(spec['head_code'])
         S = Sections(z['zs'], z['cy'], z['r'])
+        S.layout = Sections(z['zs'], z['layout_cy'], z['layout_r']) if 'layout_r' in z.files else None
         return S, json.loads(str(z['C'])), json.loads(str(z['rep']))
     # computed from the reference images: venv-side only (a build's Blender side loads the file cli.code_head wrote).
     # Imported at run time, not named in an import statement: the build stages' code closure (charkit.cache) follows
@@ -400,7 +403,8 @@ def head_mesh(S, C, cut, eye_outline=None, mouth=None):
     mouth_block()'s (block, lip loop), else the cage's default mouth."""
     from charkit.geom import headgeom
     kw = dict(mouth_block=mouth[0], mouth_outline=mouth[1], rings=(3, MOUTH_RINGS)) if mouth else {}
-    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False, eye_outline=eye_outline, jaw=C.get('jaw'), **kw)
+    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False, eye_outline=eye_outline, jaw=C.get('jaw'),
+                                     layout=getattr(S, 'layout', None), **kw)
     V = list(Cg.V)
     faces = [list(f) for f in Cg.F]
     groups = [Cg.groups[g] for g in Cg.group]
