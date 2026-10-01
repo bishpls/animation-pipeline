@@ -603,3 +603,19 @@ palm_line, JointFit's silhouette-IoU structure fit (kept as tools, not the struc
   Powell only (no DE), the curl bounded to about [-10, 12], overlap and dev fixed (0, ratio3's -2.2), knobs palm_len,
   curl, spread, thumb_out, thumb_down, bend; if front/back still sit ~5% under the comb's QA, report the per-view costs
   (the sheet's landmark structure vs the turnaround's rest silhouette) to the coordinator before going further.
+
+## Round 7: land hands3 (relaunched 2026-10-01 night; coordinator brief: finish and land, scope tight)
+**Michael's decision (2026-10-01): ACCEPT** the rest pose against the turnaround's front and back ~5% under the comb
+(0.71-0.73 vs 0.76-0.77): inside the 15% guard; those views draw the hand narrow by convention; the structure comes from
+the open hand. Record it as a named acceptance (charkit/accepted/) for whichever hand checks the gate lists. No further
+polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless path for other characters, polish).
+- Merged pipeline-3d ae865afc (8c862fb9: rom suite, hair truth). rom reads the fingers (finger_finger inside, the
+  knuckles' volume): watch its report-only rows at the gate.
+- `charkit hand fit --bounds '{"curl": [-10, 12]}'` (this run's knob bounds).
+- ratio_start4 evaluated (charkit/out/hands3/start4.log): IoU front 0.707/0.727, 3q 0.780/0.751, profile 0.602, back
+  0.723/0.717; **cleftpos FAILs front L/R and back L/R** (ours 0.745-0.768 vs drawn 0.565-0.644: the thumb near
+  parallel, thumb_out 3.8; hands2 PASSes them at 0.61-0.63), gaps 0.027-0.057 WARN, taper front 0.51 vs 0.40 WARN.
+  ratio4's degenerate path was the FAIL_COST cliff: curling the fingers shut escaped these FAILs.
+- **rest3** (build box, job hand-hands-1001-194909-df46, charkit/out/hands3/rest3, log rest3.log): Powell only from
+  ratio_start4, knobs palm_len, curl [-10, 12], spread, thumb_out, thumb_down, bend; overlap 0, dev -2.22 fixed; floors
+  hands2's QA views x 0.93 (charkit/out/hands3/floors_rest3.json).

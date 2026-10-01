@@ -742,6 +742,7 @@ def show(F, P, out):
 def main(args):
     """python -m charkit.code_hand fit --build B [--spec S | --write S] [--rounds N] [--over JSON] [--knobs a,b]
                                         [--png P] [--json J] [--floors JSON] [--method de --workers N --maxiter N]
+                                        [--bounds '{"curl": [-10, 12]}']
        python -m charkit.code_hand show --build B [--spec S] [--over JSON] --out PNG    (the template vs the drawn)"""
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     if not args or args[0] not in ('fit', 'show'):
@@ -760,6 +761,8 @@ def main(args):
     knobs = tuple(opt('--knobs').split(',')) if opt('--knobs') else FIT_KNOBS
     if opt('--floors'):
         F.floors = json.loads(opt('--floors'))
+    if opt('--bounds'):                     # {knob: [lo, hi]}: this run's bounds (ratio4 ran curl to its bound 30: shut)
+        KNOB_BOUNDS.update({k: tuple(v) for k, v in json.loads(opt('--bounds')).items()})
     P, c, per = F.run(knobs=knobs, rounds=int(opt('--rounds', 3)), log=lambda *a, **k: print(*a, flush=True),
                       method=opt('--method', 'powell'), workers=int(opt('--workers', 1)), seed=int(opt('--seed', 0)),
                       maxiter=int(opt('--maxiter', 40)), popsize=int(opt('--popsize', 12)),
