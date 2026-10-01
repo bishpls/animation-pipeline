@@ -583,7 +583,7 @@ def _boxes():
     """the boxes to ask: --box's, else every infra/gcp/*.env with a VM and a bucket (the GPU box's gpu.env is the render
     box's), each once."""
     out, seen = [], set()
-    for name in ('build', 'render'):
+    for name in ['build', 'render'] + sorted(f[:-4] for f in os.listdir(os.path.join(ROOT, 'infra', 'gcp')) if f.endswith('.env')):
         p = os.path.join(ROOT, 'infra', 'gcp', name + '.env')
         if os.path.exists(p):
             BOX['env'] = p

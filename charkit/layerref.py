@@ -26,8 +26,15 @@ Kinds:
   skirt  a skirt layer sheet (two rows of front, three-quarter, profile, back: the skirt without the flaps, the flaps
          alone; on dress forms, scale fitted per figure): R and DC from the hand-checked outfit truth (outfit_truth)
          on the turnaround's views, the occluders per view in OCCLUDERS.
+  bodice a bodice sheet (tool/garments4, 2026-10-01: the turnaround redrawn in its layout without the bow and its tails,
+         what the bow hides drawn as worn: the sailor collar's lapels flat on the chest along the V, the V's skin down
+         to the knot's place, the bodice front): registered as the body kind (the figures' heights, the eyes, +-8 px on
+         the kept parts); the kept parts' IoU (the head and hair above HEAD_Z, the waistband, skirt, legs and boots
+         below BODICE_LOW_Z); in the band between, the layer (the sheet's garment pixels) against the outfit truth's
+         collar, top and bodice_panel (R) with the bow and its tails free (DC) and the kept pieces round them left out;
+         the V (front and three-quarter: the skin in V_WIN) against the turnaround's visible skin there, the bow free.
 
-    python -m charkit.layerref SPEC SHEET.png --kind body|clips|skirt [--out DIR]
+    python -m charkit.layerref SPEC SHEET.png --kind body|clips|skirt|bodice [--out DIR]
 """
 import json, os, sys
 
@@ -45,8 +52,14 @@ TOL = dict(kept_iou=0.90,           # body: the kept parts (head and hair, legs 
            clips_px=0.002,          # clips: clip pixels found on the clip-free heads, share of the head
            hair_fill=0.85,          # clips: the turnaround's clip pixels drawn as hair (or its lines)
            clip_shape=0.60,         # clips: a clip's straight-on shape IoU (shape only)
-           iou_dc=0.80,             # skirt: per view
-           scale_spread=0.06)       # skirt: the eight figures' fitted scales, (max - min) / median
+           iou_dc=0.80,             # skirt, bodice: per view
+           scale_spread=0.06,       # skirt: the eight figures' fitted scales, (max - min) / median
+           v_recall=0.80,           # bodice: the turnaround's visible skin in the V drawn as skin (front, three-quarter)
+           v_outside=0.10)          # bodice: the sheet's V skin where the turnaround shows the garment (not the bow)
+BODICE_LOW_Z = -1.40                # bodice: L from the eye line; below it the waistband, skirt, legs and boots (kept)
+BODICE_LAYER = ('collar', 'top', 'bodice_panel')        # bodice: the layer's pieces on the outfit truth
+BODICE_COVER = ('bow', 'bow_tail_L', 'bow_tail_R')      # bodice: what the sheet leaves out (free: DC)
+V_WIN = dict(x=0.25, top=-0.40, bottom=-0.90)           # bodice: the V's window, L round the midline and the eye line
 HEAD_Z = -0.45                      # body: L from the eye line; above it the head, hair and buns (kept)
 LEGS_Z = -3.2                       # body: below it the legs and boots (kept); the costume's band between
 SKIRT_TOP_Z, SKIRT_BOTTOM_Z = -1.2, -3.6    # skirt: the band the layers live in on the turnaround
@@ -409,7 +422,7 @@ def _truth_views(spec, log=print):
             hands |= pieces.get(c, False)
         legs = none & ~hands & (z < -2.4)[:, None]
         pieces.update(hands=hands, legs=legs, unscored=dv['fg'] & (t < 0))     # the truth's drawn lines: no piece
-        out[v] = dict(fg=dv['fg'], pieces=pieces, ppl=ppl, z=z, rgb=dv['rgb'])
+        out[v] = dict(fg=dv['fg'], pieces=pieces, ppl=ppl, z=z, rgb=dv['rgb'], cls=dv['cls'])
     return out
 
 
@@ -555,6 +568,118 @@ def _layer_mask(g, cls, rgb=None):
     return ndimage.binary_fill_holes(np.isin(lab, keep))
 
 
+# -------------------------------------------------------------------------------------------------------------- bodice
+def sheet_views(spec, path, rgb=None, log=print):
+    """a sheet in the turnaround's layout on the turnaround's design grids (bodyqa.design_views at the turnaround's ppl
+    over the figures' height ratio, as check_body registers a redrawn sheet) -> ({view: dict(fg, cls)}, scale)."""
+    from charkit import bodyqa, eyes as eyelib, sheetqa
+    from charkit.geom import hull
+    ex = eyelib._knobs(spec.get('eyes'))['x']
+    bs = spec['ref']['body_sheet']
+    T, _ = hull.views_from_sheet(_load(bs['image']), ex, bs.get('facing', -1))
+    rgb = _load(path) if rgb is None else rgb
+    Cv, _ = hull.views_from_sheet(rgb, ex, bs.get('facing', -1))
+    ext = lambda m: np.ptp(np.nonzero(m.any(1))[0])
+    s = float(np.median([ext(T[n].mask) / ext(Cv[n].mask) for n in VIEWS if n in T and n in Cv]))
+    ppl_t = sheetqa.detect_figures(_load(bs['image']), None, ex, bs.get('facing', -1))['ppl']
+    D = sheetqa.detect_figures(rgb, ppl_t / s, ex, bs.get('facing', -1))
+    DV = bodyqa.design_views(rgb, D, ppl_t / s)
+    return {v: dict(fg=d['fg'], cls=d['cls']) for v, d in DV.items()}, s
+
+
+def _crop_to(m, shape):
+    out = np.zeros(shape, m.dtype)
+    h, w = min(shape[0], m.shape[0]), min(shape[1], m.shape[1])
+    out[:h, :w] = m[:h, :w]
+    return out
+
+
+def check_bodice(spec, path, log=print, rgb=None):
+    from scipy import ndimage
+    from charkit import bodyqa
+    TV = _truth_views(spec, log)
+    SV, s = sheet_views(spec, path, rgb, log)
+    out = {'kind': 'bodice', 'path': os.path.relpath(path, ROOT) if os.path.isabs(path) else path, 'scale': round(s, 4),
+           'views': {}, 'tol': TOL}
+    imgs = {}
+    garment = [bodyqa.CLASS[c] for c in ('orange', 'cream', 'dark')]
+    skin = [bodyqa.CLASS['skin'], 5]
+    for v in VIEWS:
+        if v not in TV or v not in SV:
+            out['views'][v] = dict(note='view not found')
+            continue
+        t = TV[v]
+        H, W = t['fg'].shape
+        fg_c, cls_c = _crop_to(SV[v]['fg'], (H, W)), _crop_to(SV[v]['cls'], (H, W))
+        z = t['z']
+        head, low = (z >= HEAD_Z)[:, None], (z <= BODICE_LOW_Z)[:, None]
+        kept = head | low
+        best = (-1.0, 0, 0)
+        for dy in range(-8, 9):
+            for dx in range(-8, 9):
+                q = _iou(t['fg'] & kept, _shift(fg_c, dy, dx) & kept)
+                if q > best[0]:
+                    best = (q, dy, dx)
+        fg_c, cls_c = _shift(fg_c, best[1], best[2]), _shift(cls_c, best[1], best[2])
+        band = ~kept
+        P = t['pieces']
+        layer = np.zeros((H, W), bool)
+        for p in BODICE_LAYER:
+            layer |= P.get(p, False)
+        cover = np.zeros((H, W), bool)
+        for p in BODICE_COVER:
+            cover |= P.get(p, False)
+        R = ndimage.binary_closing(layer, iterations=3) & t['fg'] & band
+        cover = ndimage.binary_closing(cover, iterations=3) & t['fg'] & band & ~R
+        # the kept pieces in the band (the sleeves, cuffs, hands, hair, the waistband's top) and their drawn rims score
+        # neither way: the sheet keeps them as drawn (their silhouettes are the kept parts' business)
+        other = np.zeros((H, W), bool)
+        for p, m in P.items():
+            if p in BODICE_LAYER or p in BODICE_COVER or p in ('none', 'unscored'):
+                continue
+            other |= m
+        hair = t['cls'] == bodyqa.CLASS['hair']
+        # where the turnaround's own truth and its colour classes disagree (a cell the truth leaves 'none', the hair's
+        # ends or a shadow, that the classes call fabric) neither side is scored
+        amb = P.get('none', np.zeros((H, W), bool)) & np.isin(t['cls'], garment)
+        E = ndimage.binary_dilation(other | hair | amb, iterations=2) & ~R
+        rim = P['unscored'] & ndimage.binary_dilation(R | cover, iterations=4) & ~R
+        DC = (cover | rim) & ~E
+        S = band & ~E & ~(P['unscored'] & ~R & ~cover)          # (the truth's drawn lines score neither way)
+        C = np.isin(cls_c, garment) & fg_c & S
+        C = ndimage.binary_opening(ndimage.binary_closing(C, iterations=2), iterations=1) & S
+        sc = scores(C, R & S, DC & S)
+        rec = dict(shift=[best[1], best[2]],
+                   kept_iou=dict(head=round(_iou(t['fg'] & head, fg_c & head), 4),
+                                 lower=round(_iou(t['fg'] & low, fg_c & low), 4)), **sc)
+        ok = (min(rec['kept_iou'].values()) >= TOL['kept_iou'] and sc['iou_dc'] >= TOL['iou_dc']
+              and sc['outside'] <= TOL['outside'] and sc['recall'] >= TOL['recall'])
+        if v in ('front', 'three_quarter'):
+            mid = int(round(bodyqa.WIN['x'] * t['ppl']))
+            xs = (np.arange(W) - mid + 0.5) / t['ppl']
+            win = (np.abs(xs) <= V_WIN['x'])[None, :] & ((z <= V_WIN['top']) & (z >= V_WIN['bottom']))[:, None]
+            Tv = np.isin(t['cls'], skin) & t['fg'] & win & ~cover
+            Cv = np.isin(cls_c, skin) & fg_c & win
+            gar_t = np.isin(t['cls'], garment) & win & ~cover
+            rec['v'] = dict(recall=round(float((Cv & Tv).sum() / max(1, Tv.sum())), 4),
+                            outside=round(float((Cv & gar_t).sum() / max(1, Cv.sum())), 4),
+                            under_bow=round(float((Cv & cover).sum() / max(1, Cv.sum())), 4),
+                            px=[int(Cv.sum()), int(Tv.sum())])
+            rows = np.nonzero(Cv.any(1))[0]
+            rows_t = np.nonzero(Tv.any(1))[0]
+            rec['v']['lowest_z'] = [round(float(z[rows[-1]]), 3) if len(rows) else None,
+                                    round(float(z[rows_t[-1]]), 3) if len(rows_t) else None]
+            ok = ok and rec['v']['recall'] >= TOL['v_recall'] and rec['v']['outside'] <= TOL['v_outside']
+        rec['pass'] = bool(ok)
+        out['views'][v] = rec
+        imgs[v] = _overlay(t['fg'] & band, C, R & S, DC & S)
+        log('%-14s kept %s  iou_dc %.4f  recall %.4f  outside %.4f  hidden %.4f  V %s  shift %s  %s' % (
+            v, rec['kept_iou'], sc['iou_dc'], sc['recall'], sc['outside'], sc['hidden'], rec.get('v'), rec['shift'],
+            'PASS' if ok else 'FAIL'))
+    out['pass'] = bool(abs(s - 1) <= TOL['scale'] and all(r.get('pass') for r in out['views'].values()))
+    return out, imgs
+
+
 # ---------------------------------------------------------------------------------------------------------------- main
 def save_images(imgs, out_dir):
     from PIL import Image
@@ -573,7 +698,7 @@ def main(args):
     spec = manifest.resolve(json.load(open(args[0] if os.path.isabs(args[0]) else os.path.join(ROOT, args[0]))))
     path = os.path.abspath(args[1])
     kind = opt('--kind')
-    fn = dict(body=check_body, clips=check_clips, skirt=check_skirt)[kind]
+    fn = dict(body=check_body, clips=check_clips, skirt=check_skirt, bodice=check_bodice)[kind]
     rep, imgs = fn(spec, path)
     out = opt('--out', os.path.join(ROOT, 'charkit/out/layerref', os.path.splitext(os.path.basename(path))[0]))
     rep['images'] = {k: os.path.relpath(p, ROOT) for k, p in save_images(imgs, out).items()}

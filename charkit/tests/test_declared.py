@@ -235,6 +235,33 @@ def test_area_against_the_drawn_silhouette():
     assert f['design'] == 96 * 100 and f['status'] == 'PASS' and f['value'] == round(104 * 108 / 9600 - 1, 3)
 
 
+def test_top_line_reads_the_shoulder_line_where_it_is_seen():
+    # the drawn shoulders level at row 100 over x 0.15-0.7 L either side; ours 10 px lower with a 20 px dip near the
+    # neck; the hair over our left band hides what lies under it there (that band reads only where ours is seen)
+    from charkit import bodyqa, collarqa
+    ppl = 100.0
+    sh = (400, int(2 * (bodyqa.WIN['x'] + 0.1) * ppl))
+    cols = np.arange(sh[1])
+    xs = (cols + 0.5) / ppl - bodyqa.WIN['x']
+    drawn = np.zeros(sh, bool)
+    drawn[100:300, np.abs(xs) <= 0.75] = True
+    ours = np.zeros(sh, bool)
+    ours[110:300, np.abs(xs) <= 0.75] = True
+    dip = (np.abs(xs) > 0.25) & (np.abs(xs) < 0.35)
+    ours[110:130, dip] = False
+    ctx = dict(ppl=ppl, hair_ours=None, hair_drawn=None)
+    x = ((-0.7, -0.15), (0.15, 0.7))
+    dz = declared.top_line(ours, drawn, ctx, x=x, measure='dz')
+    assert dz['value'] == 0.1                                               # 10 px at 100 px per L, ours lower
+    tr = declared.top_line(ours, drawn, ctx, x=x, measure='trough')
+    assert abs(tr['value'] - 0.2) < 1e-6                                    # the dip, 20 px under the line
+    hair = np.zeros(sh, bool)
+    hair[:110, xs > 0] = True                                              # hair down to our left band's top
+    h = declared.top_line(ours, drawn, dict(ctx, hair_ours=hair), x=x, measure='dz')
+    assert h['ours'][1] == dict(dz=-0.3, cols=int((dip & (xs > 0.15) & (xs < 0.7)).sum()))  # only the dip's columns
+    assert collarqa.trough([1.0, 0.5, 1.0]) == 0.5
+
+
 def stair_masks(shear=0.0, fold_cols=(), H=300, W=400):
     """a piece over a stepped dark band (classes: 6 orange, 8 dark): three steps 100 px wide, each 30 px lower than
     the one before, its treads sheared by `shear` px of rise over a tread; drawn folds (lines) at fold_cols."""
