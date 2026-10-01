@@ -55,9 +55,31 @@ CALIBRATION = [
          no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
          baseline=['voronoi_pieces', 'affine_pieces'], shape=[], better='higher'),
     # the bangs as a family (qa3d.hair_pieces): read 0.79 PASS while our bang locks scored at a random split's level
-    # against the lock truth (tool/hairlocks: 0.439 against 0.441). hl_base: pipeline-3d 2f42155 (that measurement's)
-    dict(check='hair_piece_bangs', part='hair_pieces', adapter='Hair', known_bad='hl_base',
+    # against the lock truth (tool/hairlocks: 0.439 against 0.441). hl_base: pipeline-3d 2f42155 (that measurement's).
+    # tool/calib recorded it blind (hl_base reads 0.792 PASS: a family's IoU can't see its locks' partition, which is
+    # the lock truth's, charkit.hairlocks score). tool/hairtruth (the hair against its shape truth, 2026-10-01): the
+    # graded families are the anti-gaming guard's shape measure, as piece_bow is: no single flagged build
+    dict(check='hair_piece_bangs', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure (the bangs' family per view): its flag (hl_base, "
+                      "the bang locks at a random split's level) is a lock partition the family IoU is blind to "
+                      "(tool/calib: hl_base 0.792 PASS), graded by the lock truth (charkit.hairlocks score)",
          baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_side_locks', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_upper_back', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_lower_back', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_buns', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    # the buns' outline (blocky or a blob): no single flagged build reads it (the current build FAILs it: an open flag)
+    dict(check='hair_bun_outline', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="the buns' drawn block outline against ours; no stored build was flagged for it (the current "
+                      "build FAILs it)", baseline=['voronoi_families'], shape=['hair_piece_buns'], better='higher'),
 ]
 
 

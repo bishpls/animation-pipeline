@@ -19,3 +19,36 @@ The second character's hair under his crown uses the same rule: keep it generic.
 
 ## State
 - Setup (2026-10-01).
+
+## Done (2026-10-01)
+- Baseline: box build of pipeline-3d cd1c327f, default spec, `charkit/out/hairtruth/base` (QA 402 s, CPU 1334 s).
+- **Mechanism** (`charkit/shapetruth.py`, commit 7f189116): the manifest's `shape_truth.hair` = hair_clips_layers'
+  top row (`rows: top`, views front/three_quarter/profile, placement head_turnaround, covers: the accessories accqa
+  finds). Per turnaround view: register the redraw by the eyes, refine scale (+-4%) and shift (+-0.04 L) on the hair
+  colour's IoU over the head (each figure its own blob), then the shift on a ring 0.02-0.15 L round the clip; repaint
+  only the clip pixels (grown 0.012 L, plus turnaround pixels within 0.04 L differing from the redraw and joined to
+  the clip: the crab's legs the finder misses). The turnaround stands everywhere else. `CHARKIT_SHAPE_TRUTH=off`
+  restores the old reading (bit-identical to the box QA on cd1c327f's build).
+- QA side: `qa3d.Design.shape_truth/shape_views/shape_head/hidden`. Consumers: sheet_body (iou_hair, hair_length,
+  hair_width from a second evaluate on the shape views, ours without our clips), hair_pieces (families under the clip
+  from the nearest drawn family, `shapetruth.fill_labels`), hair_flags (truth labels under the clip cleared: the
+  nearest drawn lock), declared hair families (O_hair, lines_hair, ink_hair, hairweight design/our head), artifacts'
+  hair region (design from the composite head sheet, ours drawn without clips). Calibration stand-ins (Hair,
+  HairFlags, Declared via `views_for`, Art) read the same views.
+- **Refcheck** (`python -m charkit.shapetruth charkit/spec/clawd.json`; recorded in the manifest's shape_truth.hair):
+  head sheet hair silhouette IoU outside the clips 0.971/0.934/0.975, ring 0.943/0.930/0.958; body sheet
+  0.850/0.858/0.915 (the head turnaround itself registered the same way: 0.849/0.880/0.919), ring 0.869/0.914/0.946.
+  Known-bad (views mislaid): FAIL every view (hair IoU 0.36-0.54).
+- **Fill vs exclude** (tools/exclude.py): body iou_hair F/3q/P drawn 0.827/0.743/0.797, fill 0.862/0.777/0.852,
+  exclude 0.856/0.771/0.852; bangs drawn 0.758, fill 0.833, exclude 0.856; side locks 0.505/0.536/0.545; lock lines P
+  0.167/0.205/0.160. Picked **fill**: it scores the hair under the clips against the separated layer (exclude leaves
+  2.5-3% of the hair unscored per view, and would leave a crown's whole region unscored on the second character); it
+  decouples the hair checks from our clips' placement (exclude's region includes our clip's footprint); it needs no
+  per-check special case.
+- Steps registered (4477784b): steps/qa3d.py, hairflagqa.py, artifactqa.py, declared.py (new).
+
+## Coordination
+- tool/hairshell3 and the hair strokes round read these checks: whichever merges second refreshes its calibration
+  records (the remeasure moves hair_strokes_*, hair_lock_lines_*, hair_piece_*, art_*_hair). The strokes round's
+  target art_terminator_hair <= 2.064 was set under the old reading (the clips inflated the design's kinks: 3.74 ->
+  2.54 per L front): under the shape truth the same build reads 3.211.
