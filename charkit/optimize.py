@@ -45,7 +45,8 @@ The declaration is a sweep's (base, stage, spec, set, parts, checks, objects, bo
   seed        0; every generation's draw is seeded from (seed, generation): a run is reproducible and resumable
   sigma0      0.2 (the search's first spread, as a share of each knob's range)
   popsize     'auto' (default): the workers (the free build slots, less --reserve), at least 4 + 3 ln(knobs)
-  budget      {evals 300, minutes 120, generations 60}: whichever comes first (evaluations run, cache hits free)
+  budget      {evals 300, minutes 120, generations 60}: whichever comes first (evaluations run, cache hits free;
+              minutes from the first worker ready: a wait for build slots doesn't count)
   stop        {tolfun 1e-3, stall 8, tolx 1e-3, target}: stop when the best feasible objective improved by less than
               tolfun over `stall` generations with the search narrowed (every continuous knob's spread under 5% of
               its range; while it is still wide, over three times as many), or the spread fell under tolx (no
@@ -1185,7 +1186,10 @@ class Run:
             n, lam, W, P.method, P.seed, P.budget))
         self.scorer = None
         E = self.evaluator(W)
+        self.t_ready = time.time()                      # (the minutes budget counts from here: not the slot wait)
         meta = dict(st or {}, hash=P.hash(), lam=lam, workers=E.n, context_seconds=E.context_seconds,
+                    waited=round((st or {}).get('waited', 0.0) + self.t_ready - self.t0, 1),
+                    searched_before=(st or {}).get('searched', 0.0),
                     started=(st or {}).get('started') or time.strftime('%Y-%m-%dT%H:%M:%S'),
                     seconds_before=(st or {}).get('seconds_total', 0.0))
         O = None
@@ -1378,7 +1382,7 @@ class Run:
             return 'budget: %d evaluations' % self.n_evals()
         if O.gen >= int(B.get('generations') or 1e9):
             return 'budget: %d generations' % O.gen
-        el = meta.get('seconds_before', 0.0) + time.time() - self.t0
+        el = meta.get('searched_before', 0.0) + time.time() - getattr(self, 't_ready', self.t0)
         if el >= 60 * float(B.get('minutes') or 1e9):
             return 'budget: %.0f minutes' % (el / 60)
         b = self.best()
@@ -1406,6 +1410,7 @@ class Run:
         meta = dict(meta)
         meta['opt'] = O.state() if O is not None else meta.get('opt')
         meta['seconds_total'] = round((meta.get('seconds_before') or 0.0) + time.time() - self.t0, 1)
+        meta['searched'] = round((meta.get('searched_before') or 0.0) + time.time() - getattr(self, 't_ready', self.t0), 1)
         meta['evaluations'] = self.n_evals()
         meta['updated'] = time.strftime('%Y-%m-%dT%H:%M:%S')
         tmp = self.path('state.json.tmp')
