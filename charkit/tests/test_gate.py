@@ -579,17 +579,23 @@ def test_docs_and_tests_can_reach_no_build():
 
 def test_fail_fast_a_failing_test_is_reported_the_moment_it_fails(tmp_path=None):
     """the gate's fail-fast (infra round 5): _tests calls on_fail as soon as a test file fails, while the slower ones
-    are still running, and still runs every file (the report names each failing one)."""
-    import pathlib, time
+    are still running, and still runs every file (the report names each failing one). By order, not seconds: the slow
+    file can't end before on_fail has run (it waits for the file on_fail writes)."""
+    import pathlib
     tmp_path = tmp_path or pathlib.Path(tempfile.mkdtemp())
     t = tmp_path / 'charkit' / 'tests'
     t.mkdir(parents=True)
+    release = tmp_path / 'release'
     (t / 'test_a_fails.py').write_text('raise SystemExit(1)\n')
-    (t / 'test_b_slow.py').write_text('import time\ntime.sleep(4)\n')
-    t0, when = time.time(), []
-    res, secs = gate._tests(str(tmp_path), jobs=2, on_fail=lambda n: when.append((n, time.time() - t0)))
-    assert [n for n, _ in when] == ['test_a_fails.py'], when
-    assert when[0][1] < 3.0, when                      # (long before the slow file ends)
+    (t / 'test_b_slow.py').write_text('import os, time\nt = time.time()\nwhile not os.path.exists(%r):\n'
+                                      '    assert time.time() - t < 120\n    time.sleep(0.02)\n' % str(release))
+    when = []
+
+    def on_fail(n):
+        when.append(n)
+        release.write_text('on_fail ran')
+    res, secs = gate._tests(str(tmp_path), jobs=2, on_fail=on_fail)
+    assert when == ['test_a_fails.py'], when
     assert res['test_b_slow.py'] == 'ok' and res['test_a_fails.py'] != 'ok'
 
 
@@ -604,10 +610,8 @@ def test_fail_fast_a_build_started_after_the_failure_is_stopped(tmp_path=None):
     (pkg / '__main__.py').write_text('import time\ntime.sleep(60)\n')
     stop = threading.Event()
     stop.set()
-    t0 = time.time()
     r = gate._build(str(tmp_path), 'spec.json', str(tmp_path / 'out'), [], record=False, procs=[], stop=stop)
-    assert r['killed'] and not r['ok'], r
-    assert time.time() - t0 < 20, time.time() - t0
+    assert r['killed'] and not r['ok'], r              # (stopped: a build that ran its 60 s would read not killed)
 
 
 def test_build_cpu_is_compared_like_for_like(tmp_path=None):
