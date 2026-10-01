@@ -2059,6 +2059,8 @@ def _to_shape(m, shape):
     return m[r][:, c]
 
 
+HAIR_NOISE_INK = 1              # hair_noise: a pixel within this many pixels of a drawn line's is the line's (the
+                                # render's film filter darkens the hair beside its lines: 0.02 at 1 px, nothing at 1.5)
 HAIR_NOISE_GROUPS = ('buns',)   # hair families whose tones are cut apart from the rest's (hair_noise): a block bun's
                                 # large flat faces moved the shared cuts, and with them the rest's tone edges
 
@@ -2087,30 +2089,30 @@ def tone_edges(lum, grp, min_px=50):
     return e, n
 
 
+def hair_noise_ink(ink, shape, ss=FIG_SS, reach=None):
+    """a picture's pixels the drawn lines take (hair_noise): ink (the measuring grid's, ss of its pixels to a picture's
+    pixel) -> per picture pixel of `shape`, any ink within `reach` pixels (HAIR_NOISE_INK) of it."""
+    from scipy.ndimage import maximum_filter
+    reach = HAIR_NOISE_INK if reach is None else reach
+    m = maximum_filter(ink, size=(2 * int(reach) + 1) * ss) if reach > 0 else ink
+    return _to_shape(m[ss // 2::ss, ss // 2::ss], shape)
+
+
 @qa_part('hair_noise', order=400)
 def hair_noise(B, design=None, out=None):
-    """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
-    drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
-    through the face), from 0, 90 and 180 degrees; each visible hair pixel's luminance cut into three tones at its
-    group's 33rd and 66th percentiles (the buns apart from the rest: tone_edges), the tone edges per visible hair
-    pixel."""
+    """the hair's shading noise as a render shows it: the hair drawn with its own materials and its outlines, as the
+    render draws them (tool/hairshell3: the ink between two locks, and the line's filtered edge, is not hair: a tone
+    change across a drawn line is a piece boundary, not shading; where the build fades a line out, the change counts),
+    behind the rest of the character drawn alike (which hides the hair's inside through the face), from 0, 90 and 180
+    degrees; each visible hair pixel's luminance cut into three tones at its group's 33rd and 66th percentiles (the buns
+    apart from the rest: tone_edges), the tone edges per visible hair pixel. A pixel within HAIR_NOISE_INK pixels of
+    the ink is the line's, not the hair's (hair_noise_ink)."""
     hair = _visible(B, ('hair',))
     if not hair:
         return None, {}
-    fr = figure_frame(B, ss=FIG_SS)
     vals, per = [], {}
-    surfs, groups = [], []
-    for o in hair:
-        for x in surfaces(B, o, outline=False):
-            surfs.append(x); groups.append(hair_noise_group(o))
-    occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
-           for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
-    grp_of = np.array(groups + [-1] * len(occ) + [-1])             # per surface (and -1 for none)
-    for az in (0, 90, 180):
-        view = draw_view(B, surfs + occ, az, fr)
-        px = draw_lit(B, view)
-        lab = _to_shape(grp_of[view['mesh']], px.shape[:2])
-        grp = np.where((px[..., 3] > 0.5) & (lab >= 1), lab, 0)
+    for az, px, lab, ink in hair_noise_views(B, hair):
+        grp = np.where((px[..., 3] > 0.5) & (lab >= 1) & ~ink, lab, 0)
         lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
         e, n = tone_edges(lum, grp)
         a = grp > 0
@@ -2125,6 +2127,28 @@ def hair_noise(B, design=None, out=None):
     if unsupported:
         C['hair_noise']['caution'] = 'drawn with flat tones for %s (a material the QA does not shade)' % ', '.join(unsupported)
     return per, C
+
+
+def hair_noise_views(B, hair):
+    """hair_noise's pictures: per view (0, 90, 180 degrees) (az, the picture (RGBA), each pixel's tone group (0 none,
+    hair_noise_group's), the drawn lines' pixels (hair_noise_ink)): the character drawn as the render draws it, its
+    outlines included. (The calibration's stand-ins replace this: charkit.calib.hairnoise.)"""
+    fr = figure_frame(B, ss=FIG_SS)
+    surfs, groups = [], []
+    for o in hair:
+        for x in surfaces(B, o, outline=True):
+            surfs.append(x); groups.append(-1 if x['hull'] else hair_noise_group(o))
+    occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
+           for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=True)]
+    grp_of = np.array(groups + [-1] * len(occ) + [-1])             # per surface (and -1 for none)
+    ink_of = np.array([bool(x['hull']) for x in surfs + occ] + [False], float)
+    out = []
+    for az in (0, 90, 180):
+        view = draw_view(B, surfs + occ, az, fr)
+        px = draw_lit(B, view)
+        mesh = view['mesh']
+        out.append((az, px, _to_shape(grp_of[mesh], px.shape[:2]), hair_noise_ink(ink_of[mesh] > 0, px.shape[:2])))
+    return out
 
 
 @qa_part('scalp', order=200)
