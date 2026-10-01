@@ -1143,3 +1143,19 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   hide_under.neck); every blocking flag and new FAIL toward pass with limits; the pieces pass-with-limits (pass at the old
   body's IoU, fail at the K floor); guard 0.25 vs its control. Out charkit/out/optimize/g7_opt2 (log
   charkit/out/garments7/opt2.log).
+- **opt1 ended** (230 evaluations; best g06_12 f 28.7 from the control's 37.5: clear_body gap 0.0115, from_t -0.375,
+  dilate 7, blur 1.38, taper 0.056; tuck ease 0.034, sink -0.0096; bow bed gap 0.012; collar side 0.364, back 0.505;
+  charkit/out/optimize/g6_opt1/best_override.json). Its confirm picked none, and **its confirm builds are the old
+  body**: the confirm builds `confirm.spec` / the decl's `spec` / else charkit/spec/clawd.json with the overrides, not
+  the base build's spec (shoulder_*_dip FAIL, no body_shoulder checks). A trap whenever the base isn't the default spec:
+  set `confirm.spec` (tool note for the coordinator: the default should follow the base build).
+- opt2 stopped (sweep-garments4-1001-150512-2b74, killed after gen 2): its start differed from its control (a taper c4
+  lacks: the start infeasible, 0/14 feasible in gens 0-2), one knob dead (hide_under.neck), no confirm spec.
+- Flare variants (real, render2; g7_c6a/b/c): sides less flared / h 0.05 / p 3: front corners 11 / 11 / 12; b and c
+  push art_speckle_neck to WARN and neck_crease to 17-25. The flare stays as in c4: the corners are the garments'.
+- art_outline_neck's overlay (tools/garments7/neckover.py, charkit/out/garments7/neckover_c4.png): c4's corners are the
+  neck sides bulging where the lapel tips sit (x +-0.13 z -0.47..-0.52), the V's sides (x +-0.08 z -0.52..-0.6: c4's
+  lapels end at z -0.52, the base's reach -0.6, so the V below them is bordered by the jacket's notched edge), and the
+  right shoulder's skin sliver (x 0.2-0.33 z -0.5, a fragment).
+- Sweep s3 (render2, re-mask on; tools/garments7/s3.json): collar side/back depth, rise, neck_drop, lift, v_half OAT +
+  opt1's best -> charkit/out/garments7/sweeps/s3.
