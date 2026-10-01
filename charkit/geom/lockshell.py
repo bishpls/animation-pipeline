@@ -37,7 +37,16 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                widen_lw={'side_locks': 4.0, 'lower_back': 2.0}, contain=1.0, dedup=0.5, unit='locks', over=0.004,
                contain_family=True, view_depth=1.0, soft_width=True, diff_step=1e-3, shade='proxy', shade_lock=0.0,
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
-               join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex')
+               join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex',
+               det=True, det_method='lm', det_step=1e-6, det_tol=1e-10, det_nfev=600, det_q_in=2.0 ** -12,
+               det_q_out=2.0 ** -12)
+# (tool/hairshell3) det: the reproducible fit (the same shells on every machine): a smooth objective (the drawn
+# centrelines through cubic splines, the fields and the envelope's depth sampled by cubic splines, soft limits for the
+# containment and the skin, the widths' Gaussian weights on squared distance), its Jacobian by finite differences
+# (det_step, relative; det_method 'lm': MINPACK's Levenberg-Marquardt, the twist through tanh), converged to det_tol
+# (at most det_nfev evaluations); the fit's float inputs snapped to det_q_in
+# m (two machines' hulls differ by ~1e-10 m) and its parameters to det_q_out m when it ends (the shells and every
+# decision after a fit are made from the snapped parameters). det False: round 2's fit.
 # (tool/hairshell2) shade: 'proxy' (the shells' normals from the default pieces' envelope: hairpieces.shade_normals) or
 # 'union' (round 1: the envelope of every piece, shells included); shade_lock: lock_shading on the shells (None: the
 # style's; 0: the shells' own relief tore the terminator); under: families whose wedges stay under their shells (with
@@ -102,7 +111,67 @@ def bernstein_matrix(n, t):
     return np.stack([comb(n, k) * t ** k * (1 - t) ** (n - k) for k in range(n + 1)], 1)
 
 
-def frames(P, chart, twist=0.0):
+def _softplus(x, s):
+    """max(0, x) made smooth over s (s log(1 + e^(x / s)))."""
+    return s * np.logaddexp(0.0, np.asarray(x, float) / s)
+
+
+def _sabs(x, e=1e-6):
+    """|x| made smooth at 0 (sqrt(x^2 + e^2))."""
+    return np.sqrt(np.asarray(x, float) ** 2 + e * e)
+
+
+def _smoothstep(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3 - 2 * x)
+
+
+def _dense(A, k=8):
+    """a polyline (n, 2) resampled k times as densely along a cubic spline through its points (by arc length): its
+    corners, where the nearest segment changes and a distance to it turns, become small."""
+    from scipy.interpolate import CubicSpline
+    A = np.asarray(A, float)
+    s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(A, axis=0), axis=1))]
+    keep = np.r_[True, np.diff(s) > 1e-9]
+    A, s = A[keep], s[keep]
+    if len(A) < 4:
+        return A
+    return CubicSpline(s, A, axis=0, bc_type='natural')(np.linspace(0, s[-1], (len(A) - 1) * k + 1))
+
+
+PAD = 8
+
+
+def snap(x, q):
+    """x rounded to multiples of q (a power of two: exact; charkit.geom.det.snap)."""
+    return np.round(np.asarray(x, float) / q) * q
+
+
+def _coef(A, periodic_rows=False):
+    """an array's cubic B-spline coefficients (scipy.ndimage.spline_filter), its rows padded PAD each side with their
+    periodic copies when periodic_rows (the crown chart's phi), for _at3."""
+    from scipy.ndimage import spline_filter
+    A = np.asarray(A, float)
+    if periodic_rows:
+        A = np.concatenate([A[-PAD:], A, A[:PAD]], 0)
+    return spline_filter(A, order=3, mode='nearest')
+
+
+def _at3(C, rows, cols):
+    """the cubic spline (coefficients C: _coef) at fractional (rows, cols): smooth in both."""
+    from scipy.ndimage import map_coordinates
+    return map_coordinates(C, [rows, cols], order=3, mode='nearest', prefilter=False)
+
+
+def _sample3(C, G, ph, th):
+    """a crown-chart field (coefficients C: _coef(A, True)) at chart points, a cubic spline (periodic in phi, clamped in
+    theta): Grid.sample made smooth."""
+    x = np.mod((np.asarray(ph, float) + 180) / G.dphi - 0.5, G.nph) + PAD
+    y = np.clip(np.asarray(th, float) / G.dth - 0.5, 0, G.nth - 1)
+    return _at3(C, x, y)
+
+
+def frames(P, chart, twist=0.0, smooth=False):
     """per centreline point: tangent t, thickness axis a (out of the chart's centre, square to t, turned by twist rad
     about t) and broad axis b = t x a."""
     t = np.gradient(P, axis=0)
@@ -118,7 +187,7 @@ def frames(P, chart, twist=0.0):
     for k in range(n - 2, -1, -1):
         tr = a[k + 1] - t[k] * (a[k + 1] @ t[k])
         tr /= np.linalg.norm(tr) + 1e-12
-        w = float(np.clip((st[k] - 0.25) / 0.5, 0.0, 1.0))
+        w = float(_smoothstep((st[k] - 0.25) / 0.5) if smooth else np.clip((st[k] - 0.25) / 0.5, 0.0, 1.0))
         v = w * a0[k] + (1 - w) * tr
         if v @ tr < 0:
             v = tr
@@ -289,14 +358,22 @@ class Lock:
         if not self.o.get('soft_width', False) or len(d['D']) < 2:
             return d['W'][np.argmin(dd, 1)]
         sg = max(1.0, float(np.median(np.linalg.norm(np.diff(d['D'], axis=0), axis=1))))
-        w = np.exp(-0.5 * ((dd - dd.min(1, keepdims=True)) / sg) ** 2)
+        if self.o.get('det'):
+            # (tool/hairshell3) Gaussian weights of the distance itself, normalised (the nearest's square taken out
+            # only against underflow, which cancels): smooth where the nearest station changes
+            q = dd ** 2
+            w = np.exp(-0.5 * (q - q.min(1, keepdims=True)) / sg ** 2)
+        else:
+            w = np.exp(-0.5 * ((dd - dd.min(1, keepdims=True)) / sg) ** 2)
         return (w * d['W'][None]).sum(1) / w.sum(1)
 
     def widths(self, P, twist):
         """per curve sample: the true width that best explains every view's drawn width (closed form), and per view the
         projected extents' coefficients."""
         from .hairpieces import _seg_dist
-        t, a, b = frames(P, self.F['chart'], twist)
+        det = bool(self.o.get('det'))
+        ab_ = _sabs if det else np.abs
+        t, a, b = frames(P, self.F['chart'], twist, det)
         s_ = self.hull_frame[0]
         num = np.zeros(len(P)); den = np.zeros(len(P))
         for vn, d in self.drawn.items():
@@ -307,7 +384,7 @@ class Lock:
             pb = self.px(P + b * 1e-3, vn) - pc
             pa = self.px(P + a * 1e-3, vn) - pc
             # the section's extent across the projected centreline, per unit width (px per m of width)
-            cvec = (np.abs(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * np.abs(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
+            cvec = (ab_(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * ab_(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
             wd = self.drawn_width(pc, d)
             num += cvec * wd; den += cvec ** 2
         Wt = num / np.maximum(den, 1e-12)
@@ -315,14 +392,22 @@ class Lock:
 
     def residuals(self, x, views=None):
         from .hairpieces import _seg_dist
+        det = bool(self.o.get('det'))
         Q = x[:18].reshape(6, 3)
         twist = x[18]
         P = self.curve(Q)
+        Pd = bernstein(Q, self.ts_dense) if det else None
         out = []
         for vn, d in self.drawn.items():
             if views and vn not in views:
                 continue
             pc = self.px(P, vn)
+            # (det: each drawn point against the curve sampled 4x as densely, each curve point against the drawn
+            # centreline through a cubic spline: the distances' corners small)
+            pcd = self.px(Pd, vn) if det else pc
+            if det and 'Dd' not in d:
+                d['Dd'] = _dense(d['D'])
+            Dd = d['Dd'] if det else d['D']
             # the root's end only in the primary view: another view's drawn lock is cut where its family's mask ends
             # (a lock's root lies under the locks above it, drawn at another height in each view); the tip in all
             rw = 2.0 if vn == self.primary else self.o.get('root_w_other', 2.0)
@@ -331,10 +416,11 @@ class Lock:
                 # (a secondary view over the heights both draw: its curve part there against its drawn part)
                 lo_, hi_ = d['span']
                 m_ = self.o.get('trim_px', 6.0)
-                wr = np.clip((pc[:, 1] - lo_) / m_, 0, 1) * np.clip((hi_ - pc[:, 1]) / m_, 0, 1)
-                out += [_seg_dist(d['D'], pc), wr * _seg_dist(pc, d['D']), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
+                cl_ = _smoothstep if det else (lambda z: np.clip(z, 0, 1))
+                wr = cl_((pc[:, 1] - lo_) / m_) * cl_((hi_ - pc[:, 1]) / m_)
+                out += [_seg_dist(d['D'], pcd), wr * _seg_dist(pc, Dd), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
             else:
-                out += [_seg_dist(d['D'], pc), _seg_dist(pc, d['D']), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
+                out += [_seg_dist(d['D'], pcd), _seg_dist(pc, Dd), rw * (pc[0] - d['D'][0]), tw * (pc[-1] - d['D'][-1])]
         # depth: the curve's radius about the chart's centre near its start's (the envelope less its offset)
         ch, G = self.F['chart'], self.F['grid']
         ph, th, r = ch.coords(P)
@@ -352,15 +438,26 @@ class Lock:
                 continue
             from .hairpieces import view_px
             c, rw = view_px(P, self.views[vn], d['az'], False, self.hull_frame)
-            de = map_coordinates(Dv, [rw / 2.0, c / 2.0], order=1, mode='nearest', cval=np.nan)
+            if det:
+                de = _at3(getattr(self, 'env_depth3')[vn], rw / 2.0, c / 2.0)
+            else:
+                de = map_coordinates(Dv, [rw / 2.0, c / 2.0], order=1, mode='nearest', cval=np.nan)
             a_ = math.radians(d['az'])
             dep = P @ np.array([math.sin(a_), -math.cos(a_), 0.0])
             half = 0.5 * self.o['depth_ratio'] * float(np.median(d['W'])) / self.views[vn].ppl * s_
             res = dep - (de - self.offset - half)
             out.append(self.o['view_depth'] * np.where(np.isfinite(res), res, 0.0) * tpx)
         # the skin: never within gap of it
-        Sk = G.sample(self.F['S'], ph, th)
-        clear = np.where(np.isfinite(Sk), np.maximum(0.0, Sk + self.o['gap'] * self.L - r), 0.0)
+        if det:
+            # (the skin's field with no skin as radius 0: the clearance off there, as the bilinear's -inf made it)
+            C3 = self.F['_c3']
+            if 'S' not in C3:
+                C3['S'] = _coef(np.where(np.isfinite(self.F['S']), self.F['S'], 0.0), True)
+            Sk = _sample3(C3['S'], G, ph, th)
+            clear = _softplus(Sk + self.o['gap'] * self.L - r, 0.5 / tpx)
+        else:
+            Sk = G.sample(self.F['S'], ph, th)
+            clear = np.where(np.isfinite(Sk), np.maximum(0.0, Sk + self.o['gap'] * self.L - r), 0.0)
         out.append(10.0 * clear * tpx)
         d2 = Q[2:] - 2 * Q[1:-1] + Q[:-2]
         out.append(self.o['prior_smooth'] * d2.ravel() * tpx)
@@ -373,10 +470,11 @@ class Lock:
             g = np.gradient(pc, axis=0)
             g /= np.linalg.norm(g, axis=1, keepdims=True) + 1e-12
             nrm = np.c_[-g[:, 1], g[:, 0]]
-            t, a, b = frames(P, ch, twist)
+            t, a, b = frames(P, ch, twist, det)
             pb = self.px(P + b * 1e-3, vn) - pc
             pa = self.px(P + a * 1e-3, vn) - pc
-            cvec = (np.abs(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * np.abs(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
+            ab_ = _sabs if det else np.abs
+            cvec = (ab_(np.einsum('ij,ij->i', pb, nrm)) + self.o['depth_ratio'] * ab_(np.einsum('ij,ij->i', pa, nrm))) / 1e-3
             wd = self.drawn_width(pc, d)
             out.append(0.5 * (cvec * Wt - wd))
         out.append(np.array([self.o['prior_twist'] * twist * 10.0]))
@@ -386,28 +484,70 @@ class Lock:
         for vn, (az, sd, hw) in getattr(self, 'contain', {}).items():
             from .hairpieces import view_px
             c, r = view_px(P, self.views[vn], az, False, self.hull_frame)
-            d = map_coordinates(sd, [r, c], order=1, mode='nearest')
-            out.append(self.o['contain'] * np.maximum(0.0, d + 0.5 * hw))
+            if det:
+                d = _at3(sd, r, c)                      # (sd: the signed distance's spline coefficients)
+                out.append(self.o['contain'] * _softplus(d + 0.5 * hw, 0.5))
+            else:
+                d = map_coordinates(sd, [r, c], order=1, mode='nearest')
+                out.append(self.o['contain'] * np.maximum(0.0, d + 0.5 * hw))
         return np.concatenate([np.ravel(q) for q in out])
 
     def fit(self):
         from scipy.optimize import least_squares
         ch, G = self.F['chart'], self.F['grid']
+        det = bool(self.o.get('det'))
+        self.ts_dense = np.linspace(0, 1, 4 * len(self.ts))
+        if det:
+            self.F.setdefault('_c3', {})
         P0 = self.curve()
         ph0, th0, r0 = ch.coords(P0)
-        R0 = G.sample(self.F['R'], ph0, th0)
-        dr = float(np.median(R0 - r0))                 # how far under the envelope the start lies
-        self.target_r = lambda ph, th: G.sample(self.F['R'], ph, th) - dr
+        if det:
+            C3 = self.F['_c3']
+            if 'R' not in C3:
+                C3['R'] = _coef(self.F['R'], True)
+            R0 = _sample3(C3['R'], G, ph0, th0)
+            dr = float(np.median(R0 - r0))
+            self.target_r = lambda ph, th: _sample3(C3['R'], G, ph, th) - dr
+        else:
+            R0 = G.sample(self.F['R'], ph0, th0)
+            dr = float(np.median(R0 - r0))                 # how far under the envelope the start lies
+            self.target_r = lambda ph, th: G.sample(self.F['R'], ph, th) - dr
         tw = self.o['twist_max']
         x0 = np.r_[self.Q.ravel(), np.clip(self.twist, -0.99 * tw, 0.99 * tw)]
         scale = np.r_[np.full(18, 0.01 * self.L), 0.3]
-        # diff_step: the Jacobian's finite-difference step (relative; under 1 m, in m: 1e-3 is a millimetre, about a
-        # pixel of the drawing). scipy's default (1.5e-8) probes the objective far below its pixel-level corners, so
-        # the fit's end moved with input noise
-        sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=300, diff_step=self.o.get('diff_step'),
-                            bounds=(np.r_[np.full(18, -np.inf), -tw], np.r_[np.full(18, np.inf), tw]))
-        self.Q = sol.x[:18].reshape(6, 3)
-        self.twist = float(sol.x[18])
+        bounds = (np.r_[np.full(18, -np.inf), -tw], np.r_[np.full(18, np.inf), tw])
+        if det:
+            # (tool/hairshell3) the smooth objective's Jacobian by central differences of a micrometre, converged:
+            # the fit's end a function of its inputs, not of the path (round 2's millimetre secant stopped wherever
+            # the trust region gave up, 1e-6..1e-2 m apart for inputs 1e-10 m apart)
+            tol = self.o['det_tol']
+            if self.o.get('det_method', 'trf') == 'lm':
+                # (Levenberg-Marquardt, MINPACK's: the twist through tanh, unbounded)
+                f_ = lambda y: self.residuals(np.r_[y[:18], tw * np.tanh(y[18])])
+                y0 = np.r_[x0[:18], np.arctanh(np.clip(x0[18] / tw, -0.99, 0.99))]
+                sol = least_squares(f_, y0, x_scale=scale, max_nfev=self.o['det_nfev'], method='lm',
+                                    diff_step=self.o['det_step'], ftol=tol, xtol=tol, gtol=tol)
+                sol.x = np.r_[sol.x[:18], tw * np.tanh(sol.x[18])]
+            else:
+                sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=self.o['det_nfev'], jac='3-point',
+                                    diff_step=self.o['det_step'], ftol=tol, xtol=tol, gtol=tol, bounds=bounds)
+            q = self.o.get('det_q_out')
+            xs = np.asarray(sol.x, float)
+            if q:
+                # the parameters snapped (a power of two: exact): every machine's fit ends within ~1e-12 m of the same
+                # point, so the snapped ones agree bit for bit unless a value sits that close to a step
+                xs = np.r_[snap(xs[:18], q), snap(xs[18:], q)]
+            self.Q = xs[:18].reshape(6, 3)
+            self.twist = float(xs[18])
+            self.status = (int(sol.status), int(sol.nfev))
+        else:
+            # diff_step: the Jacobian's finite-difference step (relative; under 1 m, in m: 1e-3 is a millimetre, about
+            # a pixel of the drawing). scipy's default (1.5e-8) probes the objective far below its pixel-level corners,
+            # so the fit's end moved with input noise
+            sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=300, diff_step=self.o.get('diff_step'),
+                                bounds=bounds)
+            self.Q = sol.x[:18].reshape(6, 3)
+            self.twist = float(sol.x[18])
         P = self.curve()
         for vn, d in self.drawn.items():
             from .hairpieces import _seg_dist
@@ -459,7 +599,16 @@ class Lock:
         from scipy.ndimage import maximum_filter1d
         Wl = np.minimum(Wl, 1.6 / np.maximum(maximum_filter1d(kb, 5, mode='nearest'), 1e-9))
         Tl = np.minimum(self.o['depth_ratio'] * Wl, 1.6 / np.maximum(maximum_filter1d(ka, 5, mode='nearest'), 1e-9))
-        part = tube(line, Wl, Tl, ch, self.twist, self.o['n_ring'])
+        det = bool(self.o.get('det'))
+
+        def tube_(*a):
+            p_ = tube(*a)
+            if det:
+                # (tool/hairshell3) the tube's arrays snapped (2^-26 m, 15 nm): libm's ulps differ between machines
+                for k_ in ('V', 'vn_env', 'strand'):
+                    p_[k_] = snap(p_[k_], 2.0 ** -26)
+            return p_
+        part = tube_(line, Wl, Tl, ch, self.twist, self.o['n_ring'])
         from .hairpieces import fold_mask
         nr = self.o['n_ring']
         for _ in range(int(self.o.get('fold_fix', 0))):
@@ -475,7 +624,7 @@ class Lock:
             for k_ in ks:
                 sc[max(0, k_ - 2):k_ + 4] = 0.7
             Wl, Tl = Wl * sc, Tl * sc
-            part = tube(line, Wl, Tl, ch, self.twist, nr)
+            part = tube_(line, Wl, Tl, ch, self.twist, nr)
         keep = self.o.get('over_ink')
         part['over'] = bool(getattr(self, 'over', False))
         if getattr(self, 'over', False) and keep is not None:
@@ -496,10 +645,41 @@ class Lock:
         return part
 
 
+def det_inputs(F, views, hull_frame, L, q=2.0 ** -12):
+    """the lock fit's float inputs snapped (tool/hairshell3, lock_shells det): two machines' hulls, and so their envelope
+    fields and the chart's centre, differ by ~1e-10 m. The fields R, Rn, S and the chart's centre to q m, the hull's
+    frame (its scale to 2^-24, its offset to q) and L, the views' calibration to 2^-20 px; copies (the caller's are
+    untouched), F with a cache for its spline coefficients. -> (F, views, hull_frame, L)."""
+    import copy
+    F = dict(F, _c3={})
+    if not q:
+        return F, views, hull_frame, L
+    for k in ('R', 'Rn', 'S'):
+        if k in F:
+            F[k] = np.where(np.isfinite(F[k]), snap(F[k], q), F[k])
+    ch_ = copy.copy(F['chart'])
+    ch_.c = snap(ch_.c, q)
+    F['chart'] = ch_
+    L = float(snap(L, 2.0 ** -24))
+    hull_frame = (float(snap(hull_frame[0], 2.0 ** -24)), snap(np.asarray(hull_frame[1], float), q))
+    vs_ = {}
+    for k_, v_ in views.items():
+        v2 = copy.copy(v_)
+        for a_ in ('ppl', 'axis', 'eye_y'):
+            if isinstance(getattr(v2, a_, None), (int, float, np.floating)):
+                setattr(v2, a_, float(snap(getattr(v2, a_), 2.0 ** -20)))
+        if getattr(v2, 'grid_eye', None) is not None:
+            v2.grid_eye = tuple(float(x) for x in snap(np.asarray(v2.grid_eye, float), 2.0 ** -20))
+        vs_[k_] = v2
+    return F, vs_, hull_frame, L
+
+
 def build_shells(F, masks, views, hull_frame, L, ls, log=print):
     """the lock shells the spec asks for (pieces_opts.lock_shells: see the module) -> dict(parts {family or group: [part
     dicts]}, groups [{family, view, phi}], report)."""
     o = dict(DEFAULT, **{k: v for k, v in ls.items() if k not in ('split',)})
+    if o.get('det'):
+        F, views, hull_frame, L = det_inputs(F, views, hull_frame, L, o.get('det_q_in'))
     S = load_split(ls['split'])
     fams = list(o['families']) + [g['family'] for g in o['groups']]
     allfams = ('bangs', 'side_locks', 'upper_back', 'lower_back', 'ahoge', 'flyaways')
@@ -645,13 +825,27 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
             edepth[vn] = D
         return edepth[vn]
 
+    coefs = {}
+
+    def coef(key, arr):
+        """an image's cubic spline coefficients, once (det's smooth sampling)."""
+        if key not in coefs:
+            coefs[key] = _coef(arr)
+        return coefs[key]
+
     def set_contain(lk):
         if o['view_depth']:
             lk.env_depth = {vn: env_depth(vn) for vn in lk.drawn}
+            if o.get('det'):
+                lk.env_depth3 = {vn: coef(('env', vn), lk.env_depth[vn]) for vn in lk.drawn}
         P_ = lk.curve()
         hw = float(np.median(lk.drawn[lk.primary]['W'])) / 2
-        lk.contain = {vn: (W_['az'], fam_dist(vn, lk.family), hw) for vn, W_ in S['views'].items()
-                      if vn in views and facing(P_, W_['az'])}
+        if o.get('det'):
+            lk.contain = {vn: (W_['az'], coef(('fam', vn, lk.family), fam_dist(vn, lk.family)), hw)
+                          for vn, W_ in S['views'].items() if vn in views and facing(P_, W_['az'])}
+        else:
+            lk.contain = {vn: (W_['az'], fam_dist(vn, lk.family), hw) for vn, W_ in S['views'].items()
+                          if vn in views and facing(P_, W_['az'])}
 
     jobs = [(f, None) for f in o['families']] + [(g['family'], g) for g in o['groups']]
     for fam, grp in jobs:

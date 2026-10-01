@@ -1,6 +1,6 @@
 # Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: round 2 done (gate PASS; see "Round 2 result" and "Round 3" at the end). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: round 3 in progress (tool/hairshell3; see "# Round 3" at the end). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -411,3 +411,46 @@ IoU (0.620 -> 0.583) and the truth score (side locks 0.589 -> 0.559): the joined
   hairpieces / lockshell (no check moved: the default's geometry is the same); build CPU 1.17x
   (`charkit/out/gate/gate_tool-hairshell2_5ca5f37_into_d0d6304.md`). (A first launch failed: a notes commit landed
   while the gate bundled the branch; don't commit while a gate starts.)
+
+
+# Round 3 (tool/hairshell3, from pipeline-3d 1d57838)
+
+Coordinator's calls (2026-10-01): don't switch the default yet; first (a) reproducibility (every lock's fit
+bit-identical, laptop vs box, with a test) and (b) the back view's terminator (judge look checks on the six-placement
+average too); hair_noise remeasured with the outlines drawn as the render draws them, then recalibrated (design jitter
+PASS, known-bad FAIL, random floor; never loosen); one paid reference attempt (an exploded lock breakdown, n=2) for
+cross-view identity, else the canonical rule's step 3; then the lower back's profile and peeks. Harness and outputs:
+`tools/hairshell3/` (box-runnable), `charkit/out/hairshell3/`.
+
+## (a) Reproducibility
+
+`tools/hairshell3/determ.py CTX OUT.json [--perturb 1e-10]` (build_shells on a fit context, per lock the sha256 of its
+shell; `--cmp A B`). The two box builds' contexts (hs_base, hs_shells_r) differ by 8e-11 m in R, Rn, S and the chart's
+centre (views, masks, split identical). Round 2's fit on one context twice: identical; with its inputs moved 1e-10 m:
+0 of 17 identical, 14 within 1e-9..1e-5 m, f10.2 2.7 mm (folds 0 vs 4), f20.1 2.2 cm, p13.1 0.26 mm. A tighter
+least_squares (ftol/xtol/gtol 1e-15 polish) changes nothing: trf stops (xtol) wherever the trust region gives up on
+a kinked objective probed by 1 mm secants, so the end is the path's, not the inputs'.
+
+Fix (`lock_shells.det`, default on for shells): a smooth objective (drawn centrelines through cubic splines, the curve
+sampled 4x, the fields and the envelope's depth by cubic splines, softplus limits, smooth abs, the widths' Gaussian on
+squared distance), central-difference Jacobian (1e-6), converged (tol 1e-12); the fit's inputs snapped to 2^-12 m, its
+parameters to 2^-14 m, the tube's arrays to 2^-26 m. (Measuring.)
+
+## hair_noise remeasure (side branch tool/hairshell3-noise, aa7b3e6)
+
+`qa3d.hair_noise` draws the hair with its outlines as the render does; a pixel within 1 px of ink is the line's (the
+film filter darkens the hair beside its lines: luminance 0.498 at 1 px against 0.515 at 1.5-3 px). New readings
+(`charkit/out/hairshell3/noise3.py`, pictures `noisepic.py`): hull hs_hull_r 0.0717 W -> 0.0342 P (front 0.122 ->
+0.035); round 2 shells hs3 0.0784 W -> 0.0303 P; round 1 hs_shells_r 0.098 F -> 0.036 P; hl_base 0.0785 -> 0.0424;
+hair5_1580f95 0.079 -> 0.0397; look_v5 0.066 -> 0.020. Known-bad: pipeline-3d's confirm build ck6_body (the hull-era
+hair of T003 "blotchy: light speckles on the back and sides") 0.221 (its era) -> 0.104 FAIL (0.0365/0.055/0.047
+without outlines under today's code: its speckles show only in the outline-correct drawing, where the pulled-in
+surface shows the hull's folds). Floor (speckle blots 6%): 0.25-0.29 FAIL.
+**The design leg fails**: the body sheet's hair (`charkit/calib/hairnoise.py`: its cel tones, paletteqa's lit and
+shade, the lines as ink, at the QA's 82.3 px/L) reads 0.216 FAIL (front 0.27, profile 0.25, back 0.13); median-
+filtered tones 0.16-0.21. The design draws a shadow shape per lock: its tone-edge density is 5-7x any render's, so
+hair_noise (absolute tone-edge density; PASS < 0.04) rewards flat shading and would call the design's lock shadows
+noise. A speckle prototype (`speckle_proto.py`: the hair's share in tone islands under 12 px) doesn't separate either
+(design 0.020, ck6 0.030, hull 0.010, floor 0.040). So the triple can't come out calibrated without redefining what
+hair_noise measures: kept off this branch (the gate blocks a remeasured check without a calibrated record);
+a decision for Michael.
