@@ -426,7 +426,7 @@ def _supersede_on(env, branch, spec):
     name = os.path.basename(env)[:-4]
     cfg, vm = _cfg(env)
     r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - list --days 0'], input=open(boxjob.__file__, 'rb').read(),
-                       capture_output=True)
+                       capture_output=True, env=_genv(env))
     if r.returncode:
         print('remote gate: could not list the %s box\'s jobs (exit %d): older gates of %s there left alone' % (
             name, r.returncode, branch), file=sys.stderr)
@@ -436,7 +436,7 @@ def _supersede_on(env, branch, spec):
            _gate_label(x.get('label')) == (branch, spec)]
     for jid in old:
         k = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - kill %s' % shlex.quote(jid)],
-                           input=open(boxjob.__file__, 'rb').read(), capture_output=True)
+                           input=open(boxjob.__file__, 'rb').read(), capture_output=True, env=_genv(env))
         print('remote gate: stopped the older gate of %s still running on the %s box, %s (%s)' % (
             branch, name, jid, (k.stdout.decode().strip() or k.stderr.decode().strip())[-120:]), file=sys.stderr,
             flush=True)
@@ -481,7 +481,9 @@ OWN_GCLOUD = os.environ.get('CLOUDSDK_CONFIG')   # the caller's own gcloud confi
 def _genv(env=None):
     """the environment for a box's gcloud and build.sh calls (env: its env file, default the chosen box's), without
     touching this process's: CHARKIT_BOX_ENV, and CLOUDSDK_CONFIG from the env file, else the caller's own (so boxes
-    read side by side never see each other's)."""
+    read side by side never see each other's). The multi-box ssh calls run with it too: an ssh config written for the
+    default login has no CLOUDSDK_CONFIG in its ProxyCommand, whose tunnel would otherwise take whatever an earlier
+    box put in this process's environment."""
     e = dict(os.environ, CHARKIT_BOX_ENV=env or BOX['env'])
     c = _env('CLOUDSDK_CONFIG', env)
     if c:
@@ -735,7 +737,7 @@ def box_slots(env=None):
     cfg, vm = _cfg(env)
     try:
         r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - slots'], input=open(boxjob.__file__, 'rb').read(),
-                           capture_output=True, timeout=READ_TIMEOUT)
+                           capture_output=True, timeout=READ_TIMEOUT, env=_genv(env))
     except subprocess.TimeoutExpired:
         return dict(base, status='unreadable', why='no answer in %d s' % READ_TIMEOUT)
     line = next((l for l in r.stdout.decode(errors='replace').splitlines() if l.startswith('{')), None)
@@ -912,7 +914,7 @@ def jobs(args):
             continue
         cfg, vm = _cfg()
         r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - list --days %s' % shlex.quote(days)],
-                           input=open(boxjob.__file__, 'rb').read(), capture_output=True)
+                           input=open(boxjob.__file__, 'rb').read(), capture_output=True, env=_genv(env))
         if r.returncode:
             print('%s box: could not list jobs (exit %d) %s' % (name, r.returncode, r.stderr.decode(errors='replace')[-300:]))
             continue

@@ -217,6 +217,41 @@ def test_main_routes_by_default_and_a_name_wins():
             os.environ['CHARKIT_BOX'] = cb
 
 
+def test_supersede_spans_every_running_box():
+    """one live gate per branch: the older gate of this branch and spec is stopped wherever --box auto sent it; another
+    branch's, another spec's, and a stopped box's are left alone."""
+    import json, subprocess, types
+    rows = {'vm-0': [dict(jid='g-old-build', kind='gate', state='running', label='tool/x into pipeline-3d'),
+                     dict(jid='g-other', kind='gate', state='running', label='tool/y into pipeline-3d')],
+            'vm-1': [dict(jid='g-old-build2', kind='gate', state='running', label='tool/x into pipeline-3d'),
+                     dict(jid='g-spec', kind='gate', state='running', label='tool/x into pipeline-3d --spec s.json'),
+                     dict(jid='b-1', kind='build', state='running', label='build s.json')],
+            'vm-2': [dict(jid='g-off', kind='gate', state='running', label='tool/x into pipeline-3d')]}
+    killed = []
+
+    def run(argv, input=None, capture_output=False, env=None, **k):
+        vm, cmd = argv[3], argv[4]
+        if cmd.startswith('python3 - list'):
+            out = '\n'.join(json.dumps(r) for r in rows[vm])
+        else:
+            killed.append((vm, cmd.split()[-1]))
+            out = 'boxjob: sent SIGTERM'
+        return types.SimpleNamespace(returncode=0, stdout=out.encode(), stderr=b'')
+    old = (remote.ROOT, remote.BOX.copy(), remote._cfg, remote._box_status, remote.subprocess.run)
+    try:
+        remote.ROOT = _gcp(['build', 'build2', 'render2'])
+        remote.BOX['env'] = os.path.join(remote.ROOT, 'infra', 'gcp', 'build2.env')          # the chosen box
+        remote._cfg = lambda env=None: ('cfg', remote._env('VM', env))
+        remote._box_status = lambda env=None: 'TERMINATED' if 'render2' in (env or '') else 'RUNNING'
+        remote.subprocess.run = run
+        got = remote.supersede('tool/x')
+        assert sorted(got) == ['g-old-build', 'g-old-build2'], got
+        assert killed[0] == ('vm-1', 'g-old-build2') and ('vm-0', 'g-old-build') in killed and len(killed) == 2
+    finally:
+        remote.ROOT, remote._cfg, remote._box_status, remote.subprocess.run = old[0], old[2], old[3], old[4]
+        remote.BOX.clear(); remote.BOX.update(old[1])
+
+
 def test_box_side_reading():
     """boxjob's `slots` (what box_slots reads over ssh): the slots, with the cores, the load and memory."""
     d = tempfile.mkdtemp()
