@@ -809,9 +809,11 @@ scores well below what single views reach (under about 80%). In order:
 1. **Is it ours?** Refit with the relevant freedom opened (for example the hair's envelope depth). If one 3D shape then
    fits every view, fix our geometry or constraints.
 2. **Is the reference adequate for this piece?** It isn't when the piece is small or occluded in the turnaround, drawn
-   view-dependently (clips face-on in every view), or has internal structure the turnaround can't resolve (a knot,
-   creases, locks). Get a better isolated reference (a breakdown or close-up drawing the piece in several views
-   together) and sub-cut the piece.
+   view-dependently (clips face-on in every view), has internal structure the turnaround can't resolve (a knot,
+   creases, locks), or is layered with no separated reference: it covers or is covered by another piece, and there's
+   no drawing of the cover alone and of the layer underneath without it (Michael, 2026-10-01: the bodice without the
+   bow). Get a better isolated reference (a breakdown or close-up drawing the piece in several views together, or
+   the separated layer pair) and sub-cut the piece.
 3. **Only then compromise:** the base model takes the best fit across views and reports per-view costs; checks built on
    one view's inconsistent feature are re-measured against their intent; view-exact matching is a per-shot override.
 Placement rules (pieces don't occlude each other) outrank the reference's exact placement.
@@ -1162,6 +1164,18 @@ Drawn from the session's recurring failure patterns:
    - rename `i3d` (it's the generated-GLB loader and aligner) and the checks' 'trellis' reference labels;
    - retire tools/imageto3d/trellis_remote.sh;
    - give the perceptual metric its own environment on the render box.
+9. **Separated layer references (Michael, 2026-10-01).** Wherever one piece covers another (accessories, drapery,
+   independent layers), work from a reference of the cover alone and of the covered layer WITHOUT it, as worn, in
+   several views (front, three-quarter, side, back, one scale, orthographic, the turnaround as the edit's reference).
+   A layered piece with neither is an inadequate reference (the view rule's step 2, its fourth trigger): say so and
+   generate the pair; never guess what's underneath. Why: with no bodice drawn without the bow, agents' guesses
+   compounded (a closed orange V, lapels bunched beside the neck, failed collar checks), and the flat-lay suggested
+   the orange V because a flat-lay shows a garment's inside through its openings; don't read that as the front.
+   Each registered pair carries the shape/placement split (its shape from the separated sheet, its placement and
+   silhouette in context from the turnaround) and passes a refcheck against the turnaround first: the visible
+   parts' silhouettes, the scale, and the covered layer inside the cover's silhouette (`python -m charkit.layerref`).
+   The audit and Clawd's sheets: docs/workstreams/layerrefs.md; every new character gets the per-layer sheets up front
+   (docs/ROADMAP.md, the character-description layer's reference-production checklist).
 
 ### When a check and Michael's eye disagree
 

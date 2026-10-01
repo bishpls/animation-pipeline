@@ -196,7 +196,7 @@
    },
    "path": "charkit/refs/clawd/gen/garment_breakdown.png",
    "role": "the outfit as a labelled flat-lay of its pieces: bodice front and back, puff sleeves, sailor collar, bow with tails, outer skirt, cream front panel, stepped back panels L/R, shorts, wrist cuffs, boots front and back",
-   "cautions": ["flat-lay scale is not body scale: use it for piece shapes, counts (pleats, hem steps) and the piece list, not for sizes on the body", "its pieces' boxes ('pieces', px) and views are what charkit.isoqa reads; flattened (a flat-lay), so only rigid pieces compare directly (the bow, cuffs, collar, boots), draped ones wait for sewing patterns"],
+   "cautions": ["flat-lay scale is not body scale: use it for piece shapes, counts (pleats, hem steps) and the piece list, not for sizes on the body", "its pieces' boxes ('pieces', px) and views are what charkit.isoqa reads; flattened (a flat-lay), so only rigid pieces compare directly (the bow, cuffs, collar, boots), draped ones wait for sewing patterns", "a flat-lay's openings show the garment's inside: the bodice's V (orange) is the inside of its back panel seen through the neck opening, not the bodice front; the turnaround's V is skin (Michael, 2026-10-01). Read no covered layer from it: the separated layer sheets hold those (docs/workstreams/layerrefs.md)", "its shorts (belt loops, pockets, turn-ups) and its full-circle cream skirt panel are the model's flat-lay reading, not drawn on the turnaround: skirt_layers holds the layers as worn"],
    "sha256": "8128ddf1b4a49b54e0d8ff68224eda5aeefc9fb0f3eca8caed8dc8c7784a8830",
    "pieces": {
     "bow": {

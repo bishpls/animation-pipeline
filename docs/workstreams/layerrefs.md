@@ -46,6 +46,51 @@ Also: garment_breakdown's bodice V shows the inside of the back panel (orange), 
 3. `hair_clips_layers` (row 4): the head without the clips (front, three-quarter, profile) and the crab and the star
    each alone (front and edge-on).
 
+## 3. Generation (2026-10-01, tools/gptimage.py via charkit/out/layerrefs/gen.py, n=2 each, ledger)
+
+- `base_body_turnaround` (ref body_turnaround): 2 takes, `charkit/out/layerrefs/gen/base_body_turnaround_{1,2}.png`.
+- `hair_clips_layers` (ref head_turnaround): 2 takes.
+- `skirt_layers`: the first two wordings were refused by the image API's moderation (no image; ledger `ok: false`;
+  prompts kept as `skirt_layers_v1_blocked` / `_v2_blocked`): the lower-body mannequin, a lower-body close-up as input
+  and "the shorts alone" read as unsafe. The third (the turnaround as the only input, the garments on legless tailor's
+  dress forms, no shorts row) passed: 2 takes. The shorts row was dropped: the base body shows the thighs under them.
+- Calls: 5 (2 refused). The `.env` is a gitignored symlink to the main checkout's (remove at the end).
+
+## 4. Refcheck: `python -m charkit.layerref SPEC SHEET --kind body|clips|skirt` (new, QA side, no build reads it)
+
+Tolerances declared in `layerref.TOL` before any sheet was measured. Calibrated (body): the turnaround against itself
+PASS (outside 0, kept IoU 1.0); the base body widened 6% about each figure's axis FAILs every view (outside
+0.036-0.048, most 0.073-0.095 L, against 0.03 / 0.04).
+
+**Measurement fix (before reading results):** registering the base body by the eyes' spacing put the eye line
+0.04-0.07 L off in every view; the sheet is pixel-identical in layout (top, eye and sole rows within 1-3 px, height
+ratio 0.9985-1.0000) and the eyes' spacing reads 1.0-1.4% narrow (a pixel of a ~70 px spacing is 1.4%). The scale now
+comes from the figures' heights, as refviews.drift registers a redrawn sheet; the eyes' spacing ratio is reported.
+
+**base_body_turnaround** (take 1 / take 2), per view front, three-quarter, profile, back:
+
+| measure | tol | take 1 | take 2 |
+|---|---|---|---|
+| kept head IoU | >= 0.90 | 0.989 / 0.987 / 0.972 / 0.988 | 0.987 / 0.989 / 0.966 / 0.986 |
+| kept legs+boots IoU | >= 0.90 | 0.984 / 0.977 / 0.927 / 0.981 | 0.982 / 0.976 / 0.932 / 0.977 |
+| outside the costume | <= 0.03 | 0.004 / 0.006 / 0.016 / 0.009 | 0.011 / 0.007 / 0.016 / 0.013 |
+| most outside (L) | <= 0.04 | 0.013 / 0.030 / **0.043** / 0.019 | 0.027 / 0.032 / **0.049** / 0.030 |
+| visible skin recall | >= 0.85 | 0.987 / 0.989 / 0.990 / 0.978 | 0.978 / 0.957 / 0.981 / 0.969 |
+| eye over soles (L) | +-0.03 | +0.000 / -0.007 / +0.011 / -0.005 | -0.001 / -0.009 / +0.010 / -0.001 |
+| hidden share (what it adds) | | 0.72 / 0.71 / 0.71 / 0.73 | 0.71 / 0.71 / 0.70 / 0.73 |
+
+Scale 1.0011 / 1.0000; eyes' spacing 0.986 / 0.990. Take 1 chosen (lower outside in every view). Its profile FAILs
+the most-outside by 0.003 L: the back of the thigh below the shorts (z -2.64..-3.20 L, u +0.33), visible skin where
+the turnaround is the authority; inside the covered band its most is 0.038 L (the bust's front, z -0.95..-1.08).
+
+**hair_clips_layers** (take 1 / take 2): heads without the clips, front / three-quarter / profile: head IoU 0.980 /
+0.977 / 0.976 (take 2: 0.931 / 0.930 / 0.942), clip pixels found by accqa's finder 0 in every view (it finds 6,729 on
+the turnaround's front), the turnaround's clip region drawn as hair 0.983 / 1.000 / 1.000: PASS. The clips alone FAIL
+as shape references: the crab is a generic symmetric crab (shape IoU 0.49-0.54 against the turnaround's front, three-
+quarter and profile crab), and the star, while its shape IoU passes (0.65-0.77), has side arms 0.48-0.51 of its height
+against the turnaround's 0.31 (accessories.md's three-view fit: 0.37): an equal-armed compass star, not the design's
+tall one. Only the top row (the covered layer) is registered.
+
 ## State
 
 (updated as the round goes)
