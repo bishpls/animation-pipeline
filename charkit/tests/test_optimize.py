@@ -133,7 +133,8 @@ def test_scorer_terms_constraints_and_fidelity():
     assert op.Scorer(P, ctrl, log=QUIET).score(real)['feasible']
     R = op.Scorer(P, ctrl, mode='real', log=QUIET)                  # (the confirm: every term, every constraint)
     assert 'art_terminator_x' in [t['check'] for t in R.terms] and not R.score(real)['feasible']
-    assert op.fidelity('palette_skin_lit') == 'real' and op.fidelity('stair_front_crossed') == 'fast'
+    assert op.fidelity('art_fragments_bow') == 'real' and op.fidelity('stair_front_crossed') == 'fast'
+    assert op.fidelity('palette_skin_lit') == 'fast'                # (the audit: the palette reads the same)
     assert op.fidelity('x', 'look') == 'real' and op.fidelity('art_band_lower', extra={'art_band_*': 'fast'}) == 'fast'
 
 

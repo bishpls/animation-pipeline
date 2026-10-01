@@ -101,18 +101,22 @@ INT_FLOOR = 0.4               # an integer knob's spread kept at least this many
 STALL_SPREAD = 0.05           # the stall rule's narrowed search: every continuous knob's spread under this share of its range
 MIN_IOU = 0.05                # the guard reads a piece-view whose control IoU is above this (sweep.guard's)
 
-# Real-only checks: the screen's numpy drawing reads them differently from the real build's toon render (no
-# highlights; its own terminator and lighting). Patterns over check names; REAL_PARTS: every check of these QA parts.
-# Audited by `optimize audit BUILD` (docs/workstreams/optimize.md: numpy drawing vs the build's render drawing).
+# Real-only checks: the screen's numpy drawing reads them differently from the real build's toon render. Measured by
+# `optimize audit BUILD` on opt_base (ad081524, 2026-10-01; charkit/out/optimize/audit_opt_base): of 639 checks over
+# every part, 10 read differently (status, or value by more than 2%): the look part's face shadows (face_shadow_neck_3q
+# 0.099 real / 0.040 numpy, chin_edge 0.057 / 0.048, 3q 0.30 / 0.33), the terminator (art_terminator_bow 4.83 FAIL /
+# 2.37 WARN, collar 5.72 / 8.45), the hem band (art_band_lower 1.111 / 1.238) and the ink fragments (bow 3.17 / 3.05,
+# collar 6.49 / 6.64). The palette (palette_*_lit / _shade) and the eyes read the same. Highlights stay real-only (the
+# numpy drawing draws none: a check measuring them would read nothing). Patterns over check names; REAL_PARTS: every
+# check of these QA parts.
 FIDELITY = [
-    ('art_terminator_*', 'the terminator as the toon renderer draws it'),
-    ('art_band_*', 'the dark hem band as the toon renderer shades it (sweep rows read it 0.4-0.5 above the build)'),
+    ('art_terminator_*', 'the terminator as the toon renderer draws it (audit: bow 4.83 real / 2.37 numpy)'),
+    ('art_band_*', 'the dark hem band as the renderer shades it (audit: art_band_lower 1.111 / 1.238)'),
+    ('art_fragments_*', 'ink fragments as the renderer\'s screen lines draw them (audit: 2-4% off)'),
     ('*highlight*', 'highlights: the numpy drawing has none'),
-    ('*_lit', 'a colour under the renderer\'s light'),
-    ('*_shade', 'a colour in the renderer\'s shade'),
-    ('face_shadow_*', 'the face\'s cast and form shadows'),
+    ('face_shadow_*', 'the face\'s cast and form shadows (audit: up to 59% off)'),
 ]
-REAL_PARTS = ('look', 'sheet_palette')
+REAL_PARTS = ('look',)
 
 
 # ------------------------------------------------------------------------------------------------------- the knobs
