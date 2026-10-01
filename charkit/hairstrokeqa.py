@@ -13,14 +13,18 @@ exact placement reported as each view's cost). The checks are the intent, in eve
   hair_strokes_{view}_density  where and how many: the drawn strands' and our strokes' density fields (length per
                                area, 0.06 L): their L1 difference over their sum. The design moved 1-2 px reads
                                0.05-0.06, the strands moved 0.05-0.15 L 0.31-0.36, scattered anywhere in the mass
-                               0.67-0.76: PASS within 0.4 (at the moved strands' level), FAIL past 0.65 (the scattered
-                               ones'). recall (0.04 L), place (0.015 L: the exact strokes, each view's cost) and
-                               precision reported beside it
+                               0.67-0.76 (the calibration's stand-in: 0.645-0.80): PASS within 0.3 (the moved
+                               strands' level), FAIL past 0.65 (the scattered ones'). recall (0.04 L), place (0.015 L:
+                               the exact strokes, each view's cost) and precision reported beside it
   hair_strokes_{view}_dir      direction: the median angle between our strokes and the drawn hair's flow (every drawn
                                line inside the mass, at 0.03 L) where that flow is clear (degrees): the design 4-6, the
                                strands turned 30-90 degrees 51-63
 
-Views: front, three-quarter and profile. The back's drawn interior ink is the hem flicks' notch ticks (0.53 L) and its
+  bun_{L,R}_{view}_lines       the buns' drawn lines (where a bun's front block meets the one behind, its tiers'
+                               steps: charkit.geom.hairink's bun set) our lines and strokes lack (declared.ink_inside
+                               inside the drawn bun, our ink at least a pixel wide): 1 - recall within 0.015 L
+
+Views (strands): front, three-quarter and profile. The back's drawn interior ink is the hem flicks' notch ticks (0.53 L) and its
 mass is plain (Michael's flag 5: hair_back_lines, the ink inside the back's mass, guards it): the flick shells draw the
 ticks (the geometry track), the line layer leaves the back alone.
 
@@ -31,7 +35,7 @@ and the stroke floors (declared.STROKE_FLOORS: the drawn strands scattered in th
 
 DECLARED_CHECKS = [
     dict(check='hair_strokes_{view}_density', family='strokes', piece='hair', views=['front', 'three_quarter', 'profile'],
-         params=dict(measure='density', strokes='strand', scale=0.06, near=0.04, tol=0.015), limits=[0.4, 0.65],
+         params=dict(measure='density', strokes='strand', scale=0.06, near=0.04, tol=0.015), limits=[0.3, 0.65],
          flag="the hair lacks detail in the bulk of the mass: the ink strokes inside the locks (Michael, 2026-10-01)",
          note="the drawn strand strokes' and our strokes' density fields inside the hair's mass (0.06 L): their L1 "
               "difference over their sum (0 the same strokes, 1 none where the other has them); recall (0.04 L), "
@@ -46,4 +50,16 @@ DECLARED_CHECKS = [
          calibrate=dict(known_bad='hst_base', baseline=['turned_strokes'],
                         shape=['hair_piece_bangs', 'hair_piece_side_locks', 'hair_piece_upper_back',
                                'hair_piece_lower_back'])),
+    dict(check='bun_L_{view}_lines', family='ink_inside', piece='hair',
+         params=dict(region='bun_L', band=0.015, with_ink=True, round=3), limits=[0.35, 0.6],
+         flag="the hair lacks detail in the bulk of the mass: the ink strokes inside the locks (Michael, 2026-10-01)",
+         note="the lines drawn inside the left bun (where its front block meets the one behind, its tiers' steps) our "
+              "lines and strokes lack: 1 - recall of their skeleton within 0.015 L",
+         calibrate=dict(known_bad='hst_base', baseline=['voronoi_pieces'], shape=['hair_piece_buns'])),
+    dict(check='bun_R_{view}_lines', family='ink_inside', piece='hair',
+         params=dict(region='bun_R', band=0.015, with_ink=True, round=3), limits=[0.35, 0.6],
+         flag="the hair lacks detail in the bulk of the mass: the ink strokes inside the locks (Michael, 2026-10-01)",
+         note="the lines drawn inside the right bun (where its front block meets the one behind, its tiers' steps) our "
+              "lines and strokes lack: 1 - recall of their skeleton within 0.015 L",
+         calibrate=dict(known_bad='hst_base', baseline=['voronoi_pieces'], shape=['hair_piece_buns'])),
 ]

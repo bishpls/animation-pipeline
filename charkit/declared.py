@@ -330,7 +330,7 @@ def remap_rows(m, Ro, Rd):
 
 
 def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, edge=False, relative=None,
-               round_=3):
+               with_ink=False, round_=3):
     """the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's
     ink, with its fainter strokes (faint: outfit.ridges, as partqa.design_lines reads the bow's creases), inside the drawn
     region (the piece's mask, or the drawn piece `region`'s: the skirt's cream panel; closed, holes filled, its outline's
@@ -343,7 +343,8 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     own region (our piece's pixels of that class, closed, filled), then moved row by row from its span onto the drawn
     region's at the same share across it (remap_rows), so a region drawn view-dependently (the skirt's cream panel, drawn
     face-on in three-quarter: wider than any 3D panel turned 35 degrees can show) still grades its lines' arrangement,
-    and the region's own shape is the shape check's."""
+    and the region's own shape is the shape check's. with_ink: our ink strokes as our_ink draws them (at least a pixel wide:
+    a stroke thinner than a pixel still shows) with the lines (the hair's pieces: ctx 'ink')."""
     from scipy import ndimage
     from skimage.morphology import skeletonize
     from . import bodyqa, outfit
@@ -371,6 +372,8 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     lines = ctx.get('lines')
     if lines is None or not Mo.any():
         return dict(value=None, why=WHY_OURS)
+    if with_ink and ctx.get('ink') is not None:
+        lines = fit(lines, sh) | fit(ctx['ink'], sh)
     zone_o = inner
     if relative:
         clo = ctx.get('cls_ours')

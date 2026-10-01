@@ -59,10 +59,19 @@ OPTS = dict(
                         # notch ticks, the flick shells' own: the design's back mass draws no strand texture)
     veto=VIEWS,         # the views that veto: a stroke stays only where each of these that sees it squarely draws a
                         # line within `veto_near` of it (the views draw their strand texture independently)
-    veto_face=0.35,     # a view sees a point squarely where its facing is at least this
+    veto_face={'front': 0.65, 'three_quarter': 0.65, 'profile': 0.65, 'back': 0.05},   # a view vetoes a point it sees
+                        # with at least this facing (a number: every view's): the back vetoes whatever it sees (its mass
+                        # is drawn plain; hair_back_lines, Michael's flag 5), the others what they see squarely
     veto_near=0.04,     # L: a drawn line this close to where a stroke lands in a view supports it there
     veto_depth=0.01,    # L: a point this far behind the view's nearest surface is hidden there
     ss=4,               # the projection's z-buffer supersampling over the sheet's px per L
+    buns=True,          # the buns' drawn lines (the edge where a bun's front block meets the one behind, its tiers'
+                        # steps: inside each drawn bun, off its outline by bun_band) traced and laid on the bun pieces
+    bun_band=0.015,     # L: a bun's outline band left out
+    bun_views=VIEWS,    # the views the buns' lines are traced from (the back's too: they lie off the back's mass)
+    bun_veto=VIEWS,     # the views that veto a bun's line
+    bun_veto_face=0.9,  # their facing threshold (a bun line from one view lands off the others: our bun block isn't
+                        # the drawn one exactly; only a view facing the bun face head-on vetoes it)
 )
 
 
@@ -157,6 +166,45 @@ def trace(spec, opts=None):
     return out, near
 
 
+def bun_lines(spec, views=VIEWS, band=OPTS['bun_band'], min_len=OPTS['min_len']):
+    """the lines drawn inside each drawn bun per view (the outfit masks' VIEW__bun_L / bun_R, closed and filled, their
+    outline's band `band` L left out; hairflagqa's drawn lines), skeletonized, pieces under min_len dropped -> ({view:
+    bool image}, ppl)."""
+    from scipy import ndimage
+    from skimage.morphology import skeletonize
+    from charkit import hairflagqa, hairlayers, manifest
+    dv, ppl = hairlayers.design(spec)
+    Z = np.load(manifest.produced(spec, 'outfit_masks', log=lambda *a: None))
+    out = {}
+    for v in views:
+        if v not in dv:
+            continue
+        lines = hairflagqa.drawn_lines(dv[v])
+        R = np.zeros(lines.shape, bool)
+        for b in ('bun_L', 'bun_R'):
+            k = '%s__%s' % (v, b)
+            if k in Z.files and Z[k].shape == R.shape:
+                R |= ndimage.binary_fill_holes(ndimage.binary_closing(Z[k], iterations=3))
+        if not R.any():
+            continue
+        sk = skeletonize(lines & ndimage.binary_erosion(R, iterations=max(1, int(round(band * ppl)))))
+        lab, n = ndimage.label(sk, structure=np.ones((3, 3)))
+        size = np.bincount(lab.ravel())
+        size[0] = 0
+        out[v] = (size >= min_len * ppl)[lab]
+    return out, ppl
+
+
+def trace_buns(spec, opts=None):
+    """the buns' drawn lines (bun_lines) traced as trace() traces the strands -> {view: [(n, 2) array]}."""
+    from charkit import inkfit
+    from charkit.bodyqa import WIN
+    o = dict(OPTS, **(opts or {}))
+    S, ppl = bun_lines(spec, tuple(o['bun_views']), o['bun_band'], o['min_len'])
+    return {v: [np.c_[(P[:, 1] + 0.5) / ppl - WIN['x'], WIN['top'] - (P[:, 0] + 0.5) / ppl]
+                for P in inkfit.join(inkfit.trace(sk, ppl, o['min_len'], o['tol']))] for v, sk in S.items()}
+
+
 def frames(spec, iris, centre, L):
     """each view's camera as the QA draws ours on the design grids (charkit.bodyqa: its azimuth from the sheet's
     three-quarter eyes, as qa3d.Design.sheet_context measures it; the window's origin our eyes there, bodyqa.origin)
@@ -177,7 +225,7 @@ def frames(spec, iris, centre, L):
 
 
 # ------------------------------------------------------------------------------------------------------------ place
-def project(strokes, pieces, fr, ss=OPTS['ss'], skin=None, names=None):
+def project(strokes, pieces, fr, ss=OPTS['ss'], skin=None, names=None, occ=()):
     """a view's strokes (u, z L round its origin) cast along it onto the nearest piece (the skin occluding): each point
     -> (piece name, triangle, barycentric, world point) or None. pieces {name: dict(V, T)}; fr: frames()' view;
     names: the pieces strokes may land on."""
@@ -193,6 +241,7 @@ def project(strokes, pieces, fr, ss=OPTS['ss'], skin=None, names=None):
                bottom=float(pts[:, 1].min() - pad))
     pix = 1.0 / (fr['ppl'] * ss)
     meshes = [(np.asarray(pieces[n]['V'], float), np.asarray(pieces[n]['T']), 0) for n in names]
+    meshes += [(np.asarray(pieces[n]['V'], float), np.asarray(pieces[n]['T']), -1) for n in occ]
     if skin is not None:
         meshes.append((np.asarray(skin[0], float), np.asarray(skin[1]), -1))
     _, lab, mi, ti, _ = raster.window_zbuffer(meshes, fr['az'], fr['origin'], Lw, pix, win, ids=True)
@@ -265,7 +314,8 @@ class _Veto:
                 continue
             a = np.radians(fr['az'])
             d = view_dir(fr['az'])
-            if float(-d @ N) < self.o['veto_face']:
+            vf = self.o['veto_face']
+            if float(-d @ N) < (vf.get(v, 0.65) if isinstance(vf, dict) else vf):
                 continue
             u = (X[0] * np.cos(a) + X[1] * np.sin(a) - fr['origin'][0]) / fr['L']
             z = (X[2] - fr['origin'][1]) / fr['L']
@@ -281,21 +331,22 @@ class _Veto:
         return True
 
 
-def place(pieces, strokes, frames_, L, opts=None, skin=None, log=None, near=None):
+def place(pieces, strokes, frames_, L, opts=None, skin=None, log=None, near=None, families=MASS):
     """the traced strokes (trace()) placed on the pieces: projected along their views, kept where their view faces the
     surface (within `margin` of the best view's facing, at least `min_face`) and where every other view that sees them
     squarely draws a line near them (near: trace()'s distance images; None: no veto), as ribbons -> ({piece name:
     dict(verts, faces, vn, strand, lock)}, a report)."""
     o = dict(OPTS, **(opts or {}))
-    names = [n for n, p in pieces.items() if p.get('family') in MASS]
+    names = [n for n, p in pieces.items() if p.get('family') in families]
+    occ = [n for n, p in pieces.items() if p.get('family') in MASS + ('buns',) and n not in names]
     dirs = {v: view_dir(f['az']) for v, f in frames_.items()}
-    veto = _Veto(frames_, near, pieces, names, skin, o) if near and o.get('veto') else None
+    veto = _Veto(frames_, near, pieces, names + occ, skin, o) if near and o.get('veto') else None
     runs = {}                                  # piece -> [(points (k, 3), normals, locks)]
     rep = dict(views={}, pieces={})
     for v, S in strokes.items():
         if v not in frames_ or not S:
             continue
-        got = project(S, pieces, frames_[v], o['ss'], skin, names)
+        got = project(S, pieces, frames_[v], o['ss'], skin, names, occ)
         kept_len = vetoed = 0.0
         for P2, rec in zip(S, got):
             seg = []
@@ -417,6 +468,13 @@ def build(R, spec, iris, centre, L, opts=None, skin=None, log=print):
     our iris centres, centre the head's (the QA's frames) -> the report."""
     o = dict(OPTS, **(opts or {}))
     S, near = trace(spec, o)
-    K, rep = place(R['pieces'], S, frames(spec, iris, centre, L), L, o, skin=skin, log=log, near=near)
+    F = frames(spec, iris, centre, L)
+    K, rep = place(R['pieces'], S, F, L, o, skin=skin, log=log, near=near)
     apply(R, K)
+    if o.get('buns'):
+        ob = dict(o, veto=o['bun_veto'], veto_face=o['bun_veto_face'] if o.get('bun_veto_face') is not None else
+                  o['veto_face'])
+        Kb, rb = place(R['pieces'], trace_buns(spec, o), F, L, ob, skin=skin, log=log, near=near, families=('buns',))
+        apply(R, Kb)
+        rep['buns'] = rb
     return rep
