@@ -48,7 +48,86 @@ IoU per view beside every check moved.
   - brows fitted to the close-up's front brows (`charkit/out/face6/browfit.py`, centred-mask IoU + thickness + arch):
     IoU 0.46 -> 0.84/0.82, thick 0.0167 (design 0.0178), arch 0.100 (0.096), length 0.154 (0.151).
 
-## Running (2026-09-30 night)
+## Checkpoint (2026-09-30 night, context limit): state for the next agent
+
+Branch `tool/face6` head: see `git log -1` (2bdfc58 = the fixes; later commits notes only). Nothing gated, nothing
+pushed. pipeline-3d has moved to 3f7b7308 since the fork (004efc3): merge it before gating; tool/face5 is landing
+(code_base.py, headfit.py: expect a small conflict around code_base.mouth_block).
+
+**Jobs done:** pregate on 2bdfc58 into 3f7b7308 PASS (20 moved, 0 blocking; the evaluator's 384 checks;
+`charkit/out/pregate/pregate_tool-face6_2bdfc581_into_3f7b7308.md`). Render-box build `charkit/out/face6_a` (boards
+views, body, design; 1260 s CPU, the hull rebuilt: code_base changed, so expect the gate's CPU near the 1.5x line on a
+produced-cache miss).
+
+**The flag checks: design / before (1580f95, `charkit/out/calib/cur_face6_1580f95`) / after (face6_a).** Ratio checks
+read ours / design (1 = the design); differences read ours - design (0 = the design).
+
+| check | design | before | after |
+|---|---|---|---|
+| eye_iris_fit_front (iris height / opening, ratio) | 1.036 | 1.324 FAIL | 1.009 PASS |
+| eye_iris_fit_three_quarter | 1.048 | 1.654 FAIL | 1.383 FAIL (the far eye) |
+| eye_iris_fit_profile (INFO: 15 px iris) | 1.112 | 1.243 | 0.842 |
+| eye_iris_fit_closeup_front | 0.993 | 1.514 FAIL | 1.072 PASS |
+| eye_iris_fit_closeup_profile | 1.083 | 1.259 FAIL | 0.887 WARN (now short) |
+| eye_lash_band_closeup_front | 0.0222 L | 1.653 FAIL | 1.153 PASS |
+| eye_lash_band_closeup_profile | 0.0233 | 1.575 FAIL | 0.979 PASS |
+| eye_lash_band_three_quarter | 0.025 | 1.6 FAIL | 1.0 PASS |
+| eye_lash_spikes_closeup_front | 6 | 0.333 FAIL | 0.167 FAIL |
+| eye_lash_spikes_closeup_profile | 4 | 0.0 FAIL | 0.0 FAIL |
+| eye_lash_gaps_closeup_front | 8 | 0.125 FAIL | 0.75 PASS |
+| eye_lash_gaps_closeup_profile | 10 | 0.2 FAIL | 0.4 WARN |
+| eye_lash_spikes / gaps_three_quarter (INFO) | 5 / 10 | 0.2 / 0.0 | 0.8 / 0.4 |
+| brow_shape_closeup_front (IoU) | 1 | 0.463 FAIL | 0.832 PASS |
+| brow_shape_closeup_profile | 1 | 0.509 FAIL | 0.471 FAIL |
+| brow_thick_closeup_front / profile | 0.0178 L | 0.562 / 0.624 FAIL | 0.876 WARN / 1.062 PASS |
+| brow_arch_closeup_front / profile | 0.096 / 0.127 | -0.030 / -0.034 FAIL | 0.003 / 0.010 PASS |
+| mouth_smile_width | 0.2025 L | 0.617 FAIL | 0.914 PASS |
+| mouth_smile_curve (sag) | 0.135 | +0.055 FAIL | -0.025 WARN |
+| mouth_smile_open (thickness ratio) | 0.005 L | 2.5 FAIL | 2.0 WARN |
+| mouth_place_three_quarter (L) | 0 | 0.0865 FAIL | 0.076 FAIL |
+| mouth_place_profile / closeup_profile | 0 | -0.090 / -0.075 FAIL | -0.047 WARN / -0.035 PASS |
+| nose_mark_front / three_quarter (ink ratio) | 1 | 0 FAIL / 0 FAIL | 0.5 PASS / 0.363 PASS |
+| nose_mark_at_front / three_quarter (L) | 0 | none FAIL / none FAIL | 0.0035 PASS / 0.021 WARN |
+
+18 of the 28 graded flag checks PASS (0 before), 6 WARN, 4 FAIL (iris 3/4, spikes front and profile, brow profile
+shape, mouth 3/4 place: 5 counting that).
+
+**Pieces' shape IoU per view (the guard), before -> after:** iris front/3q/profile 0.847/0.762/0.677 -> 0.907/0.817/
+0.698; lash 0.526/0.286/0.226 -> 0.514/0.23/0.139 (profile -38%, 3/4 -20%: the guard would read these against an
+improved lash check; the lash's shape vs the design is the open item); brow 0.461/0.509 -> 0.818/0.471; mouth 0.11/
+0.261/0.408 -> 0.465/0.421/0.658; nose 0/0 -> 0.478/0.
+
+**Other checks that moved status (face6_a against 1580f95; the gate's baseline will be pipeline-3d's, so the
+accessory and terminator improvements and collar_back_iou/jaw_taper_shape belong to pipeline-3d's own moves):**
+- mine, to fix before the gate: `face_preset_effort` 0.0 PASS -> 1.952 FAIL: mouth_width_rel 0.905 (want >= 1.1): the
+  clench (1.45 widths = 0.189 L) is now narrower than the wider rest mouth (0.208 L). Scale the action shapes' widths to
+  the new rest (or grade width_rel against the unit width), and re-check every face_preset_*;
+- `eye_view_profile_flick_out` 0.038 PASS -> -0.337 FAIL: the knife edge noted above (eyeqa.flick's window stops at
+  the opening's middle row, where the flick's tip lies; the iris and the thinner lash moved the opening's box). Fix the
+  measure (window to the far corner's row plus a margin), register a step in charkit/steps, write a calibration
+  adapter and record (eyes2's checks have none);
+- `eye_aspect` 0.954 PASS -> 0.872 WARN, `eye_lid_span` 1.022 -> 0.843 WARN: eyeqa.measure's colour segmentation of
+  the opening (the iris's new top colour and the thinner lash); check with the qa_eyes.png pair before changing knobs;
+- `face_folds` 8 -> 35 (PASS, limit 40): 2-4 folds per mouth key now (the wider rest loop); look at the rings.
+
+**Next steps, in order:**
+1. Merge pipeline-3d (3f7b7308 or newer) and resolve code_base.py.
+2. face_preset_effort: the action mouths' widths against the new rest (the rest is 1.6 widths).
+3. eye_view_profile_flick_out's window (remeasure, step, record) and eye_aspect / eye_lid_span.
+4. Lashes: the spikes read 1 of the design's 6 in front, 0 in profile: compare `qa_face_flags.png` and the boards; the
+   render's spikes are probably too thin or lost under the band (try width 0.01 L, longer, fewer; profile: the spikes
+   lie in the turned surface's plane and vanish edge-on). Keep face_piece_lash's profile from dropping more.
+5. The 3/4 far eye's iris (1.38): the far eye's lower lid hides less (parallax); and closeup profile now short (0.887).
+6. Mouth in 3/4 (0.076 L off): the design draws it under the eyes' midpoint (x +0.005 L), ours 0.046 L toward the
+   leading contour (the muzzle 0.08 L in front of the eye plane); an anime "flat" placement in 3/4 is a per-view cheat
+   or a face-shape change: a call for Michael. Profile now WARN (-0.047): drop 0.012 -> ~0.02.
+7. Brow profile shape (0.471): the profile brow is foreshortened differently; fit in profile too.
+8. Review page: `PYTHONPATH=. python charkit/out/face6/page.py charkit/out/face6/review charkit/out/calib/cur_face6_1580f95
+   charkit/out/face6_a --start ~/animation-pipeline-3d/charkit/out/previews/1583cd6/boards --summary SUMMARY.json`
+   (the summary box's html in the json's `html`), then the calibration records' `current` re-run on the fixed build
+   (`curbuild.py` isn't needed: face6_a's qa.json has the checks), pregate, gate.
+
+## Earlier: running (2026-09-30 night; done, see the checkpoint)
 
 - Box build (render box, boards views,body,design) of 2bdfc58: `charkit/out/face6_a` (log `charkit/out/face6/build_a.log`;
   the hull rebuilds: code_base changed). Pregate: `charkit/out/face6/pregate_a.log`.
