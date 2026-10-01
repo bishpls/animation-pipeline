@@ -19,6 +19,9 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
                (our_lines), the design's drawn masks less its line class; ours beyond the design's
   position     a piece's centroid against the design's (L from the eye line and the midline): the larger of |dx|, |dz|
                (params axis 'x', 'z' or 'both')
+  area         the piece's pixels over the drawn piece's, |ratio - 1| (a size: the wrist cuffs 1.5-2.4x the drawn)
+  ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
+               recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -27,7 +30,10 @@ nothing imported: the gate and `calibrate` read a tree's without running it; no 
   piece     the outfit graph's piece id (pieceqa.members on our labels; the drawn masks' VIEW__PIECE); ink_between: [a, b]
   views     where it is measured (default the four; a view the design doesn't draw the piece in is skipped)
   params    the family's parameters; fold: the drawn pieces we don't build folded into the piece (bodymeasure.folded:
-            the bow's drawn tails into the bow, as our bow object has them); round: the value's decimals
+            the bow's drawn tails into the bow, as our bow object has them); round: the value's decimals; drawn: the
+            drawn piece to compare against in place of `piece`'s (a region we build as part of a piece: the skirt's
+            cream panel); ours_cls: our piece's pixels of that model-sheet class only (pieceqa.our_classes: 'cream',
+            the panel's material on our skirt)
   limits    [pass, warn] (within: PASS, WARN; beyond: FAIL), or a reference to a part's own table
             ('charkit.pieceqa.LIMITS.rows'); better 'lower' (default; shape_iou 'higher') or 'higher' (at least)
   part      the QA part that reports it: 'declared' (default: this module's part) or a part that evaluates its own
@@ -260,6 +266,18 @@ def ink_between(Mo, Md, ctx, round_=4):
     return dict(value=round(max(0.0, o_len - d_len), round_), ours=round(o_len, 4), design=round(d_len, 4))
 
 
+def area(Mo, Md, ctx, round_=3):
+    """the piece's size: its pixels over the drawn piece's, less one, |.| (ours / design reported as `ratio`)."""
+    from . import pieceqa
+    Md = fit(Md, Mo.shape)
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    if Mo.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    r = float(Mo.sum()) / float(Md.sum())
+    return dict(value=round(abs(r - 1), round_), ours=int(Mo.sum()), design=int(Md.sum()), ratio=round(r, 3))
+
+
 def position(Mo, Md, ctx, axis='both', round_=4):
     """the piece's centroid (L from the midline and the eye line: pieceqa.x_of, z_of) against the design's: the larger of
     |dx| and |dz| (axis 'both'), or one of them."""
@@ -277,9 +295,111 @@ def position(Mo, Md, ctx, axis='both', round_=4):
                 design=[round(float(xd), 4), round(float(zd), 4)])
 
 
+def _spans(R):
+    """each row's first and last column of a mask (-1 where the row is empty) -> (lo, hi)."""
+    any_ = R.any(1)
+    lo = np.where(any_, R.argmax(1), -1)
+    hi = np.where(any_, R.shape[1] - 1 - R[:, ::-1].argmax(1), -1)
+    return lo, hi
+
+
+def remap_rows(m, Ro, Rd):
+    """a mask's pixels moved row by row from region Ro's span onto region Rd's, keeping their share across it (rows
+    where either region is empty dropped): ours compared within the drawn region's frame."""
+    out = np.zeros(m.shape, bool)
+    (lo, ho), (ld, hd) = _spans(Ro), _spans(Rd)
+    r, c = np.nonzero(m)
+    ok = (lo[r] >= 0) & (ld[r] >= 0) & (ho[r] > lo[r])
+    r, c = r[ok], c[ok]
+    t = (c - lo[r]) / (ho[r] - lo[r])
+    c2 = np.rint(ld[r] + t * (hd[r] - ld[r])).astype(int)
+    k = (c2 >= 0) & (c2 < m.shape[1])
+    out[r[k], c2[k]] = True
+    return out
+
+
+def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, edge=False, relative=None,
+               round_=3):
+    """the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's
+    ink, with its fainter strokes (faint: outfit.ridges, as partqa.design_lines reads the bow's creases), inside the drawn
+    region (the piece's mask, or the drawn piece `region`'s: the skirt's cream panel; closed, holes filled, its outline's
+    band `band` L left out), against ours drawn with outlines and ink strokes (ctx 'lines') inside the same region and on
+    our piece; each skeletonized. The share of the drawn lines' length with none of ours within `tol` L (1 - recall:
+    where the lines are, not only how much; `ours` and `design` their lengths in L, `precision` the share of ours near a
+    drawn one). A view whose drawn region holds under `min_len` L of lines is skipped. edge: the lines along the
+    region's outline instead (a band `band` L either side of it: the folds that bound a pleat's panel), not inside it.
+    relative (a class: 'cream'): where the lines lie within the region, not where the region lies: ours read inside our
+    own region (our piece's pixels of that class, closed, filled), then moved row by row from its span onto the drawn
+    region's at the same share across it (remap_rows), so a region drawn view-dependently (the skirt's cream panel, drawn
+    face-on in three-quarter: wider than any 3D panel turned 35 degrees can show) still grades its lines' arrangement,
+    and the region's own shape is the shape check's."""
+    from scipy import ndimage
+    from skimage.morphology import skeletonize
+    from . import bodyqa, outfit
+    ppl, view = ctx['ppl'], ctx['view']
+    sh = Mo.shape
+    R = fit(ctx['masks'].get('%s__%s' % (view, region)), sh) if region else fit(Md, sh)
+    if R is None or not R.any():
+        return None
+    R = ndimage.binary_fill_holes(ndimage.binary_closing(R, iterations=3))
+    b_ = max(1, int(round(band * ppl)))
+    inner = ndimage.binary_erosion(R, iterations=b_)
+    if edge:
+        inner = ndimage.binary_dilation(R, iterations=b_) & ~inner
+    dv = ctx.get('dv') or {}
+    raw = dv.get('raw')
+    if raw is None:
+        return None
+    ink = raw == bodyqa.CLASS['line']
+    if faint and dv.get('rgb') is not None:
+        ink = ink | (outfit.ridges(dv['rgb']) & (raw != bodyqa.CLASS['skin']))
+    d_ = skeletonize(fit(ink, sh) & inner)
+    d_len = float(d_.sum()) / ppl
+    if d_len < min_len:
+        return None
+    lines = ctx.get('lines')
+    if lines is None or not Mo.any():
+        return dict(value=None, why=WHY_OURS)
+    zone_o = inner
+    if relative:
+        clo = ctx.get('cls_ours')
+        Ro = np.zeros(sh, bool)
+        if clo is not None:
+            h, w = min(sh[0], clo.shape[0]), min(sh[1], clo.shape[1])
+            Ro[:h, :w] = clo[:h, :w] == bodyqa.CLASS[relative]
+            Ro &= Mo
+        if not Ro.any():
+            return dict(value=None, why=WHY_OURS)
+        Ro = ndimage.binary_fill_holes(ndimage.binary_closing(Ro, iterations=3))
+        zone_o = ndimage.binary_erosion(Ro, iterations=b_)
+        if edge:
+            zone_o = ndimage.binary_dilation(Ro, iterations=b_) & ~zone_o
+    o_ = skeletonize(fit(lines, sh) & zone_o & ndimage.binary_dilation(Mo, iterations=2))
+    o_len = float(o_.sum()) / ppl
+    if relative:
+        # the drawn region's span by the same rule as ours (its pixels of that class, closed, filled): the drawn mask
+        # closed takes in what lies between its parts (dark pixels under the panel's hem in three-quarter)
+        cld = ctx.get('cls')
+        Rs = R.copy()
+        if cld is not None:
+            h, w = min(sh[0], cld.shape[0]), min(sh[1], cld.shape[1])
+            c_ = np.zeros(sh, bool)
+            c_[:h, :w] = cld[:h, :w] == bodyqa.CLASS[relative]
+            Rs = ndimage.binary_fill_holes(ndimage.binary_closing(R & c_, iterations=3))
+        o_ = remap_rows(o_, Ro, Rs)
+    r = tol * ppl
+    near_o = ndimage.distance_transform_edt(~o_) <= r if o_.any() else np.zeros(sh, bool)
+    near_d = ndimage.distance_transform_edt(~d_) <= r
+    recall = float((d_ & near_o).sum()) / max(1, int(d_.sum()))
+    prec = float((o_ & near_d).sum()) / max(1, int(o_.sum())) if o_.any() else 0.0
+    return dict(value=round(1.0 - recall, round_), ours=round(o_len, 3), design=round(d_len, 3),
+                precision=round(prec, 3))
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position)
+                position=position, ink_inside=ink_inside, area=area)
 HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
+LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
 
 
 def grade(v, limits, better='lower'):
@@ -290,7 +410,7 @@ def grade(v, limits, better='lower'):
 
 
 # ------------------------------------------------------------------------------------------------------------ measuring
-def inputs(B, design, views=VIEWS, lines=False):
+def inputs(B, design, views=VIEWS, lines=False, classes=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines) -> dict, or None when the design or the outfit masks are missing."""
@@ -310,6 +430,8 @@ def inputs(B, design, views=VIEWS, lines=False):
                graph=graph, spec=B.spec)
     if lines:
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
+    if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
+        out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
     return out
 
 
@@ -399,12 +521,22 @@ def evaluate(decls, I):
         if params.pop('fold', False) and I.get('graph') is not None:      # (the drawn pieces we don't build folded in)
             from .bodymeasure import folded
             M = folded(masks, I['graph'], pm)
-        Md = [M.get('%s__%s' % (view, p)) for p in pieces]
+        drawn = params.pop('drawn', None)                 # (a region of the piece: the drawn piece compared)
+        Md = [M.get('%s__%s' % (view, drawn or p)) for p in pieces]
         if any(m is None for m in Md):                    # (the design doesn't draw it here)
             continue
         Mo = [pieceqa.members(lab, names, pm, p) for p in pieces]
+        oc = params.pop('ours_cls', None)
+        if oc is not None:                                # (our piece's pixels of one class: its material there)
+            from . import bodyqa
+            cl = (I.get('cls_ours') or {}).get(view)
+            if cl is None:
+                continue
+            Mo = [m & (cl[:m.shape[0], :m.shape[1]] == bodyqa.CLASS[oc]) for m in Mo]
         ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=(dv.get(view) or {}).get('fg'), cls=(dv.get(view) or {}).get('cls'),
+                   dv=dv.get(view),
                    lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
+                   cls_ours=(I.get('cls_ours') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         fam = FAMILIES[d['family']]
         if 'round' in params:
@@ -445,7 +577,8 @@ def declared(B, design=None, out=None):
     if not ds:
         return None, {}
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
-    I = inputs(B, design, views, lines=any(d['family'] == 'ink_between' for d in ds))
+    I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
+               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}
@@ -471,8 +604,21 @@ class Declared(_calib_base()):
         from . import bodyqa
         line = bodyqa.CLASS['line']
 
+        def drawn(v):
+            # the drawing's lines as it draws them: its ink, and its fainter strokes (a crease drawn in a shade:
+            # outfit.ridges; ink_inside reads both), skin left out
+            from . import outfit
+            d = self.dv.get(v) or {}
+            raw = d.get('raw')
+            if raw is None:
+                return self.cls[v] == line
+            m = raw == line
+            if d.get('rgb') is not None:
+                m = m | (outfit.ridges(d['rgb']) & (raw != bodyqa.CLASS['skin']))
+            return fit(m, self.cls[v].shape)
+
         def lines(B, ppl, az3, views=VIEWS):
             if kind == 'design':
-                return {v: _shift(self.cls[v] == line, arg[0], arg[1], False) for v in views if v in self.cls}
+                return {v: _shift(drawn(v), arg[0], arg[1], False) for v in views if v in self.cls}
             return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
         return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines)]

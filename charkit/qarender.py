@@ -192,6 +192,9 @@ def view(B, surfs, az, fr, Q=None):
         by_name.setdefault((name, Q.prims[k].variant), []).append(k)
     draw, off, index, paint, variants = set(), set(), {}, {}, {}
     widths = []
+    from .qa3d import is_ink
+    names = [m.get('name') for m in (Q.M.js.get('materials') or [])] if getattr(Q, 'M', None) is not None else []
+    prim_ink = lambda k: 0 <= Q.prims[k].material < len(names) and is_ink(names[Q.prims[k].material])
     for i, s in enumerate(surfs):
         o = s['o']
         var = s['variant'] if o.group == 'skin' and s['variant'] != 'masked' else None
@@ -202,6 +205,13 @@ def view(B, surfs, az, fr, Q=None):
         if var:
             variants[o.name] = var
         ks = by_name[(o.name, var)]
+        if s['hull'] and len(s['slots']) and all(is_ink(o.materials[int(t)]) for t in np.unique(s['slots'])):
+            # a piece's creases (qa3d.render_surfaces' ink surface: lines, as a hull is): the renderer draws its ink
+            # primitives as surface pixels, so they map to this surface, not the cloth's
+            for k in ks:
+                if prim_ink(k):
+                    index[(k, False)] = i
+            continue
         for k in ks:
             index.setdefault((k, bool(s['hull'])), i)
         if s.get('line_k') is not None and o.outline and not s['hull']:

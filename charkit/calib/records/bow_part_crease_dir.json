@@ -3,7 +3,7 @@
  "part": "bow_parts",
  "adapter": "BowParts",
  "module": "charkit.calib.parts",
- "at": "2026-09-30T21:25:05",
+ "at": "2026-10-01T02:36:42",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -97,16 +97,16 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 19.0,
+  "value": 17.3,
   "status": "WARN",
-  "margin": 0.781
+  "margin": 0.808
  },
  "verdict": "calibrated",
  "why": "a defect detector: the design passes every move (spread 1.1), g3_render3 reads None FAIL; a random stand-in fails it; shape guarded by piece_bow",
- "build": "charkit/out/pr3",
+ "build": "charkit/out/g4_creases2",
  "generators": {
   "voronoi_parts": "the drawn bow's knot and lobes cut into random cells (3 per part), each a random part (weighted by the parts' drawn areas): the bow's silhouette kept, its parts gone",
   "affine_parts": "each drawn part (knot, lobes) moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
  },
- "seconds": 105.6
+ "seconds": 61.9
 }

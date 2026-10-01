@@ -14,4 +14,8 @@ MEASUREMENT_STEPS = [
     ('bow_part_knot_iou', '480f0a19', "graded on its own tighter lines (LIMITS 'knot_iou' 0.9 / 0.7, was the lobes' "
      "0.6 / 0.45) from its calibration triple: at the grid's scale it reads the knot's placement (the design moved "
      "1-4 px 0.94-1.0); the flagged knots (pipeline-3d's 0.536, g3_render3's 0.467) read WARN before (blind), FAIL now"),
+    # tool/garments4 Part 2: creases as a line layer
+    ('bow_part_crease_*', 'a17ec74c', "a piece's crease strokes (garments.with_ink: faces on a *_ink slot) read as lines by the "
+     "QA's render drawing, as the numpy drawing read them (qarender mapped the export's ink primitives to the cloth); "
+     "a bow without strokes reads as before"),
 ]
