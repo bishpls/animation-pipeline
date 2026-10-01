@@ -1173,14 +1173,17 @@ def _knn_mean(Q, P, k, chunk=2048):
     return mean, near
 
 
-def conform(V, faces, P, L, reach=0.12, k=8, smooth=3):
+def conform(V, faces, P, L, reach=0.12, k=8, smooth=3, weight=None):
     """a thin piece laid onto its hull points: each vertex moved along its normal by how far the local hull surface (the
     mean of its k nearest points) is from it, fully within `reach` L of the points and fading out by twice that; the
-    moves smoothed over the mesh `smooth` times so the points' spacing doesn't show. -> the moved vertices."""
+    moves smoothed over the mesh `smooth` times so the points' spacing doesn't show. weight: per vertex, a factor on
+    the move (0 keeps a vertex where it is: the collar's flat lapels). -> the moved vertices."""
     V = np.asarray(V, float)
     N = vertex_normals(V, faces)
     mean, near = _knn_mean(V, P, k)
     w = np.clip(2 - near / (reach * L), 0, 1)
+    if weight is not None:
+        w = w * np.asarray(weight, float)
     d = ((mean - V) * N).sum(1) * w
     nb = [set() for _ in range(len(V))]
     for f in faces:
@@ -3524,7 +3527,8 @@ def collar(A, spec, normals=None, neckline=None):
     """a sailor collar that drapes: from the neckline, at each azimuth, a walk along the body surface outward and down
     (over the shoulders at the sides, down the chest in front, down the back behind) to a length by azimuth; a V opening at
     the front, a square flap behind; lifted by `offset`. The stripe runs `stripe` (a share of the length) in from its
-    edge. The neckline: level at the neck bone's head plus `rise` L, or `neckline` (fn(azimuth) -> world z: the design's,
+    edge. `front_length` [[degrees, L], ..]: the walk's length by azimuth up to its last entry (the lapels' outer edge).
+    The neckline: level at the neck bone's head plus `rise` L, or `neckline` (fn(azimuth) -> world z: the design's,
     collar_hull's), where the collar starts on the body at each azimuth; with `keep_edge` (default) each column's walk is
     shortened by how far below the level ring it starts, so the collar's outer edge stays. -> dict(verts, faces, weights,
     uv, edge (per face: 1 on the stripe))."""
@@ -3550,8 +3554,15 @@ def collar(A, spec, normals=None, neckline=None):
     T = np.array([(f[0], f[k], f[k + 1]) for f in F if all(near[v] for v in f) for k in range(1, len(f) - 1)])
     na, nr = spec.get('cols', 96), spec.get('rows', 12)
 
+    fl = spec.get('front_length')
+    FL = np.asarray(sorted(fl), float) if fl else None
+
     def length(a):
         ab = abs(a)
+        if FL is not None and math.degrees(ab) <= FL[-1, 0]:
+            # a table [[degrees round the neck from the front, L], ...] up to its last azimuth: the lapels' outer edge
+            # (the flat lapels: a band along the V, not the level hem a front walk of one length makes)
+            return float(np.interp(math.degrees(ab), FL[:, 0], FL[:, 1])) * L
         if ab < math.radians(80):
             return sd + (vd - sd) * max(0.0, 1 - ab / math.radians(80)) ** 1.2
         if ab < math.radians(120):
@@ -3618,7 +3629,8 @@ def collar(A, spec, normals=None, neckline=None):
 def collar_hull(A, spec, normals, hull):
     """collar() laid onto the hull's collar (conform): the sailor collar walked on the body as before, then each vertex
     moved along its normal onto the design's collar surface where the hull shows it (the back flap lies flat on the
-    back, the lapels follow the neckline); `offset` L out from it."""
+    back, the lapels follow the neckline); `offset` L out from it. `flat_front` {a, fade} (degrees round the neck from
+    the front): the lapels within `a` keep their walk on the body, flat, easing into the hull's surface over `fade`."""
     P = _hull_points(hull, spec)
     L = A['head']['L']
     neckline = None
@@ -3634,8 +3646,20 @@ def collar_hull(A, spec, normals, hull):
         drop = spec.get('neck_drop', 0.0) * L
         neckline = lambda a: top(a) - drop
     G = collar(A, spec, normals, neckline)
+    weight = None
+    ff = spec.get('flat_front')
+    if ff:
+        # the lapels laid flat (Michael / the coordinator 2026-10-01: the drawn lapels are wide flat panels along the V;
+        # the hull's collar points bunched ours into lumps beside the neck): in front, within `a` degrees of the
+        # midline round the neck, the collar keeps its walk on the body (no move onto the hull), easing into the
+        # hull's surface over `fade` degrees beyond
+        nb, _ = bone_seg(A, 'neck')
+        Vg = np.asarray(G['verts'], float)
+        az = np.degrees(np.abs(np.arctan2(Vg[:, 0] - nb[0], -(Vg[:, 1] - nb[1]))))
+        u = np.clip((az - float(ff.get('a', 70))) / max(float(ff.get('fade', 20)), 1e-6), 0, 1)
+        weight = u * u * (3 - 2 * u)
     V = conform(G['verts'], G['faces'], P, L, reach=spec.get('reach', 0.12), k=spec.get('conform_k', 8),
-                smooth=spec.get('conform_smooth', 3))
+                smooth=spec.get('conform_smooth', 3), weight=weight)
     G['verts'] = V + vertex_normals(V, G['faces']) * spec.get('lift', 0.005) * L
     return G
 
