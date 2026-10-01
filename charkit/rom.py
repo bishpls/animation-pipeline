@@ -3,10 +3,12 @@ the shipped rig posed through the pose library (charkit/poses/rom.json, charkit.
 before pictures. The rig is the build's export (OUT/NAME.look.glb): its skeleton (the VRM humanoid's nodes and inverse
 bind matrices) and every mesh's four skin weights, skinned linearly as a runtime skins them.
 
-    python -m charkit rom BUILD [--out DIR] [--poses a,b] [--boards] [--art] [--json]
+    python -m charkit rom BUILD [--out DIR] [--poses a,b] [--boards] [--art] [--closeups [--only-closeups]] [--json]
         -> DIR/rom.json (every pose's measures), DIR/rom.md (the table), with --boards DIR/boards/POSE_AZ.png (the toon
            renderer's picture of each pose, front / three-quarter / profile / back, one scale), with --art the toon
-           artefact detectors on the posed bundles against the rest (art_posed)
+           artefact detectors on the posed bundles against the rest (art_posed), with --closeups DIR/closeups/ (the
+           stressed joints close up, CLOSEUPS: the elbow and knee under linear blend and dual quaternion skinning, the
+           shoulder at the raises with the garments off and on, the hip in the squat, the neck turned, the hands)
 
 Measured per pose, report-only (there is no drawing of these poses: physical limits are the thresholds, LIMITS):
   sections    joint volume: the skin's cross-section at each moved joint (the elbows, knees, shoulders, wrists,
@@ -1135,6 +1137,11 @@ def main(args):
     build = args[0]
     out = opt('--out', os.path.join(build, 'rom'))
     poses = opt('--poses')
+    if '--closeups' in args:
+        rig, _ = load(build, opt('--export'))
+        render_closeups(rig, os.path.join(out, 'closeups'))
+        if '--only-closeups' in args:
+            return 0
     rep = run(build, out, poses.split(',') if poses else None, boards='--boards' in args, export=opt('--export'),
               art='--art' in args)
     if '--json' in args:
@@ -1228,3 +1235,95 @@ def art_posed(rig, B, poses, log=print):
                 out[n][k] = dict(value=c.get('value'), grade=c.get('grade'), worst=c.get('worst'))
         log('art %s: %.1f s, FAIL %s' % (n, time.time() - t, [k for k, c in out[n].items() if c['grade'] == 'FAIL']))
     return out
+
+
+# -------------------------------------------------------------------------------------------------------- close-ups
+# (name, pose, the joint looked at, its side's bone, azimuths, window (m across), what's drawn: 'all' or 'body' (the
+# skin, the face and the hair: the garments off), skinning)
+CLOSEUPS = [
+    ('elbow_lbs', 'elbows_135', 'leftLowerArm', (90, 35), 0.32, 'body', 'lbs'),
+    ('elbow_dqs', 'elbows_135', 'leftLowerArm', (90, 35), 0.32, 'body', 'dqs'),
+    ('knee_lbs', 'knees_135', 'leftLowerLeg', (90,), 0.4, 'body', 'lbs'),
+    ('knee_dqs', 'knees_135', 'leftLowerLeg', (90,), 0.4, 'body', 'dqs'),
+    ('shoulder_fwd', 'raise_forward_90', 'leftUpperArm', (35, 90, 0), 0.5, 'body', 'lbs'),
+    ('shoulder_fwd_dressed', 'raise_forward_90', 'leftUpperArm', (35, 90, 0), 0.5, 'all', 'lbs'),
+    ('shoulder_side', 'raise_side_90', 'leftUpperArm', (0, 35, 180), 0.5, 'body', 'lbs'),
+    ('shoulder_side_dressed', 'raise_side_90', 'leftUpperArm', (0, 35, 180), 0.5, 'all', 'lbs'),
+    ('shoulder_up', 'arms_up', 'leftUpperArm', (35, 90), 0.6, 'body', 'lbs'),
+    ('shoulder_up_dressed', 'arms_up', 'leftUpperArm', (35, 90), 0.6, 'all', 'lbs'),
+    ('hip_squat', 'squat', 'leftUpperLeg', (90, 35), 0.5, 'body', 'lbs'),
+    ('neck_turn', 'head_turn', 'neck', (0, 35), 0.4, 'all', 'lbs'),
+    ('hand_fist', 'hand_fist', 'leftMiddleProximal', (0, 90, 35), 0.16, 'all', 'lbs'),
+    ('hand_open', 'hand_open', 'leftMiddleProximal', (0, 90), 0.16, 'all', 'lbs'),
+    ('hand_point', 'hand_point', 'leftMiddleProximal', (0, 90, 35), 0.16, 'all', 'lbs'),
+    ('hand_rest', 'rest', 'leftMiddleProximal', (0, 90), 0.16, 'all', 'lbs'),
+]
+
+
+def render_closeups(rig, out, lib=None, which=None, res=(520, 520), adapter=None, ss=2, log=print):
+    """the close-up set (CLOSEUPS) into out/NAME_AZ.png: the joint the pose stresses, posed, at a fixed window round
+    its posed head, the garments on or off, linear blend or dual quaternion skinning -> {name: {az: path}}."""
+    import copy
+    from PIL import Image
+    from .render import gpu
+    from .render.views import BoardView
+    lib = lib or P.library()
+    os.makedirs(out, exist_ok=True)
+    body = {n for n, o in rig.objs.items() if o.kind != 'garment'}
+    got = {}
+    for name, pose_, bone, azs, win, draw, method in CLOSEUPS:
+        if which and name not in which or pose_ not in lib or bone not in rig.sk.head:
+            continue
+        D = rig.solve(lib[pose_])
+        M2 = rig.model_posed(D) if method == 'lbs' else _model_dqs(rig, D)
+        if draw == 'body':                      # (the skin whole: its bare variant drawn, the masked one off)
+            M2 = copy.copy(M2)
+            has_bare = {p.object for p in M2.prims if p.variant == 'bare'}
+            keep = []
+            for p in M2.prims:
+                if p.object in body or p.object not in rig.objs:
+                    if p.variant == 'bare':
+                        p = copy.copy(p)
+                        p.mx = dict(p.mx, variant=None)
+                    elif p.object in has_bare:
+                        continue
+                    keep.append(p)
+            M2.prims = keep
+        H, _ = P.posed_joints(rig.sk, D)
+        c = H[bone]
+        R = gpu.Renderer(M2, adapter=adapter or os.environ.get('CHARKIT_RENDER_ADAPTER'), ss=ss)
+        got[name] = {}
+        for az in azs:
+            v = BoardView('%s_%03d' % (name, az), tuple(float(x) for x in c), az, 6.0, 0.0, tuple(res), ortho=win)
+            p = os.path.join(out, v.name + '.png')
+            Image.fromarray(R.render(v)).save(p)
+            got[name][az] = p
+        del R
+        log('closeup %s' % name)
+    return got
+
+
+def _model_dqs(rig, D):
+    """model_posed with dual quaternion skinning (the close-ups' reference: the joint as it would keep its volume)."""
+    import copy
+    R, t = rig.matrices(D)
+    M2 = copy.copy(rig.M)
+    prims = []
+    for i, p in enumerate(rig.M.prims):
+        q = copy.copy(p)
+        J, W = rig.attrs[i]
+        if J is not None:
+            Pb = np.asarray(p.position, float) @ C3
+            X = dqs(Pb, J, W, R, t)
+            q.position = (X @ C3.T).astype(np.float32)
+            # (normals: the LBS blend's linear part, renormalised: the close-up's shading only)
+            Rg = np.einsum('ij,njk,lk->nil', C3, R, C3)
+            Wn = W / np.maximum(W.sum(1, keepdims=True), 1e-12)
+            Lm = np.einsum('nk,nkij->nij', Wn, Rg[J])
+            q.normal = _rows_unit(np.einsum('nij,nj->ni', Lm, p.normal)).astype(np.float32)
+            if p.hull_normal is not None:
+                q.hull_normal = _rows_unit(np.einsum('nij,nj->ni', Lm, p.hull_normal)).astype(np.float32)
+            q.cast = None
+        prims.append(q)
+    M2.prims = prims
+    return M2
