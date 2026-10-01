@@ -861,3 +861,11 @@ folds 16, dir 16.9 P, peeks 19 / 19.2, term 1.461; narrow pen 0, folds 9, dir 16
 side locks P 0.600; off pen 0.0398. art_peeks_hair is Michael's flag, hair_folds isn't (WARN to 40; the new folds lie
 on f20.1's inner face against the temple, under the lock), so the default is `skin_clear 'vertex'` (= r6_default's
 build: hair_penetration 0 P, strokes P dir 16.9 P, art_terminator_hair 1.303 P, six 1.417, back 1.77). Re-gate 3.
+
+### Re-gate 3 (05854cdd into pipeline-3d 59c93f38, `--accept hair_noise`): FAIL under K, 1 blocker: build CPU 1.71x
+`charkit/out/gate/gate_tool-hairshell3_05854cdd_into_59c93f38.md`: penetration, the 2x2 and the strokes cleared
+(hair_strokes_profile_dir 14.6 -> 16.9 P); the baseline itself got faster (pipeline-3d: 1190 -> 884.7 s CPU), so our
+lock fit (~600 s) is 1.71x (884.7 -> 1509.6 s; the limit 1327 s). Reported: scalp_px 4 P -> 65 W, body_profile_iou_skin
+0.724 P -> 0.69 W, peeks 17 -> 19 W, back lines 0.928 -> 0.584, lock lines and strokes moved. Next cut: frames()'s
+transport on plain floats (3.5x on frames, 45% of the fit; not bit-identical per frame, BLAS's dot rounds differently, so
+the shells' identity is checked by capcheck2 on the box), det_join_nfev 150 -> 60.
