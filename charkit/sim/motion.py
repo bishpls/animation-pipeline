@@ -160,9 +160,11 @@ class Springs:
     """the outfit graph's spring chains on our garments: each flap one chain down its middle column, the skirt a ring of
     eight at the graph's azimuths; the garments carried by the chains' bones."""
 
-    def __init__(self, S, colliders=False, settings=None, caps='legs'):
+    def __init__(self, S, colliders=False, settings=None, caps='legs', root='hips'):
         """colliders: run the chains against capsules (caps: S.colliders' set, shrunk to clear the chains' rest joints
-        by their hit radius); settings: {piece: dict(stiffness, drag, gravity)} over the graph's (a tuning's)."""
+        by their hit radius); settings: {piece: dict(stiffness, drag, gravity)} over the graph's (a tuning's); root:
+        what carries each chain's first joint, 'hips' (the graph's parent bone) or 'skin' (the skin under it: its
+        weights there, chain_root)."""
         self.S = S
         self.col = colliders
         L = S.L
@@ -219,6 +221,9 @@ class Springs:
                     out.append((ch, u, np.clip(w, 0, 1)))
                 tot = sum(x[2] for x in out)
                 self.chains[n] = [(ch, u, w / np.maximum(tot, 1e-12)) for ch, u, w in out]
+        for cs in self.chains.values():
+            for ch, _, _ in cs:
+                ch.root_w = root_weights(S, ch.J[0]) if root == 'skin' else None
         J = [ch.J[1:] for cs in self.chains.values() for ch, _, _ in cs]
         hit = max([ch.hit for cs in self.chains.values() for ch, _, _ in cs] or [0.0])
         self.caps = riglib.rest_clear(S.colliders(caps), np.concatenate(J) if J else np.zeros((0, 3)), hit) \
@@ -235,13 +240,40 @@ class Springs:
             else:
                 X = np.zeros_like(S.co[n]['V'])
                 for ch, u, w in self.chains[n]:
+                    Dr = chain_root(ch, D)
                     if not self.started:
-                        ch.reset(D['hips'])
-                    ch.step(D['hips'], dt, caps)
+                        ch.reset(Dr)
+                    ch.step(Dr, dt, caps)
                     X += w[:, None] * ch.carry(S.co[n]['V'], u)
                 co[n] = X
         self.started = True
         return _Finals(S, co), co
+
+
+def root_weights(S, p):
+    """the skin's weights at a chain's first joint (its nearest point on the rest skin) -> {bone: w}, the rig's bones."""
+    W = S.transfer(np.asarray(p, float)[None])
+    return {b: float(w[0]) for b, w in W.items() if w[0] > 1e-4 and b in S.rig.head}
+
+
+def chain_root(ch, D):
+    """a chain's root deformation (4x4): the hips' (the graph's parent), or with ch.root_w the skin's under its first
+    joint: the weights' blend of the bones' matrices, its rotation the nearest rotation (polar), its translation taking
+    the joint where the skin takes it (the joint rides the skin; a VRM rig would carry it on a helper bone)."""
+    w = getattr(ch, 'root_w', None)
+    if not w:
+        return D['hips']
+    M = sum(x * D[b] for b, x in w.items()) / sum(w.values())
+    U, _, Vt = np.linalg.svd(M[:3, :3])
+    R = U @ Vt
+    if np.linalg.det(R) < 0:
+        U[:, -1] *= -1
+        R = U @ Vt
+    j = ch.J[0]
+    out = np.eye(4)
+    out[:3, :3] = R
+    out[:3, 3] = M[:3, :3] @ j + M[:3, 3] - R @ j
+    return out
 
 
 def _used_rows(o, NR, NC):
@@ -427,6 +459,8 @@ def method(S, name, style='anime', hold_shape=None, log=print, **over):
                                           xpbd_physics 0); round 2's colliders and pins (CLOTH)
       <any xpbd>_r1                       round 1's cloth: the leg capsules only, the pins on the garment's own weights
       pelvis_rigid                        the garments carried by the pelvis alone (the hold's target, no cloth)
+      skinned_shuffled                    the garments skinned with their weights shuffled among their vertices
+                                          (over['seed']): a random rig, the calibration's floor
       <any xpbd>_nocol                    the cloth with no body colliders
     over: the Cloth's dials (substeps, iterations, ...) and 'radius' (L added to every collider's radius)."""
     if name == 'skinned':
@@ -439,6 +473,8 @@ def method(S, name, style='anime', hold_shape=None, log=print, **over):
         return Springs(S, colliders=name == 'springs_col')
     if name == 'pelvis_rigid':
         return Rigid(S)
+    if name == 'skinned_shuffled':              # (a random rig: the calibration's floor)
+        return Shuffled(S, seed=int(over.get('seed', 0)))
     base = name.replace('_r1', '').replace('_nocol', '')
     kw = dict(CLOTH)
     if name.endswith('_r1'):
@@ -452,6 +488,23 @@ def method(S, name, style='anime', hold_shape=None, log=print, **over):
     if hold_shape is not None:
         over['hold_shape'] = float(hold_shape)
     return Cloth(S, style=style, hold_frame=HOLD_FRAMES[base], log=log, **dict(kw, **over))
+
+
+class Shuffled:
+    """the garments skinned with their coarse vertices' weights shuffled among them (seeded): a random rig, the motion
+    checks' floor (charkit/calib/motion.py). The render mesh is the build's finalize of the moved coarse one."""
+
+    def __init__(self, S, seed=0):
+        self.S = S
+        rng = np.random.default_rng(seed)
+        self.W = {}
+        for n in S.pieces:
+            p = rng.permutation(len(S.co[n]['V']))
+            self.W[n] = {b: np.asarray(w)[p] for b, w in S.cw[n].items()}
+
+    def frame(self, D, dt):
+        co = {n: riglib.lbs(self.S.co[n]['V'], self.W[n], D) for n in self.S.pieces}
+        return _Finals(self.S, co), co
 
 
 class Rigid:
@@ -545,22 +598,23 @@ def main(a):
 
 # ------------------------------------------------------------------------------------ tuning the spring chains from XPBD
 def _run_chains(chains, Ds, caps_of):
-    """chains through frames Ds (their root: the hips) -> (frames, joints, 3) of their tails."""
+    """chains through frames Ds (their root: chain_root's) -> (frames, joints, 3) of their tails."""
     out = []
     for k, D in enumerate(Ds):
         caps = caps_of(D)
         P = []
         for ch in chains:
+            Dr = chain_root(ch, D)
             if k == 0:
-                ch.reset(D['hips'])
-            ch.step(D['hips'], 1.0 / FPS, caps)
+                ch.reset(Dr)
+            ch.step(Dr, 1.0 / FPS, caps)
             P.append(ch.cur)
         out.append(np.concatenate(P))
     return np.array(out)
 
 
 def tune_springs(build, out, poses=('kick', 'squat'), ref='xpbd_hips', grid=None, caps='body', style='anime',
-                 log=print):
+                 root='hips', log=print):
     """the spring chains' settings fitted to the cloth (real-time VRM from the bake's reference): the reference method
     (the style's cloth) through each pose records every frame's coarse garments; each chain joint follows the template
     point it starts on; per piece every (stiffness, gravity, drag) of the grid runs its chains through the same frames
@@ -572,7 +626,7 @@ def tune_springs(build, out, poses=('kick', 'squat'), ref='xpbd_hips', grid=None
     os.makedirs(out, exist_ok=True)
     S = Scene(build, log=log)
     grid = grid or dict(stiffness=(0.5, 1.0, 2.0, 4.0, 8.0), gravity=(0.0, 0.05, 0.15, 0.3), drag=(0.3, 0.5, 0.7, 0.9))
-    sp0 = Springs(S, colliders=True, caps=caps)
+    sp0 = Springs(S, colliders=True, caps=caps, root=root)
     cap_rows = lambda D: riglib.capsule_rows(sp0.caps, D)
     traj, Ds, n0s = {}, {}, {}
     for pose in poses:
@@ -588,7 +642,7 @@ def tune_springs(build, out, poses=('kick', 'squat'), ref='xpbd_hips', grid=None
             for n in S.pieces:
                 traj[pose][n].append(co[n])
         log('tune: reference %s through %s' % (ref, pose))
-    rep = dict(build=build, poses=list(poses), ref=ref, grid=grid, caps=[dict(name=c['name'], r_L=c['r'] / S.L,
+    rep = dict(build=build, poses=list(poses), ref=ref, grid=grid, root=root, caps=[dict(name=c['name'], r_L=c['r'] / S.L,
                                                                              r_fit_L=c['r_fit'] / S.L)
                                                                         for c in sp0.caps], pieces={})
 
@@ -598,6 +652,8 @@ def tune_springs(build, out, poses=('kick', 'squat'), ref='xpbd_hips', grid=None
             R = np.array([t[idx] for t in traj[pose][n]])
             chs = [springbone.Chain(ch.J, stiffness=st['stiffness'], drag=st['drag'], gravity=st['gravity'],
                                     gravity_dir=ch.gdir, hit_radius=ch.hit) for ch, _, _ in chains]
+            for c, (ch, _, _) in zip(chs, chains):
+                c.root_w = ch.root_w
             P = _run_chains(chs, Ds[pose], cap_rows)
             d = np.linalg.norm(P - R, axis=2).mean(1) / S.L
             e['motion'].append(d[n0s[pose] - 1:].mean())
@@ -627,7 +683,7 @@ def tune_springs(build, out, poses=('kick', 'squat'), ref='xpbd_hips', grid=None
     # the garments on the chains, as motion QA measures them: the graph's settings against the tuned
     for label, sett in (('graph', None), ('tuned', best_set)):
         for pose in poses:
-            M = Springs(S, colliders=True, settings=sett, caps=caps)
+            M = Springs(S, colliders=True, settings=sett, caps=caps, root=root)
             rows = []
             for k, D in enumerate(Ds[pose]):
                 fin, co = M.frame(D, 1.0 / FPS)

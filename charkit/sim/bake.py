@@ -14,9 +14,12 @@ Where: BUILD/cloth/CLIP/ (beside the build's bundle; a shot's render names the b
                     (geom/garments.npz) with every vertex moved. The build's own finalize (Solidify, Subdivision:
                     charkit.evalmesh.finalize, equal to Blender's per round 1) makes the render mesh from it, so the
                     cache stays small and one cache serves every render resolution of the stack
-  PIECE.pc2         (--pc2) the same coarse positions as a PC2 point cache for Blender's Mesh Cache modifier, first in
-                    the piece's stack with its Armature modifier off: Blender's own Solidify and Subdivision then make
-                    the render mesh (the replay check: charkit.sim.bake.blender_check)
+  PIECE.pc2         (--pc2) the render mesh's positions per frame (the build's finalize of the coarse ones) as a PC2
+                    point cache for Blender's Mesh Cache modifier, first in the piece's stack with its Armature off.
+                    The build's objects hold the finalized mesh already (the venv's finalize, applied: their stack is
+                    only the Armature and the outline's Solidify), so the cache drives that mesh vertex for vertex and
+                    the outline follows it (round 3's replay found a coarse cache can't: 2,736 positions for an object
+                    of 21,888 vertices). The replay check: charkit.sim.bake.blender_check
 The skeleton's per-frame matrices are in coarse.npz too ('bones/NAME'), so a renderer poses the body the same way.
 """
 import hashlib, json, os, struct, subprocess, time
@@ -81,9 +84,12 @@ def bake(build, clip='kick', out=None, method=None, pc2=False, every=6, log=prin
     arrays = {n: X[n] for n in pieces}
     arrays.update({'bones/' + b: m for b, m in bones.items()})
     np.savez_compressed(os.path.join(out, 'coarse.npz'), **arrays)
-    if pc2:
+    if pc2:                                   # (the render mesh, as the build's objects hold it)
         for n in pieces:
-            write_pc2(os.path.join(out, n + '.pc2'), X[n], fps=mo.FPS)
+            Fn = np.zeros((len(fs), len(S.fin[n]['V']), 3), np.float32)
+            for k in range(len(fs)):
+                Fn[k] = S.Bd.final(n, X[n][k].astype(float))['V']
+            write_pc2(os.path.join(out, n + '.pc2'), Fn, fps=mo.FPS)
     head = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=os.path.dirname(os.path.abspath(__file__)),
                           capture_output=True, text=True).stdout.strip()
     man = dict(clip=clip, fps=mo.FPS, frames=len(fs), first=n0, settle_s=mo.SETTLE, ramp_s=mo.RAMP, hold_s=mo.HOLD,
@@ -128,7 +134,7 @@ for n, p in args['pc2'].items():
         out[n] = 'missing'
         continue
     for m in ob.modifiers:
-        if m.type == 'ARMATURE':
+        if m.type == 'ARMATURE' or m.name == 'outline':       # (the outline: compared without it, it follows the mesh)
             m.show_viewport = m.show_render = False
     mc = ob.modifiers.new('cloth_cache', 'MESH_CACHE')
     mc.cache_format = 'PC2'

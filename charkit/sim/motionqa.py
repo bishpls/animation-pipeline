@@ -55,19 +55,40 @@ def loose_pieces(B, gm):
     return [g['name'] for g in sorted(gs, key=lambda g: (kinds.index(g['kind']), g['name']))]
 
 
-def solve(S, pose, gm, every=EVERY, **over):
-    """one method through a pose's schedule -> [measured frame: {piece: measures}] (motion.Scene.measure's)."""
+def settled(S, gm, settle=None, **over):
+    """the method settled at rest (motion.SETTLE s, or `settle`): the same for every pose (the pose's share is 0 there,
+    and its matrices are the identity exactly), so it runs once and each pose starts from a copy -> (method, the
+    settle's last frame measured, frames settled)."""
+    from . import motion
+    M = motion.method(S, gm['method'], style=gm.get('style', 'anime'), hold_shape=gm.get('hold_shape'), log=lambda *a: None,
+                      **over)
+    n0 = int(round((motion.SETTLE if settle is None else settle) * motion.FPS))
+    D0 = S.rig.skinning({}, 0.0)
+    fin = co = None
+    for _ in range(n0):
+        fin, co = M.frame(D0, 1.0 / motion.FPS)
+    r = S.measure(D0, fin, co)
+    r['_frame'] = 0
+    return M, r, n0
+
+
+def solve(S, pose, gm, every=EVERY, start=None, settle=None, **over):
+    """one method through a pose's schedule -> [measured frame: {piece: measures}] (motion.Scene.measure's). start:
+    settled()'s result to begin from (copied; else settled here)."""
+    import copy
     from ..evalmesh import POSES as PS
     from . import motion
-    M = motion.method(S, gm['method'], style=gm.get('style', 'anime'), hold_shape=gm.get('hold_shape'), **over)
-    fs, n0 = S.schedule(pose, **{k: over[k] for k in ('ramp',) if k in over})
-    rows = []
+    M0, r0, n0 = start or settled(S, gm, settle=settle, **over)
+    M = copy.deepcopy(M0, {id(S): S})
+    fs, _ = S.schedule(pose, **{k: over[k] for k in ('ramp',) if k in over})
+    fs = fs[int(motion.SETTLE * motion.FPS):]             # (the ramp and the hold; the settle ran in settled())
+    rows = [dict(r0)]
     for k, f in enumerate(fs):
         D = S.rig.skinning(PS[pose], f)
         fin, co = M.frame(D, 1.0 / motion.FPS)
-        if k >= n0 - 1 and ((k - n0 + 1) % every == 0 or k == len(fs) - 1):
+        if (k + 1) % every == 0 or k == len(fs) - 1:
             r = S.measure(D, fin, co)
-            r['_frame'] = k - n0 + 1
+            r['_frame'] = k + 1
             rows.append(r)
     return rows
 
@@ -94,7 +115,7 @@ def scene(B, pieces, log=None):
                                                                            log=log or (lambda *a: None)))
 
 
-def measure(B, gm=None, poses=POSES, log=None, **over):
+def measure(B, gm=None, poses=POSES, log=None, settle=None, **over):
     """-> (table, checks): the loose garments at each pose under the build's garment motion (gm: another, for the
     calibration's stand-ins)."""
     from . import motion
@@ -108,8 +129,9 @@ def measure(B, gm=None, poses=POSES, log=None, **over):
                  poses={}, colliders=[dict(name=c['name'], r_L=round(c['r'] / S.L, 4),
                                            err_p90_L=round(c['err_p90'] / S.L, 4)) for c in S.colliders('body')])
     checks = {}
+    start = settled(S, gm, settle=settle, **over)          # (once for every pose)
     for pose in poses:
-        rows = solve(S, pose, gm, **over)
+        rows = solve(S, pose, gm, start=start, **over)
         _, T = checks_of(rows, pieces, pose)
         table['poses'][pose] = T
         for n in skirts:

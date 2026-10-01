@@ -1,6 +1,6 @@
 """python -m charkit.sim rest BUILD [--out DIR] [--pieces a,b] [--variants v,w] [--seconds S]
 python -m charkit.sim motion BUILD [--out DIR] [--poses kick,...]
-python -m charkit.sim tune BUILD [--out DIR] [--poses kick,squat]
+python -m charkit.sim tune BUILD [--out DIR] [--poses kick,squat] [--root hips|skin] [--stiffness 4,8,16,..]
 python -m charkit.sim review BUILD REST_DIR|- MOTION_DIR|- OUT_DIR [INTRO.html]
 python -m charkit.sim bake BUILD --clip kick [--out DIR] [--method M] [--pc2] [--replay [--blender PATH]]
 python -m charkit.sim qa BUILD [--method M]           motion QA (charkit.sim.motionqa) on a build, printed"""
@@ -23,7 +23,12 @@ def main(a):
         return motion.main(a[1:])
     if a[0] == 'tune':
         from . import motion
-        motion.tune_springs(a[1], opt('--out', a[1] + '/sim_tune'), poses=tuple(opt('--poses', 'kick,squat').split(',')))
+        g = None
+        if opt('--stiffness'):
+            g = dict(stiffness=tuple(float(x) for x in opt('--stiffness').split(',')), gravity=(0.0, 0.05, 0.15, 0.3),
+                     drag=(0.3, 0.5, 0.7, 0.9))
+        motion.tune_springs(a[1], opt('--out', a[1] + '/sim_tune'), poses=tuple(opt('--poses', 'kick,squat').split(',')),
+                            grid=g, root=opt('--root', 'hips'))
         return 0
     if a[0] == 'bake':
         from . import bake

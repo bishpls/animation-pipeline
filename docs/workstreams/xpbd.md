@@ -299,3 +299,56 @@ skirt stretches 199% at the kick and has 5.8% 0.185 L inside at the squat. Asked
 body's weights near the waist too (yes/no; it sits 31% / 0.265 L inside the belly at the squat); (2) write the tuned
 spring settings into the outfit graph now (A) or after the skirt chains are rooted on the skin (B); (3) informational:
 the pelvis and belly capsules are fitted (p90 <= 0.022 L) but the cloth doesn't need them; they are for the VRM colliders.
+
+## Round 3 (2026-09-30, night): calibration records, the waistband's weights, the replay, motion QA's CPU, the chains
+
+Coordinator's decisions: (1) the waistband takes the body's weights near the waist (measure before/after; its shape IoU
+in all views must hold); (2) spring settings go into the outfit graph only after the skirt chains are rooted on the skin
+and the stiffness grid goes past 8. Merged pipeline-3d 3f7b730 (softras round 4, opt-in) at 5b95cc2: clean.
+Harness scripts and outputs: `charkit/out/xpbd/r3/`.
+
+### Motion QA's CPU (cpu.py, cpu2.py)
+- **Settle once** (motionqa.settled: the 1 s rest settle is the same for both poses, the pose's matrices at share 0 are
+  the identity exactly, so it runs once and each pose starts from a deep copy): the four checks bit-identical to the
+  per-pose settle (cpu.json `identical: true`). Kept.
+- **A 0.5 s settle: not taken.** It moves motion_squat_skirt_inside 0.00601 -> 0.00582 (stretch 0.10386 -> 0.10397), and
+  the cloth isn't settled at 0.5 s: 0.011 L from the 1 s state (1 s against 1.5 s: 0.0019 L).
+- Process time (cpu2.json, the scene built first and shared): per-pose settle 82.7 / 72.3 s, settle once 63.8 / 55.6 s
+  (-23%). Not half: the XPBD step is 85% of a pose (cProfile: 22.8 s of 27 s, 0.38 s a frame).
+- **The step's two slow kernels rewritten without allocation** (kern.py: per call, bending 5.6 ms over 5,766 hinges and
+  capsules 2.6 ms over 2,220 x 8, the rest under 0.1 ms; 20 substeps x 2 iterations a frame): `_dihedral_into` writes
+  the gradients into a buffer, `_collide_capsules` is scalar; the same arithmetic in the same order, so bit-identical
+  (test_sim.test_the_scalar_kernels_are_bit_identical: positions, multipliers and hits equal to the bit against the array
+  forms on a perturbed sheet; cpu3.py: motion QA's table and checks against cpu.json's).
+- Floor for the calibration: method `skinned_shuffled` (motion.Shuffled: the skirt's coarse weights shuffled among its
+  vertices, seeded; a random rig), generator `shuffled_weights` in charkit/calib/motion.py.
+
+### Results so far
+- **Motion QA CPU** (cpu3.json, process time, laptop): 82.7 / 72.3 s (round 2) -> 17.0 / 14.8 s, table and checks
+  identical (0.00244, 0.0635, 0.00601, 0.10386). The kick's bake: 54.7 s -> 11.6 s.
+- **The Blender replay** (replay2.log, `charkit/out/xpbd/r2/build/cloth/kick/replay.json`): the first replay found the
+  coarse PC2 can't drive the build's objects (they hold the finalized mesh: stack = Armature, outline Solidify; 2,736
+  cached positions against 21,888 vertices). The bake now writes the render mesh's positions (the build's finalize per
+  frame; skirt.pc2 31.5 MB, each flap 3.1 MB for the 2 s clip; coarse.npz stays the compact cache): Blender's Mesh Cache
+  (first, Armature off, outline off for the comparison) against our finalize, max |d| 1.2e-7 L at frames 0, 70, 95 for
+  all three pieces (float32 rounding; frame 70 is mid-ramp, so the frame mapping is right).
+- **The waistband's weights** (wb2.py -> wb2.json; skinstretch.py). The band sits across the spine/chest joint (the
+  chest's head 0.10 L above its bottom edge, the hips' head 1.08 L below): the skin under it is spine 0.07-1.0, chest
+  0.93-0; nothing on the hips. Variants at motion QA's poses (band: new inside share / depth L, coarse stretch p99;
+  the skirt's top covered by the band at rest and exposed posed, ray out from the hips axis missing the band and the
+  skin, for the cloth skirt (the anime default, pins on the skin) and the skinned skirt as shipped):
+
+  | pose | rigid on the hips (as built) | the body's per vertex (shipped) | per column / one blend |
+  |---|---|---|---|
+  | squat: band inside | 0.377 / 0.265 | **0 / 0** | 0 / 0 |
+  | squat: skirt top exposed, cloth / skinned | 0.370 / 0.168 | **0.032 / 0.647** | 0.032 / 0.647 |
+  | twist_bend: band inside | 0.373 / 0.109 | **0.059 / 0.009** | 0.182 / 0.066 |
+  | twist_bend: band stretch p99 | 0 | **2.08** (the skin under it: 1.34) | 0.05 |
+  | twist_bend: skirt top exposed, cloth / skinned | 0.104 / 0 | **0 / 0.275** | 0.20 / 0.40 |
+  | kick, split, arm poses | 0 inside | 0 inside (same) | same |
+
+  Shipped: `"weights": "body"` on the waistband (garments.band_weights; a belt's default stays the hips). It ends the
+  band's dive into the belly and keeps the anime cloth skirt's top under the band; the twist's stretch is the skin's own
+  (LBS across the chest joint). The cost lands on the skinned skirt (VRM's real-time path): its top stays on the hips
+  while the band follows the spine, exposed 0.17 -> 0.65 at the squat. Its fix is the same transfer for the skirt's top
+  rows (or the chains rooted on the skin, item 5): asked of Michael.
