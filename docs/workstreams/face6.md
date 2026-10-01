@@ -120,6 +120,28 @@ eye_*, eye_view_*), `tips.py` (counted lash tips), `eyelab.py`, `lashlab.py`, `b
   and 3/4 match too); the between-ratio is off because our profile nose tip is 0.012 L lower (0.090 vs 0.078) and the
   chin 0.007 lower: head shape (the nose), not the mouth. Not moved.
 
+**Build B** (`charkit/out/face6_b`, f55ba8e before the face5 merge; render box, boards views,body,design; CPU 1306 s):
+the 27 graded flag checks 16 PASS, 7 WARN, 4 FAIL (face6_a 18/6/4 counting differently: B's lab-predicted moves all
+landed: iris 3/4 1.127 WARN, closeup profile 0.936 PASS, spikes front 1.0 PASS, gaps profile 0.8 PASS, profile flick
+-0.056 PASS, eye_aspect 0.944 PASS, lid_span 1.012 PASS). FAILs: brow_shape_closeup_profile 0.469,
+eye_lash_spikes_closeup_profile 0, mouth_place_three_quarter 0.076, nose_mark_at_three_quarter 0.0337 (face6_a 0.021
+WARN). The nose: no nose change between a and b; face6_a's 3/4 mark (4 px at 400 ppl) took a stray nose-class pixel on
+the face's contour into its centroid (x -0.103), B reads the tick alone (-0.085; the design -0.114, y 0.110 vs ours
+0.094). The front matches (0.0035 PASS), and the drawing's 3/4 tick is 0.016 L lower than its front tick (heights don't
+move with yaw: the drawing's), and 0.03 L toward the leading side (part ours: the profile nose reach is 0.018 L short,
+sheet_nose_reach). A tick offset to her right (lab knob nose.side -0.008) reads 0.0287 WARN in 3/4 but the nose's shape
+IoU falls 0.478 -> 0.391 front: not taken (reverted). Expressions (paused, reported): face_preset_angry 0 PASS -> 0.039
+WARN (the angry eye's eye_aspect_rel 0.954 against <= 0.95: fold_shape moves every eye variant), face_preset_effort
+FAIL as before. Other moves a -> b: jaw_taper_shape 0.0401 FAIL -> 0.0399 WARN, tq_cheek_hollow 0.0049 PASS -> 0.0051
+WARN (both pipeline-3d's jaw; face5 merged since), brow_arch_closeup_profile 0.01 -> 0.014 WARN.
+Guard (pieces' IoU 1580f95 -> B): iris 0.847/0.762/0.677 -> 0.898/0.808/0.721; lash 0.526/0.286/0.226 -> 0.489 (-7%)
+/0.26 (-9%)/0.23; brow 0.461/0.509 -> 0.818/0.469 (-8%); mouth 0.11/0.261/0.408 -> 0.465/0.461/0.624; nose 0/0 ->
+0.478/0.072. None falls more than 15%.
+
+Merged pipeline-3d 342e88c (tool/face5) at 71fab0c (cli.py: code_head's modules keep charkit.mouth and add
+charkit.faceregion). Pregate on 71fab0c into 342e88c: PASS (20 value moves, 0 blocking;
+charkit/out/pregate/pregate_tool-face6_71fab0cc_into_342e88c8.md).
+
 ## Checkpoint (2026-09-30 night, context limit): state for the next agent
 
 Branch `tool/face6` head: see `git log -1` (2bdfc58 = the fixes; later commits notes only). Nothing gated, nothing
