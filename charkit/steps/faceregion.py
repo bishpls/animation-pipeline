@@ -50,4 +50,22 @@ MEASUREMENT_STEPS = [
     ('jaw_outline_hidden', '07ebd58', 'new: ours\' front outline against head_construction\'s (registered on the head '
                                      'sheet: 0.002 L rms where both show the face) from the sheet\'s hair-occlusion row '
                                      'to z -0.05 (a flag check: the face curving in under the locks)'),
+    # tool/face5 round 7 (2026-09-30): each check discriminating from its calibration triple (charkit/calib/jaw.py;
+    # records in charkit/calib/records/; the coordinator's brief: never looser)
+    ('chin_angle', '72eb64a', 'the value is |ours - the design\'s| (ours beside); PASS 10 -> 1.45 deg from the triple '
+                             '(affine 4.8, widths 2.9, other_view 12.0): f5m 128.2 PASS -> 1.5 WARN'),
+    ('chin_underside', '72eb64a', 'the value is |ours - the design\'s|; PASS 6 -> 0.4 deg (affine 1.5, widths 0.8): f5m '
+                                 '14.1 PASS -> 0.4 PASS'),
+    ('chin_v', '72eb64a', 'the value is |the rise over the design\'s - 1|, the rise on the face\'s outline (sub-pixel; '
+                         'was whole rows, 8% steps); PASS 0.15 -> 0.042 (affine 0.084, widths 0.084): f5m 1.084 PASS -> '
+                         '0.09 WARN'),
+    ('jaw_taper', '72eb64a', 'PASS 0.015 -> 0.0102 L (widths_jaw 0.0125 passed it): f5m 0.0052 PASS'),
+    ('jaw_taper_shape', '72eb64a', 'PASS 0.025 -> 0.0141 (the floor\'s median sat on 0.025): f5m 0.0157 PASS -> WARN'),
+    ('neck_to_face', '72eb64a', 'remeasured: the face\'s share of the figure\'s width over the 0.05 L above the design\'s '
+                               'chin against the design\'s (was the neck\'s width over the face\'s: jaw_0, Michael\'s '
+                               'flag, read WARN 0.777, now 0.446 FAIL); PASS 0.0867, WARN 0.24: f5m 0.972 PASS -> 0.0465 '
+                               'PASS'),
+    ('neck_front_wiggle', '72eb64a', 'ours read on the design\'s band (0.25 L under the throat, was 0.1: the design\'s '
+                                    'neck front is behind a lock there), the run ended at the neck\'s foot (a 0.01 L '
+                                    'jump in a row): f5m 5.4 -> 4.8 PASS, the design 4.7'),
 ]
