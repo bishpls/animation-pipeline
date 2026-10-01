@@ -41,6 +41,39 @@ def along(A, bone, P):
     return tt, rad
 
 
+def body_weights(A, P, floor=1e-4):
+    """the body's skin weights carried to points P from the nearest point of its surface (barycentric there), as
+    production rigs transfer the body's weights to a garment that should bend with it: a waistband over the waist
+    joint folds with the spine at a squat instead of riding the hips into the belly (docs/workstreams/xpbd.md, round 3).
+    -> {bone: (len(P),)}, bones whose weight never passes `floor` left out, normalised."""
+    from .geom.bvh import BVH
+    V = np.asarray(A['verts'], float)
+    T = np.array([(f[0], f[k], f[k + 1]) for f in A['faces'] for k in range(1, len(f) - 1)], np.int64)
+    P = np.asarray(P, float)
+    _, tri, q = BVH((V, T)).nearest(P)
+    T = T[tri]
+    a, b, c = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
+    v0, v1, v2 = b - a, c - a, q - a
+    d00, d01, d11 = (v0 * v0).sum(1), (v0 * v1).sum(1), (v1 * v1).sum(1)
+    d20, d21 = (v2 * v0).sum(1), (v2 * v1).sum(1)
+    den = np.maximum(d00 * d11 - d01 * d01, 1e-30)
+    bv = (d11 * d20 - d01 * d21) / den
+    bw = (d00 * d21 - d01 * d20) / den
+    bc = np.clip(np.stack([1 - bv - bw, bv, bw], 1), 0, 1)
+    bc /= bc.sum(1, keepdims=True)
+    W = {n: (np.asarray(w, float)[T] * bc).sum(1) for n, w in A['weights'].items()}
+    W = {n: w for n, w in W.items() if w.max() > floor}
+    tot = np.maximum(sum(W.values()), 1e-12)
+    return {n: w / tot for n, w in W.items()}
+
+
+def band_weights(A, spec, V, bone='hips'):
+    """a band's weights by its spec's `weights`: 'body' (the body's under it: body_weights) or a bone (rigid on it,
+    the default)."""
+    w = spec.get('weights', bone)
+    return body_weights(A, V) if w == 'body' else {w: np.ones(len(V))}
+
+
 def limb_radius(A, bone, t, band=0.06):
     """the body's radius round a bone at t (the median distance of the vertices it owns near t)."""
     own = A['weights'].get(bone)
@@ -723,8 +756,8 @@ def shoe_hull(A, spec, hull):
 
 def belt(A, spec):
     """a band round the torso following its section at a height (between the hips and spine joints by `waist`, like the
-    skirt's), `width` tall, lifted by `offset`, with a rounded face. Weighted to the hips. -> dict(verts, faces, weights,
-    uv)."""
+    skirt's), `width` tall, lifted by `offset`, with a rounded face. Weighted to the hips (`weights` 'body': the body's
+    under it, band_weights). -> dict(verts, faces, weights, uv)."""
     L = A['head']['L']
     hj = bone_seg(A, 'hips')[0]; sj = bone_seg(A, 'spine')[1]
     zw = hj[2] + (sj[2] - hj[2]) * spec.get('waist', 0.55)
@@ -742,7 +775,7 @@ def belt(A, spec):
     faces = [(k * m + j, ((k + 1) % n) * m + j, ((k + 1) % n) * m + (j + 1) % m, k * m + (j + 1) % m)
              for k in range(n) for j in range(m)]
     verts = np.array(verts)
-    return dict(verts=verts, faces=faces, weights={'hips': np.ones(len(verts))}, uv=uvs)
+    return dict(verts=verts, faces=faces, weights=band_weights(A, spec, verts), uv=uvs)
 
 
 # ---------------------------------------------------------------------------------------------------- the hull's pieces
@@ -991,7 +1024,8 @@ def belt_hull(A, spec, hull):
     column stands upright; with `fit_rows` [top, bottom] (L from the eye line) at the median of the field over those
     rows (the hull's rows where only the band shows: above them the top's flared hem overhangs the band, and the hull,
     which can't see under it, took its width for the band's), else at the radius a straight line through the column has
-    a quarter of the way down. Weighted to the hips. -> dict(verts, faces, weights, uv, axis, ts, th, R)."""
+    a quarter of the way down. Weighted to the hips (`weights` 'body': the body's under it, band_weights). -> dict(verts,
+    faces, weights, uv, axis, ts, th, R)."""
     from .geom import loft
     L = A['head']['L']
     P = _hull_points(hull, spec)
@@ -1031,7 +1065,7 @@ def belt_hull(A, spec, hull):
     R[0] -= pull; R[-1] -= pull
     F2 = loft.Field(ts, F.th, R, None)
     V, quads, uv = loft.loft(ax, F2, R)
-    return dict(verts=V, faces=quads, weights={'hips': np.ones(len(V))}, uv=[tuple(x) for x in uv],
+    return dict(verts=V, faces=quads, weights=band_weights(A, spec, V), uv=[tuple(x) for x in uv],
                 hide=wrapped(A, V[:, 2].min(), V[:, 2].max()), axis=ax, ts=ts, th=F.th, R=R)
 
 

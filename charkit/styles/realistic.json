@@ -11,7 +11,15 @@
   "cloth_damping": 0.15,
   "hair_stiffness": 0.35,
   "hair_damping": 0.15,
-  "gravity": 1.0
+  "gravity": 1.0,
+  "garment_motion": {
+   "method": "xpbd_physics",
+   "hold_shape": 0.0,
+   "loose": [
+    "skirt",
+    "panel"
+   ]
+  }
  },
  "hair_pieces": {
   "notch": 2.0,

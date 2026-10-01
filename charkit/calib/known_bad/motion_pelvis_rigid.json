@@ -1,0 +1,9 @@
+{
+ "name": "motion_pelvis_rigid",
+ "why": "the skirt carried by the pelvis alone (the cloth's hold target with no cloth; as the flaps ship): the kicking thigh passes through its front. Computed from the build under calibration by charkit.calib.motion (method 'pelvis_rigid'), nothing stored. The kick's penetration needs it: the skinned skirt barely enters the skin at the kick (0.1%) because it stretches instead",
+ "flag": null,
+ "commit": null,
+ "source": null,
+ "computed": "charkit.calib.motion.Motion.measure_known_bad",
+ "stored": "2026-09-30"
+}
