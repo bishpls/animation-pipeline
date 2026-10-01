@@ -382,13 +382,29 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
        (drawn, they end inside the bow's top), so the collar region's outline turns a corner there (front: 3 corners
        against the pillows' 1). Lowering the bow's corners clears it (r2) but regresses loop_end (flag).
 
-## Next steps (round 5)
-1. The new FAILs from the pleated bow: the bow's torn outline (round the square upper corners, the strips' ends; measure
-   with piece_details' roughness per corner), the collar's fragments and the sleeves' spikes under the lobes' ends,
-   art_outline_collar's front. Then the bleed without folding (options in State 13).
-2. bow_part_knot_iou BLIND under front-only grading: the coordinator/Michael choose (keep 3q graded, or let knot_line +
-   knot_rect carry the front knot and record the IoU as a guard).
-3. Rerun the gate when this branch's new FAILs are cleared.
+   - pipeline-3d 961037c (tool/hair5) merged (f08882b6; prompts.json and tools/ledger.jsonl: both sides kept).
+     Tests ok (bow_pleat, partqa, isoqa, bowqa, collarqa, outfit, manifest, spec_alias, registry, gate); pregate
+     a2d0bd11 into 961037c PASS, 0 blocking.
+   - **Gate FAIL, 8 blockers** (f08882b into 961037c, `--accept bow_profile_ribbon`;
+     charkit/out/gate/gate_tool-pieceref_f08882b_into_961037c.md): exactly the attributed set: bow_front/3q/profile_torn
+     0.0155/0.0207/0.0307, collar_front_torn 0.0033, bow_front_bleed 0.275 (bow-caused); sleeve_front_spikes_L/R
+     0.0286/0.0188, art_outline_collar 1.379 P -> 2.096 W (neighbours off-design). The 2x2 accepted; bow_part_knot_iou
+     a calibrated new check, 1.0 PASS. Not blocking: body_profile_chest, collar_three_quarter_torn,
+     sleeve_three_quarter_spikes_R PASS -> WARN. **Build CPU 1.49x** (737 -> 1102 s): at K's 1.5x bound.
+   - Review page `charkit/out/pieceref/review/index.html` (review.py b2_before_res pr3 t12; summary.json): w4 kept,
+     the attribution with pictures, the options measured and not taken (t12, c1, r1/r2), the three questions.
+
+## Next steps (round 6; the coordinator decides first)
+1. The coordinator: named acceptances, or the collar's and sleeves' placement brought forward to the garments round
+   (the sleeve caps 0.06 L low; the lapels ending inside the bow's top edge as drawn). tool/sleeves (paused) conflicts
+   with this branch in collarqa.py and steps/collarqa.py.
+2. The bow's own blockers, if not accepted: t12's sets (`ribbon.root` .155, `root_back` .006, `root_seat` .5,
+   `pleat.tuck` [.04,.3], `strip_ov` .07) clear the four torn checks; what's left is the knot's lower line (knotring
+   0.983, knot_line 0.18 W): the tails' turned top row still stands in front of the knot's bottom; try the top row
+   un-turned (turn eased in from 0 over the first tenth) rather than seated back. The bleed: c1's column push clears it
+   without folds but moves mid-lobe 0.08 L (the strips' rims buried deep): bring the strips' lower rims out of the
+   bust at the source (their step behind the panel smaller toward the outer half) and push only what's left.
+3. Build CPU sits at 1.49x: any added geometry must pay for itself.
 
 ## Round 3's next steps (done but as noted in State 13)
 1. **bow_front_bleed on w4** (flag; baseline b2_before 0.0 P: must PASS, <= 0.03): add u (along the lobe) to
