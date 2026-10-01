@@ -405,7 +405,12 @@ re-sampling events, which the sleeve's knobs don't have) or the builds in parall
 
 - **Round 4** (soft occlusion): 955a7d0 and on; measured (agreement 0.9999-1.0000 IoU against the hard masks, the
   sleeve's chain 0.99-1.07x from 0.46-2.98x), the pilots (sleeve: the gradient fit below CD from both starts, 1.8218 /
-  1.8215 at s 1 against 1.8235 / 1.8254; flap control unchanged); page r4/occ.html. Gate: see below.
+  1.8215 at s 1 against 1.8235 / 1.8254; flap control unchanged); page r4/occ.html. Pregate PASS (0 moved, 207 s).
+  **Gate PASS** (902371c into pipeline-3d 004efc3, policy K): nothing blocks, 0 items reported, no candidate build (4
+  files changed, none among the 567 the baseline build read), 76 test files 0 failing (test_softras.py among them).
+  Report charkit/out/gate/gate_tool-softras_902371c_into_004efc3.md. Next (the coordinator's order): analytic builder
+  derivatives (puff, then the flap), the soft occlusion on for templates whose outline the occ measurement finds
+  depth-order edges in, at s 1.
 
 ## Decisions for Michael
 
