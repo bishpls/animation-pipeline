@@ -235,6 +235,20 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   0 blocking (`charkit/out/pregate/pregate_tool-garments4-part2_639339a3_into_6620113d.md`; evaluator-only row
   piece_overskirt_panel_L_three_quarter_left -0.151 W -> -0.330 F, not in the gate's QA). Box gate running (log
   charkit/out/garments4/gate_creases.log).
+- **Creases gate 1: FAIL under K, 5 blockers** (`charkit/out/gate/gate_tool-garments4-part2_9e35959_into_6620113.md`):
+  test_subsurf (evalmesh.finalize read o['materials'] unguarded: fixed) and 4 unregistered remeasures (the render
+  drawing now reads the bow's strokes as lines: bow_part_crease_dir/len, iso_bow_crease_dir/len): steps registered
+  (steps/partqa, isoqa, artifactqa: a17ec74c), records being refreshed on g4_creases2 (known-bad g3_render3 copied into
+  this worktree's store from pieceref's; log charkit/out/garments4/calib_remeasure.log). No new FAIL, no flag regression,
+  guard clean, CPU 1.30x. Then gate again.
+- g4_cuffs (cuffs branch 2aff9697) built: cuff sizes 0.002-0.055 P (3q R 0.03), trim front 0.086 W / back 0.029 P,
+  piece_cuff_L 0.614/0.831/0.742/0.636 -> 0.665/0.869/0.753/0.874, R 0.604/0.305/0.602 -> 0.676/0.741/0.905; hands'
+  reach WARN -> PASS (front/back/3q L), hand_shape_R F -> W; PASS -> WARN cuff_back_flare_R 0.02 -> 0.096.
+- **Creases gate 2: PASS under K** (312d83d into pipeline-3d 6620113;
+  `charkit/out/gate/gate_tool-garments4-part2_312d83d_into_6620113.md`): no new FAIL, no flag regression, CPU within
+  1.5x; 8 new checks calibrated/guard, 4 remeasured calibrated. PASS -> WARN: flap_profile_iou_R, flap_profile_sweep_R,
+  skirt_pleats. Review page `charkit/out/garments4/review/creases/index.html` (creases.json). Mergeable: tool/garments4-part2
+  at the notes commit after 312d83d.
 
 ## Milestone 2: cuffs (branch tool/garments4-cuffs = part2 + the cuff work)
 - garments.cuff: rows grow by the lowest straight line over each row's clearance need (grow_line; row by row made

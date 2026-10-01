@@ -48,4 +48,8 @@ MEASUREMENT_STEPS = [
     # tool/calib round 2 (2026-09-30): the grading recalibrated (charkit/calib/records/art_mirror_self_boots.json)
     ('art_mirror_self_boots', '9d5f649', "grading: limits x1.5 / x2.5 -> x1.37 / x1.58 (the design's boots with one "
      "boot's masks moved 1-2 px read 1.005-1.163; body4b_render's uneven boots 1.787: WARN -> FAIL)"),
+    # tool/garments4 Part 2: creases as a line layer
+    ('art_*_bow', 'a17ec74c', "the bow's crease strokes read as lines by the QA's render drawing (qarender mapped the "
+     "export's ink primitives to the cloth)"),
+    ('art_*_skirt', 'a17ec74c', "the skirt panel's crease strokes read as lines by the QA's render drawing"),
 ]

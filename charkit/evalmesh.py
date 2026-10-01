@@ -574,7 +574,8 @@ def finalize(o, weight_rule=None):
         if m['type'] == 'SOLIDIFY':
             shell = abs(float(st['thickness']))
             # ink (garments.with_ink's strokes: a slot named *_ink) takes no thickness: set aside, put back after
-            ink_slots = [k for k, mm in enumerate(o['materials']) if str(mm.get('name', '')).endswith('_ink')]
+            from .qa3d import is_ink
+            ink_slots = [k for k, mm in enumerate(o.get('materials') or []) if is_ink((mm or {}).get('name'))]
             ink = None
             if ink_slots:
                 fi = np.isin(mat, ink_slots)
