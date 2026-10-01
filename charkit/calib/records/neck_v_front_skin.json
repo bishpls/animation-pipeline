@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T12:24:27",
+ "at": "2026-10-01T18:19:11",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -13,81 +13,81 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.9593,
+    0.9447,
     "PASS"
    ],
    "+0,+2": [
-    0.9202,
+    0.9006,
     "PASS"
    ],
    "+1,+0": [
-    0.9696,
+    0.9739,
     "PASS"
    ],
    "+2,+0": [
-    0.9402,
+    0.9511,
     "PASS"
    ],
    "+0,-1": [
-    0.9593,
+    0.9453,
     "PASS"
    ],
    "+0,-2": [
-    0.9202,
+    0.9001,
     "PASS"
    ],
    "-1,+0": [
-    0.9694,
+    0.9682,
     "PASS"
    ],
    "-2,+0": [
-    0.9401,
+    0.9461,
     "PASS"
    ]
   },
-  "min": 0.9202,
-  "max": 0.9696,
-  "spread": 0.0494,
-  "median": 0.9497500000000001
+  "min": 0.9001,
+  "max": 0.9739,
+  "spread": 0.0738,
+  "median": 0.9457
  },
  "known_bad": {
   "name": "g4_v0",
-  "value": 0.4761,
+  "value": 0.3521,
   "status": "FAIL"
  },
  "floor": {
   "voronoi_pieces": {
    "values": [
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0
+    0.728,
+    0.728,
+    0.728,
+    0.728,
+    0.728
    ],
    "statuses": [
-    "PASS",
-    "PASS",
-    "PASS",
-    "PASS",
-    "PASS"
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN"
    ],
-   "median": 1.0,
-   "status": "PASS",
-   "passing": 5
+   "median": 0.728,
+   "status": "WARN",
+   "passing": 0
   }
  },
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.7648,
-  "status": "WARN",
-  "margin": 4.681
+  "value": 0.5741,
+  "status": "FAIL",
+  "margin": -0.707
  },
  "verdict": "calibrated",
- "why": "a defect detector: the design passes every move (spread 0.0494), g4_v0 reads 0.4761 FAIL; a random stand-in passes it (voronoi_pieces); shape guarded by piece_top, piece_collar",
- "build": "charkit/out/g4_v1",
+ "why": "a defect detector: the design passes every move (spread 0.0738), g4_v0 reads 0.3521 FAIL; a random stand-in fails it; shape guarded by piece_top, piece_collar",
+ "build": "charkit/out/g8_base",
  "generators": {
   "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
  },
- "seconds": 112.1
+ "seconds": 373.0
 }
