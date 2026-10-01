@@ -857,6 +857,8 @@ class Bundle:
                     Dv = D
                 elif o.a(vn, 'parent') is not None:
                     Dv = _carry(V, o.polys(vn), o.a(vn, 'parent'), Vb, o.polys('base'), D, moved)
+                    if Dv is None:
+                        continue
                 elif vn == 'bare' and 'eval' in done and len(V) == len(done['eval']):
                     Dv = done['eval']
                 else:
@@ -968,6 +970,8 @@ def _carry(V, polys, parent, Vb, base_polys, D, moved):
     out = np.zeros((len(V), 3))
     if not len(moved):
         return out
+    if len(parent) and int(np.max(parent)) >= len(bc):
+        return None                                             # (a variant made on another cage: not this one's)
     hot = np.zeros(len(D), bool); hot[moved] = True
     poly_of_loop = np.repeat(np.arange(len(counts)), counts)
     first = np.full(len(V), -1, np.int64)

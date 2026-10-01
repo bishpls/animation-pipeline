@@ -522,11 +522,13 @@ class FaceStage(QAStage):
             view = mouthlib.view_knobs(mouthlib._knobs(S.get('mouth'))) is not None
             A = character.assemble(S, keys=view)            # (the per-shot mouth keys need the keyed assembly)
             V1, quads, fm, par = faceeval.skin_quads(A, below=1e3, parents=True)
+            ow = character.outline_weights(A)
+            _, _, _, w1 = faceeval.skin_quads(A, below=1e3, carry=ow)
+            shrink = faceeval._shrink(V1, quads, w1)              # (the outline's pull: a whole-skin replacement's)
             b = bl.Builder({k: v for k, v in S.items() if k != '_dir'}, bl.assembly_meta(A, S), None)
             faceeval.materials(b, S)
             faceeval.features(b, A, S, keys=False)
             render = {}
-            ow = character.outline_weights(A)
             L = A['head']['L']
             for E in A['eyes']:
                 tag = 'L' if E['side'] > 0 else 'R'
@@ -542,6 +544,7 @@ class FaceStage(QAStage):
         VK = A['mouth'].get('view_keys') or {}
         ac = bl.assembly_variant(A)
         got = {self.SKIN: dict(V=np.asarray(V1, float), F=np.asarray(quads), kind='skin', render=render, fm=fm, parent=par,
+                               shrink=shrink,
                                cage_loopv=ac['loopv'], cage_counts=ac['counts'], cage_pmat=ac['pmat'],
                                cage=np.asarray(A['verts'], float), meta=bl.assembly_meta(A, S), step=step,
                                keys={n: P['skin'] for n, P in VK.items()}, spec=S)}
@@ -614,6 +617,9 @@ class FaceStage(QAStage):
             if vn == 'eval':
                 rep[p + 'parent'] = np.asarray(sk['parent'], np.int32)
                 keep += ('parent',)
+            if self.B0.has(p + 'shrink'):                     # (the outline hull: the contour's ink, the face's walls)
+                rep[p + 'shrink'] = np.asarray(sk['shrink'], np.float32)
+                keep += ('shrink',)
             drop += [f for f in files if f.startswith(p) and f[len(p):] not in keep]
         for vn in ('base', 'assembly'):
             p = 'o/%s/%s/' % (R['name'], vn)
