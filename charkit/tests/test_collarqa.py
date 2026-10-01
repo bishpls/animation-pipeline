@@ -75,6 +75,26 @@ def test_the_flag_checks_carry_their_flag():
     assert cq._check('collar', 'iou', 0.9)['status'] == 'PASS'
 
 
+def _profile_rows(ribbon_w, gap):
+    """a profile band 40 rows tall at 100 px per L: a ribbon run ribbon_w px wide in front of a jacket, `gap` px of line
+    between them (0: touching)."""
+    bow = np.zeros((40, 120), bool); jk = np.zeros((40, 120), bool)
+    bow[:, 20:20 + ribbon_w] = True
+    jk[:, 20 + ribbon_w + gap:100] = True
+    return bow, jk
+
+
+def test_the_ribbon_reads_apart_only_when_wide_enough_and_lined():
+    ppl = 100
+    for w, gap, bad in ((8, 2, 0.0), (8, 0, 1.0), (1, 2, 1.0), (2, 1, 1.0)):   # lined; merged; a sliver between lines
+        bow, jk = _profile_rows(w, gap)
+        W, T = cq.runs_rows(bow, jk, range(40), ppl)
+        assert abs(float(np.mean((W < cq.RUN_MIN) | T)) - bad) < 1e-9, (w, gap)
+    bow, jk = _profile_rows(8, 2)
+    W, T = cq.runs_rows(bow, jk, range(-5, 45), ppl)          # rows off the grid: no ribbon there
+    assert (W[:5] == 0).all() and not T.any()
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

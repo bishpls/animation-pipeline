@@ -1,0 +1,97 @@
+{
+ "check": "eye_view_profile_flick_out",
+ "part": "eye_views",
+ "adapter": "EyeViews",
+ "module": "charkit.calib.eyeviews",
+ "at": "2026-09-30T21:03:18",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "face_piece_lash"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.07,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.07,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.028,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.028,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.07,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.07,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.028,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.028,
+    "PASS"
+   ]
+  },
+  "min": -0.07,
+  "max": -0.028,
+  "spread": 0.042,
+  "median": -0.049
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "no stored build has a wrong flick: Michael's eyes2 flag (the profile eye not looking forward) predates the stored builds, and face6_before (1580f95) reads 0.594 against the design's 0.556",
+ "floor": {
+  "flick_cut": {
+   "values": [
+    -0.25,
+    -0.278,
+    -0.334,
+    -0.306,
+    -0.528
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.306,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "flick_long": {
+   "value": 0.336,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": -0.025,
+  "status": "PASS",
+  "margin": 1.093
+ },
+ "verdict": "guard",
+ "why": "no known-bad (no stored build has a wrong flick: Michael's eyes2 flag (the profile eye not looking forward) predates the stored builds, and face6_before (1580f95) reads 0.594 against the design's 0.556); the design passes and the floor does not",
+ "build": "charkit/out/face6_a",
+ "generators": {
+  "flick_cut": "the lash line past the opening's far corner cut back to 0-30% of its reach (skin painted over it)",
+  "flick_long": "the lash line past the far corner stretched outward 1.6-2.2x about the corner's column"
+ },
+ "seconds": 20.5
+}

@@ -1,0 +1,93 @@
+{
+ "check": "eye_lash_band_closeup_front",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_lash"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.027,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.027,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.027,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.027,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.027,
+  "spread": 0.027,
+  "median": 1.0135
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": 1.653,
+  "status": "FAIL"
+ },
+ "floor": {
+  "lash_blocked": {
+   "values": [
+    1.401,
+    1.401,
+    1.401,
+    1.252,
+    1.252
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "WARN"
+   ],
+   "median": 1.401,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.653,
+  "status": "FAIL",
+  "margin": -0.65
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.027), face6_before reads 1.653 FAIL, the floor lash_blocked FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "lash_blocked": "the upper lash line closed by a disk of 0.6-1.2 x its band and grown 0.3-0.8 x its band"
+ },
+ "seconds": 62.9
+}

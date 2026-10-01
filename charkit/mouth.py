@@ -22,6 +22,10 @@ DEFAULT_MOUTH = {
                         # 'tongue' overrides)
     'line_lo': 0.5,     # the lower lip's line (open mouths: the drawn mouth's outline), a share of the upper line's width
     'jaw': 0.45,        # how much the jaw follows the lower lip when open
+    'rest': {},         # the neutral (rest) mouth's own shape over SHAPES['neutral'] (no other shape inherits it): width
+                        # (in widths), smile, gap (L), line_w (L), drop (L: the whole mouth set this much lower in the
+                        # head's mouth block; every shape follows it). Michael's flag (2026-09-30): the default smile
+                        # was off-model, a short open D; the design draws a long, thin, closed smile line
     'jaw_follow': 0.3,  # the same on an authored base, whose jaw region moves whole (the lips' rings take the rest): the
                         # dial between a jaw that drops (1) and the drawn heads' kept outline (0); 0.6 -> 0.3 took the
                         # laugh's chin drop 0.096 -> 0.069 L with every key's folds 0 (docs/workstreams/mouth.md)
@@ -183,9 +187,18 @@ SHAPES = {
 }
 
 
+def shape_of(K, shape):
+    """a shape's parameters: SHAPES['neutral']'s, the shape's over them, and for the neutral itself the spec's `rest`
+    over those (the rest mouth's own shape; no other shape inherits it)."""
+    S = dict(SHAPES['neutral']); S.update(SHAPES[shape] if isinstance(shape, str) else shape)
+    if shape == 'neutral':
+        S.update({k: v for k, v in ((K or {}).get('rest') or {}).items() if k != 'drop'})
+    return S
+
+
 def curves(K, L, shape):
     """(upper(t), lower(t)): mouth-local (x, z) of the upper and lower lip edge at t (0 = her right corner .. 1 = her left)."""
-    S = dict(SHAPES['neutral']); S.update(SHAPES[shape] if isinstance(shape, str) else shape)
+    S = shape_of(K, shape)
     W = K['width'] * L * S['width']
     smile = S.get('smile', K['smile'])
     op = S['open'] * K['width'] * L
@@ -198,7 +211,7 @@ def curves(K, L, shape):
         x = -W / 2 + W * np.asarray(t, float)
         u = 2 * x / W
         return x, smile * W * u * u + corner * u * u + skew * (u + 1) / 2 * u * u
-    gap = K['gap'] * L
+    gap = S.get('gap', K['gap']) * L
 
     def wave(t):
         t = np.asarray(t, float)
@@ -468,7 +481,7 @@ def line(F, K, L, mc, shape='neutral', n=32, authored=False):
     up_f, lo_f = curves(K, L, shape)
     t = np.linspace(0.02, 0.98, n)
     x, z = up_f(t)
-    th = K.get('line_w', 0.0075) * L * (0.35 + 0.65 * np.sin(np.pi * t) ** 0.6)
+    th = shape_of(K, shape).get('line_w', K.get('line_w', 0.0075)) * L * (0.35 + 0.65 * np.sin(np.pi * t) ** 0.6)
     uv, uq = eyelib._ribbon(F, 1.0, mc, np.stack([x, z], 1), th, 1.0, lift=-0.0004, tuck=0.6)
     # the lower line: as wide as the lips are apart (up to line_lo of the upper line's width by an opening of 0.03 L)
     g, gmax = _opening(K, L, shape, t)

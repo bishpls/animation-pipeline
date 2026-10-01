@@ -46,6 +46,8 @@ LIMITS = {                                       # |ours / design - 1|: (pass wi
     'pupil_run': (0.15, 0.30), 'pupil_aspect': (0.20, 0.40), 'iris_ratio': (0.10, 0.20), 'lid_span': (0.10, 0.20),
 }
 LID_GAP = (0.004, 0.010)                         # L between the upper lid line and the opening: (pass, warn)
+FLICK_BELOW = 0.15                               # opening heights under a corner's row that the upper lid line's window
+                                                 # reaches (flick, lid_span): a flick leaves the corner near its row
 
 
 def _hsv(rgb):
@@ -185,8 +187,13 @@ def measure(rgba, ppl, iris_hue=IRIS_HUE):
         above = np.nonzero(S['line'][:top.min(), c])[0]
         gaps.append((top.min() - above.max() - 1) if len(above) else top.min())
     out['lid_gap'] = round(float(np.mean(gaps)) / ppl, 4) if gaps else None
-    # the upper lid line's span against the opening's width (a lash arc much wider than the eye floats past its corners)
-    up = _largest(S['line'] & (np.arange(S['line'].shape[0])[:, None] < (ob[2] + ob[3]) / 2))
+    # the upper lid line's span against the opening's width (a lash arc much wider than the eye floats past its corners):
+    # the largest dark component above the lower corner's row plus FLICK_BELOW opening heights (at least the middle row;
+    # until tool/face6 the middle row, which cut off a flick lying on it: face6_a read 1.096, 1.247 now, the design 1.3)
+    O = S['opening']
+    corner = max(float(np.nonzero(O[:, ob[0]])[0].mean()), float(np.nonzero(O[:, ob[1]])[0].mean()))
+    bottom = max((ob[2] + ob[3]) / 2, corner + FLICK_BELOW * (ob[3] - ob[2] + 1))
+    up = _largest(S['line'] & (np.arange(S['line'].shape[0])[:, None] < bottom))
     lb = _box(up)
     out['lid_span'] = round((lb[1] - lb[0] + 1) / (ob[1] - ob[0] + 1), 3) if lb else None
     out['iris_ratio'] = round(iw / ow, 3)
@@ -386,7 +393,13 @@ def flick(S, nasal=-1):
     ow, oh = ob[1] - ob[0] + 1, ob[3] - ob[2] + 1
     H, W = O.shape
     yy, xx = np.mgrid[0:H, 0:W]
-    win = (yy < (ob[2] + ob[3]) / 2) & (yy > ob[2] - 0.6 * oh) & (xx > ob[0] - 0.6 * ow) & (xx < ob[1] + 0.9 * ow)
+    cxc = ob[1] if nasal < 0 else ob[0]
+    cy = float(np.nonzero(O[:, cxc])[0].mean())
+    # the window reaches FLICK_BELOW opening heights under the far corner's row (and at least the opening's middle row):
+    # the flick leaves the corner, so its tip lies near the corner's row. (It ended at the middle row until tool/face6:
+    # a flick whose tip lay on that row read its notch instead, -0.34 against 0.53, as the opening's box moved a pixel.)
+    bottom = max((ob[2] + ob[3]) / 2, cy + FLICK_BELOW * oh)
+    win = (yy < bottom) & (yy > ob[2] - 0.6 * oh) & (xx > ob[0] - 0.6 * ow) & (xx < ob[1] + 0.9 * ow)
     line = S['line'] & win
     # the lash line: the dark component lying most along the opening's top edge (not a hair strand or the face's line)
     o0, o1 = _rows(O)
@@ -411,9 +424,6 @@ def flick(S, nasal=-1):
     k = np.nonzero(far == far.max())[0]
     k = k[np.argmin(ys[k])]
     tx, ty = float(xs[k]), float(ys[k])
-    cxc = ob[1] if nasal < 0 else ob[0]
-    rr = np.nonzero(O[:, cxc])[0]
-    cy = float(rr.mean())
     out_ = (tx - cxc) * -nasal
     return {'flick_out': round(out_ / ow, 3), 'flick_up': round((cy - ty) / oh, 3),
             'flick_angle': round(float(np.degrees(np.arctan2(cy - ty, out_))), 1), '_tip': (tx, ty), '_corner': (float(cxc), cy)}

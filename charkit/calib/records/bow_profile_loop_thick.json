@@ -1,0 +1,112 @@
+{
+ "check": "bow_profile_loop_thick",
+ "part": "bow_profile",
+ "adapter": "BowProfile",
+ "module": "charkit.calib.parts",
+ "at": "2026-09-30T21:25:30",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_bow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0075,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0133,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0076,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0133,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0133,
+  "spread": 0.0133,
+  "median": 0.00375
+ },
+ "known_bad": {
+  "name": "g3_render3",
+  "value": 0.0773,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_bow": {
+   "values": [
+    0.0285,
+    0.0558,
+    0.1036,
+    0.0648,
+    null
+   ],
+   "statuses": [
+    "PASS",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0603,
+   "status": "FAIL",
+   "passing": 1
+  },
+  "affine_bow": {
+   "values": [
+    0.0492,
+    0.0636,
+    0.0471,
+    0.0603,
+    0.0671
+   ],
+   "statuses": [
+    "WARN",
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0603,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0459,
+  "status": "WARN",
+  "margin": 0.255
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0133), g3_render3 reads 0.0773 FAIL; a random stand-in fails it; shape guarded by piece_bow",
+ "build": "charkit/out/pr3",
+ "generators": {
+  "voronoi_bow": "the drawn bow (loops and tails) cut into random cells (6), each loops or tails at random (weighted by their drawn areas)",
+  "affine_bow": "the drawn loops and tails each moved 0.03-0.06 L and scaled 0.9-1.1 about their middles"
+ },
+ "seconds": 22.9
+}

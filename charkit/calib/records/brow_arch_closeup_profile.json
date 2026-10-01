@@ -1,0 +1,92 @@
+{
+ "check": "brow_arch_closeup_profile",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_brow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.003,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.003,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.004,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.004,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.003,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.003,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.004,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.004,
+    "PASS"
+   ]
+  },
+  "min": 0.003,
+  "max": 0.004,
+  "spread": 0.001,
+  "median": 0.0035
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": -0.034,
+  "status": "FAIL"
+ },
+ "floor": {
+  "brow_warped": {
+   "values": [
+    0.109,
+    0.139,
+    0.108,
+    -0.072,
+    0.085
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.108,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": -0.034,
+  "status": "FAIL",
+  "margin": 1.359
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.001), face6_before reads -0.034 FAIL, the floor brow_warped FAIL",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "brow_warped": "each brow rebuilt: arch x (0.2-0.6 | 1.6-2.2), thickness x (0.45-0.7 | 1.5-2.0), length x 0.8-1.3"
+ },
+ "seconds": 62.9
+}

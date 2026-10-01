@@ -32,9 +32,19 @@ def test_block_held():
     """the head's cage holds the mouth block code_base.mouth_block sizes from the library's extremes (the laugh's
     half-width, the yawn's upper lip): the expressions' keys change, the head's rest mesh doesn't (pipeline-3d's
     1141e74 value, to the last bit)."""
-    b, loop = code_base.mouth_block(json.load(open(SPEC)))
+    spec = json.load(open(SPEC))
+    b, loop = code_base.mouth_block(spec)
     assert tuple(float(x) for x in b) == (0.16, 0.1002, 0.09), b
-    assert hashlib.sha1(np.ascontiguousarray(loop, float).tobytes()).hexdigest()[:12] == 'f23bf52f51ca'
+    # without the rest mouth's own shape (mouth `rest`, tool/face6: Michael's default-smile flag) the loop is the old
+    # one to the last bit; with it, the neutral line is its width and set its drop lower, the block the same
+    old = dict(spec, mouth={k: v for k, v in spec['mouth'].items() if k != 'rest'})
+    b0, loop0 = code_base.mouth_block(old)
+    assert hashlib.sha1(np.ascontiguousarray(loop0, float).tobytes()).hexdigest()[:12] == 'f23bf52f51ca'
+    R = spec['mouth'].get('rest') or {}
+    if R:
+        assert tuple(b0) == tuple(b)
+        w0, w1 = np.ptp(loop0[:, 0]), np.ptp(loop[:, 0])
+        assert abs(w1 / w0 - R.get('width', 1.0)) < 1e-6, (w0, w1)
 
 
 def test_explicit_smiles():

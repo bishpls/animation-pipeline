@@ -26,8 +26,15 @@ Checks (qa3d part 'collar_flags'; lengths in L):
         outlines (charkit.lookqa's frame at the design's line scale), against the design's (its bow's cream touching
         orange with no ink between). Michael: "the colour bleeds out of the bow's bottom edges into the jacket"
   bow_profile_ribbon
-        in profile, the ribbons' width seen in front of the jacket (the bow's run over the tails' rows, 30-80% down
-        them), ours over the design's, less one. Michael: "the trailing ribbons merge into the jacket in side profile"
+        in profile, the ribbons merging into the jacket: per row over the drawn tails' rows 30-80% down them, whether
+        the ribbon reads apart from the jacket: its widest run at least RUN_MIN wide and touching no jacket or sleeve
+        pixel directly (an ink line between), drawn with the build's outlines (lookqa's frame at the design's line
+        scale, as bow_front_bleed); the share of rows that don't, beyond the design's (its drawn tails' cream against
+        orange). A sliver of ribbon hugging the jacket's front between two lines merges with it as surely as a ribbon
+        with no line at all (the pre-M1 build). Michael: "the trailing ribbons merge into the jacket in side profile";
+        his call C (2026-09-30): what the flag meant is the line between ribbon and jacket, not the ribbon's width in
+        profile (the drawing's side view is deeper than its front view allows: bow2's measure asked for a depth the
+        close-hung ribbons can't give)
 
     table, checks = collarqa.measure(B, design)      # charkit.qa3d's 'collar_flags' part
 """
@@ -39,7 +46,8 @@ from . import bodyqa
 
 SHOULDER_X = (0.25, 0.55)           # L from the midline: the shoulder line's columns (the collar's edge to the puffs)
 END_TOL = 0.004                     # L: a loop's row counts as its straight end within this of its outermost column
-RIBBON = (0.3, 0.8)                 # the share of the tails' height (from their top) the ribbons' width is taken over
+RIBBON = (0.3, 0.8)                 # the share of the tails' height (from their top) the ribbons' line is read over
+RUN_MIN = 0.03                      # L: a row's ribbon run narrower than this beside the jacket doesn't read apart from it
 LIMITS = {                          # (pass within, warn within); else fail
     'line': (0.015, 0.03),          # L: the shoulder line's median height against the design's
     'slope': (0.10, 0.20),          # L per L: its slope against the design's
@@ -54,7 +62,8 @@ LIMITS = {                          # (pass within, warn within); else fail
     'loop_width': (0.06, 0.12),     # |ours / design - 1| of the loops' span
     'loop_end': (0.15, 0.30),       # the straight share of a loop's end beyond the design's
     'bleed': (0.03, 0.06),          # L of the bow's edge on the jacket with no line, beyond the design's
-    'ribbon': (0.25, 0.5),          # |ours / design - 1| of the ribbons' width in profile
+    'ribbon': (0.15, 0.30),         # the share of the tails' rows in profile whose ribbon doesn't read apart from the
+                                    # jacket (narrower than RUN_MIN, or no line between), beyond the design's
 }
 FLAGS = {
     'shoulder': 'the back view: the shape on the shoulders is obviously wrong (steep, low; Michael 2026-09-30)',
@@ -62,7 +71,8 @@ FLAGS = {
               "and the collar (Michael 2026-09-30)",
     'loops': "the bow in front: the sides of the loops are cut off, straight vertical edges (Michael 2026-09-30)",
     'bleed': "the bow in front: the colour bleeds out of the bow's bottom edges into the jacket (Michael 2026-09-30)",
-    'ribbon': 'the bow in profile: the trailing ribbons merge into the jacket (Michael 2026-09-30)',
+    'ribbon': 'the bow in profile: the trailing ribbons merge into the jacket (Michael 2026-09-30; remeasured as the '
+              'line between ribbon and jacket, his call C)',
 }
 UPPER = ('top', 'collar', 'sleeve_L', 'sleeve_R')
 
@@ -318,28 +328,31 @@ def measure(B, design, out=None):
                                               note="L of the bow's edge where its cream touches the jacket or a sleeve "
                                                    "with no line between, drawn with the build's outlines, beyond the "
                                                    "design's (its bow's cream on orange with no ink between)")
-    # the ribbons in profile
+    # the ribbons in profile: the line between them and the jacket
     if 'profile' in dv and 'profile' in O:
         sh = O['profile']['lab'].shape
         tails_d = pq.clean(drawn('profile', 'bow_tail_L', sh) | drawn('profile', 'bow_tail_R', sh), ppl)
         if tails_d.sum() >= 50:
             rr = np.nonzero(tails_d.any(1))[0]
             r0, r1 = rr[0], rr[-1]
-            rows = range(int(r0 + RIBBON[0] * (r1 - r0)), int(r0 + RIBBON[1] * (r1 - r0)) + 1)
-            bo = ours('profile', 'bow')
-
-            def width(m):
-                ws = [m[r].sum() for r in rows]
-                ws = [w for w in ws if w]
-                return float(np.median(ws)) / ppl if ws else 0.0
-            wo, wd = width(bo), width(tails_d)
-            T['bow_ribbon_profile'] = dict(ours=round(wo, 4), design=round(wd, 4),
-                                           rows=[round(float(_z(r0, ppl)), 3), round(float(_z(r1, ppl)), 3)])
-            C['bow_profile_ribbon'] = _check('ribbon', 'ribbon', abs(wo / wd - 1) if wd else None, ours=round(wo, 4),
-                                             design=round(wd, 4),
-                                             note="in profile, the ribbons' width seen (the bow's run over %d-%d%% of "
-                                                  "the drawn tails' height), ours over the design's, less one" %
-                                                  (100 * RIBBON[0], 100 * RIBBON[1]))
+            ra, rb = int(r0 + RIBBON[0] * (r1 - r0)), int(r0 + RIBBON[1] * (r1 - r0))
+            zs = (float(_z(ra, ppl)), float(_z(rb, ppl)))
+            az = bodyqa.azimuths(ctx['az3'])['profile']
+            r = ribbon_line(B, dv['profile'], drawn('profile', 'bow_tail_L', sh) | drawn('profile', 'bow_tail_R', sh),
+                            (ra, rb), zs, ppl, az)
+            if r is not None:
+                T['bow_ribbon_profile'] = r
+                C['bow_profile_ribbon'] = _check('ribbon', 'ribbon', max(0.0, r['ours'] - r['design']),
+                                                 ours=r['ours'], design=r['design'], width=[r['ours_w'], r['design_w']],
+                                                 touch=[r['ours_touch'], r['design_touch']], thin=r['ours_thin'],
+                                                 rows=[round(zs[0], 3), round(zs[1], 3)],
+                                                 note="in profile, the ribbons merging into the jacket: the share of "
+                                                      "the rows %d-%d%% down the drawn tails whose widest ribbon run is "
+                                                      "narrower than %.2f L or touches the jacket or a sleeve with no "
+                                                      "line between, drawn with the build's outlines, beyond the "
+                                                      "design's (its tails' cream against orange); width: the runs' "
+                                                      "median (L), touch: the share of rows touching, [ours, design]"
+                                                      % (100 * RIBBON[0], 100 * RIBBON[1], RUN_MIN))
     return T, C
 
 
@@ -372,3 +385,62 @@ def bleed(B, design, dvf, bow_d, ppl):
     jk = np.isin(name, JACKET) & ~line
     o_len = float(edge_touch(bow, jk).sum()) / BLEED_PPL
     return dict(ours=round(o_len, 4), design=round(d_len, 4))
+
+
+RIBBON_WIN = (0.8, -0.3, 1.6)       # L round the eye line: the profile frame the tails are drawn in
+
+
+def runs_rows(bow, jk, rows, ppl, sgn=None):
+    """per row of `rows`: the widest run of bow pixels (L) and whether that run touches a jacket pixel (4-neighbours,
+    no line between). -> (widths (n,), touching (n,) bool)."""
+    t = edge_touch(bow, jk)
+    W, touch = [], []
+    for r in rows:
+        if not (0 <= r < bow.shape[0]):
+            W.append(0.0); touch.append(False)
+            continue
+        c = np.nonzero(bow[r])[0]
+        if not len(c):
+            W.append(0.0); touch.append(False)
+            continue
+        br = np.nonzero(np.diff(c) > 1)[0]
+        segs = np.split(c, br + 1)
+        g = max(segs, key=len)
+        W.append(len(g) / ppl)
+        touch.append(bool(t[r, g].any()))
+    return np.array(W), np.array(touch)
+
+
+def ribbon_line(B, dvp, tails_d, rows, zs, ppl, az):
+    """the ribbons against the jacket in profile, per row of the design's rows (ra, rb) (zs: their heights, L from the eye
+    line): a row reads the ribbon apart from the jacket when its widest ribbon run is at least RUN_MIN L and touches no
+    jacket pixel directly (an ink line between). Ours drawn with the build's outlines (lookqa's frame at BLEED_PPL, the
+    design's line scale): the bow's pixels against the jacket's and sleeves'; the design's: its drawn tails' cream pixels
+    against orange. -> dict(ours, design (the share of the rows that don't read apart), ours_w, design_w (the runs'
+    median width, L), ours_touch, design_touch (the share of rows whose run touches the jacket)) or None."""
+    from . import artifactqa, bodyqa as bq, lookqa
+    raw = dvp.get('raw')
+    if raw is None:
+        return None
+    CL = bq.CLASS
+    ra, rb = rows
+    h, w = min(raw.shape[0], tails_d.shape[0]), min(raw.shape[1], tails_d.shape[1])
+    cream = (raw[:h, :w] == CL['cream']) & tails_d[:h, :w]
+    orange = raw[:h, :w] == CL['orange']
+    Wd, Td = runs_rows(cream, orange, range(ra, rb + 1), ppl)
+    fr = lookqa.HeadFrame(B, ppl=BLEED_PPL, ss=1, win=RIBBON_WIN)
+    surfs = lookqa._scene(B, skin_outline=True, line_scale=lookqa.line_scale(B, ppl, 1440))
+    mesh, _ = artifactqa.buffers(B, surfs, az, fr)
+    nm = np.array([s['o'].name for s in surfs] + [''])
+    hull = np.array([bool(s['hull']) for s in surfs] + [False])
+    idx = np.where(mesh >= 0, mesh, len(surfs))
+    name, line = nm[idx], hull[idx]
+    oa, ob = (int(round(fr.row(fr.eye_z + z * fr.L))) for z in zs)
+    bow = (name == 'bow') & ~line
+    jk = np.isin(name, JACKET) & ~line
+    Wo, To = runs_rows(bow, jk, range(oa, ob + 1), BLEED_PPL)
+    bad = lambda W_, T_: float(np.mean((W_ < RUN_MIN) | T_))
+    return dict(ours=round(bad(Wo, To), 3), design=round(bad(Wd, Td), 3),
+                ours_w=round(float(np.median(Wo)), 4), design_w=round(float(np.median(Wd)), 4),
+                ours_touch=round(float(np.mean(To)), 3), design_touch=round(float(np.mean(Td)), 3),
+                ours_thin=round(float(np.mean(Wo < RUN_MIN)), 3))

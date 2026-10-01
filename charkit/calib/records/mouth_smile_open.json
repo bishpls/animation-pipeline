@@ -1,0 +1,93 @@
+{
+ "check": "mouth_smile_open",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_mouth"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": 2.5,
+  "status": "FAIL"
+ },
+ "floor": {
+  "mouth_warped": {
+   "values": [
+    3.5,
+    3.0,
+    2.5,
+    3.5,
+    3.5
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 3.5,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 2.5,
+  "status": "FAIL",
+  "margin": 0.4
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), face6_before reads 2.5 FAIL, the floor mouth_warped FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "mouth_warped": "the mouth rebuilt 0.5-0.75 as wide, 2.5-4x as thick, its curve x (0-0.4 | 1.8-2.5)"
+ },
+ "seconds": 62.9
+}

@@ -1,0 +1,10 @@
+{
+ "check": "face_preset_effort",
+ "status": "FAIL",
+ "value": 1.952,
+ "by": "Michael",
+ "why": "expressions paused (Michael, 2026-09-30): presets aren't tuned until the dedicated expression round; the rest mouth's change narrows the clench relative to it. Reading accepted: 0.0 PASS -> 1.952 FAIL (mouth_width_rel 0.905 against >= 1.1: the clench 1.45 widths = 0.189 L against the rest mouth's 0.208 L).",
+ "at": "2026-09-30T22:43:21",
+ "branch": "tool/face6",
+ "recorded_by": "tool/face6's agent, on the coordinator's relay of Michael's call"
+}
