@@ -376,3 +376,11 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   g4_nv2 (x0.85) running (specs charkit/out/garments4/specs/nv*.json, overrides tools/garments4/nv*.json).
 - Plan: item 4 gates first on its own branch (tool/garments4-neckv from the cuffs head + the declared families,
   without shoulderqa's checks, which FAIL until the shoulders land).
+- k15 (base g4_shA3: A3 + E2's lapel table without the stand, H1-H5): H1 repairs A3's guard (piece_top front 0.437 ->
+  0.544, 3q 0.584 -> 0.662; vs g4_cuffs2's 0.583/0.688: -7%/-4%), keeps the dips at 0.005/0, collar_back_iou 0.81 W,
+  square P; but art_outline_collar (numpy drawing) 3.4-5.6 FAIL and art_outline_neck ~5 FAIL in every row, and the
+  collar's profile IoU 0.028 -> 0.021 (a sliver). **Shoulders parked here** (the coordinator's queue: the neck V, then
+  the staircase): what blocks is tool/collar4's corners: art_outline_collar (the collar's outer ends at the puff and
+  hair, the lapels' corners at the neck and the bow) and art_outline_neck (3q: the collar's top edge meeting the neck).
+  Best candidate: body.shoulder + H1 (spec: sh0.json + k15's H1 collar). Next: corners.py on an H1 box build, round the
+  lapels' neck corners and the outer ends (the front table's first rows; the top edge easing down into the puff).
