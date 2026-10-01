@@ -8,6 +8,7 @@ checks exist because someone saw a problem the metrics didn't, so review feeds t
                                    [--author NAME]
     python -m charkit review ticket BUILD NOTE_ID [--measure | --work] [--check NAME]
     python -m charkit review tickets NAME [--build BUILD] [--sync]   # the character's tickets; --sync marks landed ones
+    python -m charkit review page PAGE.json [--out DIR] [--open]   # the standard review page (charkit/reviewpage.py)
 
   board    the design's model sheet beside our views, body and face sheets and the QA overlays, with the ranked work items
            (BUILD/review/board.png, and index.html to click through)
@@ -587,6 +588,9 @@ def main(args):
         print(__doc__); return
     cmd, rest = args[0], args[1:]
     opt = lambda k, d=None: rest[rest.index(k) + 1] if k in rest else d
+    if cmd == 'page':
+        from . import reviewpage
+        return reviewpage.main(rest)
     if cmd == 'board':
         from . import manifest
         b = _path(rest[0])

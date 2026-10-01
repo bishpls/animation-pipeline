@@ -5,7 +5,7 @@ as IoU 0.55-0.87; hair_piece_bangs read 0.79 PASS while our bang locks scored no
 piece_sleeve passed while the puff caps rose above the shoulder line. Each round hand-rolled its own calibration. This
 is the one tool: the calibration triple, per check, recorded.
 
-    python -m charkit calibrate CHECK[,CHECK..] [--build DIR] [--seeds N] [--no-write] [--json OUT]
+    python -m charkit calibrate CHECK[,CHECK..] [--build DIR] [--seeds N] [--no-write] [--json OUT] [--declared F.json]
         CHECK a check name or pattern (fnmatch). The checks' QA part runs on:
           design    the design's own inputs standing for ours, moved 1-2 px in each direction (MOVES): it must PASS
                     every move; the spread is reported
@@ -18,6 +18,9 @@ is the one tool: the calibration triple, per check, recorded.
                     still PASSes is blind to it (the granularity check); reported, it doesn't decide the verdict
           current   --build DIR (default: the newest build under charkit/out/calib/cur_*), this tree's QA code
         and the record goes to charkit/calib/records/CHECK.json (the gate reads it: a new or remeasured check needs one)
+        A declared check (charkit.declared: a family, a piece, limits) carries its entry in its declaration; the
+        adapter is its part's stand-in (Declared for the 'declared' part), so a new flag needs no adapter code.
+        --declared F.json: declarations from a file (a draft flag, before it is committed), measured and calibrated
     python -m charkit calibrate store NAME BUILD_DIR --why TEXT [--commit C] [--flag TEXT]
         keep a build as a named known-bad: its bundle, qa, geometry and look export hard-linked (no copy) under
         charkit/out/calib/builds/NAME, the bundle's paths rebased there; charkit/calib/known_bad/NAME.json says what it is
@@ -122,8 +125,9 @@ def read_tree(tree=ROOT, rel=CAL, repo=ROOT):
 
 
 def entries(tree=ROOT):
-    """every registry entry (each charkit/calib module's CALIBRATION literal, module by module in name order) -> [dict],
-    each with 'module' (charkit.calib.NAME)."""
+    """every registry entry (each charkit/calib module's CALIBRATION literal, module by module in name order), then the
+    entries the declared checks carry (charkit.declared: a declaration's `calibrate` block, its part's stand-in as the
+    adapter; a calib module's own entry for the same check comes first) -> [dict], each with 'module'."""
     out = []
     for path, src in sorted(read_tree(tree, CAL).items()):
         if not path.endswith('.py') or path.endswith('__init__.py'):
@@ -131,6 +135,12 @@ def entries(tree=ROOT):
         got = _literal(src)
         for e in got or ():
             out.append(dict(e, module='charkit.calib.' + os.path.basename(path)[:-3]))
+    try:
+        from . import declared
+        files = read_tree(tree, 'charkit')
+        out += declared.calibration_entries(declared.declarations(files=files))
+    except Exception:                                   # (a tree from before charkit.declared, a syntax error there)
+        pass
     return out
 
 
@@ -462,6 +472,11 @@ def calibrate(patterns, build=None, seeds=SEEDS, write=True, log=print):
     Q = json.load(open(q)) if os.path.exists(q) else {}
     names = set(Q.get('checks', {}))
     owned = ((Q.get('measured') or {}).get('part_checks')) or {}
+    try:                        # (a declared check not in the build's qa.json yet: a draft, CHARKIT_DECLARED's)
+        from . import declared
+        names |= {n for n, _, _ in declared.expand(declared.declarations())}
+    except Exception:
+        pass
     for e in E:
         got = [k for k in names if fnmatch.fnmatchcase(k, e['check']) and any(fnmatch.fnmatchcase(k, p) for p in patterns)
                and (not owned.get(e.get('part')) or k in owned[e['part']])]
@@ -669,6 +684,9 @@ def main(args):
         print(json.dumps(r, indent=1) if r else 'no record for %s' % args[1])
         return 0
     pats = [p for p in args[0].split(',') if p]
+    if opt('--declared'):
+        from . import declared
+        os.environ[declared.ENV] = os.path.abspath(opt('--declared'))
     out = calibrate(pats, build=opt('--build'), seeds=int(opt('--seeds', SEEDS)), write='--no-write' not in args)
     for k in sorted(out):
         print(line(out[k]))
