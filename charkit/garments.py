@@ -237,7 +237,9 @@ def shell(A, spec, normals=None, hull=None):
         # the jacket ends under the puffs (Michael, 2026-10-01: the puffs contain the joined shoulder's deltoid): the
         # body parts the puffs hold (the bridge, the upper arm) left out where they lie `margin` L inside a puff, so
         # the shell's edge there is under it; outside the puffs (the bridge's columns by the torso) it covers them
-        ins &= ~tucked(A, spec['tuck'], spec.get('_spec') or {}, hull)
+        tk_ = spec['tuck']
+        ins &= ~tucked(A, dict(tk_, margin=tk_.get('drop', 0.06)) if tk_.get('sink') is not None else tk_,
+                       spec.get('_spec') or {}, hull)
     body_of, Wr = None, None
     rf = spec.get('refine', 0)
     if rf:
@@ -321,6 +323,25 @@ def shell(A, spec, normals=None, hull=None):
         nrm = normals if normals is not None else vertex_normals(V, F)
         off = spec.get('offset', 0.012) * L
         sv = V[used] + nrm[used] * off
+        tk_ = spec.get('tuck') or {}
+        if tk_.get('sink') is not None and hull is not None:
+            # the jacket sunk under the puffs rather than cut at them (round 6: faces dropped where one vertex lay inside
+            # a puff left the skin bare at the seam): where the body under it lies inside a puff, its offset eased from
+            # `offset` to `sink` L (under the skin, which its mask hides) over `ease` L of depth, so it runs on under the
+            # puff without showing through it; only the faces deeper than `drop` L are cut
+            sa_ = spec.get('_spec') or {}
+            mi = np.full(len(used), -np.inf)
+            for nm_ in tk_.get('under', ()):
+                ps_ = next((g for g in sa_.get('garments', []) if g['name'] == nm_), None)
+                if ps_ is not None:
+                    mi = np.maximum(mi, puff_margin(A, dict(ps_, _spec=sa_), hull, V[used]))
+            if rf:
+                dom_t = np.array(list(Wr))[np.argmax(np.stack(list(Wr.values()), 1), 1)][used]
+            else:
+                dom_t = dominant(A)[0][used]
+            u_ = np.clip(mi / max(float(tk_.get('ease', 0.02)), 1e-9), 0, 1)
+            u_ = np.where(np.isin(dom_t, TORSO) | ~np.isfinite(mi), 0.0, u_ * u_ * (3 - 2 * u_))
+            sv = V[used] + nrm[used] * (off + (float(tk_['sink']) * L - off) * u_)[:, None]
     sf = [tuple(remap[v] for v in F[i]) for i in keep]
     if cuts and spec.get('hem_snap') and cut is not None and not over:
         cuts.append(lambda X: X[:, 2] - cut(X))
