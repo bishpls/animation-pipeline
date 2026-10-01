@@ -281,6 +281,8 @@ def shell(A, spec, normals=None, hull=None):
         tor = np.isin(dominant(A)[0][used], TORSO)
     if band is not None:
         sv = ease_over_band(A, sv, ez, band, tor) if over else ease_to_band(A, sv, ez, band)
+    if spec.get('bed') and hull is not None:
+        sv = bed(A, sv, sf, spec, hull)
     if rf:
         W = {b: w[used] for b, w in Wr.items() if w[used].max() > 1e-4}
         tot = np.maximum(sum(W.values()), 1e-9)
@@ -303,6 +305,88 @@ def shell(A, spec, normals=None, hull=None):
         if pp is not None and len(pp) >= 10:
             G['panel_faces'] = panel_faces(sv, sf, pp, L)
     return G
+
+
+def bed(A, sv, sf, spec, hull):
+    """a shell bedded under a piece lying on it (spec `bed` {under: the piece's garment name, default 'bow'; gap L;
+    margin L; ease L; cell L; smooth: iterations}; tool/garments4): where the piece covers the shell in front (the
+    front projection, x and z), the shell's vertices in front of the piece's back surface are set `gap` L behind it,
+    and within `margin` L round its outline too (the outline's band: its line must show over the shell), easing back
+    to the shell's own surface over `ease` L beyond. Only ever backward (+y), so the shell's back is untouched (it lies
+    behind the piece already). The bow's lobes are wrapped onto the design's bow surface (the hull's), its pleat's strips
+    behind the panels; the jacket, the body lifted, stood in front of their lower rims by up to 0.03 L (the bust comes
+    toward the camera under them), so the bow's lower outline was drawn behind the jacket (bow_front_bleed). Placement
+    rule: pieces don't interpenetrate; the piece lying on top keeps its drawn shape and the cloth under it gives (the
+    bow presses on the jacket), where tool/pieceref's push of the lobes forward ballooned them. -> sv moved (m)."""
+    L = A['head']['L']
+    b = spec['bed']
+    sa = spec.get('_spec') or {}
+    ps = next((g for g in sa.get('garments', []) if g.get('name') == b.get('under', 'bow')), None)
+    if ps is None or ps.get('kind') != 'bow' or ps.get('source') != 'hull':
+        return sv
+    ps = {k: v for k, v in ps.items() if k != 'clear'}           # (its clearance would rebuild this shell)
+    G = bow_hull(A, dict(ps, _spec=sa), hull)
+    P = np.asarray(G['verts'], float)
+    F_ = [tuple(f) for f in G['faces']]
+    if b.get('parts', 'lobes') == 'lobes' and G.get('tail_s') is not None:
+        # the lobes alone (default): the knot's back and the tails' root behind it stand deep at the middle, and the
+        # bib bedded under them fell back out of sight in profile (piece_bodice_panel's profile 0.34 -> 0.20)
+        lob = np.isnan(np.asarray(G['tail_s'], float))
+        if G.get('knot_v') is not None:
+            lob[G['knot_v']] = False
+        F_ = [f for f in F_ if lob[list(f)].all()]
+        if not F_:
+            return sv
+    return bed_under(sv, sf, P, F_, L, b)
+
+
+def bed_under(sv, sf, P, F_, L, b):
+    """bed()'s geometry: the shell's vertices sv (faces sf) set behind the piece's surface (P, faces F_) where it covers
+    them in the front projection, by b's gap, margin, ease, cell and smooth (L; see bed) -> sv moved."""
+    from scipy import ndimage
+    # the piece's surface sampled densely (its vertices, edge midpoints and face centres): its back per cell
+    smp = [P[sorted({v for f in F_ for v in f})]] + \
+        [0.5 * (P[[f[k] for f in F_]] + P[[f[(k + 1) % len(f)] for f in F_]]) for k in range(3)] + \
+        [np.array([P[list(f)].mean(0) for f in F_])]
+    S = np.concatenate(smp)
+    c = b.get('cell', 0.005) * L
+    gap, margin, ease = (b.get(k, d) * L for k, d in (('gap', 0.01), ('margin', 0.02), ('ease', 0.04)))
+    pad = int(np.ceil((margin + ease) / c)) + 3
+    x0, z0 = S[:, 0].min() - pad * c, S[:, 2].min() - pad * c
+    nx = int(np.ceil((S[:, 0].max() + pad * c - x0) / c)) + 1
+    nz = int(np.ceil((S[:, 2].max() + pad * c - z0) / c)) + 1
+    ix = np.clip(((S[:, 0] - x0) / c).astype(int), 0, nx - 1)
+    iz = np.clip(((S[:, 2] - z0) / c).astype(int), 0, nz - 1)
+    back = np.full((nx, nz), -np.inf)
+    np.maximum.at(back, (ix, iz), S[:, 1])
+    back = ndimage.maximum_filter(back, size=3)                  # (cells between samples)
+    foot = ndimage.binary_closing(np.isfinite(back), iterations=2) | np.isfinite(back)
+    foot = ndimage.binary_fill_holes(foot)
+    # every cell's nearest covered cell: its back depth (holes and the margin round the outline take their neighbour's)
+    have = np.isfinite(back)
+    dist, (ni, nk) = ndimage.distance_transform_edt(~have, return_indices=True)
+    need = back[ni, nk] + gap
+    dout = ndimage.distance_transform_edt(~foot) * c              # L outside the outline (0 under the piece)
+    w = np.clip(1 - (dout - margin) / max(ease, 1e-9), 0, 1)
+    w = w * w * (3 - 2 * w)
+    jx = np.clip(np.rint((sv[:, 0] - x0) / c).astype(int), 0, nx - 1)
+    jz = np.clip(np.rint((sv[:, 2] - z0) / c).astype(int), 0, nz - 1)
+    inb = (sv[:, 0] >= x0) & (sv[:, 0] <= x0 + nx * c) & (sv[:, 2] >= z0) & (sv[:, 2] <= z0 + nz * c)
+    dy = np.where(inb, np.maximum(0.0, need[jx, jz] - sv[:, 1]) * w[jx, jz], 0.0)
+    if b.get('smooth', 3) and dy.any():
+        nb = [set() for _ in range(len(sv))]
+        for f in sf:
+            for a_ in f:
+                nb[a_].update(f)
+        nb = [np.fromiter(n, int) for n in nb]
+        under = inb & (dout[jx, jz] <= 0)
+        raw = dy.copy()
+        for _ in range(b.get('smooth', 3)):
+            dy = np.array([dy[n].mean() if len(n) else dy[i] for i, n in enumerate(nb)])
+            dy = np.where(under, np.maximum(dy, raw), dy)        # (under the piece never less than it needs)
+    sv = np.asarray(sv, float).copy()
+    sv[:, 1] += dy
+    return sv
 
 
 def hem_snap(V, F, used, keep, sv, cut, ins):

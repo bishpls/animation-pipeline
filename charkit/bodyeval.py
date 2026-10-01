@@ -611,6 +611,39 @@ def _face_uv(faces, uv):
 
 
 GARMENT_BODIES = 4       # the garment cache keeps the pieces of this many bodies (assemblies), the most recently used
+IMPLICIT_DEPS = {        # garments a kind reads from the outfit by kind rather than by name (garments.py's lookups)
+    'shoe': ('shell',),                  # shoe_hull: the shaft's shell at the seam
+    'skirt': ('band',),                  # skirt_hull's clear_arms: the wrist bands
+}
+
+
+def garment_deps(s, spec_all):
+    """the other garments' specs a garment's piece reads (garments.py passes the whole outfit as `_spec`): those its
+    spec names (mirror, band, ease.under, inside.of, over, bed.under: any string value that is a garment's name; a
+    `bed` defaults to the bow), their own in turn, and the kinds IMPLICIT_DEPS lists. Part of the piece cache's key
+    (tool/garments4): keyed on its own spec alone, sleeve_R (mirror sleeve_L) kept its cached piece when a sweep
+    changed sleeve_L's cap. -> [spec, ...] (a stable order)."""
+    G = {g.get('name'): g for g in ((spec_all or {}).get('garments') or [])}
+
+    def names(x):
+        if isinstance(x, str):
+            return {x} if x in G else set()
+        if isinstance(x, dict):
+            return set().union(*(names(v) for k, v in x.items() if k != '_spec')) if x else set()
+        if isinstance(x, (list, tuple)):
+            return set().union(*(names(v) for v in x)) if x else set()
+        return set()
+    seen, todo = set(), [s]
+    while todo:
+        g = todo.pop()
+        ref = names({k: v for k, v in g.items() if k != 'name'})
+        if g.get('bed') and 'bow' in G:
+            ref.add('bow')
+        ref |= {n for n, o in G.items() if o.get('kind') in IMPLICIT_DEPS.get(g.get('kind'), ())}
+        for n in sorted(ref - seen - {s.get('name')}):
+            seen.add(n)
+            todo.append(G[n])
+    return [G[n] for n in sorted(seen)]
 
 
 def garment_parts(A, specs, cache=None, akey=None, hull=None, spec_all=None):
@@ -621,7 +654,7 @@ def garment_parts(A, specs, cache=None, akey=None, hull=None, spec_all=None):
     hide = np.zeros(len(A['verts']), bool)
     parts = []
     for s in specs or []:
-        key = (akey, _h(s)) if akey is not None else None
+        key = (akey, _h(s), _h(garment_deps(s, spec_all))) if akey is not None else None
         if cache is None or key not in cache:
             r = garment_piece(A, s, hull=hull, spec_all=spec_all)
             if cache is not None:
