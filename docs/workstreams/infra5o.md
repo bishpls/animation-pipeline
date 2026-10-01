@@ -274,3 +274,20 @@ Side by side on the build2 box (c3-standard-44), `--cache off --boards '' --no-b
 | total | 1351.8 | 1479.4 | the venv row above; QA and Blender like for like: 1030 -> 930 |
 
 Gate conditions (the gate above, the like-for-like pair): QA 886 -> 709 s CPU, 464 -> 371 s wall.
+
+## Timing-flaky tests made deterministic (the coordinator's item, 18:05)
+
+test_slotprio (infra part B, tool/infra5-s's) failed tool/rom's gate on a loaded box: it asserted wall-clock waits
+(`wait_off > 2.0`, `wait_on < 0.6`, GOT times within 0.05 s of an END). Now (30290fb8) every holder appends its
+events (GOT, YIELD, END) to one log with O_APPEND, so the file's order is the events' order across processes, and the
+background holders run until the test writes a stop file: with yielding the gate can only get a slot from a worker
+between rows (the workers can't end first); without, only after a worker ends (the test stops them once the gate's
+wait record shows it waiting). Asserted: the order (gate GOT < gate END < the yielder's YIELD < its END; one YIELD;
+the free slot goes sweep -> gate -> build in that order). The waits in the test are conditions with a hang guard,
+never judged. Passes alone and with four CPU hogs running.
+Grep of the suite for assertions on elapsed time, fixed the same way: test_gate's fail-fast tests (mine: the slow file
+now waits for the file on_fail writes; the stopped build is read from `killed`), test_preview's hook (its command waits
+for a file written after the merge returned), test_procs's slot queue (the waiter is seen waiting by its record, its
+slot comes after the release: its own timestamp against the release's) and wait-for-build (the fake build runs until
+released), test_boxjob's kill (exit 143, no time bound), test_softras's speed bound (CPU time, not wall). Left: timers
+used only to synchronise or to guard a hang (test_produced_cache's racing stores, test_boxjob's waits).
