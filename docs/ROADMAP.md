@@ -52,6 +52,11 @@ Our gap is vocabulary: a builder, or a generic fallback, for every piece type.
 
 ## Missing from a production rig
 
+**Before motion testing** (Michael's requirements sweep, 2026-10-01): the full list of known gaps, with the agreed order
+(the default hand, then a range-of-motion measurement), is in `docs/CHARKIT_HANDOFF.md`, "Known issues and work items",
+"Known gaps before motion testing". The headline: the skeleton is the easy part, deformation across a range of motion
+has never been measured.
+
 **In place:**
 - skeleton and weights by construction;
 - the VRM humanoid and VRMC_springBone export (through the VRM Add-on for Blender, MIT);
