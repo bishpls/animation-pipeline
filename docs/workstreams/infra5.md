@@ -118,3 +118,100 @@ What changed (a08bac4):
   cache_builds.py's `glb` case uses the hull's GLB with its eyes.
 - Left: decision 8's fourth bullet (the perceptual metric's own environment on the render box: it still runs in the
   TRELLIS venv, `/srv/work/trellis2/.venv`) is provisioning, not done here.
+
+---
+
+# Infra round 5, part B (tool/infra5-s, 2026-10-01): tasks 5, 7, 8
+
+Worktree `~/animation-pipeline-infra5s`, branch `tool/infra5-s` from pipeline-3d 60c0f1a4. Brief:
+`~/animation-pipeline-3d/charkit/out/coord/brief_infra5.md` (tasks 5, 7, 8 here; tool/infra5-o owns 1-4 and 6: gate.py
+and the build stages are theirs; tool/build2 owns remote.py's pick_box/box_slots and test_procs.py's slots).
+
+## State (read first when resuming)
+
+Commits: 204d1f7d (the stopped agent's calibrate writes by replace: kept), cae5b57b (task 5, cow), a22ad464 (task 7,
+stall alarm), d91f159e (task 8, gates before sweeps). The stopped agent's uncommitted boxjob/remote edits are in
+`git stash list` ("infra5-s: stopped agent wip (boxjob, remote)"): reviewed, its flags/limits design reused in a22ad464;
+the stash can be dropped. Next: the box demos (cow reproduction, planted silent job), full suite, pregate, gate.
+
+## 5. The calibrate PermissionError
+
+**Measured.** Of the 22 calibrate jobs that failed on 2026-10-01, 9 died on PermissionError (8 build box, 1 render2): 2
+rewriting `charkit/calib/records/*.json` (calibrate's records, in worktrees from before tool/hands2's records-only fix
+8580945f), 7 rewriting `charkit/calib/known_bad/*.json` (`calibrate store`). The other 13: FileNotFoundError, NameError,
+a calibration that failed its triple, and 4 killed (rc 143). The files: mode 444, link count 2-11, owned by the box's
+owner: **root cause:** a box copy hard-links every synced file read-only from the box's blob cache
+(charkit/bucketsync.py, by design: a write through a link must not reach every copy sharing the blob), so any command
+that rewrites a tracked file in place there fails. Not another worktree's or user's file. Fixing writers one at a time
+(8580945f records, then 204d1f7d store/accept) leaves the next one.
+
+**Fix (cae5b57b, charkit/cow.py):** copy on write for a box copy's linked inputs. charkit/__init__.py installs an audit
+hook when the package itself is a read-only hard link (`charkit/__init__.py` nlink > 1 and not owner-writable: a box
+copy; never a worktree or a gate's git clone). Before any open for writing of a read-only hard-linked regular file under
+the copy, the path gets a private writable file: a truncating write unlinks the link (the open creates a new file),
+anything else (append, r+, os.open without O_TRUNC) copies and renames over it. The blob and the other copies are
+untouched; only opens that would have failed change. CHARKIT_COW=0 off, =1 forced. Cost: 0.09 us per audit event
+(2M id() calls: 0.068 -> 0.161 us); test_bodyeval's run raises ~212k events (~20 ms on 14 s CPU, 0.14%); gates don't
+install it. Not covered: non-Python writers (shell redirects, Blender's C code).
+Test (charkit/tests/test_cow.py): a fake box made with bucketsync.place (read-only blobs, two copies linked to them);
+the 2026-10-01 writes as the failed jobs made them (calibrate store's known_bad line, the records line) plus append,
+os.open O_WRONLY, np.save and shutil.copyfile: PermissionError without the hook (reproduces), all succeed with it, the
+blobs and the other copy unchanged, each written file now nlink 1 and writable; a link outside the copy and a lone
+read-only file are left to fail; `import charkit` from a linked package installs it, CHARKIT_COW=0 doesn't.
+Box demonstration: see "Box demos" below.
+
+## 7. Stall alarm and time budgets
+
+**Measured first** (the box's kept jobs, rc 0, both boxes): a gate's log is 3 lines written at its end (100 of 102:
+silent throughout; duration p50 10.4, p90 17.1, max 36.5 min); a pregate's 1 line (max 20 min); builds (41 lines
+median), sweeps, accfit, hand write as they go; qa is short (max 12.5 min). A live sample (the new sampler run once into
+a scratch folder on each box) found a sharded `sweep run --jobs 4` with 0 bytes after 17 min: sharded sweeps printed
+nothing until their end.
+
+**What changed (a22ad464, d91f159e's sweep part):**
+- boxjob `info` (and `list`): `last_write` (the log's mtime: the kernel's record of the last write), `expect_min`,
+  `stall_min` and `flags` for a running job: SILENT past its limit (its own `stall_min`, else STALL_MIN: default 20,
+  gate 45, pregate 30), OVERRUN past 2x its `expect_min`. Nothing is killed.
+- `remote jobs`: a running job's quiet minutes, the box line counts FLAGGED jobs, each alarm under its job with what to
+  do (`remote attach`, `remote kill`). `remote jobs --silences [--days N]`: per box and kind, the longest silence of
+  each job (from the sampler) for jobs that ended rc 0 and apart the others, against the limit.
+- Declaring: `remote build|tune|gate|pregate [--expect MIN] [--stall MIN] ...`, `remote run [--fetch DIR] [--expect
+  MIN] [--stall MIN] CMD`, or CHARKIT_JOB_EXPECT_MIN / CHARKIT_JOB_STALL_MIN; kept in the job's meta and local record.
+  (Parsed in the commands, not remote.main, to stay clear of tool/build2's main.)
+- The follow (`remote attach`, every remote command) prints the alarm once per silence.
+- The load sampler (boxjob VERSION 4) records `quiet`: each running job's log bytes and seconds since its last write,
+  each minute. Installed on a box by the next job sent from this branch (JOBS/bin/boxjob.py; a VERSION 3 job doesn't
+  downgrade it). Note for the merge: build2's boxjob.py stays VERSION 3; the merged file should be VERSION 5 so every
+  box takes the merged sampler.
+- Sharded sweeps pass their shards' lines on as they're written (`  [shard i] ...`), so the alarm reads real progress.
+- Tests (test_boxjob): planted silent / overrun / finished jobs (9 cases, both alarms, own limit), quiet and silences
+  per kind, the follow's alarm once.
+
+## 8. Gates before sweeps
+
+**What changed (d91f159e, charkit/procs.py):** slot priorities: gate (CHARKIT_SLOT_PRIO=gate, set by boxjob's supervisor
+for kinds gate and pregate; a waiter from older code counts as a gate when its root is a gate's or pre-gate's clone
+under /srv/work), normal (default), low (procs.background(): sweeps call it in sweep.main, so optimize, its workers,
+shards and confirm builds inherit it; also CPU niceness 10). A free slot goes to a waiting gate first (normal and low
+acquirers wait while one waits); a low holder gives its slot to a gate waiting for slots between rows (claimed once per
+gate wait: slots/wait/<pid>.given) and takes one again behind it: sweep shards and single sweeps between rows (run_rows'
+`between`), swap between measurements, optimize workers before a row (reply `yielded`: the pool puts the row back for
+another worker, the worker reports `resumed` once it has a slot again). acquire_slot returns a Slot (close(), claim(),
+give(), yield_point()). CHARKIT_SLOTS_DIR (tests), CHARKIT_SLOT_YIELD=0 (off).
+
+**Measured:**
+| | without | with |
+|---|---|---|
+| gate's slot wait, 2 slots held by 2 background workers (12 rows x 0.25 s), gate at 0.6 s (test_slotprio) | 2.51 s | 0.21 s |
+| CPU share of a loop sharing one build-box core with a nice-0 loop (taskset, 6 s) | 50.1% (nice 0) | 9.7% (nice 10) |
+On the box the first row's scale is minutes: an optimize run's workers held their slots for its whole run (60 min on
+2026-10-01); a gate now waits for one row at most.
+Tests: charkit/tests/test_slotprio.py (the latency above with and without yielding, one yield per gate; a gate before a
+normal build for a freed slot; priorities from env and tree; background()'s niceness inherited and sweep.main calling it;
+the optimize pool moving a yielded row to the other worker, results equal to in-process). Known order dependency
+unchanged: test_optimize before test_procs (CHARKIT_SLOT_HELD from test_optimize's import; tool/build2 fixes
+test_procs' isolation); test_slotprio restores the environment it found.
+
+## Box demos
+
+(pending: the planted silent job, the cow reproduction on the box)
