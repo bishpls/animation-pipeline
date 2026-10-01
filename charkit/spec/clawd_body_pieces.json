@@ -319,6 +319,14 @@
    "pieces_opts": {
     "bun": "ribbon",
     "eye_anchor": "iris"
+   },
+   "strokes": {
+    "set": "strand",
+    "width": 0.0035,
+    "taper": 0.6,
+    "tip": 0.15,
+    "buns": true,
+    "lock_lines": false
    }
   },
   "silhouette": {

@@ -1,0 +1,10 @@
+{
+ "name": "hst_base",
+ "why": "pipeline-3d 3168961's default: the hair's mass has no strokes inside its locks (Michael, 2026-10-01: no detail in the bulk of the mass)",
+ "flag": null,
+ "commit": "3168961",
+ "source": "~/animation-pipeline-hairstrokes/charkit/out/hst_base",
+ "stored": "2026-10-01",
+ "bundle": "67ebb27a39013180",
+ "qa_checks": 631
+}

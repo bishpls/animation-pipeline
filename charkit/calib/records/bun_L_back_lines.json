@@ -1,0 +1,92 @@
+{
+ "check": "bun_L_back_lines",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T06:05:55",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_buns"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.01,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.01,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.01,
+  "spread": 0.01,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "hst_base",
+  "value": 1.0,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 1.0,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.059,
+  "status": "PASS",
+  "margin": 0.941
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.01), hst_base reads 1.0 FAIL, the floor voronoi_pieces FAIL",
+ "build": "charkit/out/hst_s1",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 251.7
+}

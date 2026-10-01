@@ -131,7 +131,8 @@ def head_sections(spec, log=print):
     headfit = importlib.import_module('charkit.geom.headfit')
     fs = spec['ref']['face_sheet']
     key = json.dumps([spec['ref'].get('manifest'), fs.get('image'), spec.get('style', 'anime'),
-                      spec.get('eyes', {}).get('x', 0.168)])
+                      spec.get('eyes', {}).get('x', 0.168), headfit.face_style(spec)], sort_keys=True, default=str)
+                      # (the style's face section: the head fit's settings; a sweep's rows patch them in one process)
     if key not in _HEADS:
         ex, fc = spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1)
         C = headfit.contours(refcheck._load(fs['image']), ex, fc,

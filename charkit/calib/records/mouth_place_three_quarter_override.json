@@ -1,0 +1,91 @@
+{
+ "check": "mouth_place_three_quarter_override",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-10-01T10:08:15",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_mouth"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0016,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0016,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0041,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0062,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0016,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0016,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.005,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0072,
+    "PASS"
+   ]
+  },
+  "min": 0.0016,
+  "max": 0.0072,
+  "spread": 0.0056,
+  "median": 0.00285
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the per-shot override is new (off by default; no build had it): it reads the drawn placement as mouth_place_three_quarter does, with the override's keys on",
+ "floor": {
+  "mouth_moved": {
+   "values": [
+    0.0649,
+    0.0602,
+    0.1018,
+    0.0691,
+    0.0673
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0673,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": null,
+  "status": null,
+  "margin": null
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the per-shot override is new (off by default; no build had it): it reads the drawn placement as mouth_place_three_quarter does, with the override's keys on); the design passes and the floor does not",
+ "build": "charkit/out/face7_g1",
+ "generators": {
+  "mouth_moved": "the mouth moved 0.03-0.06 L up or down and 0.03-0.06 L across, at random"
+ },
+ "seconds": 38.4
+}
