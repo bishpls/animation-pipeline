@@ -249,7 +249,10 @@ parts. Its message's "22" counts every failed calibrate job; 9 were this error.
 
 ## Next steps
 
-1. Full suite (file by file, as the gate runs it): 97 files, 0 failed before the merge (318 s); rerun on the merge.
-2. `python -m charkit pregate --box auto`, then `python -m charkit remote gate tool/infra5-s --into pipeline-3d`
-   (`--box render2` if the build box is busy). Expected under K: no check moves (no QA code changed: codediff 0 parts;
+1. Full suite (file by file, as the gate runs it): 97 files, 0 failed before the merge (318 s); on the merge 98 files,
+   0 failed (283 s). (One pytest process: charkit/out/infra5s/pytest_all.log.)
+2. Pre-gate (`pregate --box auto`, build2 box): PASS, 0 moved, 0 blocking, 588 s (dda8d629 into 59c93f38;
+   charkit/out/pregate/pregate_tool-infra5-s_dda8d629_into_59c93f38.md).
+3. The gate: `python -m charkit remote gate tool/infra5-s --into pipeline-3d` launched on dda8d629 (log
+   charkit/out/infra5s/gate.log; its job id is in that log: `remote attach JID` if this session ends). Read it under K. Expected under K: no check moves (no QA code changed: codediff 0 parts;
    no geometry change), CPU ~1.0x (the cow hook isn't installed in a gate's clone; procs' wait-file scan is per poll).
