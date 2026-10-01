@@ -41,11 +41,11 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
                join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex',
                det=True, det_method='lm', det_step=1e-6, det_tol=1e-10, det_nfev=600, det_q_in=2.0 ** -12,
-               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0, skin_clear=True, skin_soft=0.002, det_join_nfev=150)
+               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0, skin_clear=True, det_join_nfev=150)
 # (round 4) det_join_nfev: a trial join's evaluations (det): one the fit can't bring within view_cost_max in that many
 # is dropped (it ran to det_nfev before: the build's CPU); one it accepts that the cap stopped is fitted again in full.
-# (round 4) skin_clear: every shell vertex held gap L outside the skin (the crown chart's skin field; a smooth max over
-# skin_soft L): a wide, twisted lock's edge swung into the temple (hair_penetration). False: as before.
+# (round 4) skin_clear: the shell held gap L outside the skin (the crown chart's skin field), each station's ring
+# pushed out radially by its deepest vertex's need: a wide, twisted lock's edge swung into the temple (hair_penetration).
 # (round 4) hug_free: the share of a lock's length at its tip where the depth pulls (prior_depth, view_depth) fade out
 # (a group's opts, e.g. the hem's flicks: on the mass along their body, free at their tips); 0 off.
 # (tool/hairshell3) det: the reproducible fit (the same shells on every machine): a smooth objective (the drawn
@@ -654,19 +654,25 @@ class Lock:
             Wl, Tl = Wl * sc, Tl * sc
             part = tube_(line, Wl, Tl, ch, self.twist, nr)
         if self.o.get('skin_clear'):
-            # (round 4) every vertex at least `gap` outside the skin, as the hull's pieces hold their inner surface (S +
-            # gap on the crown chart's skin field): the fit keeps the centreline clear, but a wide, twisted lock's edge
-            # could swing into the head (f20.1 at the temple: 0.040 L inside, hair_penetration FAIL). A smooth max over
-            # skin_soft L, so a vertex well clear doesn't move
-            phv, thv, rv = ch.coords(part['V'])
+            # (round 4) the shell at least `gap` outside the skin, as the hull's pieces hold their inner surface (S + gap
+            # on the crown chart's skin field): the fit keeps the centreline clear, but a wide, twisted lock's edge could
+            # swing into the head (f20.1 at the temple: 0.040 L inside, hair_penetration FAIL). Each cross-section (a
+            # station's ring) moves out radially by what its deepest vertex needs, that push grown and smoothed along the
+            # lock: the tube keeps its shape (a per-vertex clamp flattened its inner face onto the skin: folds 9 -> 16)
+            from scipy.ndimage import gaussian_filter1d, maximum_filter1d
+            nr = self.o['n_ring']
+            V0 = part['V']
+            phv, thv, rv = ch.coords(V0)
             Sv = G.sample(np.where(np.isfinite(self.F['S']), self.F['S'], -1e3), phv, thv)
-            floor_ = Sv + self.o['gap'] * self.L
-            sft = float(self.o.get('skin_soft', 0.002)) * self.L
-            rn = floor_ + _softplus(rv - floor_, sft)
-            mv = rn - rv > 1e-9
-            if mv.any():
-                V_ = part['V'].copy()
-                V_[mv] = ch.point(phv[mv], thv[mv], rn[mv])
+            need = np.maximum(Sv + self.o['gap'] * self.L - rv, 0.0)
+            nst = (len(V0) - 2) // nr
+            ns = need[:nst * nr].reshape(nst, nr).max(1)
+            if ns.max() > 1e-9:
+                ns = np.maximum(ns, gaussian_filter1d(maximum_filter1d(ns, 5, mode='nearest'), 1.5, mode='nearest'))
+                pv = np.r_[np.repeat(ns, nr), ns[-1], ns[0]]
+                mv = pv > 1e-9
+                V_ = V0.copy()
+                V_[mv] = ch.point(phv[mv], thv[mv], rv[mv] + pv[mv])
                 part['V'] = snap(V_, 2.0 ** -26) if det else V_
         keep = self.o.get('over_ink')
         part['over'] = bool(getattr(self, 'over', False))
