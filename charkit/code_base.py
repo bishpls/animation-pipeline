@@ -704,8 +704,11 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
             'eye_depth', 0.01))) * L
     # an authored torso: the join lofted as one surface from the head's neck down into the torso (no crease where the
     # head's rows met the torso's top ring)
+    # (body.neck_join: the join's reach on its own, a number or a table by azimuth; Michael's item 4, 2026-10-01: the V
+    # opened to the skin shows the neck turning into the chest in 0.01 L, a 40-degree crease all round the join)
+    body_ = spec.get('body') or {}
     Vb, curve = _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L,
-                           base=((spec.get('body') or {}).get('shoulder') or {}).get('join', NECK_BASE))
+                           base=body_.get('neck_join', (body_.get('shoulder') or {}).get('join', NECK_BASE)))
     nc = Vb[ring_b].mean(0)
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r, curve=curve)
