@@ -85,6 +85,13 @@ default; the joined-shoulder candidate), calibrated against known-bads, wired in
   vol_knee, vol_fingers, shoulder_torso, shoulder_open, garment_strain: reported, not blocking); the candidate builds
   with --vrm (gltf.py changed: EXPORT_CODE) and runs the rom QA part (about 95 s wall, 133 s CPU on the laptop).
 
+- Gate 1 (bd6aa536 into 27a4b6c3, build2): FAIL under K on one thing only, test_slotprio.py
+  (test_a_background_holder_gives_its_slot_to_a_gate_between_rows: two holders yielded, `yields == 1` expected; a
+  timing test from tool/infra5-s, untouched here, passes locally). Everything else: 6 new checks FAIL (reported), 14
+  new, 9 calibration records calibrated, every guard shape +0%, build CPU 1103.5 -> 1531.3 s (1.39x: the candidate's
+  --vrm export, gltf.py changed, plus the rom QA part). Report charkit/out/gate/gate_tool-rom_bd6aa536_into_27a4b6c3.md.
+  Re-gated as is (notes only since).
+
 ## Box jobs
 - Boards: charkit/out/rom/box_base2/boards, rom-cand's charkit/out/rom/box_cand2/boards (112 each, toon renderer).
 - Calibration (build box): A (logs charkit/out/rom/calibA.log, -> charkit/out/rom/calibA/cal.json), B (calibB, the
