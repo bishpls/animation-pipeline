@@ -1197,3 +1197,60 @@ sheared, or another view's jaw); known-bads: the base build (pipeline-3d's head:
 the new measure) stored with `calibrate store`, older face rounds' builds for the others where one FAILs; checks with no
 known-bad that the floor separates get verdict guard; any the design fails moved 1-2 px, or the floor passes, reported
 as miscalibrated / coarse, not loosened. Current build: `charkit/out/f5m`.
+
+## Round 7 (2026-09-30 night, relaunched lean): the 15 calibration records
+
+**The adapter** `charkit/calib/jaw.py` (class `Jaw`, part face_region; 15 CALIBRATION entries). The stand-in for ours:
+the head sheet's own pictures on the jaw window (`faceregion.design_jaw_views`), moved 1-2 px, in place of each of
+ours' cameras (level, bare, boards'), measured by ours' code path (`jaw_front`, `taper_front`, `tq_jaw`,
+`jaw_profile`, then `jaw_compare` + `taper_checks`). jaw_outline_hidden's stand-in for ours' bare front is
+head_construction's face region, registered as the check registers it (sz, sx) and resampled linearly to the sheet's
+px per L (unmoved it reads 0.0004). Floors (a generator is a check's floor when it moves what the check reads):
+affine_jaw (8-15% scale per axis, shear 0.08-0.15), widths_jaw (rows stretched across by 1 + A g(t), A 8-15%, g a
+random smooth curve zero at the eye line), warp_jaw (three sines 0.004-0.008 L: the local defects' floor), other_view
+(the front's and the three-quarter's pictures swapped). Kinds: graded against the design's value = shape; against an
+absolute limit for one flagged defect = defect. Known-bads stored (`calibrate store`, hard links in
+charkit/out/calib/builds): jaw0_flagged (jaw_0: the MakeHuman head on the authored body, Michael's 2026-09-29 chin and
+neck flag), jaw4_review (jaw_4: his taper review: the three-quarter's hollow and notch, the jaw lines' kink),
+f5_base (f5_before = pipeline-3d d60486a: the face curving in under the locks). The candidates measured with this
+tree's code: `charkit/out/calib_jaw/known_bads.json`.
+
+**The records** (`python -m charkit calibrate ... --build charkit/out/f5m --seeds 9`; `charkit/out/calib_jaw/calib.json`):
+
+| check | verdict | design 1-2 px | known-bad | floors (seeds PASS of 9) | current |
+|---|---|---|---|---|---|
+| jaw_outline_hidden | calibrated | 0.0004-0.0019 | f5_base 0.0112 FAIL | affine 0, widths 0 | 0.0025 PASS |
+| chin_point_z | calibrated | -0.005-0.005 | jaw0 -0.1919 FAIL | affine 0 | 0 PASS |
+| chin_tip (defect) | calibrated | 0.833 | jaw0 0.089 FAIL | widths 9, warp 7, other 0 | 0.828 PASS |
+| jaw_line_bend (defect) | calibrated | 4.2-5.6 | jaw4 24.6 FAIL | warp 0, other 0 | 4.7 PASS |
+| jaw_line_front (defect) | calibrated | 1.0 | jaw0 0.042 FAIL | affine, other pass | 1.137 PASS |
+| jaw_line_three_quarter (defect) | calibrated | 1.0 | jaw0 0.067 FAIL | affine, other pass | 1.12 PASS |
+| tq_cheek_hollow (defect) | calibrated | 0.0017 | jaw4 0.0097 FAIL | warp median 0.0049 PASS | 0.0056 WARN (worse than the wobble floor) |
+| tq_jaw_notch (defect) | calibrated | 0 | jaw4 0.0573 FAIL | warp 0.0025 PASS | 0 PASS |
+| chin_angle | **coarse** | 129.7 | jaw0 89.3 FAIL | affine 6, widths 9, other 0 | 128.2 PASS |
+| chin_underside | **coarse** | 13.7 | jaw0 -7.5 FAIL | affine 9, widths 9 | 14.1 PASS |
+| chin_v | **coarse** | 1.0-1.003 | jaw0 2.418 FAIL | affine 6, widths 7, other 0 | 1.084 PASS |
+| jaw_taper | **coarse** | 0-0.0079 | jaw0 0.0343 FAIL | affine 0, widths 7, other 0 | 0.0052 PASS |
+| jaw_taper_shape | **coarse** | 0.0024-0.0105 | jaw0 0.1799 FAIL | widths 3 (median 0.0251 WARN) | 0.0157 PASS, margin 0.43 |
+| neck_to_face | **blind** | 0.97-1.06 | jaw0 0.777 WARN | affine 1, widths 9, other 6 | 0.972 PASS |
+| neck_front_wiggle | **miscalibrated** | SKIPPED | jaw0 31.4 FAIL | SKIPPED | 5.4 PASS |
+
+- Coarse: the PASS bands (±10 deg, ±6 deg, ±15%, 0.015 L, 0.025) admit an 8-15% sloppy fit of the design.
+  jaw_taper_shape: its PASS line sits at the re-proportioning floor's median (0.0251); ours 0.0157 is 43% of the way from
+  it to the design. Tightening it to about 0.012 (the design's worst move 0.0105) would calibrate it with the current
+  build WARN (an open flag): Michael's call.
+- neck_to_face: jaw_0, the flagged head, reads WARN (0.777), and widths_jaw passes it at every seed.
+- neck_front_wiggle: the drawing's neck front under the throat (ours' band, 0.1 L) is behind a lock; read lower (the
+  design's 0.25 L band) it bends 14.5 deg, WARN on the check's own 12. Not loosened.
+- jaw_4 (Michael's U flag in the boards) reads jaw_taper_shape 0.0197 PASS, chin_angle 127.7 PASS, chin_tip 0.651
+  WARN in the level camera: the U was the boards' look down; jaw0_flagged is their known-bad.
+- calibrate.py's floor status is the median-valued seed's: for a two-sided check that seed sits nearest the design
+  (neck_to_face's affine floor reads "PASS" with 1 of 9 seeds passing). The per-seed counts above are the reading.
+  For tool/calib: decide a two-sided floor by the seeds' median status.
+- Review page: `charkit/out/calib_jaw/review/index.html` (`charkit/out/calib_jaw/page.py`).
+- **The gate's calibration rule blocks the 7 that don't calibrate** (a remeasured check needs a calibrated record).
+  For Michael: INFO for them until tightened or remeasured (yes/no), jaw_taper_shape tightened to ~0.012 (A/B).
+- **A recorded acceptance can't reach art_terminator_hair's regression**: `gate --accept-fail` covers a new FAIL or an
+  anti-gaming guard block (gate.judge: kinds 'new FAIL', 'anti-gaming guard'), not a 'flag check regressed' block
+  (1.804 PASS -> 2.111 WARN). Recording Michael's acceptance of it needs gate.py to take that kind too: tool/calib's /
+  the coordinator's change, not this branch's (a branch widening its own gate is the gaming the guard is for).
