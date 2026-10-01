@@ -122,3 +122,23 @@ def test_server_roundtrip(tmp_path):
             urllib.request.urlopen(base + '/img/../task.json')
     finally:
         srv.shutdown()
+
+
+def test_point_marks_and_asked_views(tmp_path):
+    p = _task(tmp_path)
+    T = json.load(open(p))
+    T['items'][0]['ask'] = ['side']
+    T['items'][0]['context'] = {}
+    open(p, 'w').write(json.dumps(T))
+    T = label.load_task(p)
+    S = label.Store(T)
+    assert S.other_views('i1') == ['side']
+    S.answer('i1', 'side', 'point', points=[[12.3, 30.0]])
+    a = json.load(open(S.path))['items']['i1']
+    assert a['status'] == 'done' and a['views']['side'] == dict(verdict='point', regions=[], points=[[12.3, 30.0]],
+                                                                  t=a['views']['side']['t'])
+    assert label.links(T, S.snapshot())['i1']['side'] == {'points': [[12.3, 30.0]]}
+    with pytest.raises(ValueError):
+        S.answer('i1', 'side', 'point', points=[])                 # a point answer needs its points
+    with pytest.raises(ValueError):
+        S.answer('i1', 'side', 'point', points=[[500, 5]])         # outside the picture (60 x 40)

@@ -24,12 +24,15 @@ TASK.json (paths relative to the task's folder):
               "label" (optional display text), "info" (optional, shown on hover)}]
               or {"mask": "index.png", "ids": [...]} (pixel value k > 0 is ids[k - 1])}
   items       [{"id", "number", "group", "title", "reason", "home": {"view", "regions": [ids]},
+              "ask": [views] (optional: only these views are asked; default every view but the home),
+              "context": {view: {"regions": [ids], "points": [[x, y]], "note": "..."}} (optional: shown, not asked),
               "proposals": {view: {"regions": [ids] (empty: not visible), "confidence": 0..1, "reason": "...",
               "where": [x0, y0, x1, y1] (optional: where to look when hidden)}}}]
   keys        optional notes on the keys (the page has its own legend)
 
-Answers (charkit-label-answers/1): {"items": {item: {"views": {view: {"verdict": accept | fixed | hidden | unsure,
-"regions": [...], "t"}}, "status": open | done | skipped, "seconds"}}, "cursor", "history" [every change with its
+Answers (charkit-label-answers/1): {"items": {item: {"views": {view: {"verdict": accept | fixed | hidden | unsure |
+point, "regions": [...], "points": [[x, y], ...] (point: present there, marked on the picture: no region there), "t"}},
+"status": open | done | skipped, "seconds"}}, "cursor", "history" [every change with its
 before and after: undo pops it], "undone" [the undone changes, for the record]}.
 """
 import copy, hashlib, html, json, os, sys, threading, time, urllib.parse, webbrowser
@@ -39,7 +42,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TASK_FORMAT = 'charkit-label-task/1'
 ANSWERS_FORMAT = 'charkit-label-answers/1'
 UI = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'labelui.html')
-VERDICTS = ('accept', 'fixed', 'hidden', 'unsure')
+VERDICTS = ('accept', 'fixed', 'hidden', 'unsure', 'point')   # point: present where marked, no region there
 STATUSES = ('open', 'done', 'skipped')
 SIMPLIFY_PX = 0.8          # a mask's outline simplified to within this many pixels
 
@@ -196,7 +199,10 @@ class Store:
         self.A.setdefault('undone', [])
 
     def other_views(self, item):
+        """the views an item asks about: its `ask` list, else every view but its home."""
         it = self.items[item]
+        if it.get('ask'):
+            return list(it['ask'])
         return [v['id'] for v in self.task['views'] if v['id'] != it['home']['view']]
 
     def _save(self):
@@ -223,7 +229,7 @@ class Store:
         with self.lock:
             return copy.deepcopy(self.A)
 
-    def answer(self, item, view, verdict, regions=None, seconds=None):
+    def answer(self, item, view, verdict, regions=None, seconds=None, points=None):
         """one view's answer for an item -> the answers."""
         if item not in self.items:
             raise ValueError('no item %r' % item)
@@ -238,6 +244,16 @@ class Store:
         elif verdict == 'hidden':
             regions = []
         regions = list(regions or [])
+        pts = None
+        if verdict == 'point':
+            # where the lock is, marked on the picture (no region there): [x, y] in the view's image pixels
+            size = next((v.get('size') for v in self.task['views'] if v['id'] == view), None)
+            pts = [[round(float(p[0]), 1), round(float(p[1]), 1)] for p in (points or [])]
+            if not pts:
+                raise ValueError('a point answer needs points')
+            if size and any(not (0 <= p[0] <= size[0] and 0 <= p[1] <= size[1]) for p in pts):
+                raise ValueError('points outside the picture')
+            regions = []
         known = {r['id'] for r in self.task['regions'].get(view, ())}
         bad = [r for r in regions if r not in known]
         if bad:
@@ -246,6 +262,8 @@ class Store:
             rec = self._item(item)
             before = copy.deepcopy(rec)
             rec['views'][view] = dict(verdict=verdict, regions=regions, t=time.time())
+            if pts is not None:
+                rec['views'][view]['points'] = pts
             if rec['status'] == 'skipped':
                 rec['status'] = 'open'
             if seconds is not None:
@@ -357,6 +375,8 @@ def links(task, A):
                 q[v['id']] = 'skipped' if rec.get('status') == 'skipped' else 'unanswered'
             elif a['verdict'] == 'unsure':
                 q[v['id']] = 'unsure'
+            elif a['verdict'] == 'point':
+                q[v['id']] = {'points': a.get('points', [])}       # present there, marked by points
             elif a['verdict'] == 'hidden' or not a['regions']:
                 q[v['id']] = None                   # not visible there (said so, or the accepted proposal was)
             else:
@@ -434,7 +454,7 @@ def make_server(task_path, port=8770, answers=None, tries=20):
                 touched = body.get('item')
                 if p == '/api/answer':
                     A = store.answer(body['item'], body['view'], body['verdict'], body.get('regions'),
-                                     body.get('seconds'))
+                                     body.get('seconds'), body.get('points'))
                 elif p == '/api/accept_all':
                     A = store.accept_all(body['item'], body.get('seconds'))
                 elif p == '/api/clear':
@@ -488,7 +508,8 @@ def status(task_path, answers=None):
         store.path, pr['done'], pr['items'], pr['skipped'], pr['open'], pr['accepted_views'], pr['fixed_views'],
         ', '.join(pr['unsure']) or 'none', pr['seconds']))
     for k, q in links(task, A).items():
-        print('  %-28s %s' % (k, '  '.join('%s=%s' % (v, '|'.join(x) if isinstance(x, list) else ('hidden' if x is None else x)) for v, x in q.items())))
+        print('  %-28s %s' % (k, '  '.join('%s=%s' % (v, '|'.join(x) if isinstance(x, list) else ('hidden' if x is None else (
+            'point %s' % x['points'] if isinstance(x, dict) else x))) for v, x in q.items())))
     return 0
 
 

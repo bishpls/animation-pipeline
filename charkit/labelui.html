@@ -81,6 +81,13 @@ svg.close{margin-top:6px;height:min(25vh,var(--colw,360px))}
 .lab.okL rect{fill:var(--ok);stroke:#fff}.lab.okL text{fill:#fff}
 .lab.otherL rect{fill:rgba(255,255,255,.75);stroke:#999}.lab.otherL text{fill:#555;font-weight:600}
 .lab.letter rect{fill:rgba(0,0,0,.55);stroke:none}.lab.letter text{fill:#fff;font-weight:600}
+.reg.ctxR .halo{stroke:#fff;stroke-width:5}.reg.ctxR .ln{stroke:#555;stroke-width:3;stroke-dasharray:2 3}
+.lab.ctxL rect{fill:#eee;stroke:#555;stroke-dasharray:2 2}.lab.ctxL text{fill:#333}
+.pts circle.ptHalo{fill:none;stroke:#fff;stroke-width:3;vector-effect:non-scaling-stroke}
+.pts circle.ptOk{fill:rgba(0,158,115,.35);stroke:var(--ok);stroke-width:3;vector-effect:non-scaling-stroke}
+.pts circle.ptCtx{fill:rgba(80,80,80,.25);stroke:#555;stroke-width:2;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
+.pts{pointer-events:none}
+.vcol.context{opacity:.75}
 .hide{display:none}
 #final .box{background:var(--card);border:2px solid var(--ok);border-radius:8px;padding:12px 16px;max-width:900px}
 #final li{margin:3px 0}
@@ -155,13 +162,16 @@ function saved(ok, msg) { const s = $('saved');
 // ---------------------------------------------------------------------------------------------------- the model
 const item = () => S.T.items[S.idx];
 const viewIds = () => S.T.views.map(v => v.id);
-const others = it => viewIds().filter(v => v !== it.home.view);
+const others = it => it.ask ? it.ask.slice() : viewIds().filter(v => v !== it.home.view);   // the views asked
+const isContext = (it, v) => v !== it.home.view && !others(it).includes(v);                 // shown, not asked
 const rec = it => (S.A.items[it.id] || {views: {}, status: 'open', seconds: 0});
 const statusOf = it => rec(it).status || 'open';
 function regionsFor(it, v) {         // the regions an item is in a view: home, its answer, else the proposal
   if (v === it.home.view) return {kind: 'home', regions: it.home.regions};
+  if (isContext(it, v)) { const c = (it.context || {})[v] || {}; return {kind: 'context', regions: c.regions || [], points: c.points || []}; }
   const a = rec(it).views[v];
-  if (a) return {kind: a.verdict, regions: a.verdict === 'hidden' || a.verdict === 'unsure' ? (a.verdict === 'unsure' ? (a.regions || []) : []) : a.regions};
+  if (a) return {kind: a.verdict, regions: a.verdict === 'hidden' || a.verdict === 'unsure' ? (a.verdict === 'unsure' ? (a.regions || []) : []) : a.regions,
+                 points: a.points || []};
   const p = (it.proposals || {})[v];
   return {kind: 'proposal', regions: p ? (p.regions || []) : []};
 }
@@ -193,7 +203,7 @@ function buildViews() {
     const [W, H] = v.size;
     const mk = cls => { const s = el('svg', {viewBox: `0 0 ${W} ${H}`, class: cls, preserveAspectRatio: 'xMidYMid meet'}, col);
       const img = el('image', {href: v.src, x: 0, y: 0, width: W, height: H}, s); img.dataset.role = 'img';
-      el('g', {class: 'regs'}, s); el('g', {class: 'labs'}, s); return s; };
+      el('g', {class: 'regs'}, s); el('g', {class: 'labs'}, s); el('g', {class: 'pts'}, s); return s; };
     const over = mk('over'); const pr = h('div', 'prop', col); pr.dataset.role = 'prop';
     const close = mk('close'); const zm = h('div', 'zoom', col); zm.dataset.role = 'zoom';
     S.regs[v.id] = {};
@@ -212,9 +222,13 @@ function buildViews() {
         rg.addEventListener('mouseleave', () => hover(null));
         rg.addEventListener('click', ev => clickRegion(v.id, r.id, ev));
       }
-      svg.addEventListener('click', ev => { if (ev.target.tagName === 'svg' || ev.target.tagName === 'image') setFocus(v.id); });
+      svg.addEventListener('click', ev => {
+        // a point mark: in point mode anywhere, in pick mode where no region is (the lock is there, unsegmented)
+        if (v.id === S.focus && (S.pointMode || (S.pick && (ev.target.tagName === 'svg' || ev.target.tagName === 'image')))) {
+          ev.stopPropagation(); return markPoint(v.id, svg, ev); }
+        if (ev.target.tagName === 'svg' || ev.target.tagName === 'image') setFocus(v.id); }, true);
     }
-    col.addEventListener('mousedown', () => { if (v.id !== item().home.view) setFocus(v.id, true); });
+    col.addEventListener('mousedown', () => { const it = item(); if (v.id !== it.home.view && !isContext(it, v.id)) setFocus(v.id, true); });
   }
 }
 function buildStrip() {
@@ -243,7 +257,12 @@ function svgScale(svg) { const vb = svg.viewBox.baseVal;
   return Math.min((svg.clientWidth || 300) / vb.width, (svg.clientHeight || svg.clientWidth || 300) / vb.height); }
 function closeBox(v, it) {
   const view = S.T.views.find(q => q.id === v); const [W, H] = view.size;
-  let rs = regionsFor(it, v).regions;
+  const rf = regionsFor(it, v);
+  if (rf.points && rf.points.length) {                 // a point answer: round its points
+    const xs = rf.points.map(q => q[0]), ys = rf.points.map(q => q[1]);
+    return fitBox([Math.min(...xs) - 30, Math.min(...ys) - 30, Math.max(...xs) + 30, Math.max(...ys) + 30], W, H);
+  }
+  let rs = rf.regions;
   if ((!rs || !rs.length) && v !== it.home.view) { const p = (it.proposals || {})[v]; if (p && p.where) return fitBox(p.where, W, H); }
   if (!rs || !rs.length) rs = [];
   const bb = rs.map(id => (S.regs[v][id] || {}).r).filter(Boolean).map(r => r.bbox);
@@ -270,8 +289,9 @@ function draw() {
     svgs.forEach(s => { s.classList.toggle('pickable', pickable); s.classList.toggle('clickable', v !== home); });
     // the current item's regions in this view
     const cur = regionsFor(it, v), set = new Set(cur.regions || []);
-    const kindCls = v === home ? 'homeR' : ({accept: 'okR', fixed: 'okR', unsure: 'unsR', proposal: 'propR'}[cur.kind] || '');
-    const labCls = v === home ? 'homeL' : ({accept: 'okL', fixed: 'okL', unsure: 'propL', proposal: 'propL'}[cur.kind] || 'otherL');
+    const kindCls = v === home ? 'homeR' : ({accept: 'okR', fixed: 'okR', unsure: 'unsR', proposal: 'propR', context: 'ctxR'}[cur.kind] || '');
+    const labCls = v === home ? 'homeL' : ({accept: 'okL', fixed: 'okL', unsure: 'propL', proposal: 'propL', context: 'ctxL'}[cur.kind] || 'otherL');
+    col.classList.toggle('context', isContext(it, v));
     // the hovered lock's regions here
     const hov = new Set();
     if (hovered) for (const j of hovered) { const q = S.T.items[j]; for (const r of regionsFor(q, v).regions || []) hov.add(r); }
@@ -281,6 +301,16 @@ function draw() {
     const W = S.T.views.find(q => q.id === v).size[0];
     col.querySelector('[data-role=zoom]').textContent = 'close-up ×' + (W / box[2]).toFixed(1);
     const sc = [svgScale(svgs[0]), svgScale(svgs[1])];
+    svgs.forEach((s_, k) => {                         // the point marks (an answer's, or the context's)
+      const g = s_.querySelector('.pts'); g.innerHTML = '';
+      for (const pt of cur.points || []) {
+        const r = 7 / sc[k];
+        el('circle', {cx: pt[0], cy: pt[1], r: r * 1.5, class: 'ptHalo'}, g);
+        el('circle', {cx: pt[0], cy: pt[1], r: r, class: cur.kind === 'context' ? 'ptCtx' : 'ptOk'}, g);
+        const lab = el('g', {}, g); el('rect', {}, lab); el('text', {}, lab);
+        setLab(lab, String(it.number) + (cur.kind === 'context' ? '' : '✓'), cur.kind === 'context' ? 'ctxL' : 'okL', pt[0] + 2.4 * r, pt[1] - 2.4 * r, (k === 0 ? 12 : 13) / sc[k]);
+      }
+    });
     for (const [rid, o] of Object.entries(S.regs[v])) {
       const mine = set.has(rid);
       o.gs.forEach(g => { g.setAttribute('class', 'reg' + (mine ? ' ' + kindCls : '') + (hov.has(rid) ? ' hov' : '')); });
@@ -289,7 +319,7 @@ function draw() {
       o.labs.forEach((lab, k) => {
         const fs = (k === 0 ? 12 : 13) / sc[k];
         let cls, text = txt;
-        if (mine) { cls = labCls; text = String(it.number) + (cur.kind === 'proposal' ? '?' : (cur.kind === 'unsure' ? '?' : (v === home ? '' : '✓'))); }
+        if (mine) { cls = labCls; text = String(it.number) + (cur.kind === 'proposal' ? '?' : (cur.kind === 'unsure' ? '?' : (v === home || cur.kind === 'context' ? '' : '✓'))); }
         else if (isNum) cls = 'otherL';
         else cls = 'letter';
         const show = mine || hov.has(rid) || (isNum && k === 0) || k === 1 || (pickable && k === 0);
@@ -301,13 +331,16 @@ function draw() {
     const st = col.querySelector('[data-role=st]'), pr = col.querySelector('[data-role=prop]');
     const p = (it.proposals || {})[v]; const a = rec(it).views[v];
     if (v === home) { st.className = 'st home'; st.textContent = 'lock ' + it.number + ' here'; pr.innerHTML = '<b>Home view.</b> ' + esc(it.title || ''); }
+    else if (isContext(it, v)) { const c = (it.context || {})[v] || {}; st.className = 'st'; st.textContent = 'not asked';
+      pr.innerHTML = '<b>Not asked here.</b> ' + esc(c.note || ''); }
     else {
-      if (S.pick && v === S.focus) { st.className = 'st pick'; st.textContent = 'click the right lock'; }
+      if (S.pointMode && v === S.focus) { st.className = 'st pick'; st.textContent = 'click where it is'; }
+      else if (S.pick && v === S.focus) { st.className = 'st pick'; st.textContent = 'click the right lock'; }
       else if (!a) { st.className = 'st pending'; st.textContent = p && !(p.regions || []).length ? 'proposed: not visible' : 'proposed: lock ' + it.number + '?'; }
-      else { st.className = 'st ' + a.verdict; st.textContent = {accept: 'accepted', fixed: 'picked ' + a.regions.map(r => labelText(v, r)).join('+'), hidden: 'not visible', unsure: 'unsure'}[a.verdict]; }
+      else { st.className = 'st ' + (a.verdict === 'point' ? 'accept' : a.verdict); st.textContent = {accept: 'accepted', fixed: 'picked ' + a.regions.map(r => labelText(v, r)).join('+'), hidden: 'not visible', unsure: 'unsure', point: 'marked ' + (a.points || []).length + ' point' + ((a.points || []).length > 1 ? 's' : '')}[a.verdict]; }
       if (p) {
         const where = (p.regions && p.regions.length) ? 'lock <b>' + it.number + '?</b> (dashed)' : '<b>not visible here</b>';
-        pr.innerHTML = 'Proposed: ' + where + ' &middot; confidence ' + (p.confidence != null ? p.confidence.toFixed(2) : '?') + '<br>' + esc(p.reason || '');
+        pr.innerHTML = 'Proposed: ' + where + ' &middot; ' + (p.confidence != null ? 'confidence ' + p.confidence.toFixed(2) : 'your earlier answer') + '<br>' + esc(p.reason || '');
       } else pr.innerHTML = 'No proposal: pick the lock, or H.';
     }
     const img = S.T.views.find(q => q.id === v);
@@ -318,7 +351,8 @@ function draw() {
   $('group').textContent = (it.group || '') + ' · ' + groupPos(it);
   $('ititle').textContent = 'Lock ' + it.number + (it.title ? ' · ' + it.title : '');
   $('ireason').textContent = it.reason ? 'Why these proposals: ' + it.reason : '';
-  $('prompt').textContent = S.pick ? 'Click the right lock in ' + vname(S.focus) + ' (shift-click adds a second region; Esc cancels; H: not visible).'
+  $('prompt').textContent = S.pointMode ? 'Click where lock ' + it.number + ' is in ' + vname(S.focus) + ' (shift-click adds more points; Esc cancels).'
+    : S.pick ? 'Click the right lock in ' + vname(S.focus) + ' (shift-click adds a second region; a click where no region is marks a point; Esc cancels; H: not visible).'
     : (statusOf(it) === 'skipped' ? 'Skipped. Answer any view to take it up again.' : '');
   drawProgress();
 }
@@ -361,7 +395,7 @@ function nextFocus(it) {
   return null;
 }
 function afterAnswer() {
-  const it = item(); S.pick = false;
+  const it = item(); S.pick = false; S.pointMode = false;
   const nf = nextFocus(it);
   if (nf) { S.focus = nf; draw(); return; }
   if (statusOf(it) === 'done') setTimeout(() => goNextOpen(), 380);
@@ -378,7 +412,8 @@ function skip() { const it = item(); send('/api/skip', {item: it.id, seconds: se
 function undo() { send('/api/undo', {}, j => { if (j.touched) { const i = S.T.items.findIndex(q => q.id === j.touched);
   if (i >= 0 && i !== S.idx) go(i, true); toast('Undone: lock ' + S.T.items[i].number); S.final = false; showFinal(false); } else toast('Nothing to undo'); }); }
 function clickRegion(v, rid, ev) {
-  const it = item(); if (v === it.home.view || S.final) return;
+  const it = item(); if (v === it.home.view || isContext(it, v) || S.final) return;
+  if (S.pointMode && v === S.focus) return;          // the svg's own handler marks the point
   S.focus = v;
   const a = rec(it).views[v]; const p = (it.proposals || {})[v];
   let regions = [rid];
@@ -388,6 +423,15 @@ function clickRegion(v, rid, ev) {
   const verdict = same ? 'accept' : 'fixed';
   // shift-click keeps the focus here (adding regions); a plain click moves on
   send('/api/answer', {item: it.id, view: v, verdict, regions, seconds: seconds()}, ev.shiftKey ? () => { S.pick = false; } : afterAnswer);
+}
+function markPoint(v, svg, ev) {
+  const it = item(); if (v === it.home.view || isContext(it, v) || S.final) return;
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+  const a = rec(it).views[v];
+  const pts = (ev.shiftKey && a && a.verdict === 'point') ? (a.points || []).concat([[q.x, q.y]]) : [[q.x, q.y]];
+  send('/api/answer', {item: it.id, view: v, verdict: 'point', points: pts, seconds: seconds()},
+       ev.shiftKey ? () => {} : () => { S.pointMode = false; afterAnswer(); });
 }
 function setFocus(v, quiet) { const it = item(); if (v === it.home.view) return; if (S.focus !== v) S.pick = false; S.focus = v; if (!quiet) draw(); else draw(); }
 function hover(v, rid) {
@@ -433,6 +477,7 @@ function helpHtml() {
   <tr><td><span class="k">Enter</span></td><td>accept every proposal of this lock, next lock</td></tr>
   <tr><td><span class="k">Y</span></td><td>the focused view's proposal is right</td></tr>
   <tr><td><span class="k">N</span></td><td>it's wrong: click the right lock there (shift-click adds a second region)</td></tr>
+  <tr><td><span class="k">P</span></td><td>it's there but no region covers it: click on the picture where it is (shift-click adds points)</td></tr>
   <tr><td><span class="k">H</span></td><td>not visible in the focused view</td></tr>
   <tr><td><span class="k">U</span></td><td>unsure in the focused view</td></tr>
   <tr><td><span class="k">S</span></td><td>skip this lock</td></tr>
@@ -452,13 +497,14 @@ document.addEventListener('keydown', ev => {
   activity();
   const k = ev.key;
   if (k === '?') { $('help').classList.toggle('hide'); return; }
-  if (k === 'Escape') { S.pick = false; $('help').classList.add('hide'); draw(); return; }
+  if (k === 'Escape') { S.pick = false; S.pointMode = false; $('help').classList.add('hide'); draw(); return; }
   if (S.final) { if (k === 'ArrowLeft' || k === 'Backspace') { ev.preventDefault(); go(S.T.items.length - 1); } return; }
   const it = item();
   switch (k.length === 1 ? k.toLowerCase() : k) {
     case 'Enter': ev.preventDefault(); acceptAll(); break;
     case 'y': answer('accept'); break;
-    case 'n': if (S.focus) { S.pick = true; draw(); } break;
+    case 'n': if (S.focus) { S.pick = true; S.pointMode = false; draw(); } break;
+    case 'p': if (S.focus) { S.pointMode = true; S.pick = false; draw(); } break;
     case 'h': answer('hidden'); break;
     case 'u': answer('unsure'); break;
     case 's': skip(); break;

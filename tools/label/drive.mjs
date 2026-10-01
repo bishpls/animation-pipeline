@@ -92,6 +92,7 @@ for (const s of steps) {
   else if (s.click) { const [x, y] = await regionPoint(s.click.view, s.click.region, s.click.pane); await clickAt(x, y, s.click.shift); await sleep(s.wait ?? 120); }
   else if (s.clickSel) { const [x, y] = await evaluate(`(() => { const e = document.querySelector(${JSON.stringify(s.clickSel)}); const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
     await clickAt(x, y); await sleep(s.wait ?? 120); }
+  else if (s.clickXY) { const [x, y] = await evaluate('window.' + s.clickXY); await clickAt(x, y, s.shift); await sleep(s.wait ?? 120); }
   else if (s.hover) { const [x, y] = await regionPoint(s.hover.view, s.hover.region, s.hover.pane); await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }); await sleep(150); }
   else if (s.wait) await sleep(s.wait);
   else if (s.eval) { const v = await evaluate(s.eval); log.push({ eval: s.eval, value: v }); console.log('eval', s.eval.slice(0, 60), '->', JSON.stringify(v)); }

@@ -25,6 +25,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from charkit import shapetruth as st, hairlocks as hk, bodyqa, sheetqa
 
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
+GROW = 6               # px: a body-sheet take's hair is looked for this far round the turnaround's
+FLAT = 0.12            # summed channels: neighbours this close in colour lie in one flat field
 MIN_REGION = 0.002     # L^2: a region smaller than this (on the take) is antialiasing or a stray stroke
 TOL = dict(hair_iou=0.80, scale_spread=0.05, back_regions=6, back_reaching=5, reach_L=0.3, region_L2=0.01,
            profile_back_regions=4, flick_inside=0.70, flicks_distinct=5, line_recall=0.50, line_px=2.5)
@@ -56,29 +58,72 @@ def take_regions(rgb, src, view, kind):
     if kind == 'lines':
         lab, n = ndimage.label(inner)
     else:
-        from scipy.cluster.vq import kmeans2
-        px = rgb[inner]
-        rng = np.random.RandomState(0)
-        sub = px[rng.choice(len(px), min(len(px), 40000), replace=False)]
-        cen, _ = kmeans2(sub, 16, minit='++', seed=1)
-        d = ((px[:, None, :] - cen[None]) ** 2).sum(-1)
-        cl = np.full(inner.shape, -1, int)
-        cl[inner] = d.argmin(1)
-        lab = np.zeros(inner.shape, np.int32)
-        n = 0
-        for k in range(len(cen)):
-            l2, m = ndimage.label(cl == k)
-            l2[l2 > 0] += n
-            lab = np.where(l2 > 0, l2, lab)
-            n += m
+        # flat colour fields: a pixel whose 4 neighbours all lie within FLAT of its colour (the take median-filtered
+        # first: the antialiasing) is a field's interior; the fields are its connected parts (k-means on the colours,
+        # the first reading, split the gradients the model painted into fragments: 55-61 regions a view)
+        sm = np.stack([ndimage.median_filter(rgb[..., k], 3) for k in range(3)], -1)
+        dif = np.zeros(inner.shape)
+        for ax in (0, 1):
+            for sh in (1, -1):
+                dif = np.maximum(dif, np.abs(sm - np.roll(sm, sh, ax)).sum(-1))
+        lab, n = ndimage.label(inner & (dif < FLAT))
     sizes = ndimage.sum(np.ones_like(lab), lab, range(1, n + 1))
     small = 1 + np.nonzero(sizes < MIN_REGION * ppl ** 2)[0]
     lab[np.isin(lab, small)] = 0
+    if kind != 'lines':
+        # the lines between the fields, the antialiasing and the small fields: the hair's unlabelled pixels go to the
+        # nearest field
+        if (lab > 0).any():
+            _, (iy, ix) = ndimage.distance_transform_edt(lab == 0, return_indices=True)
+            g = hair & (lab == 0)
+            lab[g] = lab[iy[g], ix[g]]
     # relabel 1..k
     u = np.unique(lab[lab > 0])
     m = np.zeros(lab.max() + 1, np.int32)
     m[u] = np.arange(1, len(u) + 1)
     return hair, m[lab]
+
+
+def body_take(take_rgb, I, spec_path='charkit/spec/clawd.json'):
+    """a take that edits the body turnaround in place (the same canvas): each view's design grid cut from it as the
+    splitter's inputs cut the sheet (hull.views_from_sheet on the sheet, hairlayers.design_grid), its flat colour
+    fields inside the turnaround's hair (grown GROW px), skin and background out -> {view: (rgb grid, hair, lab)}."""
+    from charkit import manifest, hairlayers as hl
+    from charkit.geom import hull
+    spec = manifest.resolve(json.load(open(os.path.join(ROOT, spec_path))))
+    R = manifest.load(spec['ref']['manifest'])['references']
+    rgb_b = hl.load_rgb(R['body_turnaround']['path'])
+    views, info = hull.views_from_sheet(rgb_b, (spec.get('eyes') or {}).get('x', 0.168), -1)
+    out = {}
+    for v in VIEWS:
+        V = views[v]
+        us, zs, shape, x0y0 = hl.design_grid(V, V.ppl)
+        g = np.stack([V.sample(take_rgb[..., k], us, zs).T for k in range(3)], -1)
+        d = I['views'][v]
+        dst = d['hair'] | np.any([m for m in (d.get('pieces') or {}).values()] or [np.zeros_like(d['hair'])], 0)
+        zone = ndimage.binary_dilation(dst, iterations=GROW)
+        fam = bodyqa.family(g)
+        dark = g.max(-1) < 0.35
+        grey = (g.max(-1) - g.min(-1)) < 0.06                          # the background and neutral greys
+        cand = zone & (fam != bodyqa.CLASS['skin']) & ~grey
+        sm = np.stack([ndimage.median_filter(g[..., k], 3) for k in range(3)], -1)
+        dif = np.zeros(shape)
+        for ax in (0, 1):
+            for sh in (1, -1):
+                dif = np.maximum(dif, np.abs(sm - np.roll(sm, sh, ax)).sum(-1))
+        lab, n = ndimage.label(cand & ~dark & (dif < FLAT))
+        sizes = ndimage.sum(np.ones_like(lab), lab, range(1, n + 1))
+        lab[np.isin(lab, 1 + np.nonzero(sizes < MIN_REGION * I['ppl'] ** 2)[0])] = 0
+        hair = ndimage.binary_closing(lab > 0, iterations=2) & zone
+        if (lab > 0).any():
+            _, (iy, ix) = ndimage.distance_transform_edt(lab == 0, return_indices=True)
+            gg = hair & (lab == 0)
+            lab[gg] = lab[iy[gg], ix[gg]]
+        u = np.unique(lab[lab > 0])
+        mp_ = np.zeros(lab.max() + 1, np.int32)
+        mp_[u] = np.arange(1, len(u) + 1)
+        out[v] = (g, hair, mp_[lab])
+    return out
 
 
 def _sil(m, ppl):
@@ -217,6 +262,8 @@ def main(a):
     T, TL, _ = hk.load_truth(os.path.join(ROOT, 'charkit/refs/clawd/hair_locks_truth.npz'))
     split = np.load(os.path.join(ROOT, 'charkit/out/clawd/hair/split/hairsplit.npz'))
     rgb = np.asarray(Image.open(take).convert('RGB'), float) / 255
+    if _opt(a, '--sheet', 'head') == 'body':
+        return main_body(a, take, out, rgb, I, C, T, TL, split)
     src = st.source(rgb, 0.168, -1)
     sw = _opt(a, '--swap', None)
     if sw:
@@ -263,6 +310,38 @@ def main(a):
     for v, r in recs.items():
         print(v, json.dumps({k: x for k, x in r.items() if k != 'view'}))
     print('scale spread', res['scale_spread'])
+    return 0
+
+
+def main_body(a, take, out, rgb, I, C, T, TL, split):
+    """the refcheck of a take drawn on the body turnaround's canvas (no registration: its grids are the sheet's)."""
+    B = body_take(rgb, I)
+    recs, regs = {}, {}
+    for v, (g, hg, lab) in B.items():
+        d = I['views'][v]
+        dst = d['hair'] | np.any([m for m in (d.get('pieces') or {}).values()] or [np.zeros_like(d['hair'])], 0)
+        Sh, Dh = _sil(hg, I['ppl']), _sil(dst, I['ppl'])
+        iou = float((Sh & Dh).sum() / max(1, (Sh | Dh).sum()))
+        rec = dict(view=v, scale_vs_ppl=1.0, hair_iou=round(iou, 3))
+        rec.update(measure(v, lab, hg, I, C['masks'], T, TL, split))
+        rec['pass'] = verdict(rec)
+        recs[v], regs[v] = rec, lab
+        ys, xs = np.nonzero(dst | hg)
+        r0, r1, c0, c1 = max(0, ys.min() - 20), ys.max() + 20, max(0, xs.min() - 20), xs.max() + 20
+        A_ = (np.clip(d['rgb'], 0, 1) * 255).astype(np.uint8)[r0:r1, c0:c1]
+        B_ = (np.clip(g, 0, 1) * 255).astype(np.uint8)[r0:r1, c0:c1]
+        rng = np.random.RandomState(5)
+        pal = rng.randint(40, 235, (lab.max() + 1, 3)).astype(np.uint8)
+        Cc = np.where((lab > 0)[..., None], pal[lab], (0.5 * np.clip(d['rgb'], 0, 1) * 255 + 120).astype(np.uint8))
+        Cc[boundary(lab, hg) & (lab > 0)] = 0
+        Cc[(split[v + '__walls'] & 1).astype(bool) & d['hair']] = (255, 255, 255)
+        Image.fromarray(np.concatenate([A_, B_, Cc[r0:r1, c0:c1]], 1)).save(os.path.join(out, '%s.png' % v))
+    res = dict(take=os.path.relpath(take, ROOT), kind='colours', sheet='body', tol=TOL, views=recs, scale_spread=0.0,
+               scale_ok=True)
+    json.dump(res, open(os.path.join(out, 'lockmap.json'), 'w'), indent=1)
+    np.savez_compressed(os.path.join(out, 'regions.npz'), **regs)
+    for v, r in recs.items():
+        print(v, json.dumps({k: x for k, x in r.items() if k != 'view'}))
     return 0
 
 
