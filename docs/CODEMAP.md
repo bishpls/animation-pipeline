@@ -25,7 +25,8 @@ regenerate it after changing a module's docstring or public functions. The curat
   the shape guard; swap mode); optimize.py (`charkit sweep optimize`: a fit's knobs tuned by CMA-ES over sweep rows on
   persistent workers, the constraints enforced, the best confirmed by real builds).
 - **Gate and infrastructure**: gate.py (policy K), pregate.py, codediff.py, closure.py, history.py, remote.py and
-  boxjob.py (the boxes), bucketsync.py, procs.py (build slots), worker.py, sparse.py, trace.py.
+  boxjob.py (the boxes), bucketsync.py, procs.py (build slots), worker.py, sparse.py, trace.py, profile.py (a build's
+  wall and CPU by stage, the QA's parts under cProfile; the build-CPU budget, charkit/budget.json).
 - **Review pages**: reviewpage.py (`charkit review page`: the standard page), preview.py (per-merge previews),
   review.py, flags.py, checkpoint.py, *page.py.
 - **Simulation**: sim/ (xpbd.py cloth, springbone.py, drape.py, motion.py, motionqa.py).
