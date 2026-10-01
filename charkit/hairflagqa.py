@@ -52,6 +52,7 @@ FAMILY = {'bangs': 'bangs', 'side_lock_L': 'side_locks', 'side_lock_R': 'side_lo
 AHOGE_TOL = 0.01            # L: an outline pixel this close to the other's agrees (two pixels at the sheet's scale)
 AHOGE_SHIFT = 0.03          # L: the placements tried either way (the shape is graded; the placement is reported)
 AHOGE_BINS = 10             # the centreline's bins along the ahoge
+BASE_PX = 6                 # px: its root is where it touches the other hair within this of the lowest such pixel
 EDGE = 0.02                 # L: ink within this of the hair's outline is the outline's, not inside it
 CLEAR = 0.02                # L: ... and within this of a bun, the ahoge or a clip is theirs
 LINE_TOL = 0.012            # L: a line pixel within this of the other's agrees
@@ -147,9 +148,9 @@ def ahoge_shape(ours, drawn, ppl):
 
 
 def centreline(m, root, n=AHOGE_BINS):
-    """a strand's centreline: its pixels in n bins of path distance (8-connected, within the strand) from its pixel
-    nearest `root` (a mask: where it grows from), each bin's centroid -> ((k, 2) rows, cols; (k,) half-widths px) or
-    None."""
+    """a strand's centreline: its pixels in n bins of path distance (8-connected, within the strand) from its root (its
+    pixels touching `root`, a mask: where it grows from; else its pixel nearest it), each bin's centroid -> ((k, 2)
+    rows, cols; (k,) half-widths px) or None."""
     from scipy import ndimage
     from scipy.sparse import coo_matrix
     from scipy.sparse.csgraph import dijkstra
@@ -166,12 +167,19 @@ def centreline(m, root, n=AHOGE_BINS):
         k = j >= 0
         rows += list(np.arange(len(r))[k]); cols += list(j[k]); ws += [float(np.hypot(dy, dx))] * int(k.sum())
     G = coo_matrix((ws, (rows, cols)), shape=(len(r), len(r))).tocsr()
+    start = None
     if root is not None and root.any():
-        dt = ndimage.distance_transform_edt(~root)
-        start = int(np.argmin(dt[r, c]))
-    else:
-        start = int(np.argmax(r))                          # (no root: its lowest pixel)
-    d = dijkstra(G, directed=False, indices=start)
+        touch = ndimage.binary_dilation(root, iterations=1)[r, c]
+        if touch.any():
+            # every pixel on its root, within BASE_PX of the lowest (it grows up from the crown: a side lying over a bun
+            # or a lock isn't its root), so a base cut across starts mid-way
+            touch &= r >= r[touch].max() - BASE_PX
+            start = np.nonzero(touch)[0]
+        else:
+            start = [int(np.argmin(ndimage.distance_transform_edt(~root)[r, c]))]
+    if start is None:
+        start = [int(np.argmax(r))]                        # (no root: its lowest pixel)
+    d = dijkstra(G, directed=False, indices=start, min_only=True)
     ok = np.isfinite(d)
     r, c, d = r[ok], c[ok], d[ok]
     edges = np.linspace(0, d.max() + 1e-9, n + 1)
@@ -449,10 +457,11 @@ def measure_labels(ours, pieces, D, ppl, lines=None, views=VIEWS):
 
 
 # ------------------------------------------------------------------------------------------------------------ the part
-def our_labels(B, design):
+def our_labels(B, design, hair=None):
     """our hair on the design's grids: every hair object's connected components (a lock, a bun's part, the ahoge, a
     flyaway blade) z-buffered with its own code among the QA's occluders (hair_pieces_measure's: skin, eyes, mouth,
-    accessories, garments) -> ({view: label image}, [piece of each part])."""
+    accessories, garments); hair: {piece: (V, T)} in place of the bundle's hair objects (a lab's rebuilt pieces)
+    -> ({view: label image}, [piece of each part])."""
     from . import bodyqa, qa3d
     from scipy.sparse import coo_matrix
     from scipy.sparse.csgraph import connected_components
@@ -466,11 +475,12 @@ def our_labels(B, design):
             V, T = o.mesh('eval')[:2]
             meshes.append((V, T, np.full(len(T), OTHER)))
     pieces = []
-    for o in B.objects(groups=('hair',)):
-        pc = o.name[5:]
-        if not o.name.startswith('hair_') or pc not in FAMILY or not o.has('eval'):
+    if hair is None:
+        hair = {o.name[5:]: o.mesh('eval')[:2] for o in B.objects(groups=('hair',))
+                if o.name.startswith('hair_') and o.name[5:] in FAMILY and o.has('eval')}
+    for pc, (V, T) in hair.items():
+        if pc not in FAMILY:
             continue
-        V, T = o.mesh('eval')[:2]
         T = np.asarray(T)
         E = np.r_[T[:, [0, 1]], T[:, [1, 2]]]
         k, comp = connected_components(coo_matrix((np.ones(len(E)), (E[:, 0], E[:, 1])), shape=(len(V), len(V))),

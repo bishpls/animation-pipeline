@@ -24,7 +24,7 @@ for v in hf.VIEWS:
     kd = hf.interior(D['hair'][v], ppl)
     ld = skeletonize(D['lines'][v]) & kd
     ms = [D['hair'][v]] + [L[v] >= hf.PART0 for _, L in builds]
-    w = hf._window(*ms, pad=6)
+    w = hf.window(*ms, pad=6)
     tiles = []
     t = np.ones(kd[w].shape + (3,)); t[D['hair'][v][w]] = (.93, .9, .86); t[kd[w]] = (.85, .85, .85); t[ld[w]] = (0, 0, .9)
     tiles.append(t)

@@ -2456,20 +2456,246 @@ def ahoge_2d(masks, views, hull_frame, n=12):
     return blade(Ph * s_ + tr, w * s_ * np.linspace(1.0, 0.15, n))
 
 
-def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4, tuck=None):
+AHOGE_VIEWS = (('front', 0.0), ('profile', 90.0), ('back', 180.0))   # the views the hair layers draw it in
+AHOGE_TEMPLATE = dict(bins=12, samples=40, root_w=0.45, peak=0.4, tip_w=0.05, root_in=0.04, depth_ratio=0.45, prior=0.02)
+
+
+def strand_centreline(m, base, n):
+    """a strand's centreline: its pixels in n bins of path distance (8-connected, within it) from its base (every pixel
+    of it touching `base`), each bin's centroid and full width (twice its 85th percentile spread) -> ((k, 2) cols,
+    rows; (k,) px) or None. From the whole base, not one end: a crescent cut across its base starts at the cut's middle."""
+    from scipy import ndimage
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import dijkstra
+    r, c = np.nonzero(m)
+    if len(r) < 6:
+        return None
+    idx = -np.ones(m.shape, int)
+    idx[r, c] = np.arange(len(r))
+    rows, cols, ws = [], [], []
+    for dy, dx in ((0, 1), (1, 0), (1, 1), (1, -1)):
+        rr, cc = r + dy, c + dx
+        ok = (rr >= 0) & (rr < m.shape[0]) & (cc >= 0) & (cc < m.shape[1])
+        j = np.where(ok, idx[np.clip(rr, 0, m.shape[0] - 1), np.clip(cc, 0, m.shape[1] - 1)], -1)
+        k = j >= 0
+        rows += list(np.arange(len(r))[k]); cols += list(j[k]); ws += [float(np.hypot(dy, dx))] * int(k.sum())
+    G = coo_matrix((ws, (rows, cols)), shape=(len(r), len(r))).tocsr()
+    touch = ndimage.binary_dilation(base, iterations=1)[r, c] if base is not None and base.any() else None
+    src = np.nonzero(touch)[0] if touch is not None and touch.any() else [int(np.argmax(r))]
+    d = dijkstra(G, directed=False, indices=src, min_only=True)
+    ok = np.isfinite(d)
+    r, c, d = r[ok], c[ok], d[ok]
+    edges = np.linspace(0, d.max() + 1e-9, n + 1)
+    P, W = [], []
+    for a, b in zip(edges[:-1], edges[1:]):
+        s_ = (d >= a) & (d < b)
+        if s_.sum() < 2:
+            continue
+        p = np.array([c[s_].mean(), r[s_].mean()])
+        P.append(p)
+        W.append(2 * float(np.percentile(np.hypot(c[s_] - p[0], r[s_] - p[1]), 85)))
+    return (np.array(P), np.array(W)) if len(P) >= 3 else None
+
+
+def ahoge_region(masks, name, ppl, reach=0.08):
+    """a view's drawn ahoge whole: the hair layers' VIEW__ahoge (its topmost stroke of 50 px or more: the breakdown's teal
+    also colours the buns' ribbon tails) with the drawn hair it joins above the head's outline (the structure masks give
+    its shaded half to the bangs: tool/hair5), the outline per column the mass's top edge with the columns within reach L
+    of the ahoge bridged by a circle through the edge either side (as the truth's rule 3 cuts it across its base)
+    -> (region, base: the hair under the outline) or None."""
+    from scipy import ndimage
+    m = masks.get('%s__ahoge' % name)
+    if m is None or m.sum() < 20:
+        return None
+    lab, k = ndimage.label(m)
+    sizes = np.bincount(lab.ravel())
+    cand = [i for i in range(1, k + 1) if sizes[i] >= 50]
+    if not cand:
+        return None
+    tops = {i: np.nonzero(lab == i)[0].min() for i in cand}
+    near = [i for i in cand if tops[i] <= min(tops.values()) + 0.1 * ppl]
+    stroke = lab == max(near, key=lambda i: sizes[i])
+    hair = np.zeros_like(m)
+    for f in FAMILIES:
+        q = masks.get('%s__%s' % (name, f))
+        if q is not None:
+            hair |= q
+    mass = np.zeros_like(m)
+    for f in MASS:
+        q = masks.get('%s__%s' % (name, f))
+        if q is not None:
+            mass |= q
+    cols = np.arange(m.shape[1])
+    has = mass.any(0)
+    top = np.where(has, mass.argmax(0), -1).astype(float)
+    sc = np.nonzero(stroke.any(0))[0]
+    hide = (cols >= sc.min() - reach * ppl) & (cols <= sc.max() + reach * ppl)
+    good = has & ~hide
+    if good.sum() < 4:
+        return None
+    # the outline under the ahoge: the line between the nearest good columns either side (a straight cut)
+    left = cols[good & (cols < sc.min())]
+    right = cols[good & (cols > sc.max())]
+    if not len(left) or not len(right):
+        return None
+    a, b = left.max(), right.min()
+    outline = top.copy()
+    span = (cols > a) & (cols < b)
+    # a circle through the outline's good columns either side (the crown is round: a chord stands above it), its
+    # upper arc across the span; a straight chord where the fit fails
+    w = int(0.15 * ppl)
+    fitc = good & (((cols >= a - w) & (cols <= a)) | ((cols >= b) & (cols <= b + w)))
+    x, y = cols[fitc].astype(float), top[fitc]
+    A = np.c_[x, y, np.ones_like(x)]
+    cx = cy = rad = None
+    try:
+        k_ = np.linalg.lstsq(A, -(x ** 2 + y ** 2), rcond=None)[0]
+        cx, cy = -k_[0] / 2, -k_[1] / 2
+        rad = np.sqrt(max(cx ** 2 + cy ** 2 - k_[2], 0.0))
+    except np.linalg.LinAlgError:
+        pass
+    xs = cols[span].astype(float)
+    if rad and rad > 0 and np.all(np.abs(xs - cx) < rad) and cy > y.mean():
+        outline[span] = cy - np.sqrt(rad ** 2 - (xs - cx) ** 2)
+    else:
+        outline[span] = np.interp(xs, [a, b], [top[a], top[b]])
+    rows = np.arange(m.shape[0])[:, None]
+    above = rows < outline[None, :]
+    lab2, _ = ndimage.label(hair & above & span[None, :])
+    ids = np.unique(lab2[stroke & (lab2 > 0)])
+    region = np.isin(lab2, ids[ids > 0]) | stroke
+    base = hair & ~above & span[None, :] & ~region
+    return region, base
+
+
+def _drawn_stroke(masks, name, views, n):
+    """a view's drawn ahoge (ahoge_region) as its centreline from its base -> ((k, 2) cols, rows; (k,) full widths px)
+    or None."""
+    got = ahoge_region(masks, name, views[name].ppl)
+    if got is None:
+        return None
+    return strand_centreline(got[0], got[1], n)
+
+
+def _bezier(Q, t):
+    t = np.asarray(t, float)[:, None]
+    return ((1 - t) ** 3) * Q[0] + 3 * ((1 - t) ** 2) * t * Q[1] + 3 * (1 - t) * t ** 2 * Q[2] + t ** 3 * Q[3]
+
+
+def _seg_dist(P, A):
+    """each point of P (m, 2) to the polyline A (k, 2): the distance to its nearest segment."""
+    a, b = A[:-1], A[1:]
+    ab = b - a
+    t = np.clip(np.einsum('mkj,kj->mk', P[:, None] - a[None], ab) / np.maximum((ab ** 2).sum(1), 1e-12), 0, 1)
+    q = a[None] + t[..., None] * ab[None]
+    return np.sqrt(((P[:, None] - q) ** 2).sum(-1)).min(1)
+
+
+def ahoge_fit(masks, views, hull_frame, L, tpl=None, log=None):
+    """the ahoge as a template fitted to the drawings (tool/hair5: the 2-d pairing's kinks and root bulge read as
+    "bent and jagged"): a cubic Bezier centreline in 3-d whose projections into the front, profile and back match the
+    drawn strokes' centrelines (least squares on both ways' distances and the root and tip), a crescent's width
+    profile (root_w of the widest at the root, widest at `peak` of its length, tapering to tip_w), the widest the drawn
+    strokes' (front and back), and the root carried root_in L on into the crown so it grows out of the hair.
+    -> a blade dict (with 'fit': the per-view mean distances, px) or None without the strokes."""
+    from scipy.optimize import least_squares
+    tp = dict(AHOGE_TEMPLATE, **(tpl or {}))
+    s_, tr = hull_frame
+    got = {}
+    for name, az in AHOGE_VIEWS:
+        if name in views and name in tp.get('views', [n for n, _ in AHOGE_VIEWS]):
+            d = _drawn_stroke(masks, name, views, tp['bins'])
+            if d is not None:
+                got[name] = (az, d)
+    if not got:
+        return None
+    from charkit.bodyqa import WIN
+
+    def to_hull(name, P):
+        v = views[name]
+        x0 = int(round(v.grid_eye[0] - WIN['x'] * v.ppl)); y0 = int(round(v.grid_eye[1] - WIN['top'] * v.ppl))
+        return np.c_[(x0 + P[:, 0] - v.axis) / v.ppl, (v.eye_y - (y0 + P[:, 1])) / v.ppl]
+
+    # the start: the 2-d pairing (front x, profile y, their mean z) through four points (each from the drawn strokes,
+    # whichever views the fit takes)
+    st = {n: _resample(_drawn_stroke(masks, n, views, tp['bins'])[0], 4) for n in ('front', 'profile', 'back')
+          if n in views and _drawn_stroke(masks, n, views, tp['bins']) is not None}
+    F_, P_ = _resample(to_hull('front', st['front']), 4), _resample(to_hull('profile', st['profile']), 4)
+    H4 = np.c_[F_[:, 0], P_[:, 0], (F_[:, 1] + P_[:, 1]) / 2] * s_ + tr
+    M = np.array([[1, 0, 0, 0], [8, 12, 6, 1], [1, 6, 12, 8], [0, 0, 0, 1]], float) / np.array([[1], [27], [27], [1]])
+    Q0 = np.linalg.solve(M, H4)
+    ts = np.linspace(0, 1, tp['samples'])
+    scale = np.linalg.norm(Q0[3] - Q0[0]) + 1e-9
+
+    def res(q):
+        Q = q.reshape(4, 3)
+        B = _bezier(Q, ts)
+        out = []
+        for name, (az, (D, W)) in got.items():
+            c, r = view_px(B, views[name], az, False, hull_frame)
+            Pp = np.c_[c, r]
+            out += [_seg_dist(D, Pp), _seg_dist(Pp, D), 2 * (Pp[0] - D[0]), 2 * (Pp[-1] - D[-1])]
+        d2 = Q[2] - 2 * Q[1] + Q[0], Q[3] - 2 * Q[2] + Q[1]
+        out.append(tp['prior'] * np.r_[d2[0], d2[1]] / scale * views['front'].ppl * s_)
+        return np.concatenate([np.ravel(x) for x in out])
+    sol = least_squares(res, Q0.ravel(), x_scale=scale * 0.2, max_nfev=400)
+    Q = sol.x.reshape(4, 3)
+    B = _bezier(Q, np.linspace(0, 1, tp['bins'] + 4))
+    fit = {}
+    for name, (az, (D, W)) in got.items():
+        c, r = view_px(_bezier(Q, ts), views[name], az, False, hull_frame)
+        fit[name] = round(float(np.mean(_seg_dist(D, np.c_[c, r]))), 2)
+    # the width: the drawn widest (front and back, px -> world), a crescent's profile along the length
+    ws = [np.sort(W)[-3:].mean() / views[n].ppl * s_ for n, (_, (D, W)) in got.items() if n in ('front', 'back')] or \
+        [np.sort(W)[-3:].mean() / views[n].ppl * s_ for n, (_, (D, W)) in got.items()]
+    wmax = float(np.median(ws))
+    t = np.linspace(0, 1, len(B))
+    pk = tp['peak']
+    prof = np.where(t <= pk, tp['root_w'] + (1 - tp['root_w']) * np.sin(0.5 * np.pi * np.clip(t / pk, 0, 1)),
+                    tp['tip_w'] + (1 - tp['tip_w']) * np.cos(0.5 * np.pi * np.clip((t - pk) / (1 - pk), 0, 1)))
+    w = wmax * prof
+    # the root carried on into the crown along the strand's own direction there
+    d0 = B[0] - B[1]
+    d0 /= np.linalg.norm(d0) + 1e-12
+    k = 3
+    ext = B[0] + d0 * (tp['root_in'] * L) * np.linspace(1, 1.0 / k, k)[:, None]
+    line = np.r_[ext, B]
+    width = np.r_[np.full(k, w[0]), w]
+    bl = blade(line, width, tp['depth_ratio'])
+    bl['fit'] = dict(mean_px=fit, cost=round(float(sol.cost), 1), width_L=round(wmax / L, 4))
+    if tp.get('dump'):
+        import json as _j
+        _j.dump(dict(Q=Q.tolist(), fit=fit, wmax=wmax), open(tp['dump'], 'w'))
+    if log:
+        log('ahoge fit: mean distance %s px, widest %.4f L' % (fit, wmax / L))
+    return bl
+
+
+def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4, tuck=None, hair=None, reach=0.0):
     """the flyaways of the front view's family mask (a design grid): each connected piece a blade whose centreline runs by
     path from its pixel nearest the mass (anchor_fn: pixel -> distance to the mass) to its far end; to_world: (cols,
     rows) -> world points (at the envelope's side); tuck(centreline, widths) -> centreline: the blade's root kept under
-    the locks it grows from (tuck_blade). -> [blade dicts]."""
+    the locks it grows from (tuck_blade). hair (the view's other drawn hair, buns included) and reach (px): the root
+    carried on to the nearest drawn hair and reach px into it, so a strand the masks part from its bun or lock by a few
+    pixels (the truth's rule 5: the strands under the buns are drawn joined to them) grows out of it (tool/hair5).
+    -> [blade dicts]."""
     from scipy import ndimage
     lab, k = ndimage.label(mask)
     out = []
+    near = None
+    if hair is not None and hair.any():
+        _, near = ndimage.distance_transform_edt(~hair, return_indices=True)
     for i in range(1, k + 1):
         rr, cc = np.nonzero(lab == i)
         if len(rr) < min_px:
             continue
         pts = np.c_[cc, rr].astype(float)
-        root = int(np.argmin(anchor_fn(cc, rr)))
+        if near is not None:
+            # the root: its pixel nearest the other drawn hair (buns included), not only the mass
+            dh = np.hypot(near[0][rr, cc] - rr, near[1][rr, cc] - cc)
+            root = int(np.argmin(dh))
+        else:
+            root = int(np.argmin(anchor_fn(cc, rr)))
         dist = _order_by_path(pts, root, k=6)
         ok = np.isfinite(dist)
         pts, dist = pts[ok], dist[ok]
@@ -2485,6 +2711,18 @@ def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4, tuck=No
         if len(line) < 3:
             continue
         line = np.array(line)
+        if near is not None:
+            # carried on from its root to the nearest drawn hair and `reach` px into it, the root's width held
+            r0, c0 = int(round(line[0][1])), int(round(line[0][0]))
+            q = np.array([near[1][r0, c0], near[0][r0, c0]], float)
+            d = q - line[0]
+            g = float(np.linalg.norm(d))
+            if g > 0.5:
+                u = d / g
+                k_ = max(1, int(np.ceil((g + reach) / max(2.0, g / 3))))
+                ext = line[0] + u * np.linspace(g + reach, 0, k_ + 1)[:-1, None]
+                line = np.r_[ext, line]
+                width = [width[0]] * len(ext) + list(width)
         W3 = to_world(line[:, 0], line[:, 1])
         # one plane: the root's depth held along the strand (the mass's mid-plane jitters point to point), the line
         # smoothed along itself
@@ -2569,7 +2807,10 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         sectors = cap_sectors(crown_cap(F, style, o, L), F, regions, o['cap_sectors'])
     for piece, R in regions.items():
         ph = _unwrap(R['ph'])
-        L_, edge = locks(ph, R['tip'], style['lock_min'], style['notch'])
+        # (tool/hair5: per-piece overrides of the style's lock_min and notch, e.g. the upper back's locks wider where
+        # the design draws one smooth mass, the lower back's notches deeper for its flicked hem)
+        L_, edge = locks(ph, R['tip'], (o.get('lock_min_piece') or {}).get(piece, style['lock_min']),
+                         (o.get('notch_piece') or {}).get(piece, style['notch']))
         efn = None
         if refined and piece in o.get('fine_tips', ()):
             efn = (lambda p_: lambda phs, top, tip: median_filter(drawn_tips(
@@ -2638,7 +2879,10 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                     parts_ += bun_tails(fit['c'], fit['R'], fit['half'], case.centre, style, fit['tails'])
                 add(side, 'buns', parts_)
     # the ahoge: from the drawings' strokes (the hull carves so thin a crescent poorly), else its hull points
-    ah = ahoge_2d(masks, views, hull_frame) if views is not None and hull_frame is not None else None
+    ah = None
+    if views is not None and hull_frame is not None:
+        ah = ahoge_fit(masks, views, hull_frame, L, o.get('ahoge_tpl'), log) if o.get('ahoge', '2d') == 'fit' else \
+            ahoge_2d(masks, views, hull_frame)
     ap = V[fam == fam_id('ahoge')]
     if ah is not None:
         add('ahoge', 'ahoge', [ah])
@@ -2659,6 +2903,9 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         s, tr = hull_frame
         mh = V[np.isin(fam, [fam_id(f) for f in MASS])]
         from scipy.spatial import cKDTree
+        if o.get('flyaway_root', 'mass') == 'hair':
+            # (tool/hair5: the buns' built surfaces too, so a strand rooted under a bun takes the bun's depth)
+            mh = np.concatenate([mh] + [pieces[b]['V'] for b in ('bun_L', 'bun_R') if b in pieces])
         hx = (mh - tr) / s                                            # the mass in the hull's frame
         tree2 = cKDTree(hx[:, [0, 2]])
 
@@ -2689,7 +2936,14 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         tk = None
         if o.get('tuck_flyaways', True):
             tk = lambda W3, wd: tuck_blade(F, W3, wd, LAYER['side_lock_L'] * style['inset'] * L, 0.004 * L)
-        bl = flyaways(fm, to_world, anchor_fn, tuck=tk)
+        hair2d = None
+        if o.get('flyaway_root', 'mass') == 'hair':
+            hair2d = np.zeros_like(fm, bool)
+            for f in MASS + ('buns',):
+                q = masks.get('front__%s' % f)
+                if q is not None and q.shape == fm.shape:
+                    hair2d |= q
+        bl = flyaways(fm, to_world, anchor_fn, tuck=tk, hair=hair2d, reach=o.get('flyaway_reach', 0.02) * ppl)
         if bl:
             add('flyaways', 'flyaways', bl)
     # the side locks held behind the drawing's front edge in profile: the hull fills the gap between a lock and the cheek

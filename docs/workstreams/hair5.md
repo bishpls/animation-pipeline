@@ -85,6 +85,15 @@ side locks, lower-back flicks, flyaways and the ahoge)
 | 2-d pairing (today) | 0.363 | 104 | profile 0.0086 | 0.29 / 0.35 / 0.33 |
 | fit | 0.506 (0.516 / 0.555 / 0.701 / 0.506) | 6.8 PASS | 0 | 0.48 / 0.50 / 0.65 |
 
+### Coordinator's item for the layering (2026-09-30)
+
+The side locks' partition is unstable under a face edit: tool/face5's jaw moves the hull labels near the cheek (front
+6527 -> 6539), so side_lock_L's tips go 38/58/74 -> 34/58/82 deg, side_lock_R's -74/-66 -> -78/-62, the skin-clearance
+trim 91 -> 88 cells, and art_terminator_hair 1.804 -> 2.111 (input swaps: ~/animation-pipeline-face/charkit/out/f5swap/
+swap.json, read only). When the side locks are templated, their partition and tips come from the drawing or the lock
+truth, not the hull labels; and a stability check: a face-only edit (the face5 swap) leaves the side locks put
+(their lock bounds and tips within a tolerance). face5 will likely land first with that terminator WARN accepted.
+
 ## Jobs
 
 (none running)

@@ -26,13 +26,13 @@ for v in hf.VIEWS:
         ah = np.isin(L[v], code)
         rest = (L[v] >= hf.PART0) & ~ah
         ms.append((ah & ~rest, rest, ah))
-    w = hf._window(*[m[0] for m in ms], pad=15)
+    w = hf.window(*[m[0] for m in ms], pad=15)
     for (a, r, full) in ms:
         t = np.ones(a[w].shape + (3,))
         t[r[w]] = (.9, .8, .7)
         t[full[w]] = (.6, .9, .85)
         t[a[w]] = (.1, .6, .55)
-        P = hf.centreline(a[w])
+        got = hf.centreline(a[w], r[w]); P = None if got is None else got[0]
         if P is not None:
             for y, x in P.astype(int):
                 t[y, x] = (.9, .1, .1)
