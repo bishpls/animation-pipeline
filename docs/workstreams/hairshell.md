@@ -1,6 +1,6 @@
 # Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: **round 4 in progress** (see "# Round 4" at the end). Round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: **round 4 done** (gate PASS under K; review page `charkit/out/hairshell3/review/index.html`; see "# Round 4" at the end). Round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -750,3 +750,57 @@ under K** (2c1966ef into pipeline-3d 9be5b320, `charkit/out/gate/gate_tool-hairs
 nothing blocks; hair_noise remeasured 0.0756 W -> 4.4 P (record CALIBRATED), hair_tone_edges new INFO (0.0756);
 measuring code changed with no step reported for parts that read qa3d.LIMITS / lockshell / shade_normals (nothing
 moved: the geometry is the same); 95 test files pass; build CPU 1432.7 -> 1198.2 s (0.84x).
+
+
+## Round 4 result: real builds on the merged head (pipeline-3d 9be5b320, the strokes in)
+Builds: r5_hull, r5_c1e, r5_c2, r5_c2e (render2, boards views,body,design), r5_c1, r5_hull_e (build box). Six placements
+`charkit/out/hairshell3/r5/t6_*.log`; the 52-lock truth `charkit/out/hairshell3/r5/locks_*.log` (hairlocks score; the
+all-locks figure is the lock-weighted mean of the family lines); overlays `charkit/out/hairshell3/r5/pics/`.
+
+| count | hull | hull + ell | C1 pilot | **C1e pilot + ell** | C2 hem + bangs | C2e + ell |
+|---|---|---|---|---|---|---|
+| art_terminator_hair placement | 2.370 W | 2.151 W | 1.646 P | **1.303 P** | 1.460 P | 1.894 P |
+| six placements mean (back) | 2.173 (1.87) | 2.172 (1.77) | 1.740 (2.02) | **1.417 (1.77)** | 1.521 (1.93) | 1.937 (2.62) |
+| art_peeks_hair place / mean | 17 / 17.3 | 17 / 17.3 | 18 / 18.2 | 18 / 18.2 | 24 / 22.5 | 24 / 22.5 |
+| hair_back_lines | 0.928 W | 0.928 W | 0.584 W | 0.584 W | 0.285 P | 0.285 P |
+| hair_back_hem | 3 W | 3 W | 2 P | 2 P | 3 W | 3 W |
+| lock lines 3q / P | 0.290 / 0.172 | 0.285 / 0.188 | 0.314 / 0.189 | 0.312 / 0.205 | 0.326 / 0.201 | 0.320 / 0.238 |
+| truth all / side / lower / bangs | 0.352 / 0.379 / 0.304 / 0.431 | = hull | 0.405 / 0.580 / 0.344 / 0.431 | = C1 | 0.409 / 0.580 / 0.414 / 0.367 | = C2 |
+| side locks F / P | 0.529 / 0.474 | = | 0.598 / 0.573 | = | 0.600 / 0.568 | = |
+| lower back F / P / B | 0.514 / 0.664 / 0.672 | = | 0.508 / 0.610 / 0.720 | = | 0.508 / 0.627 / 0.750 | = |
+| upper back P / B | 0.621 / 0.889 | = | 0.659 / 0.898 | = | 0.662 / 0.895 | = |
+| bangs F / P | 0.834 / 0.630 | = | 0.824 / 0.633 | = | 0.831 / 0.637 | = |
+| hair_noise (speckle) / folds | 4.40 / 9 | 4.82 / 9 | 4.39 / 9 | 4.40 / 9 | 4.84 / 9 | 4.84 / 9 |
+
+**Decision 4 (the default switch):** the pilot with the ellipsoid (C1e) wins every count but two: peeks 17 -> 18 (WARN
+both; the mean 17.3 -> 18.2) and the lower back's profile 0.664 -> 0.610 (-8%, inside the guard). Not "every count", so
+the page asks A (switch now, accepting those) / B (wait), recommended B. **Decision 5:** the whole hem takes the back's
+stripes off (0.928 W -> 0.285 P) and lifts the lower back's truth (0.304 -> 0.414) but opens gaps (peeks 24) and the
+bangs laid over their wedges cut them off-truth (0.431 -> 0.367); the hem prefers no ellipsoid (back 1.93 vs 2.62).
+Looked at on the boards: every build still reads as a rounded bob at the back's hem against the design's lobed,
+flicked hem (tips ours 5-6, the drawing's 8): the flicks now lie on the mass.
+
+**Review page:** `charkit/out/hairshell3/review/index.html` (`python -m charkit review page
+charkit/out/hairshell3/review.json --out charkit/out/hairshell3/review --open`; figures under
+charkit/out/hairshell3/review_src, kink/, speck/). Asked of Michael: (1) default switch A/B (rec. B); (2) keep hair_noise
+as the speckle measure (rec. yes); (3) continue the whole hem after the identity round (rec. yes).
+
+## Next steps (for the round after the cross-view identity round)
+1. Peeks (17 -> 18 on the pilot; 24 on the whole hem): `tools/hairshell2/peekmap.py`-style attribution per object on
+   r5_c1e / r5_c2 (charkit/out/hairshell2/peekmap.py BUILD PNG, run on the box via `charkit script`), then widen the
+   flick groups toward their neighbours (widen_lw lower_back 2 -> 3-4) or an under-mass for the hem groups.
+2. The lower back's profile (0.610): containment on the left flicks already in (contain 5); the rest is the side shells
+   uncovering the lower back's top in profile (famconf: +0.018 with the hull's side locks) and the flicks' free tips;
+   try widen_back > 1 on the side shells (their back edge) and contain 8 on the flicks; famconf.py on the row.
+3. The hem's silhouette (Michael's tips priority): a hooked-flick template (a curl at the tip: the centreline turning
+   out and up over its last share, fitted to the back's lobes and the profile's J hooks), unit 'cells' for the hem's
+   lobes; hem tips toward the drawing's 8.
+4. Bangs: as shells over their wedges they cut the bangs off-truth (0.431 -> 0.367): needs the identity round (their
+   locks joined across front and profile) before more.
+5. The ellipsoid: on for the pilot's flicks (back 2.13 -> 1.77), off for the whole hem (1.93 -> 2.62): per-family
+   shade_ellipsoid would need hairpieces.shade_normals to blend per piece (tool/hairstrokes' code; coordinate).
+
+## Jobs
+None running. The scratch worktree `~/animation-pipeline-hairshell-ell` (branch scratch/hairshell3-ell, not for merge:
+the ellipsoid cherry-pick and style profiles, superseded by pipeline-3d's merge of the strokes; its builds ell_* and
+sweeps charkit/out/ell/ hold (2b)-(2d)'s numbers) can be removed once this round's numbers are read.
