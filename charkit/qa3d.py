@@ -10,8 +10,10 @@ materials, and nothing here needs Blender. `python -m charkit build --qa blender
   ref        front silhouette overlap with the reference image (both cropped to their bounding boxes)
   scalp      pixels of scalp showing through the hair (the upper cranium and the back of the head, flagged), per view
   poke       share of garment pixels where the body shows through
-  hair_noise the hair's shading noise: tone edges per hair pixel (clean anime shadow shapes are low; noisy normals high),
-             on the hair drawn with its own toon materials, envelope normals and outline hull
+  hair_noise the hair's speckle: blobs under 0.002 L^2 standing out by half the hair's cel step, per L^2 of hair (the
+             flagged blotchy hair's light speckles; the design's lock-shaped shadows and shine marks read 4-6), on the
+             hair drawn with its own toon materials and outlines as the render draws them (hair_tone_edges, INFO: the
+             tone edges per hair pixel it measured before)
   mesh       open edges and loose parts per hair / garment object (information)
   face_shape the face's shape against the generated character's face (charkit/faceqa.py: the lower face's width, the chin,
              the profile, the cheek at three-quarter, depth from under the eyes; how much face the hair leaves showing) and
@@ -59,7 +61,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AZ = (0, 45, 90, 135, 180, 270)
 LIMITS = {                     # (pass at or better, warn at or better); else fail
     'shape_iou': (0.80, 0.65), 'shape_iou_hair': (0.75, 0.60), 'ref_iou': (0.85, 0.70),
-    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08), 'face_folds': (40, 300),
+    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (8.0, 12.0), 'face_folds': (40, 300),
     'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
     'viseme_gap': (0.010, 0.005), 'mouth_cover': (0.97, 0.90),
 }
@@ -2098,35 +2100,120 @@ def hair_noise_ink(ink, shape, ss=FIG_SS, reach=None):
     return _to_shape(m[ss // 2::ss, ss // 2::ss], shape)
 
 
+HAIR_SPECK = 0.002              # L^2: hair_noise's speckle is a blob under this (artifactqa.ISLAND, its tone islands) ...
+HAIR_SPECK_DL = 0.5             # ... standing out from the hair round it by at least this share of the hair's cel step
+HAIR_SPECK_EDGE = 2             # px: ... and not within this of the hair's silhouette (its anti-aliased fringe)
+
+
+def hair_cel_step(B, design=None):
+    """the hair's cel step (sRGB luminance, lit - shade): the design's hair palette (paletteqa's lit and shade on the
+    body sheet, as sheet_palette reads them), else our hair material's lit and shade."""
+    W_ = np.array([0.3, 0.59, 0.11])
+    try:
+        from . import paletteqa
+        design = design if design is not None else Design(B)
+        pal = design.memo(paletteqa.extract_views, design.design_views()).get('hair') or {}
+        lit, sh = np.asarray(pal['lit'], float), np.asarray(pal['shade'], float)
+        lit, sh = (lit / 255.0, sh / 255.0) if max(lit.max(), sh.max()) > 1.5 else (lit, sh)
+        return float(lit @ W_ - sh @ W_)
+    except Exception:
+        pass
+    for m in B.materials.values():
+        sd = (m or {}).get('shading') or {}
+        if (m or {}).get('kind') == 'toon3' and 'lit' in sd and 'shade' in sd:
+            return float(_srgb(np.asarray(sd['lit'], float)) @ W_ - _srgb(np.asarray(sd['shade'], float)) @ W_)
+    return 0.15
+
+
+def speckles(px, lab, ink, step, ppl, area=HAIR_SPECK, dl=HAIR_SPECK_DL, edge=HAIR_SPECK_EDGE):
+    """a hair picture's speckles: per tone group (lab: 0 none, else hair_noise_group's), the blobs of its luminance under
+    `area` L^2 (an area opening for the light ones, an area closing for the dark: whatever their shape or tone, anything
+    larger stays, as a lock's shadow does) standing out by dl x step or more from the hair round them, the ink and the
+    rest of the picture filled from the nearest hair pixel first (a line or the background makes no blob), and none
+    within `edge` px of the hair's silhouette. -> (blob mask, blobs counted, the hair's pixels)."""
+    from scipy import ndimage
+    from skimage.morphology import area_closing, area_opening
+    grp = np.where((px[..., 3] > 0.5) & (lab >= 1) & ~ink, lab, 0)
+    lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
+    A = max(1, int(round(area * ppl ** 2)))
+    inner = ndimage.binary_erosion(px[..., 3] > 0.5, iterations=int(edge), border_value=0)
+    sp = np.zeros(grp.shape, bool)
+    n_px, n_blobs = 0, 0
+    for g in np.unique(grp[grp > 0]):
+        a = grp == g
+        n_px += int(a.sum())
+        _, (iy, ix) = ndimage.distance_transform_edt(~a, return_indices=True)
+        f = lum[iy, ix]
+        s_ = ((f - area_opening(f, A, connectivity=2) > dl * step) |
+              (area_closing(f, A, connectivity=2) - f > dl * step)) & a & inner
+        sp |= s_
+        n_blobs += int(ndimage.label(s_, structure=np.ones((3, 3)))[1])
+    return sp, n_blobs, n_px
+
+
 @qa_part('hair_noise', order=400)
 def hair_noise(B, design=None, out=None):
-    """the hair's shading noise as a render shows it: the hair drawn with its own materials and its outlines, as the
-    render draws them (tool/hairshell3: the ink between two locks, and the line's filtered edge, is not hair: a tone
-    change across a drawn line is a piece boundary, not shading; where the build fades a line out, the change counts),
-    behind the rest of the character drawn alike (which hides the hair's inside through the face), from 0, 90 and 180
-    degrees; each visible hair pixel's luminance cut into three tones at its group's 33rd and 66th percentiles (the buns
-    apart from the rest: tone_edges), the tone edges per visible hair pixel. A pixel within HAIR_NOISE_INK pixels of
-    the ink is the line's, not the hair's (hair_noise_ink)."""
+    """the hair's speckle (round 4, tool/hairshell3: speckled shading, the flagged blotchy hull-era hair's light speckles
+    on the back and sides; the design's own lock-shaped cel shadows are not noise): the hair drawn with its own materials
+    and its outlines, as the render draws them (the ink between two locks, a drawn stroke, and the line's filtered edge
+    are the line's: hair_noise_ink), behind the rest of the character drawn alike, from 0, 90 and 180 degrees; per view
+    the hair's speckles (speckles: blobs under HAIR_SPECK L^2 standing out by half the hair's cel step, hair_cel_step)
+    per L^2 of visible hair, and the views' mean. hair_tone_edges (INFO) keeps the measure before it: tone edges per
+    hair pixel, the hair drawn without outlines."""
     hair = _visible(B, ('hair',))
     if not hair:
         return None, {}
-    vals, per = [], {}
+    step = hair_cel_step(B, design)
+    fr = figure_frame(B, ss=FIG_SS)
+    ppl = float(B.assembly['L']) / (fr.pix * FIG_SS)
+    vals, per, share = [], {}, {}
     for az, px, lab, ink in hair_noise_views(B, hair):
-        grp = np.where((px[..., 3] > 0.5) & (lab >= 1) & ~ink, lab, 0)
-        lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
-        e, n = tone_edges(lum, grp)
-        a = grp > 0
-        vals.append(float((e & a).sum()) / max(1, n))
-        per[az] = round(float(vals[-1]), 4)
+        sp, nb, n = speckles(px, lab, ink, step, ppl)
+        vals.append(nb / max(1e-9, n / ppl ** 2))
+        per[az] = round(float(vals[-1]), 2)
+        share[az] = round(float(sp.sum()) / max(1, n), 5)
         if out and az == 0:
+            from scipy import ndimage
+            a = (px[..., 3] > 0.5) & (lab >= 1)
             pic = np.where(a[..., None], px[..., :3], 0.93)
+            pic[ndimage.binary_dilation(sp, iterations=2) & ~sp] = (1.0, 0.0, 0.0)
             _save_rgb(os.path.join(out, 'qa_hair_front.png'), pic)
     unsupported = sorted({m for o in hair for m in o.materials if m and (B.materials.get(m) or {}).get('kind') == 'other'})
     v = float(np.mean(vals))
-    C = {'hair_noise': {'value': round(v, 4), 'per_view': per, 'status': _grade('hair_noise', v, False)}}
+    C = {'hair_noise': {'value': round(v, 2), 'per_view': per, 'share': share, 'step': round(step, 4),
+                        'status': _grade('hair_noise', v, False)}}
     if unsupported:
         C['hair_noise']['caution'] = 'drawn with flat tones for %s (a material the QA does not shade)' % ', '.join(unsupported)
+    te, te_per = hair_tone_edges(B, hair)
+    C['hair_tone_edges'] = {'value': round(te, 4), 'per_view': te_per, 'status': 'INFO',
+                            'note': "hair_noise's measure before round 4 (tone edges per hair pixel, the hair drawn "
+                                    "without outlines), kept as INFO for a release"}
     return per, C
+
+
+def hair_tone_edges(B, hair):
+    """hair_noise's measure before round 4 (INFO): the hair drawn with its own materials, without its outlines, behind the
+    rest of the character, from 0, 90 and 180 degrees; tone edges per visible hair pixel (tone_edges), the views'
+    mean. -> (value, {az: value})."""
+    fr = figure_frame(B, ss=FIG_SS)
+    surfs, groups = [], []
+    for o in hair:
+        for x in surfaces(B, o, outline=False):
+            surfs.append(x); groups.append(hair_noise_group(o))
+    occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
+           for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
+    grp_of = np.array(groups + [-1] * len(occ) + [-1])
+    vals, per = [], {}
+    for az in (0, 90, 180):
+        view = draw_view(B, surfs + occ, az, fr)
+        px = draw_lit(B, view)
+        grp = np.where(px[..., 3] > 0.5, _to_shape(grp_of[view['mesh']], px.shape[:2]), 0)
+        grp = np.where(grp >= 1, grp, 0)
+        lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
+        e, n = tone_edges(lum, grp)
+        vals.append(float((e & (grp > 0)).sum()) / max(1, n))
+        per[az] = round(vals[-1], 4)
+    return float(np.mean(vals)), per
 
 
 def hair_noise_views(B, hair):

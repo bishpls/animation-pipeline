@@ -254,7 +254,8 @@ CAPABILITY = {
     'expr_*': "the expression library's shapes (charkit/eyes.py, mouth.py, brows.py; expressions.PRESETS): a shape the "
               "sheet draws that the template doesn't have, or has only roughly, is a template addition",
     'figures_*': "the model sheet's figure detection (charkit/sheetqa.py detect_figures) against the typed head boxes",
-    'hair_noise': "the generated hair's normals: the hair surface itself (charkit/geom's closed shell, `--hair geom`)",
+    'hair_noise': "speckled hair shading: the hair's shading normals (charkit.geom.hairpieces.shade_normals, the envelope's "
+                  "folds where the surface is pulled in by its outline) and the material's highlight marks",
     'scalp_px': "hair coverage: the hair volume's shape over the cranium (charkit/hair.py, charkit/geom)",
     'poke_share': "garments fitted as offsets of the body: collision-aware fitting of each piece (charkit/garments.py)",
     'eye_highlight_side': "the eye texture's highlight placement (charkit/eyetex.py has no side knob)",

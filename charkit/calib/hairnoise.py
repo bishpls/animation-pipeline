@@ -1,20 +1,25 @@
-"""Calibration adapter for hair_noise (charkit.qa3d.hair_noise; tool/hairshell3's remeasure: the hair drawn with its
-outlines as the render draws them, the ink and its filtered edge not counted). Ours is our hair's pictures from 0, 90
-and 180 degrees (qa3d.hair_noise_views); here the design stands in: the body sheet's front, profile and back hair
-(bodyqa.design_views: the hair class as its two drawn cel tones, paletteqa's lit and shade, each pixel the nearer;
-the drawn lines as the ink) brought to the QA picture's scale (its
-pixel filter, the ink's reach as hair_noise_ink's), the buns their own tone group where the hair layers name them;
-moved 1-2 px at the sheet's own resolution (the sampling phase moves). The part's measuring code runs unchanged on them
-(qa3d.hair_noise_views patched for the run).
+"""Calibration adapter for hair_noise (charkit.qa3d.hair_noise). Round 4 (tool/hairshell3) redefined it as a speckle
+measure: blobs under 0.002 L^2 standing out by half the hair's cel step, per L^2 of hair (qa3d.speckles), on the hair
+drawn with its outlines as the render draws them (the ink and its filtered edge not counted). The measure before it
+(tone edges per hair pixel) read the design's own lock-shaped shadows as noise (0.216 FAIL) and the flagged blotchy
+build as WARN (0.046); it stays as INFO (hair_tone_edges).
 
-Known-bad: ck6_blotchy, pipeline-3d's confirm build of 2026-09-28 (the hull-era hair the review flagged as "blotchy:
-light speckles on the back and sides", T003, on that run's ck3_final, which kept no bundle).
+Ours is our hair's pictures from 0, 90 and 180 degrees (qa3d.hair_noise_views); here the design stands in: the body
+sheet's front, profile and back hair (bodyqa.design_views: the hair class as its drawn cel tones, paletteqa's lit and
+shade, each pixel the nearer, and its drawn shine marks, the pale strokes across the crown, as a third tone; the drawn
+lines as the ink) brought to the QA picture's scale (its pixel filter, the ink's reach as hair_noise_ink's), the buns
+their own tone group where the hair layers name them; moved 1-2 px at the sheet's own resolution (the sampling phase
+moves). The part's measuring code runs unchanged on them (qa3d.hair_noise_views patched for the run).
+
+Known-bad: ck7_blotchy, pipeline-3d's confirm run's final build ck7_final of 2026-09-28, the build the review flagged
+(T003: "the hair shading is blotchy: light speckles on the back and sides").
 
 Generators (seeded):
   speckle        the design's hair with random blots (radius 1-2 px, 6% of the hair) each in the colour of a random
                  hair pixel: speckled shading (the floor)
   voronoi_tones  (probe) the design's hair cut into random cells, as many as its own tone regions, each in the colour of a
-                 random hair pixel: as many tone regions, none of its shapes (a noise measure counts edges, not shapes)
+                 random hair pixel: as many tone regions, none of its shapes. A speckle detector is blind to it by design
+                 (cells are large): the hair pieces' shape checks guard the shapes
 """
 import contextlib
 
@@ -23,16 +28,18 @@ import numpy as np
 from .labels import patched
 
 CALIBRATION = [
-    dict(check='hair_noise', part='hair_noise', adapter='HairNoise', known_bad='ck6_blotchy', kind='defect',
+    dict(check='hair_noise', part='hair_noise', adapter='HairNoise', known_bad='ck7_blotchy', kind='defect',
          baseline=['speckle'], probes=['voronoi_tones'], better='lower',
          shape=['hair_piece_bangs', 'hair_piece_side_locks', 'hair_piece_upper_back', 'hair_piece_lower_back']),
 ]
 
 VIEWS = ((0, 'front'), (90, 'profile'), (180, 'back'))
+SHINE_DL = 0.06         # the design's shine marks: hair this much over its lit tone's luminance (tool/hairstrokes' tones)
 
 
 class HairNoise:
     part = 'hair_noise'
+    shine = True            # the stand-in keeps the design's drawn shine marks (False: two cel tones, round 3's)
     generators = {
         'speckle': "the design's hair with random blots (radius 1-2 px, 6% of the hair), each a random hair pixel's colour",
         'voronoi_tones': "the design's hair cut into random cells, as many as its tone regions, each a random hair "
@@ -81,10 +88,18 @@ class HairNoise:
             hair = d['cls'] == bodyqa.CLASS['hair']
             if self._pal is not None:
                 # the hair as its drawn cel tones: each hair pixel the nearer of the design's lit and shade
-                # (paletteqa's, as sheet_palette reads them), not the painting's gradients and brush texture
+                # (paletteqa's, as sheet_palette reads them), not the painting's gradients and brush texture; and
+                # (round 4) its drawn shine marks, a third tone: the pixels SHINE_DL over the lit tone's luminance
+                # (the short pale strokes across the crown), in their own median colour
                 lit, sh = self._pal
                 near_sh = ((rgb - sh) ** 2).sum(-1) < ((rgb - lit) ** 2).sum(-1)
-                rgb = np.where(hair[..., None], np.where(near_sh[..., None], sh, lit), rgb)
+                cel = np.where(near_sh[..., None], sh, lit)
+                if self.shine:
+                    lum = rgb @ np.array([0.3, 0.59, 0.11])
+                    hi = hair & (lum > float(lit @ np.array([0.3, 0.59, 0.11])) + SHINE_DL)
+                    if hi.sum() >= 3:
+                        cel = np.where(hi[..., None], np.median(rgb[hi], 0), cel)
+                rgb = np.where(hair[..., None], cel, rgb)
             line = (d['raw'] == bodyqa.CLASS['line']) & ndimage.binary_dilation(hair, iterations=2)
             bun = buns.get(v)
             bun = bun if bun is not None and bun.shape == hair.shape else np.zeros_like(hair)
