@@ -34,7 +34,19 @@ Kinds:
          collar, top and bodice_panel (R) with the bow and its tails free (DC) and the kept pieces round them left out;
          the V (front and three-quarter: the skin in V_WIN) against the turnaround's visible skin there, the bow free.
 
-    python -m charkit.layerref SPEC SHEET.png --kind body|clips|skirt|bodice [--out DIR]
+  top, collar_alone, bow_alone (garments8, 2026-10-01): the bodice kind's measure over LAYERS' table: the top without
+         the collar and the bow (bodice_layers redrawn without the collar), and the collar alone and the bow alone each
+         worn on base_body_turnaround's bodysuit (the kept parts the head and the legs; the turnaround's other pieces
+         scored, the layer read as a cream piece with its stripes)
+
+  collar_ghost, bow_ghost (garments8): one piece alone as worn over the costume by an invisible person, a view per
+         blob (GHOSTS: drawn at their own place and scale, each view registered by one joint scale and its own shift;
+         the piece drawn over what the turnaround shows in front of it is free, over anything else outside)
+
+    python -m charkit.layerref SPEC SHEET.png --kind body|clips|skirt|bodice|top|collar_alone|bow_alone|collar_ghost|bow_ghost
+                                              [--out DIR]
+                                              (ghosts: [--views V,.. (the sheet's, left to right)] [--mirror V,..])
+    python -m charkit.layerref truths SPEC [--out PATH]      # the manifest's shape_truth masks (build_truths)
     python -m charkit.layerref SPEC SHEET.png --kind edit --cover NAMES [--against REF] [--band z0,z1]
                                               [--revealed NAMES] [--ungraded cover_left] [--grade-views V,..]
     python -m charkit.layerref SPEC SHEET.png --kind alone --piece NAMES --views V,.. [--against REF] [--hidden NAMES]
@@ -590,7 +602,7 @@ def sheet_views(spec, path, rgb=None, log=print):
     ppl_t = sheetqa.detect_figures(_load(bs['image']), None, ex, bs.get('facing', -1))['ppl']
     D = sheetqa.detect_figures(rgb, ppl_t / s, ex, bs.get('facing', -1))
     DV = bodyqa.design_views(rgb, D, ppl_t / s)
-    return {v: dict(fg=d['fg'], cls=d['cls']) for v, d in DV.items()}, s
+    return {v: dict(fg=d['fg'], cls=d['cls'], raw=d['raw']) for v, d in DV.items()}, s
 
 
 def _crop_to(m, shape):
@@ -600,13 +612,63 @@ def _crop_to(m, shape):
     return out
 
 
-def check_bodice(spec, path, log=print, rgb=None):
+# the separated layer sheets in the turnaround's layout (Clawd's: graded on the outfit truth). Per sheet: `layer` the
+# pieces it draws (R: their turnaround pixels), `cover` what it leaves out or reveals under (DC: free), `low` the kept
+# parts' top below the band (BODICE_LOW_Z: the waistband, skirt, legs and boots kept as drawn; LEGS_Z: only the legs and
+# boots, the sheet drawn on base_body_turnaround), `read` how the sheet's layer is read ('garment': its orange, cream
+# and dark; 'cream': a cream piece and its stripes, the base body's charcoal bodysuit not), `others` the turnaround's
+# other pieces in the band ('kept': drawn on the sheet as they are, scored neither way; 'scored': absent from the
+# sheet, so the layer drawn over them stands outside), `v` the V's skin graded (front, three-quarter).
+LAYERS = {
+    'bodice': dict(layer=BODICE_LAYER, cover=BODICE_COVER, low=BODICE_LOW_Z, read='garment', others='kept', v=True),
+    # garments8 (2026-10-01): the top without the collar and the bow (bodice_layers redrawn without the collar)
+    'top': dict(layer=('top', 'bodice_panel'), cover=('collar',) + BODICE_COVER, low=BODICE_LOW_Z, read='garment',
+                others='kept', v=True),
+    # the sailor collar alone, worn on base_body_turnaround's bodysuit (the hair kept in front as drawn)
+    'collar_alone': dict(layer=('collar',), cover=BODICE_COVER, low=LEGS_Z, read='cream', others='scored', v=False),
+    # the bow alone, worn on base_body_turnaround's bodysuit
+    'bow_alone': dict(layer=BODICE_COVER, cover=(), low=LEGS_Z, read='cream', others='scored', v=False),
+}
+STRIPE_PX = 7                       # read 'cream': the collar's stripes closed into it (px at the turnaround's scale)
+SPECK = 0.02                        # layer_pieces: a piece's components under this share of its largest are specks
+SPLIT_PX = 2                        # layer_pieces: the cream eroded by this before its components are taken (a lapel's
+                                    # tip touches the bodice front's cream through an anti-aliased line)
+
+
+def _cream_layer(cls_c, fg_c):
+    """a sheet's cream piece with its stripes and its drawn lines inside it: the cream (or paler: the colour classes'
+    'white', which in the band nothing else is: the boots are kept parts) closed by STRIPE_PX, kept where
+    the closing covers dark, line or cream pixels (not skin or the bodysuit's grey: the 'other' or 'none' classes),
+    opened by 1 px; components under 1% of the largest dropped."""
     from scipy import ndimage
     from charkit import bodyqa
+    cream = fg_c & np.isin(cls_c, [bodyqa.CLASS['cream'], bodyqa.CLASS['white']])    # (drawn paler: 'white')
+    ok = np.isin(cls_c, [bodyqa.CLASS[c] for c in ('cream', 'white', 'dark', 'line')])
+    C = ndimage.binary_closing(cream, iterations=STRIPE_PX) & fg_c & (ok | cream)
+    C = ndimage.binary_opening(C, iterations=1)
+    lab, n = ndimage.label(C)
+    if n:
+        sizes = np.bincount(lab.ravel())[1:]
+        C = np.isin(lab, np.nonzero(sizes >= 0.01 * sizes.max())[0] + 1)
+    return C
+
+
+def check_bodice(spec, path, log=print, rgb=None):
+    return check_layer(spec, path, 'bodice', log, rgb)
+
+
+def check_layer(spec, path, kind, log=print, rgb=None, keep_masks=None):
+    """a separated layer sheet in the turnaround's layout (LAYERS[kind]) against the turnaround's outfit truth.
+    keep_masks: a dict filled with each view's registered layer mask (C, on the outfit truth's grid)."""
+    from scipy import ndimage
+    from charkit import bodyqa
+    K = LAYERS[kind]
     TV = _truth_views(spec, log)
     SV, s = sheet_views(spec, path, rgb, log)
-    out = {'kind': 'bodice', 'path': os.path.relpath(path, ROOT) if os.path.isabs(path) else path, 'scale': round(s, 4),
+    out = {'kind': kind, 'path': os.path.relpath(path, ROOT) if os.path.isabs(path) else path, 'scale': round(s, 4),
            'views': {}, 'tol': TOL}
+    if kind != 'bodice':
+        out['layer'] = dict(K)
     imgs = {}
     garment = [bodyqa.CLASS[c] for c in ('orange', 'cream', 'dark')]
     skin = [bodyqa.CLASS['skin'], 5]
@@ -618,7 +680,7 @@ def check_bodice(spec, path, log=print, rgb=None):
         H, W = t['fg'].shape
         fg_c, cls_c = _crop_to(SV[v]['fg'], (H, W)), _crop_to(SV[v]['cls'], (H, W))
         z = t['z']
-        head, low = (z >= HEAD_Z)[:, None], (z <= BODICE_LOW_Z)[:, None]
+        head, low = (z >= HEAD_Z)[:, None], (z <= K['low'])[:, None]
         kept = head | low
         best = (-1.0, 0, 0)
         for dy in range(-8, 9):
@@ -627,23 +689,26 @@ def check_bodice(spec, path, log=print, rgb=None):
                 if q > best[0]:
                     best = (q, dy, dx)
         fg_c, cls_c = _shift(fg_c, best[1], best[2]), _shift(cls_c, best[1], best[2])
+        raw_c = _shift(_crop_to(SV[v]['raw'], (H, W)), best[1], best[2]) if 'raw' in SV[v] else None
         band = ~kept
         P = t['pieces']
         layer = np.zeros((H, W), bool)
-        for p in BODICE_LAYER:
+        for p in K['layer']:
             layer |= P.get(p, False)
         cover = np.zeros((H, W), bool)
-        for p in BODICE_COVER:
+        for p in K['cover']:
             cover |= P.get(p, False)
         R = ndimage.binary_closing(layer, iterations=3) & t['fg'] & band
         cover = ndimage.binary_closing(cover, iterations=3) & t['fg'] & band & ~R
         # the kept pieces in the band (the sleeves, cuffs, hands, hair, the waistband's top) and their drawn rims score
-        # neither way: the sheet keeps them as drawn (their silhouettes are the kept parts' business)
+        # neither way: the sheet keeps them as drawn (their silhouettes are the kept parts' business); a sheet that
+        # draws the layer alone scores the layer over them (others 'scored'), the hair left out (in front on both)
         other = np.zeros((H, W), bool)
-        for p, m in P.items():
-            if p in BODICE_LAYER or p in BODICE_COVER or p in ('none', 'unscored'):
-                continue
-            other |= m
+        if K['others'] == 'kept':
+            for p, m in P.items():
+                if p in K['layer'] or p in K['cover'] or p in ('none', 'unscored'):
+                    continue
+                other |= m
         hair = t['cls'] == bodyqa.CLASS['hair']
         # where the turnaround's own truth and its colour classes disagree (a cell the truth leaves 'none', the hair's
         # ends or a shadow, that the classes call fabric) neither side is scored
@@ -652,15 +717,24 @@ def check_bodice(spec, path, log=print, rgb=None):
         rim = P['unscored'] & ndimage.binary_dilation(R | cover, iterations=4) & ~R
         DC = (cover | rim) & ~E
         S = band & ~E & ~(P['unscored'] & ~R & ~cover)          # (the truth's drawn lines score neither way)
-        C = np.isin(cls_c, garment) & fg_c & S
-        C = ndimage.binary_opening(ndimage.binary_closing(C, iterations=2), iterations=1) & S
+        if K['read'] == 'cream':
+            Cf = _cream_layer(cls_c, fg_c) & band & ~E
+            C = Cf & S
+        else:
+            C = np.isin(cls_c, garment) & fg_c & S
+            C = ndimage.binary_opening(ndimage.binary_closing(C, iterations=2), iterations=1) & S
+            Cf = np.isin(cls_c, garment) & fg_c & band & ~E
+            Cf = ndimage.binary_opening(ndimage.binary_closing(Cf, iterations=2), iterations=1) & band & ~E
+        if keep_masks is not None:              # (Cfull: the sheet's layer before the truth's lines are left out)
+            keep_masks[v] = dict(C=C, Cfull=Cf, R=R & S, DC=DC & S, band=band, shift=[best[1], best[2]], cls=cls_c,
+                                 raw=raw_c, fg=fg_c)
         sc = scores(C, R & S, DC & S)
         rec = dict(shift=[best[1], best[2]],
                    kept_iou=dict(head=round(_iou(t['fg'] & head, fg_c & head), 4),
                                  lower=round(_iou(t['fg'] & low, fg_c & low), 4)), **sc)
         ok = (min(rec['kept_iou'].values()) >= TOL['kept_iou'] and sc['iou_dc'] >= TOL['iou_dc']
               and sc['outside'] <= TOL['outside'] and sc['recall'] >= TOL['recall'])
-        if v in ('front', 'three_quarter'):
+        if K['v'] and v in ('front', 'three_quarter'):
             mid = int(round(bodyqa.WIN['x'] * t['ppl']))
             xs = (np.arange(W) - mid + 0.5) / t['ppl']
             win = (np.abs(xs) <= V_WIN['x'])[None, :] & ((z <= V_WIN['top']) & (z >= V_WIN['bottom']))[:, None]
@@ -684,6 +758,361 @@ def check_bodice(spec, path, log=print, rgb=None):
             'PASS' if ok else 'FAIL'))
     out['pass'] = bool(abs(s - 1) <= TOL['scale'] and all(r.get('pass') for r in out['views'].values()))
     return out, imgs
+
+
+def layer_pieces(km, t, layer, cover, min_vote=20):
+    """a registered layer sheet's layer (check_layer's keep_masks for one view: C, cls) cut into the layer's pieces by the
+    sheet's own colours: its orange is the jacket ('top'); each cream component (the colour classes' cream or paler,
+    split by the lines and the stripes) goes to the cream piece (collar, bodice_panel) the outfit truth labels most of
+    its pixels where the turnaround shows them (the cover's pixels don't vote), one with fewer than min_vote votes (all
+    of it under the cover) to the cream piece it shares the most border with; the collar takes its stripes (the cream
+    closed by STRIPE_PX); the rest of the layer (lines, shading) goes to the nearest piece. -> {piece: mask}."""
+    from scipy import ndimage
+    from charkit import bodyqa
+    C, cls = km.get('Cfull', km['C']), km['cls']
+    raw = km['raw'] if km.get('raw') is not None else cls
+    P = t['pieces']
+    cov = np.zeros(C.shape, bool)
+    for p in cover:
+        cov |= P.get(p, False)
+    img = np.full(C.shape, -1)
+    if 'top' in layer:
+        img[C & (cls == bodyqa.CLASS['orange'])] = layer.index('top')
+    creams = [p for p in layer if p != 'top']
+    if creams:
+        cream = C & np.isin(raw, [bodyqa.CLASS['cream'], bodyqa.CLASS['white']])    # (split by the drawn lines,
+        comps, n = ndimage.label(ndimage.binary_erosion(cream, iterations=SPLIT_PX))  # thin necks cut: a lapel's tip)
+        if n:
+            _, (iy, ix) = ndimage.distance_transform_edt(comps == 0, return_indices=True)
+            comps = np.where(cream, comps[iy, ix], 0)
+        votes = np.zeros((n + 1, len(creams)))
+        for j, p in enumerate(creams):
+            m = P.get(p, np.zeros(C.shape, bool)) & ~cov
+            votes[:, j] = np.bincount(comps[m], minlength=n + 1)
+        lab = np.full(n + 1, -1)
+        ok = votes.sum(1) >= min_vote
+        lab[ok] = votes[ok].argmax(1)
+        lab[0] = -1
+        for _ in range(20):                  # unvoted components: the cream piece they border most
+            todo = [i for i in range(1, n + 1) if lab[i] < 0]
+            if not todo:
+                break
+            ci = np.where(comps > 0, lab[comps], -1)
+            changed = False
+            for i in todo:
+                ring = ndimage.binary_dilation(comps == i, iterations=STRIPE_PX) & (ci >= 0)
+                if ring.any():
+                    lab[i] = np.bincount(ci[ring]).argmax()
+                    changed = True
+            if not changed:
+                break
+        ci = np.where(comps > 0, lab[comps], -1)
+        for j, p in enumerate(creams):
+            m = ci == j
+            if p == 'collar':                # its stripes and the lines between them
+                m = ndimage.binary_closing(m, iterations=STRIPE_PX) & C & (img < 0)
+            img[m & (img < 0)] = layer.index(p)
+    if (img >= 0).any():                     # the rest of the layer: the nearest piece
+        _, (iy, ix) = ndimage.distance_transform_edt(img < 0, return_indices=True)
+        img = np.where(C, img[iy, ix], -1)
+    out = {}
+    for j, p in enumerate(layer):            # specks (a line's anti-aliasing read as fabric) dropped: components under
+        m = img == j                         # SPECK of the piece's largest
+        lab, n = ndimage.label(m)
+        if n > 1:
+            sz = np.bincount(lab.ravel())[1:]
+            m = np.isin(lab, np.nonzero(sz >= SPECK * sz.max())[0] + 1)
+        out[p] = m
+    return out
+
+
+# ghost-mannequin sheets (garments8, 2026-10-01): one piece alone, as worn over the costume by an invisible person, one
+# view per blob left to right in the turnaround's view order (the whole drawing is the piece: what the turnaround hides
+# of it drawn too). Drawn without a body the piece keeps neither the sheet's place nor its scale (the first takes: 2.3x
+# larger, 200 px lower), so each view is registered by a similarity: a scale about the common one (the views' median
+# of the turnaround's visible width over the sheet's, searched within GHOST_SCALE of it) and a shift (GHOST_SHIFT L
+# round the boxes' middles), coarse at half resolution then fine, where iou_dc is best. Per view: R the turnaround's
+# pixels of the piece (the outfit truth), DC what lies in front of it there (`front` pieces; the hair, and the neck's
+# skin between `neck_z` and HEAD_Z: the collar's band behind the neck, each within GHOST_NEAR of R), the rest scored: the piece drawn over anything else the
+# turnaround shows, or off the figure, stands outside. `hidden_views`: views where the body hides the piece (the bow
+# from behind): reported, not graded. The fitted scales' spread is the sheet's one scale (TOL scale_spread).
+GHOSTS = {
+    'collar_ghost': dict(layer=('collar',), front=BODICE_COVER, neck_z=-0.56, hidden_views=()),
+    'bow_ghost': dict(layer=BODICE_COVER, front=(), neck_z=None, hidden_views=('back',)),
+}
+GHOST_SCALE = 0.20                  # ghost: the per-view scale searched within +-20% of the common one
+GHOST_SHIFT = 0.40                  # ghost: L searched either way round the boxes' middles
+GHOST_NEAR = 0.10                   # ghost: the hair and the neck count as in front of the piece within this of it (L)
+
+
+def _ghost_blobs(path, rgb=None, n=4):
+    """a ghost sheet's pieces: its foreground's blobs of at least a fifth of the largest, left to right (blobs within
+    12 px merged: a piece's parts) -> [mask cropped to its box]."""
+    from charkit import bodyqa, sheetqa
+    rgb = _load(path) if rgb is None else rgb
+    fg = sheetqa.foreground(rgb, sheetqa.background(rgb))
+    lab, k = sheetqa.label(bodyqa.dilate(fg, 6))
+    if not k:
+        return []
+    B, area = sheetqa.boxes(lab, k)
+    keep = sorted([i for i in range(k) if area[i] >= 0.2 * area.max()], key=lambda i: B[i][0])
+    out = []
+    for i in keep:
+        x0, y0, x1, y1 = [int(v) for v in B[i]]
+        m = (fg & (lab == i + 1))[y0:y1 + 1, x0:x1 + 1]
+        out.append(m)
+    return out
+
+
+def _box(m):
+    ys, xs = np.nonzero(m)
+    return ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+
+
+class _GhostView:
+    """one view's registration of a ghost piece Cb (cropped to its box) on the truth grid round R's box: best(scale)
+    the coarse shift (half resolution, GHOST_SHIFT L round the boxes' middles) and its iou_dc; fine(scale, at) the
+    full-resolution polish (scale within FINE of it, +-4 px; FFT as best's) -> (score dict, scale, (row, col), the
+    placed mask)."""
+    FINE = 0.03                 # (the coarse scale step is 0.025: the fine search spans it)
+
+    def __init__(self, Cb, R, DC, S, s0, ppl):
+        H, W = R.shape
+        self.Cb, self.H, self.W = Cb, H, W
+        y0, y1, x0, x1 = _box(R)
+        self.cy, self.cx = (y0 + y1) / 2, (x0 + x1) / 2
+        self.reach = int(round(GHOST_SHIFT * ppl))
+        pad = self.reach + int(max(Cb.shape) * s0 * (1 + GHOST_SCALE)) + 4
+        self.wy0, wy1 = max(0, int(self.cy) - pad), min(H, int(self.cy) + pad)
+        self.wx0, wx1 = max(0, int(self.cx) - pad), min(W, int(self.cx) + pad)
+        Rw, Dw, Sw = (m[self.wy0:wy1, self.wx0:wx1] for m in (R, DC, S))
+        self.Rs, self.Ds, self.Sw = Rw & Sw, Dw & Sw & ~Rw, Sw
+        self.nR = self.Rs.sum()
+        self.Rh, self.Dh, self.Sh = self.Rs[::2, ::2], self.Ds[::2, ::2], Sw[::2, ::2]
+        self.nRh = self.Rh.sum()
+        self.R, self.DC, self.S = R, DC, S
+
+    def best(self, sc):
+        """the best shift at scale sc, at half resolution: every placement's matched and outside pixels at once as
+        cross-correlations of the placed piece with R and with the scored rest (FFT), over the +-reach box."""
+        from scipy.signal import fftconvolve
+        m = _resize_mask(self.Cb, sc / 2).astype(np.float32)
+        h, w = m.shape
+        oy0 = int(round((self.cy - self.wy0) / 2 - h / 2))
+        ox0 = int(round((self.cx - self.wx0) / 2 - w / 2))
+        if not hasattr(self, '_fp_img'):
+            self._fp_img = (self.Sh & ~self.Rh & ~self.Dh).astype(np.float32)
+            self._tp_img = self.Rh.astype(np.float32)
+        k = m[::-1, ::-1]
+        TP = np.rint(fftconvolve(self._tp_img, k, mode='full'))
+        FP = np.rint(fftconvolve(self._fp_img, k, mode='full'))
+        r = self.reach // 2
+        oy = np.arange(oy0 - r, oy0 + r + 1)          # the piece's top-left rows and columns tried
+        ox = np.arange(ox0 - r, ox0 + r + 1)
+        iy, ix = oy + h - 1, ox + w - 1                # their indices in the 'full' correlation
+        ok_y = (iy >= 0) & (iy < TP.shape[0])
+        ok_x = (ix >= 0) & (ix < TP.shape[1])
+        oy, ox, iy, ix = oy[ok_y], ox[ok_x], iy[ok_y], ix[ok_x]
+        tp, fp = TP[np.ix_(iy, ix)], FP[np.ix_(iy, ix)]
+        q = tp / np.maximum(1, self.nRh + fp)
+        a, b = np.unravel_index(int(np.argmax(q)), q.shape)
+        return float(q[a, b]), 2 * int(oy[a]), 2 * int(ox[b])
+
+    def fine(self, sc0, oy0, ox0):
+        from scipy.signal import fftconvolve
+        if not hasattr(self, '_fp_full'):
+            self._fp_full = (self.Sw & ~self.Rs & ~self.Ds).astype(np.float32)
+            self._tp_full = self.Rs.astype(np.float32)
+        out = None
+        for sc in np.arange(sc0 * (1 - self.FINE), sc0 * (1 + self.FINE) + 1e-9, sc0 * 0.005):
+            m = _resize_mask(self.Cb, sc)
+            h, w = m.shape
+            k = m.astype(np.float32)[::-1, ::-1]
+            TP = np.rint(fftconvolve(self._tp_full, k, mode='full'))
+            FP = np.rint(fftconvolve(self._fp_full, k, mode='full'))
+            # the coarse place, its middle kept as the scale changes, +-4 px
+            cy = oy0 + self.Cb.shape[0] * sc0 / 2 - h / 2
+            cx = ox0 + self.Cb.shape[1] * sc0 / 2 - w / 2
+            oy = np.arange(int(round(cy)) - 4, int(round(cy)) + 5)
+            ox = np.arange(int(round(cx)) - 4, int(round(cx)) + 5)
+            iy, ix = oy + h - 1, ox + w - 1
+            ok_y, ok_x = (iy >= 0) & (iy < TP.shape[0]), (ix >= 0) & (ix < TP.shape[1])
+            oy, ox, iy, ix = oy[ok_y], ox[ok_x], iy[ok_y], ix[ok_x]
+            q = TP[np.ix_(iy, ix)] / np.maximum(1, self.nR + FP[np.ix_(iy, ix)])
+            a_, b_ = np.unravel_index(int(np.argmax(q)), q.shape)
+            if out is None or q[a_, b_] > out[0]:
+                out = (float(q[a_, b_]), float(sc), int(oy[a_]), int(ox[b_]), m)
+        _, sc, oy, ox, m = out
+        P = _pad_to(m, self.Rs.shape[0], self.Rs.shape[1], (oy, ox))
+        full = np.zeros((self.H, self.W), bool)
+        full[self.wy0:self.wy0 + P.shape[0], self.wx0:self.wx0 + P.shape[1]] = P
+        return (scores(full & self.S, self.R & self.S, self.DC & self.S), sc,
+                (int(oy + self.wy0), int(ox + self.wx0)), full)
+
+
+def check_ghost(spec, path, kind, log=print, rgb=None, keep_masks=None, given=None, views=VIEWS, mirror=()):
+    """a ghost-mannequin sheet (GHOSTS[kind]) against the turnaround's outfit truth. given: [mask per view in `views`'
+    order] in place of the sheet's blobs (calibration: the truth's own piece moved, scaled or widened). views: the
+    sheet's views left to right (a close-up sheet of three: front, three_quarter, profile); mirror: views drawn turned
+    the other way (flipped before fitting). keep_masks: filled with each view's placed mask on the truth's grid."""
+    from scipy import ndimage
+    from charkit import bodyqa
+    K = GHOSTS[kind]
+    TV = _truth_views(spec, log)
+    blobs = given if given is not None else _ghost_blobs(path, rgb)
+    out = {'kind': kind, 'path': os.path.relpath(path, ROOT) if os.path.isabs(path) else path, 'views': {},
+           'tol': TOL, 'ghost': dict(K), 'blobs': len(blobs), 'sheet_views': list(views), 'mirror': list(mirror)}
+    if len(blobs) != len(views):
+        out['pass'] = False
+        out['error'] = 'the sheet has %d pieces, %d views given' % (len(blobs), len(views))
+        return out, {}
+    blobs = [b[slice(*_box(b)[:2]), slice(*_box(b)[2:])] if b.any() else b for b in blobs]
+    blobs = [b[:, ::-1] if v in mirror else b for v, b in zip(views, blobs)]
+    prep = {}
+    for v, Cb in zip(views, blobs):
+        t = TV[v]
+        H, W = t['fg'].shape
+        P = t['pieces']
+        layer = np.zeros((H, W), bool)
+        for p in K['layer']:
+            layer |= P.get(p, False)
+        R = ndimage.binary_closing(layer, iterations=3) & t['fg']
+        front = np.zeros((H, W), bool)
+        for p in K['front']:
+            front |= P.get(p, False)
+        front = ndimage.binary_closing(front, iterations=3) & t['fg']
+        # the hair and the neck in front of the piece only next to it (GHOST_NEAR L): left free everywhere they'd
+        # let the fit slide the piece into the head
+        near = ndimage.binary_dilation(R, iterations=int(round(GHOST_NEAR * t['ppl'])))
+        front |= t['fg'] & (t['cls'] == bodyqa.CLASS['hair']) & near
+        if K['neck_z'] is not None:
+            zz = t['z'][:, None]
+            front |= t['fg'] & (t['cls'] == bodyqa.CLASS['skin']) & (zz >= K['neck_z']) & (zz <= HEAD_Z) & near
+        front &= ~R
+        rim = P['unscored'] & ndimage.binary_dilation(R | front, iterations=4) & ~R
+        DC = front | rim
+        S = ~(P['unscored'] & ~R & ~DC)                     # (the truth's drawn lines elsewhere score neither way)
+        prep[v] = (t, Cb, R, DC, S)
+    # the common scale: the views' median of the turnaround's visible width over the sheet's (graded views)
+    ws = [_box(R)[3] - _box(R)[2] for v, (t, Cb, R, DC, S) in prep.items()
+          if v not in K['hidden_views'] and R.sum() >= 50]
+    wc = [Cb.shape[1] for v, (t, Cb, R, DC, S) in prep.items() if v not in K['hidden_views'] and R.sum() >= 50]
+    s0 = float(np.median([a / b for a, b in zip(ws, wc)])) if ws else 1.0
+    out['scale0'] = round(s0, 4)
+    imgs, scales = {}, []
+    # one scale for the sheet: the scale (within GHOST_SCALE of s0) whose views' best shifts sum the highest iou_dc;
+    # then each view polished within _GhostView.FINE of it (its own scale reported: the sheet's spread)
+    G = {v: _GhostView(Cb, R, DC, S, s0, t['ppl']) for v, (t, Cb, R, DC, S) in prep.items()
+         if v not in K['hidden_views'] and R.sum() >= 50}
+    joint, every = None, []
+    for f in np.arange(1 - GHOST_SCALE, 1 + GHOST_SCALE + 1e-9, 0.025):
+        got = {v: g.best(s0 * f) for v, g in G.items()}
+        every.append((s0 * f, got))
+        tot = sum(q for q, _, _ in got.values())
+        if joint is None or tot > joint[0]:
+            joint = (tot, s0 * f, got)
+    out['scale'] = round(joint[1], 4) if joint else None
+    for v, (t, Cb, R, DC, S) in prep.items():
+        if v not in G:
+            rec = dict(graded=False, px=int(Cb.sum()), note='the body hides the piece here on the turnaround')
+            out['views'][v] = rec
+            log('%-14s hidden on the turnaround: %d px drawn (sheet px)' % (v, rec['px']))
+            continue
+        _, oy, ox = joint[2][v]
+        sc, k, at, C = G[v].fine(joint[1], oy, ox)
+        free = max((got[v] + (sc_,) for sc_, got in every), key=lambda r: r[0])
+        scales.append(k)
+        if keep_masks is not None:
+            keep_masks[v] = dict(C=C, R=R & S, DC=DC & S, scale=k, at=list(at))
+        rec = dict(scale=round(k, 4), scale_rel=round(k / joint[1], 4), at=list(at),
+                   free_scale_rel=round(free[3] / joint[1], 3), free_iou_dc_half=round(free[0], 4), **sc)
+        rec['pass'] = bool(sc['iou_dc'] >= TOL['iou_dc'] and sc['outside'] <= TOL['outside']
+                           and sc['recall'] >= TOL['recall'])
+        out['views'][v] = rec
+        imgs[v] = _overlay(t['fg'] | C, C, R & S, DC & S)
+        log('%-14s iou_dc %.4f  recall %.4f  outside %.4f  hidden %.4f  scale %.4f (its own best %.3f of it)  %s' % (
+            v, sc['iou_dc'], sc['recall'], sc['outside'], sc['hidden'], k, free[3] / joint[1],
+            'PASS' if rec['pass'] else 'FAIL'))
+    # the sheet's one scale: the views' own best scales (free, coarse) spread round the joint one
+    fr = [r['free_scale_rel'] for r in out['views'].values() if 'free_scale_rel' in r]
+    spread = (max(fr) - min(fr)) / float(np.median(fr)) if fr else None
+    out['scale_spread'] = None if spread is None else round(spread, 4)
+    graded = [r for r in out['views'].values() if r.get('graded', True)]
+    out['pass'] = bool(graded and all(r.get('pass') for r in graded))
+    out['one_scale'] = bool(spread is not None and spread <= TOL['scale_spread'])
+    log('the joint scale %.4f; each view at its own best scale spread %s (reported: a free fit drifts into what the '
+        'turnaround hides)  %s' % (joint[1] if joint else float('nan'), out['scale_spread'], 'PASS' if out['pass'] else 'FAIL'))
+    return out, imgs
+
+
+# ------------------------------------------------------------------------------------------------- the shape truths
+# A piece's shape truth (Michael, 2026-10-01: each piece's shape truth is its layer without what lies on it; the
+# manifest's `shape_truth`, manifest.shape_sheet): the registered layer sheet's piece, cut into the layer's pieces
+# (layer_pieces) on the outfit truth's grids, stored as masks VIEW__NAME (charkit/refs/NAME/shape_truth.npz, the
+# manifest's reference `shape_truth_masks`), so the QA reads them as it reads the outfit's masks. An entry:
+#   {"shape": REF, "kind": a LAYERS or GHOSTS kind, "piece": the truth's piece (default: the entry's name),
+#    "views": [...], "without": [the pieces the sheet leaves out: ours is drawn without them to compare],
+#    "class": "skin" + "window": the V's skin in V_WIN instead of a piece (the neck's V)}
+def build_truths(spec, out=None, log=print):
+    """every shape_truth entry's masks -> (path, {name: {view: px}}). Each sheet registered once."""
+    from charkit import manifest, bodyqa
+    M = manifest.load(spec['ref']['manifest'])
+    R = M['references']
+    ST = M.get('shape_truth') or {}
+    TV = _truth_views(spec, lambda *a: None)
+    regs, masks, meta = {}, {}, {}
+    for name, e in sorted(ST.items()):
+        if not e.get('kind'):                # (a note: the piece is its own truth on the turnaround)
+            continue
+        sid, kind = e['shape'], e['kind']
+        if (sid, kind) not in regs:
+            km = {}
+            path = os.path.join(ROOT, R[sid]['path'])
+            if kind in GHOSTS:
+                rep, _ = check_ghost(spec, path, kind, log=lambda *a: None, keep_masks=km)
+            else:
+                rep, _ = check_layer(spec, path, kind, log=lambda *a: None, keep_masks=km)
+            regs[(sid, kind)] = (km, rep)
+            log('%s (%s): registered %s' % (sid, kind, {v: r.get('iou_dc') for v, r in rep['views'].items()}))
+        km, rep = regs[(sid, kind)]
+        meta[name] = {}
+        for v in e.get('views') or VIEWS:
+            if v not in km:
+                continue
+            t = TV[v]
+            if e.get('class') == 'skin':
+                mid = int(round(bodyqa.WIN['x'] * t['ppl']))
+                H, W = t['fg'].shape
+                xs = (np.arange(W) - mid + 0.5) / t['ppl']
+                w = e.get('window') or V_WIN
+                win = (np.abs(xs) <= w['x'])[None, :] & ((t['z'] <= w['top']) & (t['z'] >= w['bottom']))[:, None]
+                m = np.isin(km[v]['cls'], [bodyqa.CLASS['skin'], 5]) & km[v]['fg'] & win
+            elif kind in GHOSTS:
+                m = km[v]['C']
+            else:
+                K = LAYERS[kind]
+                m = layer_pieces(km[v], t, K['layer'], K['cover'])[e.get('piece', name)]
+            masks['%s__%s' % (v, name)] = m
+            meta[name][v] = int(m.sum())
+    out = out or os.path.join(os.path.dirname(R['outfit_truth']['path']), 'shape_truth.npz')
+    path = out if os.path.isabs(out) else os.path.join(ROOT, out)
+    np.savez_compressed(path, **masks)
+    return path, meta
+
+
+def load_truths(spec):
+    """the manifest's shape truths: ({name: entry}, {VIEW__NAME: mask}) or ({}, {}) when none are registered."""
+    from charkit import manifest
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    if not ref.get('manifest'):
+        return {}, {}
+    M = manifest.load(ref['manifest'])
+    ST, R = M.get('shape_truth') or {}, M['references']
+    if not ST or 'shape_truth_masks' not in R:
+        return {}, {}
+    p = R['shape_truth_masks']['path']
+    with np.load(p if os.path.isabs(p) else os.path.join(ROOT, p)) as z:
+        return ST, {k: z[k] for k in z.files}
 
 
 # ---------------------------------------------------------------------------------------------------------------- main
@@ -994,14 +1423,22 @@ def save_images(imgs, out_dir):
 def main(args):
     from charkit import manifest
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    if args and args[0] == 'truths':                 # python -m charkit.layerref truths SPEC [--out PATH]
+        spec = manifest.resolve(json.load(open(args[1] if os.path.isabs(args[1]) else os.path.join(ROOT, args[1]))))
+        path, meta = build_truths(spec, opt('--out'))
+        print(json.dumps(meta, indent=1))
+        print(path)
+        return
     spec = manifest.resolve(json.load(open(args[0] if os.path.isabs(args[0]) else os.path.join(ROOT, args[0]))))
     path = os.path.abspath(args[1])
     kind = opt('--kind')
     if kind in ('edit', 'alone'):
         rep, imgs = dict(edit=check_edit, alone=check_alone)[kind](spec, path, args)
     else:
-        fn = dict(body=check_body, clips=check_clips, skirt=check_skirt, bodice=check_bodice)[kind]
-        rep, imgs = fn(spec, path)
+        fn = dict(body=check_body, clips=check_clips, skirt=check_skirt, bodice=check_bodice).get(kind)
+        gv = dict(views=opt('--views').split(','), mirror=(opt('--mirror') or '').split(',')) if opt('--views') else {}
+        rep, imgs = fn(spec, path) if fn else check_ghost(spec, path, kind, **gv) if kind in GHOSTS else \
+            check_layer(spec, path, kind)
     out = opt('--out', os.path.join(ROOT, 'charkit/out/layerref', os.path.splitext(os.path.basename(path))[0]))
     rep['images'] = {k: os.path.relpath(p, ROOT) for k, p in save_images(imgs, out).items()}
     json.dump(rep, open(os.path.join(out, 'layerref.json'), 'w'), indent=1)

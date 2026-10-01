@@ -147,6 +147,7 @@ class Garments:
     # -------------------------------------------------------------------------------------------- the stand-ins for ours
     def labels(self, kind, arg):
         """{view: label image}: the design moved (kind 'design', arg (dy, dx)) or a generator's (arg its seed)."""
+        self._move = tuple(arg) if kind == 'design' else None      # (ours drawn without a cover: the truths moved too)
         if kind == 'design':
             return {v: _shift(L, arg[0], arg[1], -1) for v, L in self.lab.items()}
         rng = np.random.default_rng(1000 + int(arg))
@@ -188,9 +189,10 @@ class Garments:
         from ..geom.raster import window_shape
         names, az = self.names, self.az
 
-        def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
-            return {v: dict(lab=L[v], depth=np.zeros(L[v].shape, np.float32), az=az[v], org=(0.0, 0.0))
-                    for v in views if v in L}, names
+        def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), exclude=()):
+            LL = self.without(L, kind, exclude) if exclude else L
+            return {v: dict(lab=LL[v], depth=np.zeros(LL[v].shape, np.float32), az=az[v], org=(0.0, 0.0))
+                    for v in views if v in LL}, names
 
         def fine_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), fine=pieceqa.FINE,
                         win=pieceqa.CHEST):
@@ -206,8 +208,9 @@ class Garments:
                 out[v] = f
             return out, names
 
-        def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
-            return {v: self.cls[v] for v in views if v in self.cls}
+        def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), exclude=()):
+            C = self.classes_without(kind, exclude) if exclude else self.cls
+            return {v: C[v] for v in views if v in C}
 
         by_az = {round(float(a), 3): v for v, a in az.items()}
         fake = [(np.zeros((3, 3)), np.array([[0, 1, 2]]), np.zeros(1, int)) for _ in names]
@@ -224,6 +227,72 @@ class Garments:
                 (pieceqa, 'our_classes', our_classes), (qa3d, 'scene_objects', lambda B: (fake, names)),
                 (qa3d, 'bodyqa_zbuffer', bodyqa_zbuffer), (collarqa, 'bleed', bleed),
                 (collarqa, 'ribbon_line', ribbon_line)]
+
+    # ------------------------------------------------------------- ours drawn as a shape truth's sheet draws the outfit
+    def _truth_entries(self, exclude):
+        """the shape truths whose sheet leaves out exactly the objects `exclude` (their `without` pieces' objects) ->
+        ([(name, entry)], masks)."""
+        from .. import bodymeasure, layerref
+        ST, TM = layerref.load_truths(self.B.spec)
+        if not ST:
+            return [], {}
+        _, graph, _ = bodymeasure.piece_masks(self.B.spec)
+        pm = bodymeasure.piece_map(graph, self.B.spec)
+        ex = set(exclude)
+        got = [(k, e) for k, e in ST.items() if e.get('kind') and not e.get('alone')
+               and {n for p in e.get('without') or () for n, _ in pm.get(p, [])} == ex]
+        return got, TM
+
+    def without(self, L, kind, exclude):
+        """{view: label image} without the objects `exclude`: their pixels emptied, and for the design (kind 'design')
+        each matching shape truth's piece painted from its mask, moved as the labels are (the design drawn the way
+        the truth's sheet draws it); a generator's stand-in keeps its holes (what its cover hid isn't drawn)."""
+        from .. import bodymeasure
+        ids = [i for i, n in enumerate(self.names) if n in set(exclude)]
+        out = {}
+        got, TM = self._truth_entries(exclude) if kind == 'design' else ([], {})
+        if got:
+            _, graph, _ = bodymeasure.piece_masks(self.B.spec)
+            pm = bodymeasure.piece_map(graph, self.B.spec)
+            idx = {n: i for i, n in enumerate(self.names)}
+        order = {'bodice_panel': 0, 'top': 1, 'collar': 2}
+        for v, Lv in L.items():
+            L2 = Lv.copy()
+            if ids:
+                L2[(L2 >= 0) & np.isin(L2 % 1000, ids)] = -1
+            for k, e in sorted(got, key=lambda ke: order.get(ke[1].get('piece', ke[0]), 9)):
+                m = TM.get('%s__%s' % (v, k))
+                mem = pm.get(e.get('piece', k)) or []
+                if m is None or e.get('class') or not mem or mem[0][0] not in idx:
+                    continue
+                mm = np.zeros(L2.shape, bool)
+                h, w = min(mm.shape[0], m.shape[0]), min(mm.shape[1], m.shape[1])
+                mm[:h, :w] = m[:h, :w]
+                dy, dx = self._move if getattr(self, '_move', None) else (0, 0)
+                L2[_shift(mm, dy, dx, False)] = idx[mem[0][0]]
+            out[v] = L2
+        return out
+
+    def classes_without(self, kind, exclude):
+        """{view: classes} for ours drawn without `exclude`: the design's own (moved for the design) with each
+        matching class truth's pixels (the V's skin: neck_v) painted that class, a generator's stand-in the drawing's."""
+        from .. import bodyqa
+        C = self.classes(kind, getattr(self, '_move', None) or (0, 0)) if kind == 'design' else dict(self.cls)
+        got, TM = self._truth_entries(exclude) if kind == 'design' else ([], {})
+        out = {}
+        for v, c in C.items():
+            c2 = c.copy()
+            for k, e in got:
+                m = TM.get('%s__%s' % (v, k))
+                if m is None or not e.get('class'):
+                    continue
+                mm = np.zeros(c2.shape, bool)
+                h, w = min(mm.shape[0], m.shape[0]), min(mm.shape[1], m.shape[1])
+                mm[:h, :w] = m[:h, :w]
+                dy, dx = getattr(self, '_move', None) or (0, 0)
+                c2[_shift(mm, dy, dx, False)] = bodyqa.CLASS[e['class']]
+            out[v] = c2
+        return out
 
     def ribbon_line(self, dvp, tails_d, rows, ppl, L, kind):
         """collarqa.ribbon_line with a stand-in for ours, on the design's grid (the rows as the measure picks them): the
