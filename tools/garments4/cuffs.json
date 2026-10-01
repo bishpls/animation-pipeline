@@ -1,0 +1,70 @@
+{
+ "garments.wrist_L.bone": "leftLowerArm",
+ "garments.wrist_L.t": null,
+ "garments.wrist_L.width": null,
+ "garments.wrist_L.offset": null,
+ "garments.wrist_L.thick": 0.012,
+ "garments.wrist_L.source": "template",
+ "garments.wrist_L.bell": null,
+ "garments.wrist_L.span": [
+  0.48,
+  0.72
+ ],
+ "garments.wrist_L.top": [
+  0.17,
+  0.14,
+  0.17,
+  0.14
+ ],
+ "garments.wrist_L.bottom": [
+  0.13,
+  0.115,
+  0.12,
+  0.115
+ ],
+ "garments.wrist_L.band": 0.3,
+ "garments.wrist_L.tab": [
+  0.08,
+  0.5
+ ],
+ "garments.wrist_L.clear": 0.003,
+ "garments.wrist_L.trim_color": [
+  0.97,
+  0.9,
+  0.72
+ ],
+ "garments.wrist_R.bone": "rightLowerArm",
+ "garments.wrist_R.t": null,
+ "garments.wrist_R.width": null,
+ "garments.wrist_R.offset": null,
+ "garments.wrist_R.thick": 0.012,
+ "garments.wrist_R.source": "template",
+ "garments.wrist_R.bell": null,
+ "garments.wrist_R.span": [
+  0.48,
+  0.72
+ ],
+ "garments.wrist_R.top": [
+  0.17,
+  0.14,
+  0.17,
+  0.14
+ ],
+ "garments.wrist_R.bottom": [
+  0.13,
+  0.115,
+  0.12,
+  0.115
+ ],
+ "garments.wrist_R.band": 0.3,
+ "garments.wrist_R.tab": [
+  0.08,
+  0.5
+ ],
+ "garments.wrist_R.clear": 0.003,
+ "garments.wrist_R.trim_color": [
+  0.97,
+  0.9,
+  0.72
+ ]
+}
