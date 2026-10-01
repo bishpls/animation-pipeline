@@ -8,4 +8,7 @@ MEASUREMENT_STEPS = [
      "direction), ours drawn with the build's outlines against the design's lines"),
     ('bow_part_knot_line', 'd814b6a2', "the knot's outline share reaches the outline's own width (was 2 px: an outlined "
      "knot read None, its lines 3-5 px wide at 400 px/L)"),
+    ('bow_part_knot_iou', '2a71baff', "graded on the front only (partqa.GRADED; coordinator, round 4: the turnaround "
+     "draws its three-quarter knot face-on, ours matching it only turned 15-20 deg against the sheet's 35.5, and in "
+     "profile a sliver in the loops); the three-quarter and profile knots reported as info"),
 ]
