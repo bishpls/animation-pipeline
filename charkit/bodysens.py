@@ -81,7 +81,7 @@ NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel'
              'bed', 'creases', 'panel_shape',
              # a jacket's shoulder pad (garments.shoulder_pad: a lift table) and the template collar's stand and drape
              # settings (tool/collar4)
-             'pad', 'stand', 'over_gap', 'over_reach', 'over_depth', 'over_cap', 'over_iters',
+             'pad', 'stand', 'over_gap', 'over_reach', 'over_depth', 'over_cap', 'over_iters', 'keep_skin',
              # the hull collar's flat lapels (garments.collar_hull's flat_front {a, fade}: settings) and its length table
              'flat_front', 'front_length', 'lapel')
 
