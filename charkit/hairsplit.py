@@ -97,7 +97,8 @@ P = dict(
     match_du=0.02,         # L: a tip's position is known to this across the picture (its azimuth interval)
     limb_spread=30.0,      # deg: a tip on the silhouette may lie this far round past the shell's limb
     near_t=3.0,            # line widths: a stroke ending this close to other ink is a T-junction's stem
-    match_by='tips',       # cross-view links: 'tips' (every detected tip matched, its lock linked) or 'locks'
+    match_by='locks',      # the locks' cross-view links: 'locks' (each lock's tip, by assignment) or 'tips' (every
+                           # detected tip matched, the lock its end lies in linked)
     match_dir=0.1,         # L per unit: the tips' outward directions' vertical parts differing costs this much
     match_root=0.0,        # the roots' azimuth gap's weight in a match's cost (0: the tips decide; a lock's root moves
                            # with how much of the unscored mass it took)
@@ -1580,13 +1581,15 @@ def split_views(I, views=None, stage='locks', params=None, log=print):
             outer = _outer_bottom(S)
             for l_, x in S.lock_info.items():
                 x['hem'] = bool(x['tip'] == 'drawn' and outer(x['tip_rc']))
+        # every tip matched across views (the anchors: call H reads these); the locks' identity from the locks'
+        # anchor tips by assignment (match_by 'locks'), or from every tip's match (match_by 'tips')
+        tips = tip_coords(splits, shell)
+        tm = match_tips(tips, splits, shell)
+        for name, S in splits.items():
+            S.tips_head = tips[name]
+        shell.tip_matches = tm
         if P['match_by'] == 'tips':
-            tips = tip_coords(splits, shell)
-            tm = match_tips(tips, splits, shell)
             xid, matches = _locks_from_tips(splits, tips, tm)
-            for name, S in splits.items():
-                S.tips_head = tips[name]
-            shell.tip_matches = tm
         else:
             xid, matches = match(splits, shell)
         for (name, l_), k in xid.items():
