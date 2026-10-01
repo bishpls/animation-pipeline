@@ -136,6 +136,30 @@ def build_crops(page, d, k, log=print):
     return got
 
 
+def draw_window(bdir, view, az, box, oppl, ss=2):
+    """a close-up's window (x0, x1, z_top, z_bottom) in L round the eye line drawn from a bundle (charkit.qa3d.draw) at
+    oppl px per L, from azimuth az, centred as the QA centres the view (charkit.bodyqa.origin) -> RGB floats."""
+    from . import bundle, bodyqa, declared, qa3d
+    B = bundle.load(bdir)
+    L = float(B.assembly['L'])
+    org = bodyqa.origin(view, az, np.array(qa3d.iris_centres(B)), B.assembly['centre'])
+    x0, x1, zt, zb = box
+
+    class Win(declared._Grid):
+        def __init__(self):
+            self.origin = (org[0] + 0.5 * (x0 + x1) * L, org[1])
+            self.pix = L / (oppl * ss)
+            self.win = dict(x=0.5 * (x1 - x0) * L, top=zt * L, bottom=zb * L)
+    surfs = []
+    for o in B.objects():
+        variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
+        if o.has(variant):
+            surfs += qa3d.surfaces(B, o, variant)
+    img = qa3d.draw(B, surfs, az, Win(), ss=ss)
+    a = img[..., 3:4]
+    return img[..., :3] * a + np.asarray(qa3d._srgb(np.array(qa3d.WORLD)))[None, None] * (1 - a)
+
+
 def draw_figure(B, az, k=2):
     """the whole figure drawn from a bundle (charkit.qa3d.draw, the QA's renderer) on the world's colour -> RGB floats."""
     from . import qa3d
@@ -242,7 +266,10 @@ def closeup(page, region, view, builds, crops):
                 rgb, eye, ppl = body_frame(d, view, az)
                 a = cut_L(rgb, eye, ppl, box, oppl)
         except (KeyError, TypeError, OSError, IndexError, ValueError):
-            continue
+            if src == 'head' or not os.path.isdir(os.path.join(d, 'bundle')):
+                continue
+            # no boards (a build made with --boards ''): the window drawn from its bundle at the same scale
+            a, link = draw_window(os.path.join(d, 'bundle'), view, az, box, oppl), os.path.join(d, 'bundle')
         row.append((page.save(a, 'cu_%s_%s_%d' % (region, view, k)), esc(b['label']), link))
     return row
 
