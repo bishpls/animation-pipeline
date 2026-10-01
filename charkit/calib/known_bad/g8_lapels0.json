@@ -1,0 +1,10 @@
+{
+ "name": "g8_lapels0",
+ "why": "the sailor collar's lapels bunched into lumps beside the neck under the bow (the hull-conformed lapels; the drawn lapels are wide flat panels whose inner edges form the V down to its point under the knot): without the bow, the collar against bodice_layers' collar 0.617 front / 0.514 three-quarter, and the V closes at z -0.70 (the drawn V's point -0.88); pipeline-3d cd1c327f's default (tool/garments8 g8_base, 5336dcb6)",
+ "flag": "the lapels bunch into lumps beside the neck; the drawn lapels are wide flat panels whose inner edges form the V down to the knot (Michael / the coordinator, 2026-10-01)",
+ "commit": "5336dcb6",
+ "source": "~/animation-pipeline-garments8/charkit/out/g8_base",
+ "stored": "2026-10-01",
+ "bundle": "2136813ce9988aba",
+ "qa_checks": 709
+}
