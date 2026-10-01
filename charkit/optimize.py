@@ -2177,6 +2177,57 @@ def accfit_place(decl):
     return AccfitPlace(decl)
 
 
+class AccfitShape:
+    """a clip template's fit as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_shape';
+    tool/accessories6): args {kind, spec, start (a JSON with `shape` and `poses` over the template's defaults), w_alone,
+    w_side, w_parts}; the knobs are the shape's keys (accfit.SHAPE_KNOBS: 'claw_at.0' an item of a list) and pose.VIEW.0
+    / pose.VIEW.1 (that view's turn about the clip's up axis and spin in its plane, degrees: the turnaround draws the clip
+    nearly face-on in every view, each in its own pose) -> checks: accfit.shape_checks' (per view acc_KIND_VIEW_iou as
+    the drawing shows it, piece_pin_KIND with those views: the guard reads it, acc_KIND_alone and acc_KIND_side against
+    the clips-alone sheet, the declared FACE checks: the crab's legs, pincers and stalks) and shape_loss (accfit's one
+    number, INFO)."""
+
+    def __init__(self, decl):
+        from . import accfit, accessories as acc
+        a = decl.get('args') or {}
+        spec = accfit._spec(a.get('spec') or 'charkit/spec/clawd.json')
+        self.kind = a.get('kind', 'crab')
+        self.D = accfit.design(spec)
+        self.shape = copy.deepcopy(acc.CRAB if self.kind == 'crab' else acc.STAR)
+        self.poses = {v: [0.0, 0.0] for v in accfit.VIEWS}
+        if a.get('start'):
+            st = json.load(open(sw._abs(a['start'], ROOT)))
+            self.shape.update(st.get('shape') or {})
+            self.poses.update({v: list(p) for v, p in (st.get('poses') or {}).items()})
+        else:
+            self.shape.update(next((x.get('shape') or {} for x in spec.get('accessories') or []
+                                    if x['kind'] == self.kind), {}))
+        self.w = dict(w_alone=float(a.get('w_alone', 0.5)), w_side=float(a.get('w_side', accfit.W_SIDE)),
+                      w_parts=float(a.get('w_parts', accfit.W_PARTS)))
+        self.accfit = accfit
+
+    def apply(self, over):
+        """the overrides on the start -> (shape, poses)."""
+        shape, poses = copy.deepcopy(self.shape), {v: list(p) for v, p in self.poses.items()}
+        for k, v in over.items():
+            if k.startswith('pose.'):
+                _, view, i = k.split('.')
+                poses.setdefault(view, [0.0, 0.0])[int(i)] = float(v)
+            else:
+                self.accfit.put(shape, k, v if isinstance(v, int) and not isinstance(v, bool) else float(v))
+        return shape, {v: tuple(p) for v, p in poses.items()}
+
+    def evaluate(self, over):
+        shape, poses = self.apply(over)
+        C = self.accfit.shape_checks(self.kind, shape, poses, self.D)
+        C['shape_loss'] = dict(value=self.accfit.shape_loss(C, self.kind, **self.w), status='INFO', part='accfit')
+        return C
+
+
+def accfit_shape(decl):
+    return AccfitShape(decl)
+
+
 # ------------------------------------------------------------------------------------------------------------- CLI
 def _opt(args, k, d=None):
     return args[args.index(k) + 1] if k in args and args.index(k) + 1 < len(args) else d

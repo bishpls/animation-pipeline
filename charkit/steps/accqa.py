@@ -34,4 +34,23 @@ MEASUREMENT_STEPS = [
      "unoccluded reading (accqa.STAR_ARMS)"),
     ('acc_star_minor', 'b45f61e2', "new: the star face-on, its four minor points over its height against "
      "head_turnaround's (accqa.STAR_ARMS)"),
+    # tool/accessories6: the crab's parts face-on against the clips-alone sheet (Michael 2026-10-01: the legs too short
+    # and under the body, the pincers solid circles), and the clips face-on in their own frame (the spec's facing and
+    # tilt: accqa.own_axes) instead of their vertices' principal axes (a crab turned -18 deg was read turned). On
+    # pipeline-3d 25ff0f25: acc_crab_alone 0.585 -> 0.694; acc_star_alone 0.716 -> 0.713
+    ('acc_*_alone', '6bcf6e39', "the clip face-on in its own frame (its spec's facing and tilt) instead of its vertices' "
+     "principal axes, then the shape IoU against the clips-alone drawing as before"),
+    ('acc_*_side', '6bcf6e39', "new (INFO): the clip edge-on in its own frame against the clips-alone sheet's side "
+     "drawing (its hair-clip loop drawn behind it cut: accqa.edge_body), shape IoU"),
+    ('acc_crab_legs', '6bcf6e39', "new (declared, family 'limbs', view face): the crab face-on, its legs per side "
+     "against the clips-alone sheet's (charkit.limbs)"),
+    ('acc_crab_leg_reach', '6bcf6e39', "new (declared, limbs): the legs' reach off the body over its width against the "
+     "sheet's"),
+    ('acc_crab_leg_roots', '6bcf6e39', "new (declared, limbs): where the legs leave the body (elliptical angle) against "
+     "the sheet's"),
+    ('acc_crab_claw_fingers', '6bcf6e39', "new (declared, limbs): each claw's fingers (1 + its notches) against the "
+     "sheet's"),
+    ('acc_crab_claw_notch', '6bcf6e39', "new (declared, limbs): the claws' deepest notch over their size against the "
+     "sheet's"),
+    ('acc_crab_stalks', '6bcf6e39', "new (declared, limbs): the eye stalks' reach above the body against the sheet's"),
 ]
