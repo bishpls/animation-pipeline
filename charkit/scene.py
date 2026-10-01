@@ -363,6 +363,15 @@ def hair_pieces_objects(S, shape, hc):
         ob, meta = load_part(path, 'hair_' + p['name'], material=m_under if p['family'] in under else m,
                              normals=None if envelope else 'geometric')
         ob['charkit_family'] = p['family']
+        Zp = np.load(path)
+        ow = Zp['outline_w'] if 'outline_w' in Zp.files else None
+        if ow is not None:
+            # the outline's width per vertex (hairpieces' ink_fade: no line where the locks meet above the hem; the
+            # outline's SOLIDIFY reads the group, shade.outline)
+            g = ob.vertex_groups.new(name='outline_w')
+            ow = np.round(np.asarray(ow, float), 2)
+            for w_ in np.unique(ow):
+                g.add([int(i) for i in np.nonzero(ow == w_)[0]], float(w_), 'REPLACE')
         shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
         if envelope and not (PIECE_NORMALS == 'exact' and set_normals(ob, load_npz(path).vn) is not None):
             proxy = normals_proxy(path, 'hair_%s_normals' % p['name'])
