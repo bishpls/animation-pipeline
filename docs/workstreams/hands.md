@@ -397,3 +397,20 @@ fits, builds and calibrations run on the boxes; local work is light (single eval
   NAMES --build charkit/out/hands2_after_q` (NAMES = the graded hand_* in after_q's qa.json, not the 3 EDGE_ON INFO),
   the review page (`charkit review page`, before hands2_base | after hands2_after, regions hands + hands_close), pregate,
   `remote gate tool/hands2 --into pipeline-3d`.
+- **After-build** (e2db92f's knobs): render2 `charkit/out/hands2_after` (boards body,design) and its build-box twin
+  `charkit/out/hands2_after_q` (QA identical but 4 render-noise values). Against the before (hands2_base): no new FAIL;
+  non-hand moves only body_front_skirt_width PASS 0.982 -> WARN 0.861 and body_three_quarter_skirt_aline PASS -0.012 ->
+  WARN 0.09 (the hand-row exclusion); hand_shape_L views front 0.761 -> 0.761, 3q 0.701 -> 0.741, profile 0.510 ->
+  0.488, back 0.754 -> 0.736; _R front 0.769 -> 0.775, 3q 0.630 -> 0.656, back 0.771 -> 0.757 (worst -4%). Findings
+  per view: charkit/out/hands2/findings.txt (gaps 0.10-0.19 -> 0; taper 0.60-0.68 -> 0.40-0.44; cleft at 0.71-0.77
+  -> 0.61-0.63; wrist front/back 0.76-0.80 vs drawn 0.78-0.84, 3q L 0.85 -> 0.81 vs 0.69, profile 0.93 vs 0.66).
+- **Calibration:** 39 graded hand_* CALIBRATED on hands2_after_q (calib_after.log; records committed). The first try
+  lost its run to a PermissionError (the box hard-links synced inputs read-only; calibrate wrote records in place):
+  fixed, records written temp + rename (8580945).
+- **Review page:** charkit/out/hands2/review/page/index.html (built on the build box from review/page.json: summary,
+  key numbers, the fit's silhouettes, qa_hands before/after, per view design | before | after, close-ups hands_board
+  (EEVEE boards) and hands_close (bundle drawn, 320 px/L)). The coordinator's review: structure right; two visible gaps
+  for what's left (INFO on the page): the hand's outline (skin not in the look's ink_regions: brown (0.42, 0.24, 0.20)
+  at body.hand.line 0.5) and the finger separation lines (fingers overlap 0.215 of their width: outline hulls hidden).
+- Pregate skipped (laptop memory-critical; it runs the evaluator for both trees locally, and the box copy has no git):
+  the after-build's real QA against the before stands in. Merged pipeline-3d 9be5b32 (40a0168). Gate launched.
