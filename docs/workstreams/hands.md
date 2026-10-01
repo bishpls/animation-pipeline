@@ -137,7 +137,19 @@ variants: `evalab.py NAME '{"path": value}'`, ~150 s), legbumps.py, tips.py, ali
    sheet (charkit/refs/clawd/gen/hand_breakdown.png) with refcheck_hand_breakdown_1.png, and open it.
 4. `python -m charkit pregate`, then `python -m charkit remote gate tool/hands --into pipeline-3d` (export
    CLOUDSDK_CONFIG=$HOME/.config/charkit/gcloud). Merge pipeline-3d first if it moved.
-5. Round 2: the `hands` expression component (relaxed, fist, open, point; per finger curl, spread, thumb opposition;
+5. **(Deferred by Michael, 2026-09-30: waits for a dedicated hands/expressions session; not on this branch.)** A draft
+   was started before the scope change and parked, untracked: charkit/out/hands/draft_handposes.py (the library:
+   relaxed/open/fist/point, per digit curl (3 joints), spread, thumb oppose; pose() blends {name: weight}, blend(a, b,
+   t), per_hand {'L','R'}; posed() = numpy LBS on the template's weights; rotations() per VRM bone; grade() renders
+   each pose from the back and as the front view sees it, against handref.sheet_hands' cells; fit() Powell per pose)
+   and charkit/out/hands/draft_expressions.patch (a skeletal `hands` component: weights() leaves it out,
+   hand_poses(P) resolves it, library()/check() know it). Graded on b1's hand (the rest knobs): relaxed back/front IoU
+   0.715/0.795; fitted (posefit.log): open 0.571/0.605 (curl -4.3, spread 16.5, thumb spread 26), fist 0.591/0.742
+   (MCP 32, PIP 86, DIP 28: the sheet's fist keeps its fingers' first phalanges hanging), point 0.640/0.772. The
+   sheet's hands are 16-19% longer and broader than the turnaround's: IoU near 0.7-0.8 is its ceiling. Still to do
+   there: the Blender side (pose the finger bones from rotations() on the boards, the export and exprqa's renders),
+   fist QA on the built rig (interpenetration, knuckle area), then the original plan below.
+6. Round 2 (original plan): the `hands` expression component (relaxed, fist, open, point; per finger curl, spread, thumb opposition;
    per hand, blendable) on the modular expression API (charkit/expressions.py, the mouth/eyes/brows presets), using
    code_hand.curl_pose's joint convention (bend about along x -dorsal); grade per pose against hand_breakdown
    (handref.sheet_hands gives each cell's hand at the turnaround's scale; the fist's digits/cleft); fist QA on the built
