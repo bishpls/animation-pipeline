@@ -1026,15 +1026,23 @@ def refine_tips(F, regions, masks, views, hull_frame, step=0.5, reach=18.0):
     return done
 
 
-def locks(ph, tip, lock_min, notch):
-    """a piece's locks from its lower edge: notches at the edge's local minima of reach at least lock_min apart; each lock
-    (ph0, ph1, its tip's phi); the edge with every notch deepened by `notch` degrees tapering to 0 at the tips.
+def locks(ph, tip, lock_min, notch, at=None):
+    """a piece's locks from its lower edge: notches at the edge's local minima of reach at least lock_min apart (or at
+    the given phis `at`: the drawn hem's notches, drawn_notches; tool/hair5); each lock (ph0, ph1, its tip's phi); the
+    edge with every notch deepened by `notch` degrees tapering to 0 at the tips.
     ph must increase (a piece's columns unwrapped). -> (locks [(ph0, ph1, ph_tip)], the deepened edge on ph)."""
     from scipy.ndimage import median_filter
     e = median_filter(tip, 3, mode='nearest')
     n = len(e)
     cand = [k for k in range(1, n - 1) if e[k] <= e[k - 1] and e[k] <= e[k + 1] and (e[k] < e[k - 1] or e[k] < e[k + 1])]
     cuts = []
+    if at is not None:
+        for a in sorted(at):
+            k = int(np.argmin(np.abs(ph - a)))
+            if 0 < k < n - 1 and ph[k] - ph[0] >= lock_min / 2 and ph[-1] - ph[k] >= lock_min / 2 and \
+                    all(abs(ph[k] - ph[q]) >= lock_min / 2 for q in cuts):
+                cuts.append(k)
+        cand = []
     for k in sorted(cand, key=lambda k: e[k]):                     # the deepest notches first
         if ph[k] - ph[0] >= lock_min and ph[-1] - ph[k] >= lock_min and all(abs(ph[k] - ph[q]) >= lock_min for q in cuts):
             cuts.append(k)
@@ -2842,8 +2850,13 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         ph = _unwrap(R['ph'])
         # (tool/hair5: per-piece overrides of the style's lock_min and notch, e.g. the upper back's locks wider where
         # the design draws one smooth mass, the lower back's notches deeper for its flicked hem)
+        at = None
+        if piece in (o.get('drawn_cuts') or ()) and views is not None and hull_frame is not None:
+            # (the locks cut at the drawn hem's notches, not the chart edge's: the design's back hem has 8 flicks)
+            at = [a for a, _ in drawn_notches(F, piece, R, masks, views, hull_frame, o.get('ribbon_prom', 3.0),
+                                              o.get('ribbon_nsep', 4.0))] or None
         L_, edge = locks(ph, R['tip'], (o.get('lock_min_piece') or {}).get(piece, style['lock_min']),
-                         (o.get('notch_piece') or {}).get(piece, style['notch']))
+                         (o.get('notch_piece') or {}).get(piece, style['notch']), at)
         efn = None
         if refined and piece in o.get('fine_tips', ()):
             efn = (lambda p_: lambda phs, top, tip: median_filter(drawn_tips(
