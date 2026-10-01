@@ -81,7 +81,11 @@ class Scene:
         for n, F in self.fin.items():
             st = np.r_[0, np.cumsum(F['counts'])[:-1]]
             keep = np.zeros(len(F['V']), bool)
-            for f in np.nonzero(np.asarray(F['layer']) == 0)[0]:
+            ink = drape.ink_slots(self.co[n])           # (a piece's ink strokes: lines on it, not its surface)
+            cloth = np.asarray(F['layer']) == 0
+            if ink and F.get('mat_idx') is not None:
+                cloth &= ~np.isin(np.asarray(F['mat_idx']), sorted(ink))
+            for f in np.nonzero(cloth)[0]:
                 keep[F['loopv'][st[f]:st[f] + F['counts'][f]]] = True
             self.surf[n] = keep
         # the shipped garments' surface vertices already inside the skin at rest (the tops tucked under the band):
@@ -118,7 +122,7 @@ class Scene:
             ins = d < 0
             new = ins & (self.rest_inside[n] >= 0)
             o = self.co[n]
-            E = _edges(o['polys'])
+            E = _edges(drape.grid_polys(o))             # (the cloth's edges: not its ink strokes')
             l0 = np.linalg.norm(o['V'][E[:, 0]] - o['V'][E[:, 1]], axis=1)
             l = np.linalg.norm(coarse[n][E[:, 0]] - coarse[n][E[:, 1]], axis=1)
             sn = np.abs(l / np.maximum(l0, 1e-12) - 1)

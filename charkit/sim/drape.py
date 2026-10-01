@@ -86,11 +86,16 @@ def _fan(lv, cnt):
 INK = '_ink'          # (charkit.garments.INK: a material slot whose name ends so is drawn lines riding on the piece)
 
 
+def ink_slots(o):
+    """a piece's material slots that are ink (drawn lines riding on it) -> set of indices."""
+    return {i for i, m in enumerate(o.get('materials') or []) if str((m or {}).get('name', '')).endswith(INK)}
+
+
 def grid_polys(o):
     """a grid-built garment's own faces: its polygons less those on an ink slot (garments.with_ink appends a piece's
     crease strokes to the same object, their vertices after the grid's: lines riding on the cloth, not cloth)."""
-    mats, mi = o.get('materials') or [], o.get('mat_idx')
-    ink = {i for i, m in enumerate(mats) if str((m or {}).get('name', '')).endswith(INK)}
+    mi = o.get('mat_idx')
+    ink = ink_slots(o)
     if not ink or mi is None:
         return list(o['polys'])
     mi = np.asarray(mi)
