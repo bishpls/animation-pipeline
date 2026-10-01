@@ -20,9 +20,21 @@ Per clip and view (acc_KIND_VIEW_*):
   angle    the principal axis' angle from the vertical (second moments), ours - design, degrees mod 180; INFO when either
            shape is too round to have an axis
   shown    what shows of it where the design hides it (the back), or hidden where the design shows it
+  visible  the share of our clip's own silhouette (drawn alone) that shows with everything else drawn (Michael's
+           non-occlusion rule, 2026-09-30: pieces don't hide each other; "the crab being hidden under the star is poor
+           design"); `covered_by` names what covers the rest. A declared check (DECLARED_CHECKS, charkit.declared's
+           family 'visible'), measured in the views the design draws the clip
+iou, size, pos and angle compare ours as the drawing shows the clip (as_drawn(), tool/accessories5): the drawing layers
+the clips over each other (the crab's body over the star's left arm, the star over the crab's right claw), so a drawn
+clip is only its part the other drawn clips leave; ours, aligned on the drawn clip, has the same cover taken out before
+it is measured. A clip nothing covers in the drawing measures as before.
 Per clip (3D): acc_KIND_seat, the gap between the clip's back and the hair surface under it (L; - = sunk into the hair:
 each vertex's height over the hair under it along the clip's thin axis, the least),
 and acc_KIND_pos3d, the design's clip triangulated from its front, three-quarter and profile centroids against ours.
+Per clip, face-on (its own facing; the clips-alone sheet `hair_clips_layers`' bottom row is the structure authority,
+head_turnaround the proportions', layerrefs.md): acc_star_arms and acc_star_minor, the star's side arms and its four
+minor points over its height (arms()) against head_turnaround's unoccluded readings (STAR_ARMS); acc_KIND_alone (INFO),
+our clip face-on against the clips-alone drawing (shape IoU: the structure, its proportions the sheet's own).
 
 The QA part `accessories` (order 2400) runs it in every QA pass; its steps are in charkit/steps/accqa.py.
 """
@@ -53,6 +65,26 @@ LIMITS = {                             # (pass within, warn within); else fail. 
 }
 ROUND = 1.15                           # principal axes' ratio under which a shape has no orientation (angle INFO)
 MIN_PX = 40                            # a mask this small (either side) is not graded
+# the star's proportions face-on (arms(): each arm's reach from the centroid over the height tip to tip), from
+# head_turnaround where the clips-alone sheet disagrees (layerrefs.md section 6; Michael, 2026-10-01): the side arm the
+# unoccluded right arm's (front / three-quarter / profile 0.36 / 0.41 / 0.41: the left is shortened under the drawn
+# crab), the minor points the four diagonals' (0.25 / 0.29 / 0.31; the clips-alone sheet: side 0.48, minor 0.24, an
+# equal-armed compass star). (target, pass within, warn within)
+STAR_ARMS = {'side': (0.39, 0.04, 0.08), 'minor': (0.28, 0.04, 0.08)}
+DECLARED_CHECKS = [
+    # Michael's non-occlusion rule (2026-09-30, tool/accessories5): each clip's share that shows. Calibrated as a defect
+    # detector: the drawn clips standing for ours (each its drawn mask, the other drawn clips moved 1-2 px against it)
+    # pass; the round-4 build (the star bent over the crab) fails
+    dict(check='acc_crab_{view}_visible', family='visible', piece='pin_crab', part='accessories',
+         views=['front', 'three_quarter', 'profile'], limits=[0.97, 0.90], better='higher',
+         note="the share of our crab's own silhouette (drawn alone) that shows (Michael: pieces don't hide each other)",
+         calibrate=dict(known_bad='acc_r4_overlap', kind='defect', shape=['acc_crab_shape'])),
+    dict(check='acc_star_{view}_visible', family='visible', piece='pin_star', part='accessories',
+         views=['front', 'three_quarter', 'profile'], limits=[0.97, 0.90], better='higher',
+         note="the share of our star's own silhouette (drawn alone) that shows (Michael: pieces don't hide each other)",
+         calibrate=dict(no_known_bad='no build hides the star: the drawn arrangement, the star moved over the crab, is '
+                                     'the probe', kind='defect', probes=['star_under_crab'], shape=['acc_star_shape'])),
+]
 
 
 # ------------------------------------------------------------------------------------------------------------ helpers
@@ -356,8 +388,108 @@ def shape_iou(a, b):
     return float((A & B).sum() / u) if u else None
 
 
-def compare(mo, md, ppl, kind, view):
-    """ours against the design for one clip in one view -> {measure: check}."""
+def _centroid(m):
+    ys, xs = np.nonzero(m)
+    return np.array([ys.mean(), xs.mean()])
+
+
+def as_drawn(mo, md, occ, lw=2, it=10):
+    """ours as the drawing shows the clip: the drawing's other clips (occ: their drawn masks, grown lw px over the
+    outline they share) cover part of the drawn clip md, so ours is seen through the same cover: ours aligned on the
+    drawn clip by centroid and area (as shape_iou aligns them) on what's left of ours, the cover moved onto ours by that
+    alignment and taken out, repeated until it holds -> (ours less the cover, the share of ours taken out). A clip the
+    drawing doesn't cover (occ None or clear of it) is ours as it is."""
+    from scipy import ndimage
+    if occ is None or not occ.any() or not mo.any() or not md.any():
+        return mo, 0.0
+    occ = ndimage.binary_dilation(occ, _disk(lw))
+    if not (occ & ndimage.binary_dilation(md, _disk(2 * lw))).any():
+        return mo, 0.0
+    cd, ad = _centroid(md), float(md.sum())
+    yy, xx = np.mgrid[0:mo.shape[0], 0:mo.shape[1]]
+    cur, seen = mo, []
+    for _ in range(it):
+        co, s = _centroid(cur), np.sqrt(ad / cur.sum())
+        sy, sx = cd[0] + (yy - co[0]) * s, cd[1] + (xx - co[1]) * s
+        cov = ndimage.map_coordinates(occ.astype(float), [sy, sx], order=0, mode='constant', cval=0.0) > 0.5
+        nxt = mo & ~cov
+        if not nxt.any():
+            break
+        key = int(nxt.sum())
+        if np.array_equal(nxt, cur) or key in seen:          # (held, or cycling between two covers: take this one)
+            cur = nxt
+            break
+        seen.append(key)
+        cur = nxt
+    return cur, round(1.0 - float(cur.sum()) / float(mo.sum()), 4)
+
+
+def arms(m, width=20.0):
+    """a star's arms from its centroid as fractions of its height (the up and down reaches' sum), each the furthest
+    outline point within `width` degrees of its direction: up, down, the side arms' mean (left, right kept), the four
+    diagonal minor points' mean -> dict, or None for an empty mask."""
+    from scipy import ndimage
+    if m.sum() < MIN_PX:
+        return None
+    ys, xs = np.nonzero(m & ~ndimage.binary_erosion(m))
+    c = _centroid(m)
+    dy, dx = -(ys - c[0]), xs - c[1]                          # up and right
+    r = np.hypot(dx, dy)
+    a = np.degrees(np.arctan2(dx, dy)) % 360                  # 0 up, 90 right
+    reach = {}
+    for name, ang in (('up', 0), ('ur', 45), ('right', 90), ('dr', 135), ('down', 180), ('dl', 225), ('left', 270),
+                      ('ul', 315)):
+        d = np.abs((a - ang + 180) % 360 - 180)
+        sel = d <= width
+        reach[name] = float(r[sel].max()) if sel.any() else 0.0
+    h = reach['up'] + reach['down']
+    if h <= 0:
+        return None
+    f = lambda v: round(float(v / h), 3)
+    return dict(up=f(reach['up']), down=f(reach['down']), side=f((reach['left'] + reach['right']) / 2),
+                left=f(reach['left']), right=f(reach['right']),
+                minor=f((reach['ur'] + reach['dr'] + reach['dl'] + reach['ul']) / 4), height_px=round(h, 1))
+
+
+def face_on(V, F, axes, ppl=400.0, edge=False):
+    """a clip drawn alone along its own facing (axes: columns x, y, z = its facing; world verts V), orthographic at ppl
+    px per unit of V -> bool mask. edge: seen from its side (along its x axis), its thickness across."""
+    from .faceqa import zbuffer
+    V = np.asarray(V, float)
+    q = (V - V.mean(0)) @ np.asarray(axes, float)             # its own frame: x across, y up, z out
+    W = np.c_[q[:, 2], -q[:, 0], q[:, 1]] if edge else np.c_[q[:, 0], -q[:, 2], q[:, 1]]
+    T = _tris(F)
+    ext = max(np.abs(W[:, 0]).max(), np.abs(W[:, 2]).max()) * 1.1 + 2.0 / ppl
+    win = dict(x=ext, top=ext, bottom=-ext)
+    _, lab = zbuffer([(W, T, np.ones(len(T), np.int64))], 0.0, (0.0, 0.0), 1.0, 1.0 / ppl, win)
+    return lab > 0
+
+
+def _tris(F):
+    F = [tuple(int(i) for i in f) for f in F]
+    return np.array([f[:3] for f in F] + [(f[0], f[2], f[3]) for f in F if len(f) == 4], np.int64)
+
+
+def clip_axes(V, centre=None):
+    """a placed clip's own frame from its vertices: columns x, y, z = its thin axis (the smallest principal axis, away
+    from the head's centre), y the largest's made perpendicular and pointing up."""
+    P = np.asarray(V, float)
+    c = P.mean(0)
+    w, U = np.linalg.eigh(np.cov((P - c).T))
+    z = U[:, 0]
+    if centre is not None and z @ (c - np.asarray(centre, float)) < 0:
+        z = -z
+    y = np.array([0, 0, 1.0]) - z[2] * z
+    y = y / np.linalg.norm(y) if np.linalg.norm(y) > 1e-9 else U[:, 2]
+    return np.stack([np.cross(y, z), y, z], 1)
+
+
+def compare(mo, md, ppl, kind, view, occ=None):
+    """ours against the design for one clip in one view -> {measure: check}. occ: the drawing's other clips' masks over
+    this one (ours is measured as the drawing shows the clip: as_drawn())."""
+    hid = 0.0
+    if occ is not None and mo.sum() >= MIN_PX and md.sum() >= MIN_PX:
+        mo, hid = as_drawn(mo, md, occ, max(1, int(round(0.004 * ppl))))
     O, D = measure(mo, ppl), measure(md, ppl)
     C = {}
     tag = 'acc_%s_%s_' % (kind, view)
@@ -373,6 +505,8 @@ def compare(mo, md, ppl, kind, view):
     C[tag + 'shown'] = {'value': round(O['px'] / D['px'], 3), 'status': 'INFO', 'note': 'shown pixels, ours / design'}
     v = shape_iou(mo, md)
     C[tag + 'iou'] = {'value': round(v, 3), 'status': _grade('iou', v)}
+    if occ is not None:
+        C[tag + 'iou']['as_drawn'] = hid            # the share of ours the drawing's cover took out before measuring
     r = O['size'] / D['size']
     C[tag + 'size'] = {'value': round(r, 3), 'ours_L': O['size'], 'design_L': D['size'], 'status': _grade('size', r - 1),
                        'h': [O['h'], D['h']], 'w': [O['w'], D['w']]}
@@ -486,6 +620,40 @@ def sheets(spec):
 
 def _abs(p):
     return p if os.path.isabs(p) else os.path.join(ROOT, p)
+
+
+ALONE_REF = 'hair_clips_layers'        # the manifest's separated clips reference (its bottom row: the clips alone)
+
+
+def alone_clips(spec, load=None):
+    """the clips-alone drawings (the manifest's ALONE_REF, its bottom row under the widest empty band of rows; each clip
+    straight on and edge-on, told apart by colour and by width: charkit.layerref's reading) -> ({kind: face-on mask,
+    kind + '_edge': edge-on mask}, [path]) or None (no such reference)."""
+    from . import layerref
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    man = ref.get('manifest')
+    if not man:
+        return None
+    M = json.load(open(_abs(man)))
+    r = (M.get('references') or {}).get(ALONE_REF)
+    if not r or not r.get('path'):
+        return None
+    path = _abs(r['path'])
+    rgb = np.asarray(load(path) if load else layerref._load(path), float)[..., :3]
+    cut = layerref._rows_split(rgb)
+    out = {}
+    blobs = layerref._blobs(rgb[cut:])
+    for kind, yellow in (('star', True), ('crab', False)):
+        L_ = [b for b in blobs if (b['colour'][1] > 0.6 * b['colour'][0] and b['colour'][2] < 0.75 * b['colour'][1])
+              == yellow]
+        if not L_:
+            continue
+        asp = lambda b: (b['box'][2] - b['box'][0]) / max(1, b['box'][3] - b['box'][1])
+        for name, b in ((kind, max(L_, key=asp)), (kind + '_edge', min(L_, key=asp) if len(L_) > 1 else None)):
+            if b is not None:
+                x0, y0, x1, y1 = b['box']
+                out[name] = b['mask'][y0:y1 + 1, x0:x1 + 1]
+    return out, [path]
 
 
 def design_sheets(items, eye_x, pieces):
