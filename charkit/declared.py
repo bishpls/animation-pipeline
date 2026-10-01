@@ -19,6 +19,8 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
                (our_lines), the design's drawn masks less its line class; ours beyond the design's
   position     a piece's centroid against the design's (L from the eye line and the midline): the larger of |dx|, |dz|
                (params axis 'x', 'z' or 'both')
+  ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
+               recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -280,7 +282,31 @@ def position(Mo, Md, ctx, axis='both', round_=4):
                 design=[round(float(xd), 4), round(float(zd), 4)])
 
 
-def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, edge=False, round_=3):
+def _spans(R):
+    """each row's first and last column of a mask (-1 where the row is empty) -> (lo, hi)."""
+    any_ = R.any(1)
+    lo = np.where(any_, R.argmax(1), -1)
+    hi = np.where(any_, R.shape[1] - 1 - R[:, ::-1].argmax(1), -1)
+    return lo, hi
+
+
+def remap_rows(m, Ro, Rd):
+    """a mask's pixels moved row by row from region Ro's span onto region Rd's, keeping their share across it (rows
+    where either region is empty dropped): ours compared within the drawn region's frame."""
+    out = np.zeros(m.shape, bool)
+    (lo, ho), (ld, hd) = _spans(Ro), _spans(Rd)
+    r, c = np.nonzero(m)
+    ok = (lo[r] >= 0) & (ld[r] >= 0) & (ho[r] > lo[r])
+    r, c = r[ok], c[ok]
+    t = (c - lo[r]) / (ho[r] - lo[r])
+    c2 = np.rint(ld[r] + t * (hd[r] - ld[r])).astype(int)
+    k = (c2 >= 0) & (c2 < m.shape[1])
+    out[r[k], c2[k]] = True
+    return out
+
+
+def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, edge=False, relative=None,
+               round_=3):
     """the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's
     ink, with its fainter strokes (faint: outfit.ridges, as partqa.design_lines reads the bow's creases), inside the drawn
     region (the piece's mask, or the drawn piece `region`'s: the skirt's cream panel; closed, holes filled, its outline's
@@ -288,7 +314,12 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     our piece; each skeletonized. The share of the drawn lines' length with none of ours within `tol` L (1 - recall:
     where the lines are, not only how much; `ours` and `design` their lengths in L, `precision` the share of ours near a
     drawn one). A view whose drawn region holds under `min_len` L of lines is skipped. edge: the lines along the
-    region's outline instead (a band `band` L either side of it: the folds that bound a pleat's panel), not inside it."""
+    region's outline instead (a band `band` L either side of it: the folds that bound a pleat's panel), not inside it.
+    relative (a class: 'cream'): where the lines lie within the region, not where the region lies: ours read inside our
+    own region (our piece's pixels of that class, closed, filled), then moved row by row from its span onto the drawn
+    region's at the same share across it (remap_rows), so a region drawn view-dependently (the skirt's cream panel, drawn
+    face-on in three-quarter: wider than any 3D panel turned 35 degrees can show) still grades its lines' arrangement,
+    and the region's own shape is the shape check's."""
     from scipy import ndimage
     from skimage.morphology import skeletonize
     from . import bodyqa, outfit
@@ -316,8 +347,24 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     lines = ctx.get('lines')
     if lines is None or not Mo.any():
         return dict(value=None, why=WHY_OURS)
-    o_ = skeletonize(fit(lines, sh) & inner & ndimage.binary_dilation(Mo, iterations=2))
+    zone_o = inner
+    if relative:
+        clo = ctx.get('cls_ours')
+        Ro = np.zeros(sh, bool)
+        if clo is not None:
+            h, w = min(sh[0], clo.shape[0]), min(sh[1], clo.shape[1])
+            Ro[:h, :w] = clo[:h, :w] == bodyqa.CLASS[relative]
+            Ro &= Mo
+        if not Ro.any():
+            return dict(value=None, why=WHY_OURS)
+        Ro = ndimage.binary_fill_holes(ndimage.binary_closing(Ro, iterations=3))
+        zone_o = ndimage.binary_erosion(Ro, iterations=b_)
+        if edge:
+            zone_o = ndimage.binary_dilation(Ro, iterations=b_) & ~zone_o
+    o_ = skeletonize(fit(lines, sh) & zone_o & ndimage.binary_dilation(Mo, iterations=2))
     o_len = float(o_.sum()) / ppl
+    if relative:
+        o_ = remap_rows(o_, Ro, R)
     r = tol * ppl
     near_o = ndimage.distance_transform_edt(~o_) <= r if o_.any() else np.zeros(sh, bool)
     near_d = ndimage.distance_transform_edt(~d_) <= r
@@ -467,6 +514,7 @@ def evaluate(decls, I):
         ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=(dv.get(view) or {}).get('fg'), cls=(dv.get(view) or {}).get('cls'),
                    dv=dv.get(view),
                    lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
+                   cls_ours=(I.get('cls_ours') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         fam = FAMILIES[d['family']]
         if 'round' in params:
@@ -508,7 +556,7 @@ def declared(B, design=None, out=None):
         return None, {}
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
     I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
-               classes=any('ours_cls' in (d.get('params') or {}) for d in ds))
+               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}

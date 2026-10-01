@@ -110,3 +110,14 @@ def test_the_render_drawing_reads_ink_primitives_as_the_ink_surface(monkeypatch)
     v = qarender.view(B, surfs, 0.0, None, Q=Q)
     assert v.index[(0, False)] == 0 and v.index[(1, False)] == 1           # the cloth; the strokes: the ink surface
     assert v.index[(0, True)] == 2 and v.index[(1, True)] == 2             # the outline: the hull
+
+
+def test_box_pleat_sets_the_middle_back_and_the_returns_come_forward_to_the_edges():
+    f = np.array([-1.5, -1.0, -0.75, -0.5, 0.0, 0.5, 0.75, 1.0, 1.5])
+    d = g.box_pleat(f, np.array([[1.0] * len(f)]), dict(depth=0.2, crease=0.5))[0]
+    assert np.allclose(d, [0, 0, 0.1, 0.2, 0.2, 0.2, 0.1, 0, 0])
+    assert np.allclose(g.box_pleat(f, np.array([[0.0] * len(f)]), dict(depth=0.2))[0], 0)   # nothing at the waist
+    n = 144
+    th = -np.pi + (np.arange(n) + 0.5) * 2 * np.pi / n
+    fk = g.panel_fraction(th, np.radians(20))
+    assert (np.abs(fk) <= 1 + 1e-9).sum() == 17                              # the panel's 16 faces' 17 columns

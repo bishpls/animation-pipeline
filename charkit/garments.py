@@ -1424,6 +1424,25 @@ def panel_warp(th, half, VV, ps):
     return c + out
 
 
+def panel_fraction(th, half):
+    """each column's share across a skirt's front panel (panel_warp's frame): 0 its middle, -1 and 1 its edge columns,
+    beyond 1 in size outside it."""
+    th = np.asarray(th, float)
+    n = len(th)
+    ks = np.nonzero(np.abs(th) < half)[0]
+    bl, br = th[ks.min()], th[(ks.max() + 1) % n]
+    c, h0 = (bl + br) / 2, (br - bl) / 2
+    return (np.mod(th - c + np.pi, 2 * np.pi) - np.pi) / h0
+
+
+def box_pleat(f, VV, ps):
+    """how far (L) an inverted box pleat sets the panel back at each vertex: `depth` x v ** `depth_power` on the middle
+    (|f| <= `crease`), falling linearly to 0 at the edges (|f| = 1), 0 outside -> (rows, n)."""
+    cr = float(ps.get('crease', 0.5))
+    g = np.clip((1 - np.abs(np.asarray(f, float))) / max(1e-6, 1 - cr), 0, 1)
+    return float(ps.get('depth', 0.0)) * np.clip(VV, 0, 1) ** float(ps.get('depth_power', 1.0)) * g[None, :]
+
+
 def _field_at(F, vs, VV, TH):
     """a loft field's radius at each (v, angle) (bilinear: rows vs, columns F.th, periodic round)."""
     th = np.asarray(F.th, float)
@@ -1570,9 +1589,18 @@ def skirt_hull(A, spec, hull):
         # at the waist as at the hem (skirt_panel_*_shape). Each vertex row's columns are re-spaced round the axis so the
         # panel's edge columns sit at `scale` x (top + (1 - top) v ** power) of their own angle, the rest spread over the
         # remaining circle: the panel's faces keep their columns (a clean edge, its UV and creases ride with it), the
-        # surface is the same field read at the new angles; the knife pleats fan with the columns
-        THv = panel_warp(F.th, half, VVg, spec['panel_shape'])
-        R = _field_at(F, vs, VVg, THv) + off + depth * zig * VVg ** 0.7
+        # surface is the same field read at the new angles; the knife pleats fan with the columns. `depth`: the panel
+        # an inverted box pleat (box_pleat)
+        ps_ = spec['panel_shape']
+        THv = panel_warp(F.th, half, VVg, ps_)
+        fk = panel_fraction(F.th, half)                       # each column's share across the panel (|f| <= 1 inside)
+        zk = (np.abs(fk) > 1)[None, :] if ps_.get('depth') else 1.0       # (a box pleat's panel: no knife pleats)
+        R = _field_at(F, vs, VVg, THv) + off + depth * zig * VVg ** 0.7 * zk
+        if ps_.get('depth'):
+            # an inverted box pleat: the panel's middle (|f| under `crease`) set back `depth` L (x v ** depth_power,
+            # deepening to the hem), its returns from each crease out to the orange's edge (|f| 1) coming forward again;
+            # the knife pleats left off the panel (its folds are the pleat's)
+            R = R - box_pleat(fk, VVg, ps_) * L
         T = t0_at(THv) + VVg * (hem_at(THv) - t0_at(THv))
     nrow = VVg.shape[0] - 1
     tuck = None
