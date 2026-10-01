@@ -154,9 +154,9 @@ DECLARED_CHECKS = [
 ]
 # the drawn crab's own up (toward its claws) in each view's picture, degrees (0 the picture's right, 90 up): 90 + the
 # roll of the crab template fitted to the drawn crab in that view (charkit.accfit's template fit, tool/accessories6:
-# charkit/out/acc6/opt_crab3: rolls -1.9 / -14.2 / -2.2; the drawing hides its right claw under the star, so its
+# charkit/out/acc6/opt_crab4: rolls -0.8 / -9.1 / -2.6; the drawing hides its right claw under the star, so its
 # axis is the template's)
-CRAB_AXIS = {'front': 88.1, 'three_quarter': 75.8, 'profile': 87.8}
+CRAB_AXIS = {'front': 89.2, 'three_quarter': 80.9, 'profile': 87.4}
 FACE = 'face'                          # the clips-alone sheet's straight-on drawing as a view of the declared checks
 FACE_SHEET = 'clips_alone'             # (the stand-in's labels() sheet name for it)
 
