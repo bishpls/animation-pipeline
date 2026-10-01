@@ -682,3 +682,51 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   (collar front IoU 0.657 -> 0.41-0.54, 3q 0.468 -> 0.24-0.37, lap3q width 0.061 -> 0.095-0.128): the walk crumples over
   the neck's flare. l4 running: mode 'project' (straight front-view columns laid on the torso). tool/garments4-v merged
   into lapels (a3bb4a8b; declared families unioned: top_line, class_iou, stair, band_rows).
+
+## The motion QA fix (branch tool/garments4-motionfix from pipeline-3d ad081524; coordinator's priority)
+- Cause (confirmed from the builds' qa.json): motion read SKIPPED "skirt: not a grid" since the creases milestone
+  (g4_creases 5108 vertices, g4_cuffs2 5110, g4_stairs1 5398 at stride 144), not the staircase: garments.with_ink
+  appends the crease strokes to the skirt object (their faces on 'skirt_ink', their 70 vertices after the grid's); the
+  stairs' fourth step added 2 grid rows. The gates reported motion SKIPPED, not blocking.
+- Fix at the cloth's grid reader (charkit/sim): drape.ink_slots / grid_polys (the cloth's own faces), grid_of reads the
+  grid from them; cage.of_piece builds on the grid and carries the strokes (Cage.attach: the nearest template vertex's
+  block and weights, their own residual); piece_cloth pins them inert; motion's stretch edges and penetration surface
+  leave the strokes out (with them in, the stroke edges set the stretch p99: kick 0.36, squat 0.93). Test test_sim
+  (a grid with strokes: grid_of, carried exactly at rest and with a rigid move).
+- Readings: the calibration build hands_b4 (pre-creases): kick inside 0.0024, kick stretch 0.063, squat stretch 0.104
+  (all PASS). Being re-measured on the box: g4_stairs1 (ink + stairs) and g4_part1 (no ink) with the fix.
+- **Motion readings with the fix (box QA):** g4_part1 (no ink) kick inside 0.00244 P, kick stretch 0.06346 P, squat
+  stretch 0.10404 P: the calibration build's exactly (the fix is neutral without ink); g4_cuffs2 (creases + cuffs, no
+  stairs) 0.00235 P / 0.0790 P / 0.1272 P; g4_stairs1 (pipeline-3d's skirt: + the staircase) 0.0071 **WARN** / 0.0796 P /
+  0.1338 P (squat inside 0.0171 INFO). **The staircase raised the kick's penetration 0.0024 -> 0.0071** (WARN; hidden while
+  motion read SKIPPED during the stairs gates): a follow-up (the fourth step's rows at the hem).
+- **Motion gate: PASS under K** (tool/garments4-motionfix 4da79555 into pipeline-3d ad081524;
+  charkit/out/gate/gate_tool-garments4-motionfix_4da79555_into_ad081524.md): CPU 1.04x; the four motion checks back
+  (records calibrated); motion's measurement steps registered after the gate (charkit/steps/motionqa.py), carried.
+
+## Lapels (step 4), stop point: not gated; what the sweeps showed and the exact next steps
+- Branch tool/garments4-lapels (pipeline-3d merged in after the V). Carries: declared band_rows (+ hair occluder),
+  charkit/lapelqa.py (collar_three_quarter_lapel_width / _v, limits [0.015, 0.03]; front not calibrated: a 1-2 px vertical
+  move reads 0.035-0.06 L; the drafts' records not written: calibrate the module on the chosen build), calibrate's
+  draft-check fix, garments: collar_hull flat_front {a, fade} (conform off in front), collar front_length table, collar
+  'lapel' {mode 'project' (straight front-view columns laid on the torso, garments.front_hits) or the walk cut at the
+  drawn outer edge; a, point, shoulder, spread, off, top, blend}. All off by default; bodysens NOT_KNOBS lists them.
+- Sweeps on g4_v1 (box; tools/garments4/l1..l7.json, outs charkit/out/garments4/sweeps/l1..l7, table
+  charkit/out/garments4/tools/ltab.py): control collar F/3q 0.657/0.468, V 0.765/0.566, lap3q width 0.061, ao_collar 1.45,
+  ao_neck 2.09 (numpy drawing). l1 conform off alone: worse (collar F 0.19-0.51). l2 Coons patch / l3 walk cut at the
+  outer edge: worse (0.41-0.54 / 0.24-0.37), the walk crumples over the neck's flare. l4/l5 projected: l5 Q2 (a 85, v_half
+  55, opening x1.1, spread 0.7, off 0.06) collar 0.765/0.428, V 0.80 P / 0.627, ao_collar 0.69, but ao_neck 5.7 and
+  fragments 9.2, lap3q width 0.079; l7 showed Q2's front gain came from rows that missed the torso collapsing onto the
+  neckline point (degenerate faces at the neck); with them filled by the walk (S0) 0.452/0.309. Neckline drops 0.02-0.06
+  (l7) give V 0.78-0.80 / 0.68-0.70 but collar 0.48-0.59 / 0.35-0.43.
+- **Why it doesn't converge:** the drawn lapels' top runs along a level shoulder line where our body dips 0.07-0.09 L
+  (milestone 3's measurement: shoulder_*_dip); in front view there's no body under the lapel's top (x 0.15-0.40 at
+  z -0.47..-0.52), so a lapel laid on the body has nothing to lie on there: the hull conform supplied it (as lumps).
+  The flat lapels need the shoulders first (body.shoulder template or the jacket's shoulder pad, tool/garments4-shoulders;
+  parked on Michael's two calls).
+- **Next steps:** (1) with Michael's shoulders answer: body.shoulder {z -0.525, x 0.47, join} (or the pad) on this branch;
+  (2) then the projected lapels laid on the jacket's surface (not the body's), all rows (no collapsed rows), lap_T
+  including the shoulder tops; sweep a/v_half/opening/off against collar F/3q (guard), neck_v_*, lap3q width/v, ao_collar,
+  ao_neck, af_collar; (3) calibrate lapelqa on the chosen build (`calibrate 'collar_three_quarter_lapel_*' --build`,
+  known-bad g4_v0), box build, merge pipeline-3d, gate; (4) re-judge art_outline_collar on it (today 1.442 PASS on the
+  default with the V: its FAILs were tool/collar4's stand-up template collars E2/A3/H1, 3.4-5.6).

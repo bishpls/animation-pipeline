@@ -83,17 +83,39 @@ def _fan(lv, cnt):
     return np.asarray(T, np.int64).reshape(-1, 3)
 
 
+INK = '_ink'          # (charkit.garments.INK: a material slot whose name ends so is drawn lines riding on the piece)
+
+
+def ink_slots(o):
+    """a piece's material slots that are ink (drawn lines riding on it) -> set of indices."""
+    return {i for i, m in enumerate(o.get('materials') or []) if str((m or {}).get('name', '')).endswith(INK)}
+
+
+def grid_polys(o):
+    """a grid-built garment's own faces: its polygons less those on an ink slot (garments.with_ink appends a piece's
+    crease strokes to the same object, their vertices after the grid's: lines riding on the cloth, not cloth)."""
+    mi = o.get('mat_idx')
+    ink = ink_slots(o)
+    if not ink or mi is None:
+        return list(o['polys'])
+    mi = np.asarray(mi)
+    return [f for f, k in zip(o['polys'], mi) if int(k) not in ink]
+
+
 def grid_of(o):
-    """a grid-built garment's (rows, columns): its quads join j*NC + i to its neighbours 1 and NC on."""
+    """a grid-built garment's (rows, columns): its quads join j*NC + i to its neighbours 1 and NC on; its grid is the
+    vertices its own faces use (grid_polys: an ink stroke's vertices come after them and aren't the grid's)."""
+    P = grid_polys(o)
     d = set()
-    for f in o['polys'][:64]:
+    for f in P[:64]:
         f = list(f)
         for a, b in zip(f, f[1:] + f[:1]):
             d.add(abs(int(a) - int(b)))
     NC = max(d)
-    if len(o['V']) % NC:
-        raise ValueError('%s: not a grid (%d vertices, stride %d)' % (o['name'], len(o['V']), NC))
-    return len(o['V']) // NC, NC
+    n = max(int(max(f)) for f in P) + 1
+    if n % NC:
+        raise ValueError('%s: not a grid (%d vertices, stride %d)' % (o['name'], n, NC))
+    return n // NC, NC
 
 
 def piece_cloth(o, pin_rows=2, rest='template', density=0.2):
@@ -102,10 +124,11 @@ def piece_cloth(o, pin_rows=2, rest='template', density=0.2):
     its lengths, flat (rest angles 0)."""
     NR, NC = grid_of(o)
     V = np.asarray(o['V'], float)
+    P = grid_polys(o)                                   # (an ink stroke's vertices: on no cloth face, pinned inert)
     used = np.zeros(len(V), bool)
-    used[np.concatenate([np.asarray(f, np.int64) for f in o['polys']])] = True
+    used[np.concatenate([np.asarray(f, np.int64) for f in P])] = True
     pins = np.r_[np.arange(pin_rows * NC), np.nonzero(~used)[0]]
-    C = xpbd.Cloth(V, o['polys'], pins=pins, density=density)
+    C = xpbd.Cloth(V, P, pins=pins, density=density)
     if rest == 'pattern':
         C.rest_angle = np.zeros_like(C.rest_angle)
     elif rest != 'template':
