@@ -54,11 +54,33 @@ unchanged by construction.
   eye_corner_profile -0.074 FAIL, close-up profile -0.087 FAIL, front 0.022 / close-up front -0.033 / 3/4 0.017 PASS,
   brow_len_closeup_front 1.022 PASS).
 
+- **sw2** (build box, base face7_b0; all its numbers in `charkit/out/face7/sw2/sweep.md`):
+  - cheek refit (-0.12, smooth 0.03, drop_bound): face_contour_three_quarter 0.774 -> 0.911 WARN, mouth_place_three_quarter
+    0.0748 -> 0.0514, mouth_place_profile -0.046 -> -0.030 PASS, nose_mark_at_three_quarter 0.0337 -> 0.0074 PASS; but the
+    refit moves the mouth block's cage column (x 0.16 at the mouth row reaches the surface at 0.514 rad, was 0.574: column
+    38 -> 37): another cage topology; the rows took the whole-skin path and face_piece_mouth read 0.47/0.43/0.61 ->
+    0.44/0.38/0.49 (profile -20%: the guard would block with mouth_place_profile improving). sw4 checks the whole-skin
+    path's fidelity (noop replaced) before trusting it.
+  - forehead depth 0.045 (z 0.2, dz 0.1, peak 0.75): brow_len_closeup_profile 0.713 -> 0.959 PASS, brow_shape_closeup_profile
+    0.471 -> 0.794 PASS (face_piece_brow profile 0.47 -> 0.79), but brow_arch_closeup_profile 0.013 -> -0.029 FAIL (the
+    brow's middle went back nearly as far as its end) and eye_bowl 0.0248 -> 0.0274 (0.06: 0.0337 FAIL). sw5: the bump's
+    peak further out (0.85-0.9), the band higher (z 0.21-0.22, dz 0.08).
+  - wrap 0.2 + wrap_reach 0.07: eye_corner_profile -0.074 -> -0.026 PASS, close-up -0.087 -> -0.031 PASS, 3/4 0.017 ->
+    0.036 PASS, front spikes 1.0 -> 0.833 PASS (the reach fixed sw1's 0.33), profile spikes 0 -> 0.5 WARN; with wrap_from
+    0.2: profile spikes 0.75 PASS; wrap 0.3 from 0.2: corners -0.009 / -0.021 / 0.039 (3/4 at its limit). Pieces: lash 3/4
+    0.24 -> 0.30, iris profile 0.72 -> 0.77, nothing down >15%.
+  - scale_smooth 0.015 / 0.035 (the jaw WARNs): worse (chin_angle 2.3 / 6.8; 0.035 breaks the jaw: bend 40, tip 0.19).
+    Not the lever; default kept.
+- **sw3** (the override, on the refit): slide 0.02-0.05 moves the 3/4 mouth's lead only 0.42 x the slide (0.121 ->
+  0.142 at 0.05; design 0.173): mouth_place_three_quarter_override 0.0425 / 0.0372 / 0.0337 / 0.0303. Suspect the skin's
+  lips (the slit, read as mouth) don't move with the line in the keyed bundle; the check now records each object's move.
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
   to the build box (no `--box render`); `--box render` only for builds whose boards I need. sw2 (already running on the
   render box) left to finish. Build-box sweep base: `charkit/out/face7_b0` (7e89130f, defaults = control, boards views).
+  Coordinator (later): builds that need boards go to `--box render2` (32 vCPU, L4, 10 slots); `--box render` drains.
 
 - WIP commit 0a50c46c (defaults unchanged: every new knob off). Coordinator (2026-10-01): the laptop's memory is
   critical: no new local heavy jobs; sweeps, builds, labs on the boxes (`charkit sweep --box`, `remote run|build`).
