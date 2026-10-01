@@ -241,9 +241,10 @@ class Frames:
         slot = lambda info: self._texv.get(info['index'], self._dummy) if info else self._dummy
         return [slot(F.get('sdf')), slot(F.get('fringe')), slot(F.get('blush')), slot(F.get('ink')), slot(L.get('texture'))]
 
-    def _items(self, draw, off, paint, streaks=True, variants=None):
+    def _items(self, draw, off, paint, streaks=True, variants=None, skip=None):
         """-> [(item, 'surface' | 'co', is_blend)], [hull items] for a frame's choices. variants {object: variant}: that
-        object drawn in that state (its primitives of that Prim.variant) instead of as it renders."""
+        object drawn in that state (its primitives of that Prim.variant) instead of as it renders; skip: primitives
+        (indices) not drawn (an object's ink strokes left out of its shading: charkit.qa3d.without_ink)."""
         draw = None if draw is None else set(draw)
         off = set(off or ())
         paint = paint or {}
@@ -253,6 +254,8 @@ class Frames:
         for k, it in enumerate(items):
             name = it['P'].object
             if draw is not None and name not in draw:
+                continue
+            if skip and k in skip:
                 continue
             if it['variant'] != variants.get(name):
                 continue
@@ -306,7 +309,7 @@ class Frames:
         return np.frombuffer(raw, dtype).reshape(h, wp, n)[:, :w].astype(np.float32)
 
     def frame(self, cam, draw=None, off=(), paint=None, light=None, line=0.0, transparent=True, aux_ss=1,
-              picture=True, aux=True, colour=False, world=views_.BG, streaks=True, variants=None):
+              picture=True, aux=True, colour=False, world=views_.BG, streaks=True, variants=None, skip=None):
         """one measuring frame -> dict:
           picture  (H, W, 4) floats: sRGB colour and straight alpha at 8 bits (as a saved PNG reads back; charkit.qa3d.draw's),
                    from ss x ss samples a pixel through EEVEE's film filter; over `world` (linear) unless transparent
@@ -318,14 +321,14 @@ class Frames:
           colour   with colour=True: (H a, W a, 4) linear premultiplied colour and coverage, one sample a pixel
         the buffers one sample at each pixel centre of the measuring grid (the window at aux_ss x its resolution).
         streaks=False: the hair's drawn streaks off (charkit.shade.hair_toon's highlight). variants {object: variant}: an
-        object in another state (the skin 'bare': its garment mask off; Prim.variant)."""
+        object in another state (the skin 'bare': its garment mask off; Prim.variant). skip: primitives not drawn."""
         wgpu, dev, R = self.wgpu, self.dev, self.R
         t0 = time.time()
         W, H = cam.res
         light = self.light_for(cam.az) if light is None else np.asarray(light, float)
         light = light / max(np.linalg.norm(light), 1e-12)
         R._update_normals(line)
-        surf, hulls = self._items(draw, off, paint, streaks, variants)
+        surf, hulls = self._items(draw, off, paint, streaks, variants, skip)
         out = {'light': light, 'line': line, 'res': (W, H), 'aux_ss': aux_ss}
         clear = (0.0, 0.0, 0.0, 0.0) if transparent else (*[float(x) for x in world], 1.0)
         jobs = []

@@ -82,7 +82,8 @@ OPTS = dict(
     bun_veto=VIEWS,     # the views that veto a bun's line
     bun_veto_face=0.9,  # their facing threshold (a bun line from one view lands off the others: our bun block isn't
                         # the drawn one exactly; only a view facing the bun face head-on vetoes it)
-    lock_lines=False,   # the splitter's lock lines as ink on the hull shell's locks (off on the lock shells)
+    lock_lines=False,   # the splitter's lock lines as ink on the hull shell's locks (off on the lock shells): True on
+                        # every mass family, or a list of the families (the per-region setting)
     lock_width=0.005,   # L: their width (the head boards' outline: 0.0022 x 900 px / 400 px per L)
     lock_tip=0.3,       # their width at their ends, a share of lock_width
     lock_taper=0.4,     # the share of their length over which they narrow
@@ -503,7 +504,8 @@ def build(R, spec, iris, centre, L, opts=None, skin=None, log=print):
     if o.get('lock_lines'):
         ol = dict(o, width=o['lock_width'], tip=o['lock_tip'], taper=o['lock_taper'])
         Sl, _ = trace(spec, o, 'lock')
-        Kl, rl = place(R['pieces'], Sl, F, L, ol, skin=skin, log=log, near=near, skip_shell=True)
+        fams = MASS if o['lock_lines'] is True else tuple(f for f in o['lock_lines'] if f in MASS)
+        Kl, rl = place(R['pieces'], Sl, F, L, ol, skin=skin, log=log, near=near, skip_shell=True, families=fams)
         apply(R, Kl, LOCK)
         rep['locks'] = rl
     return rep
