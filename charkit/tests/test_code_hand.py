@@ -90,7 +90,8 @@ def _along(J, f):
 def test_fingers_held_together():
     """neighbouring fingers touch along their length (round 4: de2fa87's four tubes fanned apart read as a comb, the
     fingertips' gaps 0.11-0.18 of the hand's span where the drawn hands show none): across the hand (the palm's plane),
-    the centre lines' distance at every station of the shorter finger is at most the two radii's sum, and the
+    the centre lines' distance at every station of the shorter finger is at most the two radii's sum (and a seam: a gap
+    the outline fills, code_hand.SEAM_MAX), and the
     fingertips converge (the tips' span narrower than the knuckles')."""
     P = ch.params(json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json'))))
     for side, H in _hands().items():
@@ -103,7 +104,7 @@ def test_fingers_held_together():
                 gap = abs((pa - pb) @ R[:, 1])
                 ra = 0.5 * (wa[0] + (wa[1] - wa[0]) * f)
                 rb = 0.5 * (wb[0] + (wb[1] - wb[0]) * f)
-                assert gap <= ra + rb + 1e-6, (side, a, b, f, gap, ra + rb)
+                assert gap <= ra + rb + ch.SEAM_MAX, (side, a, b, f, gap, ra + rb)
         across = lambda k: [D[n][0][k] @ R[:, 1] for n in ch.FINGERS]
         assert np.ptp(across(3)) < np.ptp(across(0)), side
 

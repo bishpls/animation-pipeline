@@ -75,6 +75,8 @@ DEPTH = 0.86                          # a finger's section: its dorsal-palmar de
 JOINT_BLEND = 0.8                     # a finger's weight eases across a knuckle over this share of its radius each side
 INSET = 0.04                          # L: a finger's tube starts this far inside the palm, behind its knuckle
 NTH = dict(palm=20, thumb=10, finger=10)
+SEAM_MAX = 0.005                      # L: a gap between touching fingers this narrow or less is a seam: the outline's hulls
+                                      # (~0.012 L a side at line 1) fill it with ink, a hairline (the QA's labels: < 1 px)
 WRIST_KEEP = 0.0                      # L: the arm's tube keeps its rows up to this past the wrist (under the cuff; the palm
                                       # starts 0.06 behind the wrist, inside it)
 UV_BAND = (0.25, 0.1, 0.5, 0.2)       # the hands' UV slots: this band (under the legs' slots, beside the feet's) in 12
