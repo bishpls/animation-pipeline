@@ -152,6 +152,16 @@ def entry_for(check, E=None):
     return None
 
 
+def _write_json(path, obj):
+    """a record written as a new file (temp + rename): a box's copy of the worktree hard-links its synced inputs from a
+    read-only blob cache (charkit/bucketsync.py), and writing through that link fails (tool/hands2's first box
+    calibration: PermissionError on an existing record)."""
+    tmp = path + '.tmp%d' % os.getpid()
+    with open(tmp, 'w') as f:
+        json.dump(obj, f, indent=1, default=str)
+    os.replace(tmp, path)
+
+
 def records(tree=ROOT):
     """a tree's calibration records -> {check: record}."""
     out = {}
@@ -498,7 +508,7 @@ def calibrate(patterns, build=None, seeds=SEEDS, write=True, log=print):
     if write:
         os.makedirs(os.path.join(ROOT, RECORDS), exist_ok=True)
         for k, r in out.items():
-            json.dump(r, open(os.path.join(ROOT, RECORDS, k + '.json'), 'w'), indent=1, default=str)
+            _write_json(os.path.join(ROOT, RECORDS, k + '.json'), r)
     return out
 
 

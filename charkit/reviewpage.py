@@ -50,6 +50,9 @@ REGIONS = {
     'hands_close': ('the hands close up, below the cuffs (ours drawn from each build\'s bundle with the QA\'s renderer at '
                     'this scale: the body boards draw a hand some 60 px long; the design\'s body turnaround resampled)',
                     ('front', 'three_quarter', 'profile', 'back'), 'bundle', (-1.75, 1.75, -1.85, -2.75), 320),
+    'hands_board': ('the hands close up on the body boards (the build\'s renderer, EEVEE on the render boxes: what a '
+                    'reviewer sees; resampled to this scale from the boards\' ~110 px/L)',
+                    ('front', 'three_quarter', 'profile', 'back'), 'body', (-1.75, 1.75, -1.85, -2.75), 320),
     'skirt': ('the skirt: its cream front panel, the panel\'s creases and folds, the pleats and hem band',
               ('front', 'three_quarter', 'profile'), 'body', (-1.2, 1.2, -1.35, -2.8), 140),
 }
