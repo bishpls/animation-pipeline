@@ -181,6 +181,19 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      0.045 W at bottom .30 (r4) but crease_dir 20 W (the almond too high: ours -48..-57 deg against -37/-40) and iso
      body 0.84 W; depth .08 (r3) no help, profile 0.64. Next: `hang` (the strip's lower layer lower by the knot, behind
      the tails in front) and the almond lower (f .57-.63): s1-s3.
+   - The drawn bow's height (knot + lobes) per view: front 0.353 L, 3q 0.400, profile 0.448 (ours 0.35-0.37 in all):
+     the profile draws the loops 0.09 L lower than the front does, so loop_thick's lower rows can't be met without
+     the front's lobes going long; `hang` (lower layer lower behind the tails) changed nothing (hidden in profile).
+     bottom .30 is the compromise: front lobes 0.994/0.988.
+   - u3 (knot .08, top .24, bottom .30, top_p .6, bottom_p .7, sag .06, crease [.27, 0] p2, almond u [.06,.5] f
+     [.54,.60] h .025 d .012 gap .004, hang [.1,.15,.15], step 1.4, thin .4, pinch .6; no stand): piece_bow
+     0.954/0.857/0.682 (v0 0.926/0.828/0.654), lobes F 0.994/0.988, 3q 0.843/0.904, P 0.850; thick 0.0447 W, lean 1.05
+     P, hang 0 P; crease len 0.14 P, dir 11.0 P; knot line/rect P; iso body 0.839 W, iso creases P. collar_flags
+     (`qaonly.py collar_flags SRC`; the splice reproduces the box's v0: loop_end 0.244 W, bleed 0.205 F): u3/s3
+     loop_end 0.567 FAIL (the pleat's square cap: a straight end over 71-78% of its rows, design 21%), bleed 0.275 FAIL
+     (`bleedpic.py SRC`: the strip's lower edge at the outer ends has no line: its back sits in the jacket). Baseline
+     (b2_before = pipeline-3d's bow): loop_end 0.121 P, bleed 0.0 P: both flag checks, so both must PASS. Next:
+     v1-v4 (rounder caps, `shear` slanting the ends, the strip shallower: step 1.0, thin 0.3).
 
 ## Next steps, in order
 1. **The crease line** (State 10a): probe, then fix the fold so the hull draws it; tune pleat to the design:

@@ -2804,12 +2804,18 @@ def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
         e0, e1 = 1 - capw - P.get('close', 0.2), 1 - capw
         g_ = lambda u: 1 - _smooth((u - e0) / max(1e-9, e1 - e0))
         zt = lambda u: crease(u) + ov
-        zb = lambda u: crease(u) - (crease(u) - bot(u)) * g_(u) - ov * (1 - g_(u)) - sag * math.sin(math.pi * u) ** 0.8
+        hg = P.get('hang')
+        # hang [amount, u, width] (sizes): the loop's lower layer hanging lower by the knot, behind the tails in front
+        # (the drawn profile's loops reach a fifth lower than its front view's lobes show)
+        hang = (lambda u: hg[0] * math.exp(-((u - hg[1]) / hg[2]) ** 2) * g_(u)) if hg else (lambda u: 0.0)
+        zb = lambda u: crease(u) - (crease(u) - bot(u)) * g_(u) - ov * (1 - g_(u)) - sag * math.sin(math.pi * u) ** 0.8 \
+            - hang(u)
     else:
         zt = lambda u: crease(u) + ov
         zb = lambda u: bot(u) - sag * math.sin(math.pi * u) ** 0.8
     if kind == 'almond':
         return _almond(P, sx, sz, depth, nu, top, bot, crease, ov, pinch, nw)
+    zend = 0.5 * (top(1.0) + bot(1.0))                  # the outer end's middle (shear's pivot)
     rows = [0.5 * (1 - math.cos(math.pi * i / nw)) * (1 - capw) for i in range(nw)]
     if kind == 'panel':
         rows += [1 - capw + capw * math.sin(0.5 * math.pi * q / 8) for q in range(9)]
@@ -2829,12 +2835,16 @@ def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
         if kind == 'strip':
             dd *= thin
         x = sx * (x0 + (LOBE - x0) * u) * sz
+        # shear: the outer end leaning out at its top (the drawn ends slant, their upper corners furthest out), x moved
+        # by shear * (height - the end's middle) over the lobe's outer part
+        sh_ = P.get('shear', 0.0) * _smooth((u - 0.55) / 0.45)
         for j in range(nu):
             ph = 2 * math.pi * j / nu
             k_ = k_lo + (k_up - k_lo) * 0.5 * (1 + math.sin(ph))
-            zz = (zm + math.sin(ph) * hh * k_) * sz
+            zs_ = zm + math.sin(ph) * hh * k_
+            zz = zs_ * sz
             yy = yc - math.cos(ph) * dd * max(k_, 0.25)
-            vs.append(np.array([x, yy, zz])); us.append((j / nu, u))
+            vs.append(np.array([x + sx * sh_ * (zs_ - zend) * sz, yy, zz])); us.append((j / nu, u))
     nr = len(rows)
     fs = []
     for i in range(nr - 1):
