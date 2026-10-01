@@ -335,7 +335,20 @@ Branch `tool/hair5` (pipeline-3d 342e88c merged), never pushed.
 neck: the hem's drawn cuts at notch 3 leave the speck there too). art_terminator_hair 2.111 -> 2.008 (WARN both: face5's,
 accepted by Michael), the lock-lines checks new at FAIL (0.1054 / 0.1825: reported, not blocking). Report
 charkit/out/gate/gate_tool-hair5_83f503c_into_342e88c.md. Per the coordinator: the drawn cuts off (5899da7), re-gated
-once (**gate 2 running**, log charkit/out/hair5/gate2.log); b10 (the no-cuts notch-3 hem's lab and labart numbers) beside it.
+once.
+
+**Gate 2 (5899da7 into 342e88c): PASS** under K, nothing blocks; report
+charkit/out/gate/gate_tool-hair5_5899da7_into_342e88c.md. New checks at FAIL (reported): hair_lock_lines_profile 0.1045,
+_three_quarter 0.1825. Flag values moved (grade unchanged): art_speckle_neck 0.678 -> 1.355 PASS (front), art_terminator_hair
+2.111 -> 2.064 WARN (face5's, accepted), collar_back_square 0.345 -> 0.325 and collar_back_iou 0.7461 -> 0.7454 (FAIL
+both). New flags: ahoge F 0.689 WARN, bend 19.2 PASS, attached 0 PASS, back ink 0.894 WARN, hem 3 WARN. hair_folds 6 -> 9,
+art_fragments_hair 1.42 -> 1.578 (INFO, its grade PASS -> WARN), build CPU 1.19x. Guard: no piece below -0.3% in any
+view; the ahoge +55-130%, the flyaways' back +30%.
+b10 (the no-cuts notch-3 hem on the old head, hair5_b3's bundle): art_terminator_hair 2.054 WARN there (1.762 with the
+cuts), art_speckle_neck 1.355 (front), back ink 0.891, hem 3: on 3f7b730 the cut-off hem would read a terminator WARN;
+on face5's head (the merge target) the gate reads 2.064, below face5's accepted 2.111.
+Render builds of the gated default for the page: `charkit/out/hair5_b4` (A), `charkit/out/hair5_bB4` (B), at 5899da7
+(face5 merged).
 
 **Scope change (coordinator, 2026-09-30):** the hair bulk moves to per-lock shells (tool/hairsplit builds the lock
 splitter). No more hull-shell fixes and **no layering round on the hull approach**. The layering, the profile's and
