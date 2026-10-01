@@ -903,12 +903,14 @@ def snap_cuts(V, F, used, keep, sv, cuts, ins):
 
 def opening_cut(A, op):
     """a jacket's open front as a signed cut: |x| less the opening's half-width at the point's height on the body's
-    front (y before the chest's head), else 1 L (kept). op: `half` [[z, half], ...] (L from the eye line; held past its
-    ends). -> fn(world points) -> (n,) (>= 0 outside the opening)."""
+    front (y before the chest's head, or `ahead` L behind it), else 1 L (kept). op: `half` [[z, half], ...] (L from the
+    eye line; held past its ends). `ahead` (round 7, the joined shoulder: the throat's surface at the neck base lies
+    0.002-0.007 L behind the chest's head, so its faces counted as the back and stayed, carried into the V by the
+    offset: the V's notch) takes the front test that far back. -> fn(world points) -> (n,) (>= 0 outside the opening)."""
     L = A['head']['L']
     ez = _eye_z(A)
     K = np.asarray(sorted(op['half']), float)
-    yc = bone_seg(A, op.get('front_of', 'chest'))[0][1]
+    yc = bone_seg(A, op.get('front_of', 'chest'))[0][1] + float(op.get('ahead', 0.0)) * L
 
     def g(X):
         X = np.asarray(X, float)
