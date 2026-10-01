@@ -582,6 +582,7 @@ def draft(spec, log=print):
     """the outfit's template specs drafted from the character's own references: its produced outfit graph and masks
     (charkit.outfit_sheet) and hull -> dict(garments, accessories, missing (piece types with no template))."""
     from . import bodyqa, eyes as eyelib, manifest, palette
+    palette.activate_spec(spec)                     # its own palette and window (not a resolve's in this process)
     P = palette.active()
     M = manifest.load(spec['ref']['manifest'])
     mp = manifest.produced(spec, 'outfit_masks', log)

@@ -40,6 +40,16 @@ ARM_R = 0.22                     # L: hull points this close to an arm's bone (i
 TORSO_SKIN_X = 0.45              # L: bare skin within this of the midline, above the arms' reach, is the torso's
 
 
+def torso_skin(H, Q):
+    """the hull's skin points (Q) that measure the torso: on a dressed hull its bare skin within TORSO_SKIN_X of the
+    midline between -1.0 L and the neck cut (a neckline: below it the tight pieces measure the torso), on a bare hull
+    (Hull.bare: a base body's, no pieces) every skin point from the cut down (the arms' are left out by arm_mask): a
+    bare torso measured by its neckline alone was fitted as Clawd's narrow waist (a second character's, IoU 0.77)."""
+    if getattr(H, 'bare', False):
+        return Q[Q[:, 2] <= CUT + 0.02]
+    return Q[(np.abs(Q[:, 0]) < TORSO_SKIN_X) & (Q[:, 2] <= CUT + 0.02) & (Q[:, 2] > -1.0)]
+
+
 class Hull:
     """the hull's mesh and per-vertex pieces in its own frame (charkit.geom.hull's outputs) -> .V, .piece (labels),
     .names {id: label}, .ids {name: label}."""
@@ -48,8 +58,20 @@ class Hull:
         from .geom import io as gio
         J = json.load(open(os.path.join(hull_dir, 'hull.glb.json')))
         self.V = np.asarray(gio.load(os.path.join(hull_dir, 'hull.ply')).V, float)
-        self.piece = np.load(os.path.join(hull_dir, J['pieces']))
-        self.names = {int(k): v for k, v in J['piece_names'].items()}
+        self.bare = not J.get('pieces')         # carved with no pieces: a base body's, all its own surface
+        if J.get('pieces'):
+            self.piece = np.load(os.path.join(hull_dir, J['pieces']))
+            self.names = {int(k): v for k, v in J['piece_names'].items()}
+        else:
+            # a hull carved with no pieces (a base body's, under its costume: manifest.body_hull) is the body's own
+            # surface: its hair 'hair', every other vertex 'skin' (its sheet's colours there are skin and what lies
+            # tight on it: a second character's underwear read as the iris class), named as a pieced hull names its
+            # free vertices (geom.hull: FREE + bodyqa.CLASS)
+            from .bodyqa import CLASS
+            FREE = 1000
+            cl = np.load(os.path.join(hull_dir, J['labels'])) if J.get('labels') else np.zeros(len(self.V), int)
+            self.piece = np.where(cl == CLASS['hair'], FREE + CLASS['hair'], FREE + CLASS['skin'])
+            self.names = {FREE + CLASS['skin']: 'skin', FREE + CLASS['hair']: 'hair'}
         self.ids = {v: k for k, v in self.names.items()}
         self.eyes = J['eyes']
         self.dir = hull_dir
@@ -241,7 +263,7 @@ def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None, drawn_back=None, shoulde
     for name, dt in TIGHT.items():
         Q = H.points(name)
         if name == 'skin':
-            Q = Q[(np.abs(Q[:, 0]) < TORSO_SKIN_X) & (Q[:, 2] <= CUT + 0.02) & (Q[:, 2] > -1.0)]
+            Q = torso_skin(H, Q)
         Q = Q[~arm_mask(Q, sk)] if len(Q) else Q
         if len(Q):
             src.append((Q, dt))

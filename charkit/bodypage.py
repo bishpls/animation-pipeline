@@ -9,7 +9,7 @@ import json, os
 
 import numpy as np
 
-from .code_body import (CUT, TIGHT, TORSO_SKIN_X, Hull, arm_mask, body, section_r, skeleton)
+from .code_body import (CUT, TIGHT, Hull, arm_mask, body, section_r, skeleton, torso_skin)
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -92,7 +92,7 @@ def measure(H, T, sk):
     for name, dt in TIGHT.items():
         Q = H.points(name)
         if name == 'skin':
-            Q = Q[(np.abs(Q[:, 0]) < TORSO_SKIN_X) & (Q[:, 2] <= CUT + 0.02) & (Q[:, 2] > -1.0)]
+            Q = torso_skin(H, Q)
         if not len(Q):
             continue
         Q = Q[~arm_mask(Q, sk)]

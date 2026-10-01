@@ -123,6 +123,44 @@ resolved by taking pipeline-3d's and reapplying the body_hull routing at its Fit
     (infra): the laptop could re-hash at upload and name the file. Also: keep private review pages under
     charkit/private/<name>/out/ (54 MB of review images were synced as inputs).
 
+## Round 2 (relaunched agent, 2026-10-01 from 14:14)
+
+Fixes in progress (uncommitted until measured; all inert for Clawd):
+18. outfit_sheet.draft activates the resolved spec's palette and window itself (it read a resolve's in-process state:
+    standalone it raised "no two-eyed figure").
+19. manifest.hull_args: produced()'s in-process hull build ignored its command's `--sheet base_body` (and --head, --h,
+    --faces), so c3's body_hull was carved from the CLOTHED sheet, byte-identical to the hull (sha 523d2b05 both): his
+    authored body was fitted to the chiton's volume. The fast path now follows the command; the args enter the stamp
+    only when non-default (a plain hull's stamp unchanged by them). b1 (launched before) has the wrong body hull.
+20. code_body.Hull reads a hull carved with no pieces (a base body's) as bare: its hair 'hair', every other vertex
+    'skin' (it raised KeyError 'pieces'), and torso_skin measures a bare torso by all its skin (Clawd's dressed hull
+    keeps the neckline rule: her torso is measured through her top). Shape IoU of the authored body against the BASE
+    body sheet (charkit/private/c3/tools/body_iou.py; front / three-quarter / profile / back, under the chin):
+      fitted to the clothed hull (b1's):           0.784 / 0.763 / 0.750 / 0.774 (legs 0.75 / 0.72 / 0.76 / 0.72)
+      to the base body hull (fix 19):              0.812 / 0.752 / 0.845 / 0.805 (torso 0.771 front: a narrow waist)
+      plus the bare torso (fix 20):                0.875 / 0.813 / 0.942 / 0.863 (torso 0.887 / 0.852 / 0.956 / 0.883)
+    A foot coverage rule (FOOT_COVER) was tried and reverted: on the true hull it moved the feet by 0.001.
+    Tests: test_code_body +2, test_manifest +2 (each fails on the old code); the set of 7 files 40 passed.
+Preflight (charkit/private/c3/out/preflight/): the draft (7 garments, 2 accessories) and every drafted garment through
+the numpy builder (bodyeval.garment_piece) build without error; the sandals inherit the foot's bad width.
+
+Clawd's pregate moves (0.001-0.002 on 3 hair readings): ATTRIBUTED, not this branch's measurement. Evidence:
+- the design side is byte-identical under both trees (body sheet detection at the QA's scale, refcheck.face_design,
+  detect_figures on all 18 manifest images except key3d, which no QA path detects on);
+- `charkit/private/c3/tools/clawd_attr.sh` (the pregate's evaluator flow on Clawd, local): 333 wrapped detection calls
+  (find_eyes 303, detect_figures 7, detect_heads 20, face_design 2, measure_sheet 1) agree with pipeline-3d's versions
+  (0 diffs), and with detection swapped back the values are the candidate's (0.466 / 0.461 / 0.742), as render2's;
+- the carrier is Clawd's produced HULL: the hair layers, hair split and outfit masks are byte-identical between the
+  branch's fresh build and the cache's pipeline-3d entries, the hull not (face carve 126,062 vs 123,774 voxels). Built
+  fresh with pipeline-3d's own code (scratchpad copy, CHARKIT_PRODUCED_CACHE=off) the hull is byte-identical to the
+  branch's (sha 1c4094a4, 150,342 faces): the pipeline-3d baseline restored a STALE cached hull (sha 786abaad).
+- why (infra finding): code_base.head_sections imports headfit and refcheck at run time (importlib, on purpose: kept
+  out of the build stages' closure), so the hull's stamp and produced-cache key (cache.code_units, depth 1 / 2) miss
+  headfit.contours / hidden_outline: face7's headfit commits changed Clawd's face carve without changing the key.
+  Any branch whose edits rebuild Clawd's hull will see these moves against a cached baseline. Fix (coordinator's call):
+  name head_sections' runtime deps in the hull's key (e.g. the produced entry's code list), which rebuilds every copy's
+  hull once.
+
 ## Exact next steps
 
 1. (done) the venv stages all pass locally.

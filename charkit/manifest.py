@@ -242,6 +242,32 @@ def read_files(r):
             for g in r.get('reads_files', ())]
 
 
+def hull_args(r):
+    """a hull reference's in-process build (produced(): charkit.geom.hull.build, not its command) given what its command
+    asks of `python -m charkit.geom hull` (its main's defaults): the sheet it carves (--head, --sheet NAME), --h and
+    --faces -> the keyword arguments that differ from build()'s defaults ({} for a plain hull). The fast path called
+    build() with none of them, so a body hull (--sheet base_body: the body under the costume) was carved from the
+    clothed sheet, byte-identical to the hull (a second character, 2026-10-01). stamp() takes them when there are any,
+    so a reference stamped before this rebuilds and a plain hull's stamp stays as it was."""
+    import shlex
+    if r.get('produced_by') != 'charkit.geom.hull':
+        return {}
+    a = shlex.split(r.get('command') or '')
+    opt = lambda k: a[a.index(k) + 1] if k in a and a.index(k) + 1 < len(a) else None
+    head = '--head' in a
+    sheet = 'head' if head else (opt('--sheet') or 'body')
+    kw = {}
+    if sheet != 'body':
+        kw['sheet'] = sheet
+    h = float(opt('--h')) if opt('--h') else (0.005 if head else None)
+    if h is not None and h != 0.01:
+        kw['h'] = h
+    faces = int(opt('--faces')) if opt('--faces') else (150000 if head else None)
+    if faces is not None:
+        kw['faces'] = faces
+    return kw
+
+
 PROSE = ('role', 'cautions', 'provenance', 'checks', 'notes')      # a manifest entry's words and records, not its data
 
 
@@ -269,7 +295,8 @@ def stamp(spec, r, parts=False):
     code = _producer_code(r)
     sec = sections(spec, r.get('reads_spec', READS_SPEC))
     files = read_files(r)
-    st = cache.digest([code, entry(r), refs, reads, sec, files])
+    fast = hull_args(r)
+    st = cache.digest([code, entry(r), refs, reads, sec, files] + ([fast] if fast else []))
     if not parts:
         return st
     return st, {'code': cache.digest(code), 'entry': cache.digest(entry(r)), 'refs': cache.digest(refs),
@@ -592,7 +619,7 @@ def produced(spec, rid, log=print):
         t0 = time.time()
         if r['produced_by'] == 'charkit.geom.hull':
             from .geom import hull
-            hull.build(json.loads(json.dumps(cut)), d, validate_views=False, page=False)
+            hull.build(json.loads(json.dumps(cut)), d, validate_views=False, page=False, **hull_args(r))
         else:
             import shlex, subprocess, sys
             rel = lambda x: os.path.relpath(x, ROOT) if x.startswith(ROOT + os.sep) else x

@@ -304,3 +304,63 @@ if __name__ == '__main__':
         if name.startswith('test_'):
             fn()
             print('ok', name)
+
+
+def test_a_hulls_in_process_build_follows_its_command():
+    """produced() builds a hull in process (geom.hull.build), not by its command: the command's sheet (--sheet, --head),
+    --h and --faces must reach build(), and enter the stamp only when they differ from build()'s defaults. Calibrated: a
+    body hull (--sheet base_body) was carved from the clothed sheet, byte-identical to the hull (2026-10-01)."""
+    cmd = 'python -m charkit.geom hull {spec} --out {out} --fast'
+    plain = {'produced_by': 'charkit.geom.hull', 'command': cmd}
+    assert manifest.hull_args(plain) == {}
+    assert manifest.hull_args(dict(plain, command=cmd + ' --sheet base_body')) == {'sheet': 'base_body'}
+    assert manifest.hull_args(dict(plain, command=cmd + ' --head')) == {'sheet': 'head', 'h': 0.005, 'faces': 150000}
+    assert manifest.hull_args(dict(plain, command=cmd + ' --h 0.02 --faces 9000')) == {'h': 0.02, 'faces': 9000}
+    assert manifest.hull_args({'produced_by': 'charkit.outfit', 'command': cmd + ' --head'}) == {}
+    # build() is given them
+    import charkit.geom.hull as gh
+    got = []
+    real = gh.build
+    d = tempfile.mkdtemp(prefix='charkit-hullargs-')
+    M = {'name': 't', 'references': {'body_hull': dict(plain, kind='generated_mesh', tracked=False,
+                                                         path=os.path.join(d, 'hull.glb'),
+                                                         command=cmd + ' --sheet base_body')}}
+    mp = os.path.join(d, 'manifest.json')
+    json.dump(M, open(mp, 'w'))
+
+    def fake(spec, out, **kw):
+        got.append(kw)
+        open(os.path.join(out, 'hull.glb'), 'w').write('x')
+    gh.build = fake
+    try:
+        manifest.produced({'name': 't', 'ref': {'manifest': mp}}, 'body_hull', log=lambda *a: None)
+    finally:
+        gh.build = real
+        shutil.rmtree(d, ignore_errors=True)
+    assert got and got[0].get('sheet') == 'base_body', got
+
+
+def test_a_plain_hulls_stamp_takes_no_build_arguments():
+    """the build arguments enter a hull's stamp only when it has some: a plain hull's stamp is what it was."""
+    import charkit.manifest as m
+    d = tempfile.mkdtemp(prefix='charkit-hullstamp-')
+    cmd = 'python -m charkit.geom hull {spec} --out {out} --fast'
+    try:
+        R = {'hull': {'kind': 'generated_mesh', 'tracked': False, 'produced_by': 'charkit.geom.hull',
+                      'produced_fn': 'charkit.geom.hull:build', 'path': os.path.join(d, 'hull.glb'), 'command': cmd},
+             'body_hull': {'kind': 'generated_mesh', 'tracked': False, 'produced_by': 'charkit.geom.hull',
+                           'produced_fn': 'charkit.geom.hull:build', 'path': os.path.join(d, 'b', 'hull.glb'),
+                           'command': cmd + ' --sheet base_body'}}
+        mp = os.path.join(d, 'manifest.json')
+        json.dump({'name': 't', 'references': R}, open(mp, 'w'))
+        spec = {'name': 't', 'ref': {'manifest': mp}}
+        real = m.hull_args
+        m.hull_args = lambda r: {}
+        try:
+            before = (m.stamp(spec, R['hull']), m.stamp(spec, R['body_hull']))
+        finally:
+            m.hull_args = real
+        assert m.stamp(spec, R['hull']) == before[0]           # plain: unchanged by the arguments
+        assert m.stamp(spec, R['body_hull']) != before[1]      # a body hull: its sheet is in its stamp
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
