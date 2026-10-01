@@ -1,79 +1,68 @@
 {
- "check": "hand_shape_R",
+ "check": "hand_front_taper_L",
  "part": "hands",
  "adapter": "Hands",
  "module": "charkit.calib.hands",
  "at": "2026-10-01T16:31:18",
- "better": "higher",
+ "better": "lower",
  "kind": "shape",
- "shape": [],
+ "shape": [
+  "hand_shape_L",
+  "hand_shape_R"
+ ],
  "design": {
   "moves": {
    "+0,+1": [
-    0.9539,
+    -0.0016,
     "PASS"
    ],
    "+0,+2": [
-    0.9539,
+    -0.0016,
     "PASS"
    ],
    "+1,+0": [
-    0.9539,
+    -0.0016,
     "PASS"
    ],
    "+2,+0": [
-    0.9539,
+    -0.0016,
     "PASS"
    ],
    "+0,-1": [
-    0.9539,
+    -0.0016,
     "PASS"
    ],
    "+0,-2": [
-    0.9539,
+    -0.0016,
     "PASS"
    ],
    "-1,+0": [
-    0.9539,
+    -0.0016,
     "PASS"
    ],
    "-2,+0": [
-    0.9539,
+    -0.0016,
     "PASS"
    ]
   },
-  "min": 0.9539,
-  "max": 0.9539,
+  "min": -0.0016,
+  "max": -0.0016,
   "spread": 0.0,
-  "median": 0.9539,
-  "views": {
-   "back": [
-    0.9916,
-    0.9916
-   ],
-   "front": [
-    0.9915,
-    0.9915
-   ],
-   "three_quarter": [
-    0.9539,
-    0.9539
-   ]
-  }
+  "median": -0.0016
  },
  "known_bad": {
-  "name": "mitten",
-  "value": 0.2676,
+  "name": "comb_hand",
+  "value": 0.2138,
   "status": "FAIL"
  },
  "floor": {
   "stub_hands": {
    "values": [
-    0.5799,
-    0.3985,
-    0.4621,
-    0.4435,
-    0.442
+    0.5491,
+    0.5419,
+    0.5778,
+    0.5778,
+    0.5185
    ],
    "statuses": [
     "FAIL",
@@ -82,43 +71,50 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 0.4435,
+   "median": 0.5491,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "blob_hands": {
+   "values": [
+    0.2062,
+    0.2062,
+    0.2062,
+    0.2062,
+    0.2062
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.2062,
    "status": "FAIL",
    "passing": 0
   }
  },
  "probes": {
-  "blob_hands": {
-   "value": 0.8068,
-   "status": "PASS"
-  },
-  "comb_hands": {
-   "value": 0.811,
-   "status": "PASS"
-  },
   "blunt_hands": {
-   "value": 0.8844,
+   "value": 0.0781,
    "status": "PASS"
   }
  },
  "blind_to": [
-  "blob_hands",
-  "blunt_hands",
-  "comb_hands"
+  "blunt_hands"
  ],
  "current": {
-  "value": 0.6556,
-  "status": "WARN",
-  "margin": 0.416
+  "value": -0.0016,
+  "status": "PASS",
+  "margin": 1.0
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.0), mitten reads 0.2676 FAIL, the floor stub_hands FAIL",
- "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "why": "the design passes every move (spread 0.0), comb_hand reads 0.2138 FAIL, the floor stub_hands FAIL, blob_hands FAIL",
  "build": "charkit/out/hands2_after_q",
  "generators": {
   "stub_hands": "each drawn hand cut off at 35-60% of its reach past the cuff",
   "blob_hands": "each drawn hand replaced by the ellipse of its own area, centroid and second moments",
-  "comb_hands": "each drawn hand's fingers cut apart: three slits along the arm, 2 px wide, from 50% of its reach past the cuff to the tips, at quarters of its width there (de2fa87's comb of separate fingers)",
   "blunt_hands": "each drawn hand squared off: from 75% of its reach to its tip, its width held at the width it has at 75% (fingertips side by side at one level, not converging)"
  },
  "seconds": 342.9

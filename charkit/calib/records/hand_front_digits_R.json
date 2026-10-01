@@ -3,7 +3,7 @@
  "part": "hands",
  "adapter": "Hands",
  "module": "charkit.calib.hands",
- "at": "2026-09-30T21:43:54",
+ "at": "2026-10-01T16:31:18",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -79,15 +79,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0,
+  "value": 1,
   "status": "PASS",
-  "margin": 1.0
+  "margin": 1.5
  },
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0), mitten reads -2 FAIL, the floor blob_hands FAIL",
- "build": "charkit/out/calib/cur_hands",
+ "build": "charkit/out/hands2_after_q",
  "generators": {
   "blob_hands": "each drawn hand replaced by the ellipse of its own area, centroid and second moments"
  },
- "seconds": 76.0
+ "seconds": 342.9
 }
