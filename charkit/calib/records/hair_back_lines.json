@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-10-01T07:43:44",
+ "at": "2026-10-01T21:38:19",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -55,16 +55,16 @@
     -0.022
    ],
    "front": [
-    -0.023,
-    -0.023
+    -0.007,
+    -0.007
    ],
    "profile": [
-    -0.024,
-    -0.024
+    -0.011,
+    -0.011
    ],
    "three_quarter": [
-    -0.152,
-    -0.152
+    -0.118,
+    -0.118
    ]
   }
  },
@@ -76,11 +76,11 @@
  "floor": {
   "voronoi_lines": {
    "values": [
-    -0.634,
-    -0.571,
-    -0.344,
-    -0.117,
-    -0.392
+    -1.304,
+    -0.429,
+    -0.722,
+    0.099,
+    -1.304
    ],
    "statuses": [
     "PASS",
@@ -89,7 +89,7 @@
     "PASS",
     "PASS"
    ],
-   "median": -0.392,
+   "median": -0.722,
    "status": "PASS",
    "passing": 5
   }
@@ -102,16 +102,16 @@
  },
  "blind_to": [],
  "current": {
-  "value": 0.928,
+  "value": 0.932,
   "status": "WARN",
-  "margin": 3.568
+  "margin": 2.363
  },
  "verdict": "calibrated",
  "why": "a defect detector: the design passes every move (spread 0.0), hair5_1580f95 reads 3.761 FAIL; a random stand-in passes it (voronoi_lines); shape guarded by hair_piece_upper_back, hair_piece_lower_back",
- "build": "charkit/out/hst_s1",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
   "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
  },
- "seconds": 39.3
+ "seconds": 61.4
 }
