@@ -109,7 +109,82 @@ unchanged by construction.
 - **Gate 1** launched: tool/face7 (afe44421: pipeline-3d 15e9c55 merged) into pipeline-3d, log charkit/out/face7/gate1.log.
   No local pregate (the coordinator's memory call: the pregate builds the evaluator locally).
 
-## State
+- **sw9/sw9b** (the refit's own bump, peak 0.85-0.9, topology kept: faces equal): the far contour 0.935 W and mouth
+  3/4 0.043, chin_angle 1.5 W -> 0.2 P, chin_v 0.09 W -> 0.04 P, but the bump next to the outline kinks the jaw
+  (jaw_line_bend 4.7 -> 36-40 FAIL, tq_jaw_notch 0 -> 0.06 FAIL, chin_tip 0.83 -> 0.6, eye_hollow 0.012 -> 0.031-0.044)
+  and the mouth's front reads 0.47 -> 0.33: rejected. The sweep now compares the skin's faces, not only its counts.
+- The mouth block's edge columns rounded outward (headgeom.cylinder_cage): the default keeps 26/38, the refit at peak
+  0.75 keeps them too (nearest had taken 27/37). sw10: the refit at 0.75 with the topology kept, fh2c, the combination,
+  the override slide (0.09 on the refit; 0.16 on the rigid head).
+
+- **Gate 1: PASS under K** (item 4): tool/face7 93262fdd into pipeline-3d 15e9c55b, nothing blocks, 155 items reported;
+  CPU 1123.8 -> 1493.7 s (1.33x; the hull missed: headfit changed); 0 guard findings; 8 new checks' records (4
+  calibrated, 4 guards). Report `charkit/out/gate/gate_tool-face7_93262fdd_into_15e9c55b.md`. Reported: new FAILs
+  face_contour_three_quarter 0.775 and brow_len_closeup_profile 0.721 (items 2 and 3, open); 34 parts' "measuring code
+  changed" with no check read differently (bundle.py's Bundle.keyed). Sent to the coordinator (SendMessage main).
+
+- **sw10** (base now with the wrap; the mouth block's columns kept by outward rounding): the cheek refit at 0.75 reads
+  face_contour_three_quarter 0.775 -> 0.925 W, mouth 3/4 0.075 -> 0.050, profile -0.046 -> -0.029 P, nose 3/4 0.034 ->
+  0.003 P, tq_cheek_hollow 0.0057 W -> 0.0034 P, chin_angle 1.5 W -> 1.4 P, but jaw_line_bend 4.7 -> 42 FAIL, chin_tip
+  0.83 -> 0.21 FAIL, tq_jaw_notch 0 -> 0.057 FAIL, eye_hollow 0.012 -> 0.06 FAIL, smile curve -0.025 W -> -0.039 F,
+  mouth front IoU 0.47 -> 0.32. Diagnosis (`an/cagecmp2.py`, cage only): the faces are the base's, the eye and mouth
+  rings barely move, but 458 'face' cage vertices of the jaw's side pocket (UnderJaw parts 0-2, z -0.38..-0.16) move
+  up to 0.17 L (one at (0.081, 0.222, -0.19) goes to (0.116, 0.292, -0.338)): the jaw's envelope (headgeom.jaw_envelope:
+  the design's jaw edge against the sections) reads the cheek's refit as a new jaw edge and drops the pocket's raised
+  top. Item 2 needs the jaw band to read the jaw edge independently of the cheek term (a head-fit round with face5's
+  jaw): not ready for this round's gates. The fh2c forehead with the wrap: brow_arch_closeup_profile 0.009 P (gate 1
+  improved it) -> -0.02 W and the profile spikes 0.75 P -> 0.5 W: two flag regressions; sw11 tries a tighter band (dz
+  0.08) and the middle bump stronger, and the override's slide on the rigid head (0.16 overshoots: lead 0.20 vs 0.173).
+
+- Coordinator: the neck-to-shoulder join belongs to tool/garments4-shoulders: don't change the head's neck here (none
+  of this round's changes touch it); the mouth block's outward rounding (headgeom, item 2's) backed out.
+
+- **sw11**: the forehead with a tighter band (dz 0.08) and a stronger middle bump (fB: 0.04 at 0.55 + 0.04 at 0.85):
+  brow_len_closeup_profile 0.721 F -> 0.861 W, brow_shape 0.472 F -> 0.742 W, arch 0.009 -> -0.006 P, profile spikes
+  kept 0.75 P; with brows.arch 0.1: shape 0.755 P, arch 0.001, front arch 0.003 -> 0.009 P, front shape 0.832 -> 0.808
+  P. fA (0.03 + 0.045): len 0.909 W but arch -0.014 W (a regression from gate 1's 0.009 P). The override on the rigid
+  head: slide 0.11 -> mouth_place_three_quarter_override 0.0025 PASS (lead 0.1703 vs 0.1726); 0.12: 0.0069, 0.13: 0.0093.
+- Merged pipeline-3d 9be5b32 (gate 1 merged there by the coordinator, with the clips and hair strokes).
+- **Gate 2 = items 3 and 1** (commit after db97f7ed): anime face.forehead fB, spec brows.arch 0.1, spec mouth.view
+  slide 0.11. Render2 build `charkit/out/face7_g2` running (log charkit/out/face7/build_g2.log). Item 2 stays open.
+
+- **Build g2** (`charkit/out/face7_g2`, render2, items 4+3+1; CPU 1333 s): as the sweep read. brow_len_closeup_profile
+  0.721 F -> 0.861 W, brow_shape_closeup_profile 0.472 F -> 0.755 P, brow_arch profile 0.009 -> 0.001 P, front arch 0.003
+  -> 0.009 P, front shape 0.832 -> 0.808 P, eye_hollow 0.012 -> 0.0035 P; mouth_place_three_quarter_override 0.0025 PASS
+  (rigid default 0.0753 unchanged); brow IoU 0.818/0.472 -> 0.798/0.755; other pieces unchanged. Records rewritten on g2.
+- **Gate 2** launched (tool/face7 with items 3+1, into pipeline-3d 9be5b32), log charkit/out/face7/gate2.log.
+- **Review page**: `charkit/out/face7/review/page/index.html` (from `charkit/out/face7/review/page.json`: summary box,
+  design | before face7_a | after face7_g2 per view and the face close-ups, the profile eye/brow crops, the 3/4 mouth
+  design | rigid | override, the numbers). Scripts: `an/override_pic.py`.
+
+- **Gate 2: FAIL under K** on one blocker, test_spec_alias (clawd_body_pieces.json is clawd.json's alias: edit both);
+  everything else clean: CPU 0.98x, 0 guard findings, the override's record a guard, flag checks moved within status
+  (brow arch front 0.003 -> 0.009, profile 0.009 -> 0.001). Report `charkit/out/gate/gate_tool-face7_49dfb80e_into_
+  9be5b320.md`. Fixed (the alias carries brows.arch and mouth.view); gate 2b launched, log charkit/out/face7/gate2b.log.
+
+- **Gate 2b: PASS under K** (items 3 and 1): tool/face7 5d42f2ed into pipeline-3d 9be5b320, nothing blocks, 36 items
+  reported; CPU 1432.7 -> 1180.6 s (0.82x); 94 test files ok; 0 guard findings; the override's record a guard. Report
+  `charkit/out/gate/gate_tool-face7_5d42f2ed_into_9be5b320.md`.
+
+## State (round end, 2026-10-01)
+
+Branch tool/face7 head: see `git log -1` (5d42f2ed gated; later commits notes only). Gate 1 (item 4) merged into
+pipeline-3d (9be5b32); gate 2b (items 3 and 1) PASS, ready to merge. Nothing running.
+
+**Next steps:**
+1. Item 2 (the lower face's width at mouth height): the cheek refit (style face cheek_refit -0.12, cheek_smooth 0.03,
+   cheek_drop_bound; code in headfit, off by default) reaches the 3/4 contour (0.775 -> 0.925) and clears
+   tq_cheek_hollow and chin_angle, but the jaw band (headgeom.jaw_envelope / UnderJaw's side pocket) reads the moved
+   cheek as a new jaw edge (`an/cagecmp2.py`). Make the jaw band's edge independent of the cheek term (read the jaw
+   edge on the sections before the refit, or fold the refit into the envelope's own fit), keeping the mouth block's
+   columns (outward rounding: backed out here, in this file's sw10 note). Coordinate with tool/garments4-shoulders,
+   which owns the neck join. Then the jaw's three WARNs (chin_angle 1.5 and chin_v 0.09 move toward PASS with the
+   refit; jaw_taper_shape 0.0157 needs the front outline).
+2. With item 2, re-tune the override's slide (0.09 on the refit head; 0.11 on today's).
+3. Michael's answers (the review page's questions): brows.arch 0.1 (the views' compromise); the override as per-shot
+   weights or a Blender driver; the follow-up jaw-band round; the 3/4 corner trade (wrap 0.25).
+
+## Earlier state notes (the round's running record)
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
   to the build box (no `--box render`); `--box render` only for builds whose boards I need. sw2 (already running on the
