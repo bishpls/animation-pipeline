@@ -1,0 +1,10 @@
+{
+ "check": "sleeve_three_quarter_profile_L",
+ "status": "FAIL",
+ "value": 0.0618,
+ "by": "Michael",
+ "why": "Michael, 2026-10-01: the joined shoulder on by default for motion testing; garment regressions accepted, to be recovered by garments round 8 from separated collar/lapel/top/bow references. Reading accepted: 0.016 PASS -> 0.0618 FAIL",
+ "at": "2026-10-01T17:45:16",
+ "branch": "tool/garments4-shoulders",
+ "recorded_by": "tool/garments4-shoulders' agent (round 7), on the coordinator's relay of Michael's call"
+}
