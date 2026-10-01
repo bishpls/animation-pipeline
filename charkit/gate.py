@@ -5,9 +5,10 @@ candidate; the tests run, each side is built when it has to be, and the two buil
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--accept PATTERN,...] [--keep]
                                   [--build]
     python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
-    python -m charkit gate --accept-fail CHECK --by NAME --why TEXT [--branch BRANCH] [--value V]
+    python -m charkit gate --accept-fail CHECK --by NAME --why TEXT [--branch BRANCH] [--value V] [--status S]
         # the coordinator records Michael's acceptance of a named new FAIL (charkit/accepted/CHECK.json: commit it on
-        # the branch): the gate reports it, with who, when and why, instead of blocking on it
+        # the branch): the gate reports it, with who, when and why, instead of blocking on it. --status WARN (or PASS)
+        # with --value: a flag check's regression to that reading (the status that, the value within ACCEPT_TOL)
     python -m charkit gate --carry BRANCH [--into pipeline-3d] [--spec SPEC] [--args ".."] [--no-tests] [--dry-run]
                                   [--json] [--rule definitions|files]
         # an earlier gate of BRANCH's tip carried to INTO's head without a build: the tests the move reaches rerun
@@ -37,7 +38,8 @@ The verdict: Michael's policy K (2026-09-30). The merge is blocked (FAIL) only b
   - the anti-gaming guard: the merge improves its own new or flag check while that check's piece's shape IoU (its
     registry `shape`, per view) drops by more than 15% in a view.
 A new FAIL (or a guard block) Michael has accepted by name (charkit/accepted/CHECK.json, `gate --accept-fail`) is
-reported with who, when and why instead.
+reported with who, when and why instead; so is a flag check's regression he accepted at a named reading (`--status`,
+`--value`: the candidate's status that one, its value within ACCEPT_TOL of it).
 Everything else (a PASS going WARN, a value moving, a check going or new, the 2x2's drops short of those) is reported,
 not enforced: the report's "Report" section and its summary (REPORT.summary.json: the verdict, what blocks, and each
 reported move, for the integrator's morning report). PASS otherwise.
@@ -1211,6 +1213,21 @@ def _delta(vx, vy):
     return {'delta': round(d, 6), 'rel': round(d / abs(vx), 4) if vx else None}
 
 
+def _accepted_reading(a, cand):
+    """does a recorded acceptance cover a flag check's regression to this reading? Michael accepts a named reading (the
+    record's status and value): the candidate's status must be the record's and its value within ACCEPT_TOL of the
+    recorded one (a further move needs a new acceptance)."""
+    v, s = (list(cand or ()) + [None, None])[:2]
+    if a.get('status') != s:
+        return False
+    if a.get('value') is None:
+        return True
+    return isinstance(v, (int, float)) and abs(v - a['value']) <= ACCEPT_TOL * max(abs(a['value']), 1e-9)
+
+
+ACCEPT_TOL = 0.01       # relative: a recorded acceptance of a flag check's regression covers its value to this
+
+
 def judge(rep, qa_a, qa_b):
     """Michael's policy K on a gate's comparison -> (verdict, blocking, report). Blocking: rep['hard'] (the merge
     conflicting, a test failing, a build failing); a new FAIL (a check PASSing or WARNing on the baseline and FAILing
@@ -1327,7 +1344,9 @@ def judge(rep, qa_a, qa_b):
         keep = []
         for b in block:
             a = acc.get(b.get('check'))
-            if b.get('kind') in ('new FAIL', 'anti-gaming guard') and calibrate.covers(a, rep.get('branch')):
+            if b.get('kind') in ('new FAIL', 'anti-gaming guard') and calibrate.covers(a, rep.get('branch')) or \
+                    b.get('kind') == 'flag check regressed' and calibrate.covers(a, rep.get('branch')) and \
+                    _accepted_reading(a, b.get('cand')):
                 R['accepted'].append(dict(b, accepted={k: a.get(k) for k in ('by', 'at', 'why', 'value', 'branch',
                                                                               'recorded_by')}))
             else:
@@ -1684,7 +1703,8 @@ def main(args):
         from . import calibrate
         v = opt('--value')
         r = calibrate.accept(args[1], by=opt('--by'), why=opt('--why'), value=float(v) if v else None,
-                             branch=opt('--branch'), recorded_by=opt('--recorded-by', 'coordinator'))
+                             status=opt('--status', 'FAIL'), branch=opt('--branch'),
+                             recorded_by=opt('--recorded-by', 'coordinator'))
         print('recorded: %s accepted by %s (%s): %s -> %s; commit it on the branch' % (
             r['check'], r['by'], r['at'], r['why'], os.path.join(calibrate.ACCEPTED, r['check'] + '.json')))
         return

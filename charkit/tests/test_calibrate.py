@@ -157,6 +157,27 @@ def test_an_accepted_new_fail_is_reported_not_blocking():
         pass
 
 
+def test_an_accepted_flag_regression_covers_its_reading_only():
+    from charkit import registry
+    qa_a = {'checks': {'f': {'value': 1.804, 'status': 'PASS', registry.FLAG: 'a flag'}}}
+    qa_b = {'checks': {'f': {'value': 2.111, 'status': 'WARN', registry.FLAG: 'a flag'}}}
+    rep = {'hard': [], 'branch': 'tool/x', 'qa': gate.compare_qa(qa_a, qa_b), 'guard': []}
+    v, block, _ = gate.judge(rep, qa_a, qa_b)
+    assert v == 'FAIL' and block[0]['kind'] == 'flag check regressed'
+    d = tempfile.mkdtemp()
+    calibrate.accept('f', by='Michael', why='the side locks', value=2.111, status='WARN', branch='tool/x', root=d)
+    acc = calibrate.accepted(d)
+    v, block, R = gate.judge(dict(rep, accepted=acc), qa_a, qa_b)
+    assert v == 'PASS' and R['accepted'][0]['check'] == 'f'
+    # a further regression (another value, or FAIL) is not covered
+    qa_c = {'checks': {'f': {'value': 2.4, 'status': 'WARN', registry.FLAG: 'a flag'}}}
+    rep_c = dict(rep, qa=gate.compare_qa(qa_a, qa_c), accepted=acc)
+    assert gate.judge(rep_c, qa_a, qa_c)[0] == 'FAIL'
+    # an acceptance recorded for a new FAIL (status FAIL) doesn't cover a WARN regression
+    calibrate.accept('f', by='Michael', why='x', value=2.111, branch='tool/x', root=d)
+    assert gate.judge(dict(rep, accepted=calibrate.accepted(d)), qa_a, qa_b)[0] == 'FAIL'
+
+
 def test_the_stand_ins():
     from charkit.calib import labels
     a = np.zeros((20, 20), int) - 1
