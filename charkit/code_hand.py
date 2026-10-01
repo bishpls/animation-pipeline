@@ -311,7 +311,7 @@ def hand(J, side, P):
         for seg in range(3):
             joints['finger%d-%d.%s____head' % (k, seg + 1, L_)] = Jd[seg]
             joints['finger%d-%d.%s____tail' % (k, seg + 1, L_)] = Jd[seg + 1]
-    return dict(parts=parts, joints=joints, frame=(W, R), digits=D)
+    return dict(parts=parts, joints=joints, frame=(W, R), digits=D, side=side)
 
 
 def tube_mesh(rings):

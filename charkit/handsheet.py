@@ -171,14 +171,17 @@ ROW_AXES = {'back': (1, 1.0), 'side': (2, -1.0)}   # row -> (the frame's column 
                                                    # left hand; the thumb's side, the palm to the right
 
 
-def draw(H_, row, ppl, cuff_end=0.0, pad=12):
+def draw(H_, row, ppl, cuff_end=0.0, pad=12, rings=None):
     """a template hand (code_hand.hand's dict) drawn as the sheet draws it: orthographic in the hand's own frame, the
     arm straight down the image (the frame's along axis), the row's axis across; the part past cuff_end L from the
-    wrist -> dict(mask, c, u, end, ppl) as cells() gives (c: the wrist's pixel)."""
+    wrist -> dict(mask, c, u, end, ppl) as cells() gives (c: the wrist's pixel). rings: {part: rings} posed
+    (charkit.handposes.posed) in place of the rest's."""
     from PIL import Image, ImageDraw
     from . import code_hand
     W, R = H_['frame']
     k, sgn = ROW_AXES[row]
+    if rings is not None:
+        H_ = dict(H_, parts={n: (rings[n],) + tuple(H_['parts'][n][1:]) for n in code_hand.PARTS})
     V, T, _ = code_hand.mesh(H_)
     Q = V - W
     x, y = sgn * (Q @ R[:, k]), Q @ R[:, 0]
@@ -208,27 +211,50 @@ def sheet_iou(hs, ho):
     return handqa.shape_iou(hs['mask'], ho['mask'])
 
 
-def compare(Ds, Do, row):
-    """the sheet's digits against ours in one row -> {term: (ours, sheet, units)}: the tip count (a unit per tip more
-    or fewer), and with the counts equal per digit (in order across the image) its length, width profile (RMS) and
-    angle; the palm's width and the knuckle line (the back row)."""
+def compare(Ds, Do, row, cap=4.0):
+    """the sheet's digits against ours in one row -> {term: (ours, sheet, units)}: the tip count, and per drawn digit
+    (in order across the image when the counts agree, else each drawn digit with ours nearest in angle, within
+    MATCH_DEG) its length, width profile (RMS) and angle, a drawn digit with no match of ours costing `cap` units in
+    each (open1 merged two fingers to gain IoU while the per-digit terms fell away); the palm's width and the
+    knuckle line (the back row)."""
     T = {}
     ns, no = len(Ds['digits']), len(Do['digits'])
-    T['tips'] = (no, ns, 2.0 * abs(no - ns))
+    T['tips'] = (no, ns, abs(no - ns))
+    a = sorted(Ds['digits'], key=lambda d: d['tip'][0])
+    b = sorted(Do['digits'], key=lambda d: d['tip'][0])
     if ns == no:
-        a = sorted(Ds['digits'], key=lambda d: d['tip'][0])
-        b = sorted(Do['digits'], key=lambda d: d['tip'][0])
-        names = DIGIT_NAMES.get((row, ns), ['d%d' % i for i in range(ns)])
-        for n, ds, do in zip(names, a, b):
-            T[n + '_length'] = (do['length'], ds['length'], abs(do['length'] - ds['length']) / DIGIT_LIMITS['length'])
-            rms = float(np.sqrt(np.mean((np.array(do['widths']) - np.array(ds['widths'])) ** 2)))
-            T[n + '_width'] = (rms, 0.0, rms / DIGIT_LIMITS['width'])
-            T[n + '_angle'] = (do['angle'], ds['angle'], abs(do['angle'] - ds['angle']) / DIGIT_LIMITS['angle'])
+        pairs = list(zip(a, b))
+    else:
+        used, pairs = set(), []
+        for ds in a:
+            cand = [(abs(do['angle'] - ds['angle']), i) for i, do in enumerate(b) if i not in used]
+            cand = [c for c in cand if c[0] <= MATCH_DEG]
+            if cand:
+                i = min(cand)[1]
+                used.add(i)
+                pairs.append((ds, b[i]))
+            else:
+                pairs.append((ds, None))
+    names = DIGIT_NAMES.get((row, ns), ['d%d' % i for i in range(ns)])
+    for n, (ds, do) in zip(names, pairs):
+        if do is None:
+            T[n + '_length'] = (None, ds['length'], cap)
+            T[n + '_width'] = (None, 0.0, cap)
+            T[n + '_angle'] = (None, ds['angle'], cap)
+            continue
+        T[n + '_length'] = (do['length'], ds['length'], abs(do['length'] - ds['length']) / DIGIT_LIMITS['length'])
+        rms = float(np.sqrt(np.mean((np.array(do['widths']) - np.array(ds['widths'])) ** 2)))
+        T[n + '_width'] = (rms, 0.0, rms / DIGIT_LIMITS['width'])
+        T[n + '_angle'] = (do['angle'], ds['angle'], abs(do['angle'] - ds['angle']) / DIGIT_LIMITS['angle'])
     if row == 'back':
         for k in ('palm_w', 'knuckles'):
             if Ds[k] is not None and Do[k] is not None:
                 T[k] = (Do[k], Ds[k], abs(Do[k] - Ds[k]) / DIGIT_LIMITS[k])
     return T
+
+
+MATCH_DEG = 25.0
+TIP_COST = 0.25          # the fit's cost per tip more or fewer than the sheet's (beside 1 - IoU)
 
 
 DIGIT_NAMES = {('back', 5): ['little', 'ring', 'middle', 'index', 'thumb'],
@@ -270,7 +296,8 @@ class SheetFit:
             h, Do = self.ours(P, r)
             iou = sheet_iou(self.sheet[r], h)
             T = compare(self.D[r], Do, r)
-            costs.append((1 - iou) + self.WEIGHT * sum(min(t[2], self.CAP) for t in T.values()))
+            costs.append((1 - iou) + TIP_COST * T['tips'][2] +
+                         self.WEIGHT * sum(min(t[2], self.CAP) for k, t in T.items() if k != 'tips'))
             per[r] = (round(iou, 4), len(Do['digits']))
             full[r] = dict(iou=round(iou, 4), terms={k: tuple(None if x is None else round(float(x), 3) for x in t)
                                                      for k, t in T.items()})

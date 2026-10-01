@@ -893,6 +893,9 @@ def main(argv=None):
     elif cmd == 'handsheet':
         from . import handsheet
         sys.exit(handsheet.main(rest))
+    elif cmd == 'handposes':
+        from . import handposes
+        sys.exit(handposes.main(rest))
     elif cmd == 'pieces':
         from . import piecepage
         piecepage.main(rest)
