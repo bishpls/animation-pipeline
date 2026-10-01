@@ -36,7 +36,8 @@ VIEWS = (('front', 0), ('three_quarter', 35), ('profile', 90), ('back', 180))
 RANK = ('PASS', 'WARN', 'FAIL')
 # name: (what, views, source, window (x0, x1, z_top, z_bottom) in L round the eye line, px per L on the page). source:
 # head (the page's head crops: the design board / head_turnaround), design (the build's design board: the chest down to
-# 1.2 L under the eye line), body (the body boards, located by the QA's body_<view>_top and _feet)
+# 1.2 L under the eye line), body (the body boards, located by the QA's body_<view>_top and _feet), bundle (drawn from
+# the build's bundle at the page's scale, the design's from its body turnaround: for close-ups finer than the boards)
 REGIONS = {
     'face': ('the face: eyes, brows, nose mark, mouth, jaw and chin', ('front', 'three_quarter', 'profile'), 'head',
              (-0.62, 0.62, 0.45, -0.78), 300),
@@ -46,6 +47,12 @@ REGIONS = {
             'line)', ('front', 'three_quarter', 'profile'), 'design', (-0.72, 0.72, -0.3, -1.2), 330),
     'hands': ('the hands below the cuffs', ('front', 'three_quarter', 'profile', 'back'), 'body',
               (-1.75, 1.75, -1.75, -3.0), 120),
+    'hands_close': ('the hands close up, below the cuffs (ours drawn from each build\'s bundle with the QA\'s renderer at '
+                    'this scale: the body boards draw a hand some 60 px long; the design\'s body turnaround resampled)',
+                    ('front', 'three_quarter', 'profile', 'back'), 'bundle', (-1.75, 1.75, -1.85, -2.75), 320),
+    'hands_board': ('the hands close up on the body boards (the build\'s renderer, EEVEE on the render boxes: what a '
+                    'reviewer sees; resampled to this scale from the boards\' ~110 px/L)',
+                    ('front', 'three_quarter', 'profile', 'back'), 'body', (-1.75, 1.75, -1.85, -2.75), 320),
     'skirt': ('the skirt: its cream front panel, the panel\'s creases and folds, the pleats and hem band',
               ('front', 'three_quarter', 'profile'), 'body', (-1.2, 1.2, -1.35, -2.8), 140),
     'clips': ('the hair clips: the crab and the star on her left side (Michael: pieces don\'t hide each other)',
@@ -261,6 +268,9 @@ def closeup(page, region, view, builds, crops):
                 rgb = P._load(p)
                 a = cut_L(rgb, (rgb.shape[1] / 2, P.WIN['up'] * P.PPL_OUT), P.PPL_OUT, box, oppl)
                 link = p
+            elif src == 'bundle':
+                link = os.path.join(d, 'bundle')
+                a = draw_window(link, view, az, box, oppl)
             elif src == 'design':
                 link = os.path.join(d, 'boards', 'design_%03d.png' % az)
                 rgb = P._load(link)

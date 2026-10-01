@@ -46,6 +46,7 @@
                                                      # the design's hair split into locks per view, cross-view ids
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
+    python -m charkit hand fit|show --build BUILD [--spec S] [--over JSON] [--png P]   # the hand template vs the drawn hands
                                                  # the hair pieces rebuilt over a build with overrides and measured
     python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
     python -m charkit eyes BUILD_DIR [--against OTHER_BUILD] [--out DIR]     # the eyes and mouth against the design
@@ -885,6 +886,9 @@ def main(argv=None):
     elif cmd == 'hairlab':
         from . import hairlab
         hairlab.main(rest)
+    elif cmd == 'hand':
+        from . import code_hand
+        sys.exit(code_hand.main(rest))
     elif cmd == 'pieces':
         from . import piecepage
         piecepage.main(rest)
