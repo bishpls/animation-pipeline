@@ -22,14 +22,17 @@ skirt (and, for the kick's penetration, the skirt carried by the pelvis alone) m
 import json, os, time
 
 LIMITS = {'inside': (0.01, 0.03), 'stretch': (0.25, 0.5)}       # (PASS at or under, WARN at or under): see calib records
+POSE_LIMITS = {('kick', 'inside'): (0.005, 0.01)}  # (round 3's records: the held solve nudged 0.0017..0.0039, the cloth
+                                                   # with no colliders 0.0125 and the pelvis-carried skirt 0.0123: the
+                                                   # thigh through the skirt is a 1% defect at the kick, tighter, not looser)
 POSES = ('kick', 'squat')
 UNGRADED = {('squat', 'inside')}     # (round 3: the held solve's nudges read 0.003..0.015 at the squat: not robust to
                                      # nuisance settings, reported INFO until it is; docs/workstreams/xpbd.md)
 EVERY = 6
 
 
-def grade(kind, v):
-    p, w = LIMITS[kind]
+def grade(kind, v, pose=None):
+    p, w = POSE_LIMITS.get((pose, kind), LIMITS[kind])
     return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
 
 
@@ -139,7 +142,7 @@ def measure(B, gm=None, poses=POSES, log=None, settle=None, **over):
         for n in skirts:
             t = T[n]
             checks['%s_%s_inside' % (pose, n)] = dict(
-                value=t['inside'], status='INFO' if (pose, 'inside') in UNGRADED else grade('inside', t['inside']),
+                value=t['inside'], status='INFO' if (pose, 'inside') in UNGRADED else grade('inside', t['inside'], pose),
                 depth_L=t['depth'], frame=t['inside_frame'],
                 method=gm['method'])
             checks['%s_%s_stretch' % (pose, n)] = dict(

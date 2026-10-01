@@ -361,3 +361,22 @@ Harness scripts and outputs: `charkit/out/xpbd/r3/`.
   its CALIBRATION entry removed. To grade it again: make the squat's waist robust (the nudges' spread), then re-run.
 - The waist pictures (`charkit.sim.waist`, `python -m charkit.sim waist BUILD --out DIR`): `charkit/out/xpbd/r3/waist/`,
   framed on the band; numbers identical to wb2.json.
+- **Kick inside recalibrated** (calib3.log): the cloth with no colliders also reads only 0.0125 at the kick (calib2: still
+  WARN): the thigh through the skirt is a ~1% defect there, so the kick's inside limits are tightened from the records,
+  PASS <= 0.005, WARN <= 0.01 (motionqa.POSE_LIMITS; tighter, not looser): CALIBRATED (design 0.0017..0.0039, known-bad
+  motion_nocol 0.0125 FAIL, floor 0.054 FAIL, current 0.0024 PASS). Three motion checks graded and calibrated; the
+  squat's inside INFO.
+- **The chains** (tune_hips/, tune_skin/; grid stiffness 2..64, gravity 0..0.3, drag 0.3..0.9), joint error L over the
+  motion, and the garments on the best chains (worst inside share / depth L / stretch p99):
+
+  | roots | skirt best (stiff, grav, drag) | err | squat skirt | flaps best | err |
+  |---|---|---|---|---|---|
+  | the hips | 64, 0.15, 0.9 (the grid's top edge again) | 0.069 (at 8: 0.070) | 0.064 / 0.185 / 0.09 | 8, 0.05, 0.7 (interior) | 0.050 |
+  | the skin (chain_root: polar blend) | 2, 0, 0.9 (the bottom edge) | 0.103 | 0.049 / 0.190 / 0.21 | 2, 0.05, 0.9 | 0.168 |
+
+  Rooting the whole chain on the skin isn't the fix: the root's rotation (spine/chest) turns the chains' rest direction
+  away from the cloth's (held toward the drawn shape carried by the hips), so softer chains win and the error grows; the
+  squat's 0.185-0.19 L stays. Next (not run, the coordinator's call): the root's position on the skin and its rest
+  direction on the hips (as the cloth does: pins on the skin, hold toward the hips-carried shape), i.e. a helper root
+  bone whose head rides the skin and whose rotation stays the hips'; above stiffness 8 the skirt gains 0.001 L, so 8 is
+  enough. Spring settings stay out of the outfit graph (decision 2).
