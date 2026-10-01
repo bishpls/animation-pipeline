@@ -1,4 +1,4 @@
-"""Calibration adapters for a garment's parts and the lines inside them (charkit.partqa's bow_parts: the bow's knot and
+"""Calibration adapters for the bow: its parts and the lines inside them (charkit.partqa's bow_parts: the bow's knot and
 lobes in every view, the knot's outline and rectangle and each lobe's crease in front) and for the pieces drawn alone
 against their isolated references (charkit.isoqa's iso_pieces: the bow's silhouette against bow_closeup, its lines
 against garment_breakdown). tool/pieceref, Michael 2026-09-30.
@@ -12,6 +12,8 @@ our outlines, where partqa and isoqa read ours:
   isoqa.our_piece      ours alone in front: the design's parts and lines on its own grid (compare scales both)
 The design moved 1-2 px keeps its lines where they were drawn against its parts (both move); a generator's stand-in
 keeps the drawing's lines where they are and moves or relabels the parts under them.
+bowqa's profile checks (bow_profile: the tails' reach and hang, the loops' thickness and lean) take BowProfile: the
+drawn profile bow's loops and tails as our split bow.
 Known-bad: g3_render3 (pipeline-3d 3ebc3fb's build: the round knot with no line against the lobes, pillow lobes with
 no crease, the knot hidden in profile; partqa's and isoqa's checks were written against it).
 """
@@ -43,6 +45,15 @@ CALIBRATION = [
          baseline=['voronoi_parts', 'affine_parts'], shape=['piece_bow'], better='lower'),
     dict(check='iso_bow_crease_*', part='iso_pieces', adapter='IsoParts', known_bad='g3_render3', kind='defect',
          baseline=['voronoi_parts', 'affine_parts'], shape=['piece_bow'], better='lower'),
+    # Michael's flag on the bow in profile (charkit/bowqa.py, tool/bow2: the tails as forward blades, the loops as flat
+    # disks; calibrated there by hand before charkit calibrate existed). g3_render3 reads all four FAIL (reach 0.062,
+    # hang 10.1, thick 0.077, lean 23.3). Detectors of the flagged defects (blades forward, tipped flat disks): a
+    # stand-in moved and scaled whole keeps the drawn loops' lean and may pass (affine_bow read lean 0.04-0.23), as a
+    # random cut that leaves the loops mostly loops may (voronoi_bow: thick 0.029 PASS on one seed of three)
+    dict(check='bow_profile_tail_*', part='bow_profile', adapter='BowProfile', known_bad='g3_render3', kind='defect',
+         baseline=['affine_bow'], shape=['piece_bow'], better='lower'),
+    dict(check='bow_profile_loop_*', part='bow_profile', adapter='BowProfile', known_bad='g3_render3', kind='defect',
+         baseline=['voronoi_bow', 'affine_bow'], shape=['piece_bow'], better='lower'),
 ]
 
 BODY = ('knot', 'lobe_L', 'lobe_R')
@@ -146,3 +157,63 @@ class IsoParts(BowParts):
             mask = ndimage.binary_fill_holes((lab >= 0) | (ln & ndimage.binary_dilation(lab >= 0, iterations=2)))
             return dict(mask=mask, line=ln & mask, parts=parts)
         return [(isoqa, 'our_piece', our_piece)]
+
+
+class BowProfile:
+    """bow_profile (bowqa): the drawn profile bow's loops (the outfit's `bow` mask) and tails (bow_tail_L|R) as our
+    split bow (bowqa.split_labels' LOOPS and TAILS)."""
+    part = 'bow_profile'
+    generators = {
+        'voronoi_bow': "the drawn bow (loops and tails) cut into random cells (6), each loops or tails at random "
+                       "(weighted by their drawn areas)",
+        'affine_bow': "the drawn loops and tails each moved 0.03-0.06 L and scaled 0.9-1.1 about their middles",
+    }
+
+    def __init__(self, B, design):
+        from .. import bodymeasure, bowqa as Q
+        self.B, self.design = B, design
+        ctx = design.sheet_context()
+        self.ppl = ctx['ppl']
+        dv = design.design_views()
+        masks = bodymeasure.piece_masks(B.spec)[0]
+        self.lab = {}
+        if 'profile' in dv:
+            sh = dv['profile']['cls'].shape
+            from .. import partqa as P
+            lab = np.full(sh, -1, np.int32)
+            lab[P._fit(masks.get('profile__bow_tail_L'), sh) | P._fit(masks.get('profile__bow_tail_R'), sh)] = Q.TAILS
+            lab[P._fit(masks.get('profile__bow'), sh)] = Q.LOOPS
+            self.lab['profile'] = lab
+
+    def labels(self, kind, arg):
+        from .. import bowqa as Q
+        if kind == 'design':
+            return {v: _shift(L, arg[0], arg[1], -1) for v, L in self.lab.items()}
+        rng = np.random.default_rng(4000 + int(arg))
+        out = {}
+        for v, L in self.lab.items():
+            px = {c: int((L == c).sum()) for c in (Q.LOOPS, Q.TAILS) if (L == c).any()}
+            bow = L >= 0
+            L2 = L.copy()
+            if kind == 'voronoi_bow':
+                V = voronoi(bow, list(px), list(px.values()), 6, rng)
+                L2[bow] = V[bow]
+            elif kind == 'affine_bow':
+                L2[bow] = -1
+                for c in (Q.TAILS, Q.LOOPS):                     # (the loops drawn over the tails' top)
+                    if c in px:
+                        L2[affine(L == c, rng, self.ppl)] = c
+            else:
+                raise KeyError(kind)
+            out[v] = L2
+        return out
+
+    @contextlib.contextmanager
+    def substitute(self, kind, arg):
+        from .. import bowqa as Q
+        L = self.labels(kind, arg)
+
+        def split_labels(B, ppl, az3, views=('profile',), bow='bow'):
+            return {v: L[v] for v in views if v in L}, []
+        with patched([(Q, 'split_labels', split_labels)]):
+            yield
