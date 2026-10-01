@@ -56,7 +56,7 @@ DECLARED_CHECKS = [
          note="the lines drawn inside the left bun (where its front block meets the one behind, its tiers' steps) our "
               "lines and strokes lack: 1 - recall of their skeleton within 0.015 L",
          calibrate=dict(known_bad='hst_base', baseline=['voronoi_pieces'], shape=['hair_piece_buns'])),
-    dict(check='bun_R_{view}_lines', family='ink_inside', piece='hair',
+    dict(check='bun_R_{view}_lines', family='ink_inside', piece='hair', views=['front', 'three_quarter', 'back'],
          params=dict(region='bun_R', band=0.015, with_ink=True, round=3), limits=[0.35, 0.6],
          flag="the hair lacks detail in the bulk of the mass: the ink strokes inside the locks (Michael, 2026-10-01)",
          note="the lines drawn inside the right bun (where its front block meets the one behind, its tiers' steps) our "
