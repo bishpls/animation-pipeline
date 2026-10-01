@@ -266,6 +266,108 @@ def gate(args):
 
 
 GATES_HERE = os.path.join('charkit', 'out', 'remote', 'gates')   # each gate's report as it came back, by the gate's id
+PREGATES_HERE = os.path.join('charkit', 'out', 'pregate')
+
+
+def pregate(args):
+    """`pregate --box [NAME | auto]` (Michael's rule, 2026-10-01: the pre-gate's body evaluator is too heavy for the
+    shared laptop): the pre-gate of this branch's committed tip merged into BASE, run on a box. As `remote gate`
+    does: a git bundle of what the box's clone (/srv/work/repo) lacks, fetched into refs of this run's own under the
+    gates' fetch lock, a shared clone of its own where `charkit pregate --pair BRANCH --into BASE` runs (a box's copy of
+    the worktree has no .git); the target's baseline is kept per commit in /srv/work/pregate-out (shared by the box's
+    pre-gates), the gates' reports are read from /srv/work/gate-out (pregate.gate_names), and the report comes back
+    through the bucket into charkit/out/pregate. Uncommitted edits aren't seen: commit first."""
+    import uuid
+    into = _opt(args, '--into', 'pipeline-3d')
+    branch = subprocess.run(['git', '-C', ROOT, 'rev-parse', '--abbrev-ref', 'HEAD'], capture_output=True, text=True,
+                            check=True).stdout.strip()
+    dirty = subprocess.run(['git', '-C', ROOT, 'status', '--porcelain', '--', 'charkit'], capture_output=True,
+                           text=True).stdout.strip()
+    if dirty:
+        print('remote pregate: uncommitted edits under charkit/ are not sent (the box runs the committed tip)')
+    tag = re.sub(r'[^A-Za-z0-9._-]', '_', branch)
+    gid = 'pregate-%s-%s' % (tag, uuid.uuid4().hex[:8])
+    bundle = os.path.join(ROOT, 'charkit', 'out', 'remote', 'repo-%s.bundle' % gid)
+    boxed = '/srv/work/repo-%s.bundle' % gid
+    G = '/srv/work/pregates/%s' % gid
+    os.makedirs(os.path.dirname(bundle), exist_ok=True)
+    up()
+    have = _sh('ssh', 'git -C /srv/work/repo for-each-ref --format="%(objectname)" 2>/dev/null; true', capture=True,
+               retry=True).split()
+    known = sorted({c for c in have if subprocess.run(['git', '-C', ROOT, 'cat-file', '-e', c + '^{commit}'],
+                                                      capture_output=True).returncode == 0})
+    r = subprocess.run(['git', '-C', ROOT, 'bundle', 'create', bundle, into, branch] + ['^' + c for c in known],
+                       capture_output=True, text=True)
+    if r.returncode != 0 and 'empty bundle' not in r.stderr:
+        raise SystemExit(r.stderr)
+    if r.returncode == 0:
+        put(bundle, boxed)
+        os.remove(bundle)
+    sha = {b: subprocess.run(['git', '-C', ROOT, 'rev-parse', b], capture_output=True, text=True, check=True
+                             ).stdout.strip() for b in (into, branch)}
+    q = shlex.quote
+    install, publish, script = '', '', None
+    if _bucket():
+        install, runner, script = _publisher()
+        publish = '%s publish /srv/work/_pregate/%s --name %s >/dev/null 2>&1; ' % (runner, gid, gid)
+    fetch = ('cd /srv/work && ( [ -d repo/.git ] || git clone -q %(b)s repo ) && '
+             '{ [ ! -f %(b)s ] || git -C repo fetch -q -f %(b)s "refs/heads/*:refs/pregates/%(gid)s/*"; } && '
+             'rm -f %(b)s && git clone -q --shared --no-checkout /srv/work/repo %(G)s' % dict(b=boxed, gid=gid, G=G))
+    more = ''.join(' %s %s' % (k, q(_opt(args, k))) for k in ('--spec',) if k in args)
+    step = ('rc=1; cleanup() { cd /srv/work && rm -rf %(G)s %(G)s.log %(G)s.tmp; }; '
+            'trap "cleanup; exit 143" TERM INT HUP; '
+            'mkdir -p /srv/work/pregates %(G)s.tmp && export TMPDIR=%(G)s.tmp && '
+            'flock /srv/work/.gate-fetch.lock bash -c %(fetch)s && cd %(G)s && '
+            'git config user.name charkit-pregate && git config user.email pregate@localhost && '
+            'git sparse-checkout set --cone charkit && '
+            'git update-ref refs/heads/%(into)s %(si)s && git update-ref refs/heads/%(branch)s %(sb)s && '
+            'git checkout -q -f %(into)s && mkdir -p charkit/out /srv/work/gate-out /srv/work/pregate-out '
+            '/srv/work/_pregate/%(gid)s && ln -s /srv/work/gate-out charkit/out/gate && '
+            'ln -s /srv/work/pregate-out charkit/out/pregate && '
+            'python -m charkit slots %(slots)d >/dev/null && '
+            '{ python -m charkit pregate --pair %(branch)s --into %(into)s%(more)s 2>&1 | tee %(G)s.log; '
+            'rc=${PIPESTATUS[0]}; } ; '
+            'for r in $(sed -n "s/.*; report //p" %(G)s.log); do cp "${r%%.md}.md" "${r%%.md}.json" '
+            '/srv/work/_pregate/%(gid)s/ 2>/dev/null; done; %(publish)scleanup; exit $rc'
+            % dict(fetch=q(fetch), G=G, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
+                   slots=_slots(), more=more, publish=publish))
+    what = dict(pull=gid, to=PREGATES_HERE)
+    label = 'pregate %s into %s' % (branch, into)
+    if _detach():
+        code = job('pregate', 'source /opt/anim-build/env && bash -c %s' % q(step), label, collect=what)
+        if code == STILL_RUNNING:
+            return code
+    else:
+        code = _sh('ssh', '%ssource /opt/anim-build/env && bash -c %s' % (install and install + '; ', q(step)),
+                   check=False, input=script)
+    collect(what)
+    print('remote pregate: exit %s; reports in %s' % (code, os.path.join(ROOT, PREGATES_HERE)))
+    return code
+
+
+PREFER = 'build'               # pick_box: the build box while it has room; the render boxes take the overflow
+MIN_FREE = 4                   # ... room: at least this many free slots beyond the reserve
+
+
+def pick_box(reserve=1, log=print):
+    """`--box auto` (sweep optimize, pregate): every running box's free slots (box_slots), the build box when it has
+    MIN_FREE beyond the reserve, else the box with the most free (overflow rather than wait) -> (name, readings)."""
+    got = []
+    for env in _boxes():
+        try:
+            got.append(box_slots(env))
+        except Exception as e:                      # (a box we can't read is skipped)
+            got.append(dict(name=os.path.basename(env)[:-4], status='unreadable', why=str(e)[:200]))
+    for g in got:
+        log('box %-8s %s' % (g['name'], '%d of %d slots free (%d held, %d waiting)' % (
+            g['free'], g['count'], g['held'], g['waiting']) if 'free' in g else g['status']))
+    up_ = [g for g in got if 'free' in g]
+    if not up_:
+        raise SystemExit('--box auto: no running box could be read')
+    pref = next((g for g in up_ if g['name'] == PREFER), None)
+    if pref and pref['free'] - reserve >= MIN_FREE:
+        return pref['name'], got
+    return max(up_, key=lambda g: (g['free'], g['name'] == PREFER))['name'], got
 
 
 def gate_report(folder, branch, tip, head):
@@ -591,6 +693,37 @@ def _boxes():
                 seen.add(_env('VM'))
                 out.append(p)
     return out
+
+
+def box_slots(env=None):
+    """a box's build slots now (env: its infra/gcp/NAME.env; default the chosen box) -> dict(name, status, count, held,
+    waiting, free), or with status only when it isn't running or can't say. Read over ssh as `remote jobs` reads its
+    jobs (charkit/boxjob.py's `slots`), so nothing is synced or started."""
+    from charkit import boxjob
+    if env:
+        BOX['env'] = env
+    name = os.path.basename(BOX['env'])[:-4]
+    st = _box_status()
+    if st != 'RUNNING':
+        return dict(name=name, status=st or 'unknown')
+    cfg, vm = _cfg()
+    r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - slots'], input=open(boxjob.__file__, 'rb').read(),
+                       capture_output=True)
+    line = next((l for l in r.stdout.decode(errors='replace').splitlines() if l.startswith('{')), None)
+    if r.returncode or not line:
+        return dict(name=name, status='unreadable', why=r.stderr.decode(errors='replace')[-200:])
+    s = json.loads(line)
+    count = int(_env('SLOTS') or s.get('count') or 0)      # (the env file's: what a job sets the box to)
+    return dict(name=name, status=st, count=count, held=s.get('held', 0), waiting=s.get('waiting', 0),
+                free=max(0, count - s.get('held', 0) - s.get('waiting', 0)))
+
+
+def box_has(path):
+    """does the chosen box's copy of this worktree hold path (worktree-relative)?"""
+    cfg, vm = _cfg()
+    r = subprocess.run(['ssh', '-F', cfg, vm, 'test -e %s' % shlex.quote('/srv/work/%s/%s' % (
+        os.path.basename(ROOT), path))], capture_output=True)
+    return r.returncode == 0
 
 
 def jobs(args):
