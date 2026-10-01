@@ -284,6 +284,194 @@ def test_the_hook_is_off_unless_asked():
     assert R['meta']['drape']['panel']['strain_max'] < 0.05
 
 
+def test_pc2_caches_round_trip():
+    import tempfile
+    from charkit.sim import bake
+    X = np.random.default_rng(0).normal(size=(5, 7, 3)).astype(np.float32)
+    p = os.path.join(tempfile.mkdtemp(), 'a.pc2')
+    bake.write_pc2(p, X, start=0.0)
+    Y, start, rate = bake.read_pc2(p)
+    assert np.array_equal(X, Y) and start == 0.0 and rate == 1.0
+    assert os.path.getsize(p) == 32 + X.nbytes                      # the PC2 header, then float32 xyz per point
+
+
+def test_weights_transfer_from_the_nearest_skin_point():
+    from charkit.sim import rig
+    V = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], float)
+    F = np.array([[0, 1, 2], [1, 3, 2]])
+    W = {'a': np.array([1.0, 0.0, 1.0, 0.0]), 'b': np.array([0.0, 1.0, 0.0, 1.0])}
+    P = np.array([[0.25, 0.5, 0.3], [0.0, 0.0, -0.2], [2.0, 0.5, 0.0]])     # above the middle, under a corner, off an edge
+    T = rig.transfer_weights(P, V, F, W)
+    assert np.allclose(T['a'], [0.75, 1.0, 0.0]) and np.allclose(T['a'] + T['b'], 1.0)
+
+
+def test_torso_capsules_fit_an_elliptic_body():
+    from charkit.sim import rig
+
+    class R:
+        head = {'hips': np.array([0.0, 0.0, 0.0])}
+        tail = {'hips': np.array([0.0, 0.0, 0.3])}
+    t, z = np.meshgrid(np.linspace(0, 2 * np.pi, 72, endpoint=False), np.linspace(0, 0.3, 16))
+    V = np.stack([0.16 * np.cos(t).ravel(), 0.11 * np.sin(t).ravel(), z.ravel()], 1)       # a 1.45:1 section
+    caps = rig.fit_torso(V, {'hips': np.ones(len(V))}, R(), bones=('hips',), slabs=2)
+    assert len(caps) == 2
+    for c in caps:
+        assert c['err_p90'] < 0.02 and abs(c['r'] - 0.11) < 0.01       # (a stadium against an ellipse: 0.014)
+    z0 = caps[0]['a'][2]
+    cl = rig.rest_clear(caps, np.array([[0.0, 0.0, z0 + 0.05]]), 0.01)   # a rest point 0.05 off the first's axis
+    assert abs(cl[0]['r'] - 0.04) < 1e-9 and cl[0]['r_fit'] == caps[0]['r'] and all(c['r'] <= c['r_fit'] for c in cl)
+
+
+def test_garment_motion_comes_from_the_style_profile():
+    from charkit import styles
+    from charkit.sim import motionqa
+
+    class B:
+        _reads = []
+
+        def __init__(self, spec):
+            self.spec = spec
+    a = motionqa.settings(B({'style': 'anime'}))
+    r = motionqa.settings(B({'style': 'realistic'}))
+    assert (a['method'], a['hold_shape']) == (styles.load('anime')['physics']['garment_motion']['method'],
+                                              styles.load('anime')['physics']['garment_motion']['hold_shape'])
+    assert (a['method'], a['hold_shape']) == ('xpbd_hips', 0.8)         # Michael, 2026-09-30
+    assert (r['method'], r['hold_shape']) == ('xpbd_physics', 0.0)
+    o = motionqa.settings(B({'style': 'anime', 'physics': {'garment_motion': {'method': 'skinned'}}}))
+    assert o['method'] == 'skinned' and o['hold_shape'] == 0.8          # a spec's own over the profile's
+    assert [motionqa.grade('inside', v) for v in (0.005, 0.02, 0.05)] == ['PASS', 'WARN', 'FAIL']
+    B.spec = None
+    b = B({'style': 'anime', 'garments': [dict(name='p', kind='panel'), dict(name='s', kind='skirt'),
+                                           dict(name='t', kind='shell')]})
+    assert motionqa.loose_pieces(b, a) == ['s', 'p']
+
+
+def test_the_motion_calibration_nudges_every_move():
+    from charkit import calibrate
+    from charkit.calib import motion as cm
+    for hold in (0.8, 0.0):
+        got = [cm.nudge(m, hold) for m in calibrate.MOVES]
+        assert len(got) == len(calibrate.MOVES) and all(len(g) == 1 for g in got)
+    E = [e for e in calibrate.entries() if e['module'] == 'charkit.calib.motion']
+    assert {e['check'] for e in E} == {'motion_kick_skirt_inside', 'motion_kick_skirt_stretch',
+                                       'motion_squat_skirt_stretch'}           # (the squat's inside: ungraded, round 3)
+    assert all(e.get('baseline') == ['shuffled_weights'] for e in E) and 'shuffled_weights' in cm.Motion.generators
+
+
+
+def test_a_band_takes_the_body_weights_only_when_asked():
+    from charkit import garments
+    V = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], float)
+    A = dict(verts=V, faces=[(0, 1, 3, 2)], weights={'hips': np.array([1.0, 0.0, 1.0, 0.0]),
+                                                      'spine': np.array([0.0, 1.0, 0.0, 1.0]),
+                                                      'chest': np.zeros(4)})
+    P = np.array([[0.25, 0.5, 0.3], [2.0, 0.5, 0.0]])
+    assert set(garments.band_weights(A, {}, P)) == {'hips'}                      # (the default: rigid on the hips)
+    W = garments.band_weights(A, {'weights': 'body'}, P)
+    assert set(W) == {'hips', 'spine'} and np.allclose(W['hips'], [0.75, 0.0]) and np.allclose(W['hips'] + W['spine'], 1)
+
+
+def test_a_chain_rooted_on_the_skin_rides_the_skin_under_its_first_joint():
+    from charkit.sim import motion, springbone
+    R = xpbd.rotation((1, 0, 0), 0.4)
+    Ds = {'hips': np.eye(4), 'spine': np.eye(4)}
+    Ds['spine'][:3, :3] = R
+    ch = springbone.Chain(np.array([[0.0, 0.1, 1.0], [0.0, 0.1, 0.9]]))
+    assert np.allclose(motion.chain_root(ch, Ds), np.eye(4))                     # (no root weights: the hips)
+    ch.root_w = {'spine': 1.0}
+    assert np.allclose(motion.chain_root(ch, Ds), Ds['spine'])
+    ch.root_w = {'hips': 0.5, 'spine': 0.5}
+    M = motion.chain_root(ch, Ds)
+    j = ch.J[0]
+    assert np.allclose(M[:3, :3] @ M[:3, :3].T, np.eye(3))                       # a rotation (polar of the blend)
+    assert np.allclose(M[:3, :3] @ j + M[:3, 3], 0.5 * (j + R @ j))              # the joint where the skin takes it
+    ch.root_rot = 'hips'                                                          # (skin_pos: the hips' rotation)
+    M = motion.chain_root(ch, Ds)
+    assert np.allclose(M[:3, :3], np.eye(3)) and np.allclose(M[:3, :3] @ j + M[:3, 3], 0.5 * (j + R @ j))
+
+
+
+def test_the_scalar_kernels_are_bit_identical():
+    """round 3's allocation-free bending and capsule kernels against the array forms they replaced (the same arithmetic
+    in the same order: motion QA's checks unchanged to the bit)."""
+    import math as m_
+    import numba as nb
+
+    @nb.njit
+    def bending_ref(p, w, H, rest, alpha, lam):
+        for k in range(H.shape[0]):
+            a, b, c, d = H[k, 0], H[k, 1], H[k, 2], H[k, 3]
+            if w[a] + w[b] + w[c] + w[d] == 0.0 or alpha[k] < 0.0:
+                continue
+            th, g, ok = xpbd._dihedral(p[a], p[b], p[c], p[d])
+            if not ok:
+                continue
+            C = th - rest[k]
+            if C > m_.pi:
+                C -= 2 * m_.pi
+            elif C < -m_.pi:
+                C += 2 * m_.pi
+            den = (w[a] * (g[0] ** 2).sum() + w[b] * (g[1] ** 2).sum() + w[c] * (g[2] ** 2).sum()
+                   + w[d] * (g[3] ** 2).sum())
+            if den < 1e-24:
+                continue
+            dl = (-C - alpha[k] * lam[k]) / (den + alpha[k])
+            lam[k] += dl
+            p[a] += w[a] * dl * g[0]
+            p[b] += w[b] * dl * g[1]
+            p[c] += w[c] * dl * g[2]
+            p[d] += w[d] * dl * g[3]
+
+    @nb.njit
+    def capsules_ref(p, x, w, rad, C0, C1, mu_s, mu_k, hit):
+        for i in range(p.shape[0]):
+            if w[i] == 0.0:
+                continue
+            for k in range(C1.shape[0]):
+                A = C1[k, 0:3]; B = C1[k, 3:6]
+                ab = B - A
+                L2 = (ab * ab).sum()
+                t = 0.0
+                if L2 > 1e-24:
+                    t = ((p[i] - A) * ab).sum() / L2
+                    t = min(1.0, max(0.0, t))
+                c = A + t * ab
+                r = C1[k, 6] + t * (C1[k, 7] - C1[k, 6])
+                d = p[i] - c
+                ld = m_.sqrt((d * d).sum())
+                pen = r + rad[i] - ld
+                if pen <= 0.0 or ld < 1e-15:
+                    continue
+                n = d / ld
+                p[i] += pen * n
+                A0 = C0[k, 0:3]; B0 = C0[k, 3:6]
+                sd = (c - (A0 + t * (B0 - A0)))
+                xpbd._friction(p, x, i, n, pen, sd, mu_s, mu_k)
+                hit[i] += 1
+
+    rng = np.random.default_rng(3)
+    V, F = _sheet(14, 11, 0.03)
+    C = xpbd.Cloth(V, F, pins=[0, 1, 2])
+    p0 = C.V + rng.normal(0, 0.004, C.V.shape)
+    alpha = rng.uniform(0, 1e-3, len(C.H)); alpha[::7] = -1.0
+    rest = C.rest_angle + rng.normal(0, 0.2, len(C.H))
+    lam0 = rng.normal(0, 1e-3, len(C.H))
+    pa, pb, la, lb = p0.copy(), p0.copy(), lam0.copy(), lam0.copy()
+    for _ in range(3):
+        xpbd._bending(pa, C.w, C.H, rest, alpha, la)
+        bending_ref(pb, C.w, C.H, rest, alpha, lb)
+    assert np.array_equal(pa, pb) and np.array_equal(la, lb) and not np.array_equal(pa, p0)
+    caps = np.array([[0.1, 0.1, -0.05, 0.3, 0.2, 0.02, 0.06, 0.04], [0.2, 0.0, 0.0, 0.2, 0.3, 0.0, 0.05, 0.05]])
+    caps0 = caps + rng.normal(0, 0.01, caps.shape)
+    x = p0 - rng.normal(0, 0.003, p0.shape)
+    rad = np.full(len(p0), 0.004)
+    pa, pb = p0.copy(), p0.copy()
+    ha, hb = np.zeros(len(p0), np.int64), np.zeros(len(p0), np.int64)
+    xpbd._collide_capsules(pa, x, C.w, rad, caps0, caps, 1.0, 0.4, 0.3, ha)
+    capsules_ref(pb, x, C.w, rad, caps0, caps, 0.4, 0.3, hb)
+    assert np.array_equal(pa, pb) and np.array_equal(ha, hb) and ha.sum() > 10
+
+
 if __name__ == '__main__':
     import time
     for k, f in list(globals().items()):
