@@ -1170,3 +1170,12 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - Sweep s4 (render2, re-mask on, boards): the projected flat lapels on c4 (L0 = the lapels round's Q2 settings; L2 the
   V's point at the bow (z -0.72) and the drawn shoulder point (0.34, -0.50); v_half, spread, off variants)
   -> charkit/out/garments7/sweeps/s4.
+- **Coordinator / Michael (2026-10-01): the joined shoulder's knobs are Clawd's values**, not general ones (on the
+  second test character, c3, its structure held but his silhouette fit worsened 0.053 -> 0.106 and his raised arm went
+  inside the torso). A per-character fit from each base-body sheet comes next, without holding this merge. So: when the
+  joined shoulder goes ON, Clawd's values go explicitly in charkit/spec/clawd.json (and the alias), every key written
+  out (body.shoulder z, x, round, hold, fall, az, join, and the socket's full set: top, bottom, half, shift, s0, lift,
+  reach, loops, blend, clav, arm_w, torso_arm, pivot; body.neck_flare), never as code defaults. Checked: the code
+  holds no Clawd numbers: shoulder_width needs z and x (a missing key raises); SOCKET's code defaults are the older
+  generic ones (top 0.30, lift (25, 75), pivot 0 ...), not Clawd's tuned ones; a spec without body.shoulder builds the
+  old body, never Clawd's shoulder.
