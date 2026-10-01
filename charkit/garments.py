@@ -1551,11 +1551,16 @@ def skirt_hull(A, spec, hull):
                                                                                      # widened a percentile to 58 deg)
     else:
         half = spec.get('panel', 0.0)
+    if spec.get('panel_snap') and half > 0:
+        # the panel's edge on the nearest pleat fold (folds every 180 / pleats degrees from the front: ridges and
+        # valleys), so the stepped band's first riser beyond it (band.stair_unit 'fold') isn't a sliver of a face away
+        f = math.pi / pleats
+        half = max(f, round(half / f) * f)
     band = None
     VVg = np.broadcast_to(VV, R.shape)
     if spec.get('band'):
         # the dark hem band as geometry: rows placed per column on its top edge's levels, its faces a third material
-        VVg, hb = band_rows(spec['band'], F.th, half, hem_at(F.th) - t0_at(F.th), vs, L)
+        VVg, hb = band_rows(spec['band'], F.th, half, hem_at(F.th) - t0_at(F.th), vs, L, pleats)
         R = np.array([np.interp(VVg[:, k], vs, F.R[:, k]) for k in range(n)]).T + off + depth * zig * VVg ** 0.7
         T = t0_at(TH) + VVg * (hem_at(TH) - t0_at(TH))
         lenc = hem_at(F.th) - t0_at(F.th)
@@ -1653,23 +1658,52 @@ def tuck_pull(R, T, tk, dr=0.0, A=None):
     return np.where(d < 0, np.minimum(R, cap + dr), R)
 
 
-def band_rows(bs, th, half, lenc, vs, L):
+def band_rows(bs, th, half, lenc, vs, L, pleats=None):
     """a skirt's dark hem band as rows: its height per column (`height` L, or from `stair`: knots [degrees out from the
     front panel's edge, height L], a step function: the band's top climbing in steps toward the panel, as drawn; none on
     the panel), and the rows per column: the loft's rows above the tallest band, then one row on each of the band's
-    levels (v = 1 - height / the column's length) and one between each two, then the hem. -> (v per row and column,
-    height per column (L))."""
+    levels (v = 1 - height / the column's length) and one between each two, then the hem.
+    `stair_unit` 'fold' (tool/garments4, Michael 2026-10-01: "a fold bends a step that spans it"): the knots count the
+    pleats' folds (every 180 / pleats degrees, ridges and valleys, from the front) out from the panel's edge: knot 0 the
+    edge, knot k the k-th fold beyond it (one within a degree of the edge is the edge's), so each riser sits on a fold
+    and each tread on one face. `lean` (L per degree): each tread's band rises toward its outer end by that much a
+    degree, so its top reads square to the fold's riser where the view shows the fold leaning with the skirt's flare;
+    then each column carries its own band top (`band_rows` puts a row on it, `mid` rows between it and the hem).
+    -> (v per row and column, height per column (L))."""
     n = len(th)
     thc = th + np.pi / n                                                         # each face column's centre
     d = np.degrees(np.abs(np.angle(np.exp(1j * thc)))) - np.degrees(half)
     hb = np.full(n, float(bs.get('height', 0.14)))
+    lean = float(bs.get('lean', 0.0))
     if bs.get('stair'):
         K = sorted(bs['stair'])
+        if bs.get('stair_unit') == 'fold':
+            f = 180.0 / float(pleats or 24)
+            h0 = np.degrees(half)
+            first = math.ceil((h0 + 1.0) / f) * f - h0                       # the first fold beyond the edge (deg)
+            K = [(0.0 if k == 0 else first + (k - 1) * f, h) for k, h in K]
         for k, (d0, h) in enumerate(K):
             d1 = K[k + 1][0] if k + 1 < len(K) else np.inf
-            hb[(d >= d0) & (d < d1)] = h
+            sel = (d >= d0) & (d < d1)
+            hb[sel] = h + lean * (d[sel] - d0) if np.isfinite(d1) else h
     hb[d < 0] = 0.0                                                              # (the panel: cream, no band)
     hb *= L
+    if lean:
+        # a band top per column: the loft's rows above the highest, one row on each column's top and one just above
+        # it (the corner crisp), `mid` rows to the hem
+        lvc = 1 - hb / np.maximum(1e-9, lenc)
+        vtop = float(lvc[hb > 0].min()) - 0.03 if (hb > 0).any() else 1.0
+        top = vs[vs < vtop]
+        rows_ = [np.tile(v_, n) for v_ in top]
+        bt = np.where(hb > 0, lvc, 1.0)
+        prev = top[-1] if len(top) else 0.0
+        rows_.append(0.5 * (prev + bt))
+        rows_.append(bt)
+        m = int(bs.get('mid', 2))
+        for i in range(1, m + 1):
+            rows_.append(bt + (1 - bt) * i / (m + 1))
+        rows_.append(np.ones(n))
+        return np.array(rows_), hb
     levels = np.unique(hb[hb > 0])[::-1]                                         # tallest first (v ascending)
     lv = 1 - levels[:, None] / np.maximum(1e-9, lenc)[None, :]                   # (levels, n)
     vtop = float(lv.min()) - 0.03
@@ -1956,7 +1990,8 @@ def flap_template(A, spec, hull):
     the hem), the mesh's rows and columns set on the stair's corners and the band's edges, so it is as crisp as drawn
     in the render and exactly what the QA reads (it labels faces at their UV centre: a texture's steps were quantised
     to faces). Not subdivided (a subdivision surface rounds the stair's corners): `rows` rows over the skirt, `cols`
-    columns across at least, `tail_rows` down the tail at least. The chain and weights as flap()'s.
+    columns across at least, `tail_rows` down the tail at least. `square` (0..1): the treads turned toward
+    perpendicular to the columns' hang (0: along the hem, as before). The chain and weights as flap()'s.
     -> flap()'s dict, with band (per face: 1 on the band) and subdiv 0."""
     L = A['head']['L']
     whole = spec.get('_spec') or {}
@@ -2028,7 +2063,20 @@ def flap_template(A, spec, hull):
     if spec.get('twist'):                                     # turning toward its outer edge's side as it falls
         e_th = np.stack([ax.point(0.0, a_ + 1e-3, 1.0) - ax.point(0.0, a_, 1.0) for a_ in ah]) / 1e-3
         dirs = dirs + spec['twist'] * np.sign(knot(E, 1.0, 1) - knot(E, 1.0, 2)) * e_th
-    tails = np.array([hem + l_ * dirs for l_ in tl])                              # (len(tl), len(us), 3)
+    sq = float(spec.get('square', 0.0))
+    if sq:
+        # the stair square to the flap's hang (tool/garments4, Michael 2026-10-01: the design draws its steps with exact
+        # right angles): the columns hang at a slant to the hem, so treads at one length below it ran along the hem,
+        # sheared against the risers down the columns. Each column's rows move along it by its hem's offset along the
+        # hang from the middle column's (`square` of it: 1 a tread perpendicular to the columns), easing in from the
+        # hem to the shortest tread's band top, so the risers keep their heights and the faces their rows
+        du = dirs / np.linalg.norm(dirs, axis=1)[:, None]
+        ref = np.array([np.interp(0.5, us, hem[:, k]) for k in range(3)])
+        l_ramp = max(1e-6, float(ln.min()) - band)
+        c_ = np.clip(-sq * np.einsum('ij,ij->i', hem - ref, du), -0.8 * l_ramp, 0.8 * l_ramp)
+        tails = np.array([hem + (l_ + c_ * min(1.0, l_ / l_ramp))[:, None] * dirs for l_ in tl])
+    else:
+        tails = np.array([hem + l_ * dirs for l_ in tl])                          # (len(tl), len(us), 3)
     G = np.concatenate([over, tails], 0)
     NR, NC = G.shape[:2]
     verts = G.reshape(-1, 3)

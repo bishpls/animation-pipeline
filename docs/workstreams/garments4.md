@@ -460,3 +460,27 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   front (shape vs placement split, as the bow's close-up). (c) The lapels are wide flat panels whose inner edges form
   the V down to the knot (ours bunch into lumps beside the neck): after the V opens, a lapel template lying flat along
   the V's edges, scored per view on lapel shape and width along its length; re-judge art_outline_collar after it.
+
+## Milestone 1: the staircase (branch tool/garments4-stairs from pipeline-3d 31689611)
+- **Measured** (declared family `stair` in charkit/declared.py; checks in charkit/stairqa.py; tools
+  charkit/out/garments4/tools/stairdbg.py (overlays) / stairseg.py (segments) / stairchk.py (the checks on builds)):
+  the face/band boundary traced as a sub-pixel outline (skimage find_contours) where the band lies along its outward
+  normal within 0.03 L, RDP'd into risers and treads; corners = 90 less the acute angle between consecutive segments'
+  principal axes (the middle 70% of each one's points); folds = drawn ink (design) or our lines + our geometry's folds
+  (declared.our_folds: face normals z-buffered, smoothed 1.5 px, a turn of >= 15 deg across +-4 px, thinned) reaching
+  within 0.08 L of the band; a fold meeting a tread > 0.02 L inside its ends = crossed.
+- Design: corners square (median 4.4 skirt front, 6.0 skirt 3q, flaps 6.4 / 9.2), no tread crossed. The turnaround
+  draws its first wide pleat face with 3 steps (2 risers mid-face) and one fold line per side in front; the closeup
+  (skirt_closeup.png) draws one step per pleat, risers on the folds (rule 2: the closeup is the pleat-structure authority).
+- g4_cuffs2 (= known-bad g4_stairs0, stored): crossed front 5 / 3q 3; corners skirt 13.3 / 11.9, flaps 17.8 / 28.0;
+  our fold spacing at the band 0.16 / 0.13 L vs the drawn steps' 0.15 / 0.14 (spacing already right: one face = one step).
+- Cause: band_rows' stair knots [0, 14, 28] deg from the panel edge (27 deg unwarped) vs the zig's folds every 10 deg
+  (ridges at 0, +-20, +-40.., valleys at +-10, +-30..: the texture's fold lines are the valleys); the skirt's treads
+  run level (3D-square to the folds, sheared in the ortho views where the folds lean with the flare); the flaps' treads
+  run along the hem while their columns hang slanted (3D-sheared).
+- Knobs (default unchanged): skirt `panel_snap` (the panel edge on the nearest fold: 27 -> 30 deg, with
+  panel_shape.scale 1.1 -> 0.99 to keep the drawn panel), band `stair_unit: 'fold'` (knots count folds out from the
+  edge: one face per step), band `lean` (L/deg: treads rising outward, per-column band rows), flap `square` (0..1:
+  treads turned perpendicular to the columns' hang).
+- Sweep st1 (tools/garments4/st1.json, box; out charkit/out/garments4/sweeps/st1): snap, fold, fold + lean 2/4/6e-3,
+  flap square 0.5/1, fold_l4 + square 1.
