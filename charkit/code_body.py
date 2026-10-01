@@ -12,7 +12,7 @@ inside the hull's torso envelope less a clearance.
     the measures and the review page: charkit.bodypage (python -m charkit.bodypage SPEC), kept apart so a build stage
     importing this module doesn't depend on the QA (charkit.cache's code closure)
 """
-import json, os
+import json, math, os
 
 import numpy as np
 
@@ -434,11 +434,52 @@ def limb_joints(H, sk, side, kind, hy=None):
     return np.array([(x, y, z) for (x, z), y in zip(pts2, ys)])
 
 
-def limb(H, sk, side, kind, hy=None, step=0.04, nth=48):
+ARM_POSE = {'out': 0.0, 'elbow_out': 0.0, 'elbow_fwd': 0.0}
+# the arm's pose on the hull's chain (spec body.arm, degrees; MakeHuman's body.pose knobs don't reach the code body).
+# limb_joints puts the arm on the outfit graph's front-view skeleton, which runs shoulder to wrist in one straight line
+# (22.5 deg off vertical on Clawd), while the drawn forearm hangs ~5 deg further out in every view (armfit: one 3D
+# direction fits front, three-quarter, profile and back within 1 deg). out: the whole arm turned away from her side at
+# the shoulder, in her frontal plane; elbow_out: the forearm and hand turned away from her side at the elbow (frontal
+# plane); elbow_fwd: the forearm and hand swung toward her front at the elbow (her sagittal plane). The sections are
+# measured round the posed chain, so the arm's skin follows the hull's forearm there; the bands on its bones follow it.
+
+
+def pose_arm(J, side, pose):
+    """an arm's joints (shoulder, elbow, wrist, hand's end) turned by the arm pose knobs (ARM_POSE) -> (4, 3)."""
+    p = dict(ARM_POSE, **(pose or {}))
+    J = np.array(J, float)
+    sg = 1.0 if side == 'left' else -1.0                # her outside: +x for her left
+
+    def frontal(P, c, deg):                            # (x, z) about c: the distal end away from her side
+        a = math.radians(deg)
+        v = P - c
+        x = v[:, 0] * math.cos(a) - sg * v[:, 2] * math.sin(a)
+        z = sg * v[:, 0] * math.sin(a) + v[:, 2] * math.cos(a)
+        return c + np.c_[x, v[:, 1], z]
+
+    def sagittal(P, c, deg):                           # (y, z) about c: the distal end toward her front (-y)
+        a = math.radians(deg)
+        v = P - c
+        y = v[:, 1] * math.cos(a) + v[:, 2] * math.sin(a)
+        z = -v[:, 1] * math.sin(a) + v[:, 2] * math.cos(a)
+        return c + np.c_[v[:, 0], y, z]
+    if p['out']:
+        J[1:] = frontal(J[1:], J[0], p['out'])
+    if p['elbow_out']:
+        J[2:] = frontal(J[2:], J[1], p['elbow_out'])
+    if p['elbow_fwd']:
+        J[2:] = sagittal(J[2:], J[1], p['elbow_fwd'])
+    return J
+
+
+def limb(H, sk, side, kind, hy=None, step=0.04, nth=48, pose=None):
     """a limb as sections along its bone chain (fit_sections, near-circular priors), from the points the design shows
     of it (bare skin as it is, a boot or cuff pulled in by its thickness), within reach of its bones in the front view.
+    pose: an arm's pose knobs (pose_arm), applied to its chain before the sections are measured round it.
     -> dict(chain, rows (s), params, measured, src)."""
     J = limb_joints(H, sk, side, kind, hy)
+    if kind == 'arm' and pose:
+        J = pose_arm(J, side, pose)
     ch = Chain(J)
     names = _piece_names(kind, side)
     reach = LIMBS[kind][2]
@@ -550,12 +591,13 @@ def foot(H, side, ankle, step=0.03, nth=48):
                 back=float(Q[:, 1].max() - FOOT_PULL))
 
 
-def body(H, sk, drawn=None, drawn_back=None, shoulder=None):
+def body(H, sk, drawn=None, drawn_back=None, shoulder=None, arm=None):
     """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)}).
-    shoulder: the shoulders' template knobs (the spec's body.shoulder: shoulders()), or None for the fitted sections."""
+    shoulder: the shoulders' template knobs (the spec's body.shoulder: shoulders()), or None for the fitted sections.
+    arm: the arms' pose knobs (the spec's body.arm: ARM_POSE, pose_arm), or None for the hull's chain."""
     T_ = torso(H, sk, drawn=drawn, drawn_back=drawn_back, shoulder=shoulder)
     hy = float(T_['params'][-1, 4])
-    limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None)
+    limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None, pose=arm if k == 'arm' else None)
              for k in ('leg', 'arm') for s_ in ('left', 'right')}
     feet = {'foot_' + s_: foot(H, s_, limbs['leg_' + s_]['chain'].J[-1]) for s_ in ('left', 'right')}
     meshes = {'torso': torso_mesh(T_)}
@@ -581,7 +623,8 @@ def foot_mesh(F_):
 PARTS = ('torso', 'leg_left', 'leg_right', 'arm_left', 'arm_right', 'foot_left', 'foot_right')
 UV_SLOTS = {'torso': (0.0, 0.0, 0.25, 1.0), 'leg_left': (0.25, 0.2, 0.33, 1.0), 'leg_right': (0.33, 0.2, 0.41, 1.0),
             'arm_left': (0.41, 0.2, 0.46, 1.0), 'arm_right': (0.46, 0.2, 0.5, 1.0),
-            'foot_left': (0.25, 0.0, 0.375, 0.2), 'foot_right': (0.375, 0.0, 0.5, 0.2)}
+            'foot_left': (0.25, 0.0, 0.375, 0.1), 'foot_right': (0.375, 0.0, 0.5, 0.1)}
+# (the feet, inside the boots, gave the band v 0.1-0.2 to the hands' parts: code_hand.UV_BAND)
 TOE_SHARE = 0.35                  # the front of the foot, as a share of its length, is the toes'
 HEAD_UV_BOX = (0.5, 0.0, 1.0, 1.0)
 BLEND = 0.06                      # L: a bone's weight eases into the next over this either side of their joint
@@ -640,7 +683,7 @@ def build_body_data(spec, chin, log=print):
     metres (the eye line where the code head's chin puts it: z = height - L - chin L, feet near 0), faces (quads, fan caps),
     per-face UVs (a slot per part; the head's box left free: head_uv_box), weights per VRM bone (the torso by height
     between the graph skeleton's joints, each limb along its chain), joints under MakeHuman's names (every VRM bone:
-    the fingers laid in the mitten, weightless), the torso's open top ring as the neck ring. Blender-safe (numpy)."""
+    the fingers the hand template's, weighted along each digit), the torso's open top ring as the neck ring. Blender-safe (numpy)."""
     from . import body as bodylib, mh
     Z = np.load(spec['body_code'])
     sk = {k: (tuple(a), tuple(b)) for k, (a, b) in json.loads(str(Z['skeleton'])).items()}
@@ -688,12 +731,34 @@ def build_body_data(spec, chin, log=print):
         FUV += [tuple(u + nuv for u in q) for q in fuv_]
         UVs += uv_
         nv += len(V_); nuv += len(uv_)
+    # the hands (charkit/code_hand.py): each part a capped tube of rings with its rings' weights on its bones
+    hparts = [str(x) for x in Z['hand_parts']] if 'hand_parts' in Z.files else []
+    for k, name in enumerate(hparts):
+        from .code_hand import UV_BAND
+        u0, v0, u1, v1 = UV_BAND
+        slot = (u0 + (u1 - u0) * k / len(hparts), v0, u0 + (u1 - u0) * (k + 1) / len(hparts), v1)
+        Pp = Z[name + '_P']
+        V_, F_, fuv_, uv_, row = _grid(Pp, slot, True, True)
+        Wr, bones = Z[name + '_W'], [str(b) for b in Z[name + '_B']]
+        Wv = Wr[np.clip(row, 0, len(Pp) - 1)]
+        per = {}
+        for i, b_ in enumerate(bones):
+            per[b_] = per.get(b_, 0) + Wv[:, i]
+        for b_, w in per.items():
+            if w.any():
+                W.setdefault(b_, []).append((nv, w))
+        parts[name] = (nv, nv + len(V_))
+        Vs.append(world(V_))
+        Fs += [tuple(v + nv for v in f) for f in F_]
+        FUV += [tuple(u + nuv for u in q) for q in fuv_]
+        UVs += uv_
+        nv += len(V_); nuv += len(uv_)
     V = np.concatenate(Vs)
     weights = {}
     for b, chunks in W.items():
         a = np.zeros(nv)
         for start, w in chunks:
-            a[start:start + len(w)] = w
+            a[start:start + len(w)] += w
         weights[b] = a
     J = _joints(Z, sk, world, L)
     missing = [j for pair in mh.VRM_JOINTS.values() for j in pair if j not in J]
@@ -708,8 +773,8 @@ def build_body_data(spec, chin, log=print):
 
 def _joints(Z, sk, world, L):
     """MakeHuman-named joints for every VRM bone, from the graph skeleton's front-view joints, the torso's centre depth
-    at each height and the limbs' fitted chains; the fingers laid across the hand (weightless), the toes forward of the
-    ankle on the sole."""
+    at each height and the limbs' fitted chains; the fingers the hand template's (charkit/code_hand.py; laid across the
+    old mitten when the body has none), the toes forward of the ankle on the sole."""
     zc, cy = Z['torso_z'], Z['torso_cy']
     ty = lambda z: float(np.interp(-z, -zc, cy))
     J = {}
@@ -726,17 +791,22 @@ def _joints(Z, sk, world, L):
         J['shoulder01.%s____head' % S_] = world(arm[0])
         J['lowerarm01.%s____head' % S_] = world(arm[1])
         J['wrist.%s____head' % S_] = world(arm[2])
-        hand = arm[3] - arm[2]
-        hl = np.linalg.norm(hand); hd = hand / max(hl, 1e-9)
-        across = np.array([0.0, -1.0, 0.0])                  # the fingers side by side front to back (palms inward)
-        for f in range(1, 6):
-            off = (f - 3) * 0.035                            # L: finger spacing across the hand
-            base = arm[2] + hd * hl * (0.2 if f == 1 else 0.5) + across * off
-            for seg in range(1, 4):
-                a = base + hd * hl * 0.5 * (seg - 1) / 3
-                b = base + hd * hl * 0.5 * seg / 3
-                J['finger%d-%d.%s____head' % (f, seg, S_)] = world(a)
-                J['finger%d-%d.%s____tail' % (f, seg, S_)] = world(b)
+        hk = 'hand_%s_joints' % side
+        if hk in Z.files:                                    # the hand template's digits (charkit/code_hand.py)
+            for k, p in json.loads(str(Z[hk])).items():
+                J[k] = world(np.asarray(p, float))
+        else:
+            hand = arm[3] - arm[2]
+            hl = np.linalg.norm(hand); hd = hand / max(hl, 1e-9)
+            across = np.array([0.0, -1.0, 0.0])              # the fingers side by side front to back (palms inward)
+            for f in range(1, 6):
+                off = (f - 3) * 0.035                        # L: finger spacing across the hand
+                base = arm[2] + hd * hl * (0.2 if f == 1 else 0.5) + across * off
+                for seg in range(1, 4):
+                    a = base + hd * hl * 0.5 * (seg - 1) / 3
+                    b = base + hd * hl * 0.5 * seg / 3
+                    J['finger%d-%d.%s____head' % (f, seg, S_)] = world(a)
+                    J['finger%d-%d.%s____tail' % (f, seg, S_)] = world(b)
         J['upperleg01.%s____head' % S_] = world(leg[0])
         J['lowerleg01.%s____head' % S_] = world(leg[1])
         J['foot.%s____head' % S_] = world(leg[2])

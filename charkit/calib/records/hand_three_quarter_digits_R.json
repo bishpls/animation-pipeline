@@ -1,0 +1,93 @@
+{
+ "check": "hand_three_quarter_digits_R",
+ "part": "hands",
+ "adapter": "Hands",
+ "module": "charkit.calib.hands",
+ "at": "2026-09-30T21:43:54",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hand_shape_L",
+  "hand_shape_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -1,
+    "PASS"
+   ],
+   "+0,+2": [
+    -1,
+    "PASS"
+   ],
+   "+1,+0": [
+    -1,
+    "PASS"
+   ],
+   "+2,+0": [
+    -1,
+    "PASS"
+   ],
+   "+0,-1": [
+    -1,
+    "PASS"
+   ],
+   "+0,-2": [
+    -1,
+    "PASS"
+   ],
+   "-1,+0": [
+    -1,
+    "PASS"
+   ],
+   "-2,+0": [
+    -1,
+    "PASS"
+   ]
+  },
+  "min": -1,
+  "max": -1,
+  "spread": 0,
+  "median": -1.0
+ },
+ "known_bad": {
+  "name": "mitten",
+  "value": -3,
+  "status": "FAIL"
+ },
+ "floor": {
+  "blob_hands": {
+   "values": [
+    -3,
+    -3,
+    -3,
+    -3,
+    -3
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -3,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": -1,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0), mitten reads -3 FAIL, the floor blob_hands FAIL",
+ "build": "charkit/out/calib/cur_hands",
+ "generators": {
+  "blob_hands": "each drawn hand replaced by the ellipse of its own area, centroid and second moments"
+ },
+ "seconds": 76.0
+}

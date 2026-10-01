@@ -1,0 +1,113 @@
+{
+ "check": "hand_shape_R",
+ "part": "hands",
+ "adapter": "Hands",
+ "module": "charkit.calib.hands",
+ "at": "2026-09-30T21:43:54",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9539,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.9539,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.9539,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.9539,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9539,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.9539,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.9539,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.9539,
+    "PASS"
+   ]
+  },
+  "min": 0.9539,
+  "max": 0.9539,
+  "spread": 0.0,
+  "median": 0.9539,
+  "views": {
+   "back": [
+    0.9916,
+    0.9916
+   ],
+   "front": [
+    0.9915,
+    0.9915
+   ],
+   "three_quarter": [
+    0.9539,
+    0.9539
+   ]
+  }
+ },
+ "known_bad": {
+  "name": "mitten",
+  "value": 0.2676,
+  "status": "FAIL"
+ },
+ "floor": {
+  "stub_hands": {
+   "values": [
+    0.5799,
+    0.3985,
+    0.4621,
+    0.4435,
+    0.442
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.4435,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "blob_hands": {
+   "value": 0.8068,
+   "status": "PASS"
+  }
+ },
+ "blind_to": [
+  "blob_hands"
+ ],
+ "current": {
+  "value": 0.5881,
+  "status": "FAIL",
+  "margin": 0.283
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), mitten reads 0.2676 FAIL, the floor stub_hands FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/calib/cur_hands",
+ "generators": {
+  "stub_hands": "each drawn hand cut off at 35-60% of its reach past the cuff",
+  "blob_hands": "each drawn hand replaced by the ellipse of its own area, centroid and second moments"
+ },
+ "seconds": 76.0
+}

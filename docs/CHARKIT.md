@@ -401,6 +401,32 @@ removed `PARTS` list) and `charkit/history.py` (the removed `STEPS` list). Resol
    legacy step is lost. Then run `python -c "from charkit import registry; print([p.name for p in registry.parts()])"`
    and check your part is where you meant it.
 
+### Declaring a check (a family, not new measuring code)
+
+Most new checks are one of a few families: a piece's shape IoU in a view, its width or width profile, an edge's height,
+spikes on its outline, its axis angle, its centroid, an ink line between two pieces. `charkit/declared.py` measures each
+family once, on the QA's own primitives (pieceqa's labels, masks, edges, closing, spikes). A new check is a declaration
+in a module-level literal, in the module you own (read with ast; nothing imported; no central list):
+
+```python
+DECLARED_CHECKS = [
+    dict(check='bow_{view}_lobe_width', family='width', piece='bow', views=['front', 'three_quarter'],
+         params=dict(mid=[0.2, 0.8], round=3), limits=[0.10, 0.20], flag="the bow's lobes too narrow (Michael ...)",
+         note="the bow's median row width, ours over the design's, less one",
+         calibrate=dict(known_bad='g3_render3', baseline=['voronoi_pieces'], shape=['piece_bow'])),
+]
+```
+
+- `part` defaults to `declared` (the generic part, order 1790); a part may evaluate its own declarations
+  (`declared.evaluate_part`: piece_details does, for the shorts' hem and width, ported with identical values).
+- `limits` are `[pass, warn]` (`better: 'higher'` for at-least checks; shape_iou is higher by default), or a reference
+  to a part's own table (`'charkit.pieceqa.LIMITS.rows'`).
+- The `calibrate` block is the check's calibration entry: `python -m charkit calibrate CHECK` runs the triple with the
+  part's label stand-in as the adapter (`declared.Declared` for the generic part). No adapter code.
+- A draft before committing: write the declarations to a JSON list and pass it to the QA and the calibration with
+  `CHARKIT_DECLARED=draft.json` or `calibrate CHECK --declared draft.json` (the shorts' checks declared this way in the
+  generic part calibrate exactly as the hand adapter does: docs/workstreams/sweep.md).
+
 ### The boards' renders: one animation per set
 
 A still render (`bpy.ops.render.render`) evaluates a fresh depsgraph, so every modifier in the file runs again for each
