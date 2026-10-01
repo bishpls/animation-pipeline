@@ -118,6 +118,10 @@ class Art:
             dy, dx = arg if kind == 'design' else (0, 0)
             nudge = ('boot_R', 'boot_cuff_R') if kind == 'boot_nudge' else None
             head = self.heads(dy, dx)
+        for regs in head.values():              # (the drawing has no pieces: none of its own bits peeks past another,
+            for rec in regs.values():           # so the design standing in for ours reads no peeks)
+                if isinstance(rec, dict) and rec.get('fragments') is not None:
+                    rec['fragments'].setdefault('peeks', 0)
         ctx = self.design.sheet_context()
         masks, graph, _ = bodymeasure.piece_masks(self.B.spec)
         views = {v: dict(rgb=_shift(np.asarray(x['rgb'], float), dy, dx, 1.0), fg=_shift(x['fg'], dy, dx, False),
