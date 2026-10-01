@@ -889,3 +889,12 @@ s wall): **0.99x** (pieces_hair 90 -> 246 s wall; the rest within the boxes' noi
 crab placement A, infra B: the clips are placed on the build's hair, accfit's Ground, so the crab seats on the shells;
 the gate's acc_crab_* rows say whether that moves). Re-gate 5, both sides cold: `python -m charkit remote gate
 tool/hairshell3 --into pipeline-3d --accept hair_noise --args "--cache refresh"` (box auto).
+
+### Re-gate 5 (c9c4ccb8 into pipeline-3d 27a4b6c3, both sides cold, `--accept hair_noise`): FAIL, 2 blockers
+`charkit/out/gate/gate_tool-hairshell3_c9c4ccb8_into_27a4b6c3.md`. **CPU cold against cold: 1368.3 -> 1508.7 s
+(1.10x)**, not blocking. Blockers: (1) test_slotprio.py (infra5's slot-priority timing test, pipeline-3d's; yields 2
+against 1 under the gate's 8-at-a-time test load; all 5 cases pass alone on this tree; the branch doesn't touch procs:
+flaky, for the infra queue); (2) **hair_strokes_profile_dir 15.5 P -> 24.5 W** again, on the head with the crab
+placement A (the clips seated on the build's hair: acc_crab_profile_flow 1.8 -> 7.0): before the crab (gate 3) it read
+14.6 -> 16.9 P with the same shells. Also: art_terminator_hair 2.134 W -> 1.303 P, acc_star_back_shown 19 -> 0.
+Diagnosis builds: r8_hull, r8_default (render2, boards, merged head).
