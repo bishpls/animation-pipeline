@@ -872,3 +872,14 @@ the shells' identity is checked by capcheck2 on the box), det_join_nfev 150 -> 6
 capcheck2 (build box; `charkit/out/hairshell3/capcheck2/`): the old path (numpy transport, no cap) against the new
 (plain-float transport, det_join_nfev 60): **17 of 17 shells bit-identical**, the fit's CPU 661 -> 252 s. (`remote run`
 now picks a box itself (build2 joined): name `--box build` for a build that lives there.) Re-gate 4 on render2.
+
+### Re-gate 4 (5d6d2048 into pipeline-3d cd1c327f, `--accept hair_noise`): FAIL under K, 1 blocker: CPU 1.61x
+`charkit/out/gate/gate_tool-hairshell3_5d6d2048_into_cd1c327f.md`: 871.2 -> 1406.0 s. The comparison is warm against
+cold: the baseline restored its steps before Blender from its cache (`before` 22.9 s: code_head 3.5, hair_select 4.9,
+pieces_hair 1.0, garments 0.7) while the candidate, whose merge changes files every step reads (cli.py, checks.py,
+qa3d.py, hairpieces.py, lockshell.py, the spec), built them cold (`before` 521.8 s: code_head 75.9, hair_select 97.4,
+pieces_hair 313.7, garments 17.9); Blender and QA read 722.5 -> 617.2 s. Cold against cold on render2 earlier: r5_hull
+1296.6 s, r6b_default 1342.5 s (1.04x, before capcheck2's cut). Measuring it cold-cold on one box: `tools/hairshell3/
+r7_cpu.sh` (--no-cache, build box: r7_hull_cold = today's default without the shells, r7_shells_cold = the default).
+For the coordinator: the gate's CPU rule reads a cached baseline against a cold candidate whenever the merge changes
+what the early steps read.
