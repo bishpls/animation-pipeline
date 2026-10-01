@@ -100,6 +100,15 @@ unchanged by construction.
   The known-bad face7_before is stored on the laptop (from the 52f6324 preview) and on the build box (from face7_b0,
   same face checks; the box's known_bad json write was refused: read-only synced file, the laptop's is the record).
 
+- **Build g1** (`charkit/out/face7_g1`, render2, item 4 on; CPU 1293 s with a hull miss): every face move as the sweep
+  read (eye_corner_profile -0.074 F -> -0.017 P, close-up -0.087 F -> -0.030 P, 3/4 0.017 -> 0.036 P, front unchanged;
+  eye_lash_spikes_closeup_profile 0 F -> 0.75 P, front 1.0 -> 0.833 P, gaps front 0.875 -> 0.75 P, profile 0.8 -> 0.6 P;
+  brow_arch_closeup_profile 0.013 W -> 0.009 P); pieces: lash profile 0.236 -> 0.301, iris profile 0.721 -> 0.775, mouth
+  3/4 0.431 -> 0.419 (-3%), nothing down >15%. Other moves are pipeline-3d's merge (garments4-v, staircase, flaps).
+- Calibration records written on face7_g1 (laptop: the known-bad store is here): 4 calibrated, 5 guards.
+- **Gate 1** launched: tool/face7 (afe44421: pipeline-3d 15e9c55 merged) into pipeline-3d, log charkit/out/face7/gate1.log.
+  No local pregate (the coordinator's memory call: the pregate builds the evaluator locally).
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
