@@ -614,6 +614,13 @@ def pieces_hair(spec, resolved, out, mode='on'):
     layers = manifest.produced(spec, 'hair_layers')
     M = manifest.load(spec['ref']['manifest'])
     sheet = _path(M['references']['body_turnaround']['path'])
+    popts = dict(shape.get('pieces_opts') or {})
+    split = []
+    if popts.get('lock_shells'):
+        # (tool/hairshell: the lock shells read the drawn hair's lock split, a produced reference)
+        sp_ = manifest.produced(spec, 'hair_split')
+        popts['lock_shells'] = dict(popts['lock_shells'], split=sp_)
+        split = [sp_, os.path.join(os.path.dirname(sp_), 'hairsplit.npz')]
     cut = {k: v for k, v in spec.items() if k != 'garments'}
     cut['hair'] = dict(spec['hair'], shape={k: v for k, v in shape.items() if k not in ('geom', 'pieces')})
     # the pieces' own eye anchor (pieces_opts.eye_anchor, target3d.eye_target): the hair aligned to our irises without
@@ -651,7 +658,7 @@ def pieces_hair(spec, resolved, out, mode='on'):
                                         masks, info['ppl'])
         style = styles.load(spec.get('style', 'anime'))['hair_pieces']
         R = hp.build(C, fam, masks, style, views=views, hull_frame=(C.align['scale'], np.asarray(C.align['translate'])),
-                     opts=shape.get('pieces_opts'), points=pts)
+                     opts=popts, points=pts)
         R['report']['labelled'] = counts
         hp.save_parts(R, pdir, meta=dict(style=spec.get('style', 'anime'), normals=style['normals']))
         print('pieces hair', pdir, json.dumps({k: (r['locks'], r['tris']) for k, r in R['report']['pieces'].items()}))
@@ -659,12 +666,13 @@ def pieces_hair(spec, resolved, out, mode='on'):
         run()
     else:
         r = cache.file_step('pieces_hair', run, [pieces_hair], cut, gdir,
-                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] + [
+                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] + split + [
                                 p_ for p_ in [os.path.join(os.path.dirname(_path(shape['glb'])), 'hull.npz')]
                                 if os.path.exists(p_)] +
                             ([spec['head_code']] if spec.get('head_code') else []),
                             modules=('charkit.geom.parts', 'charkit.geom.hairpieces', 'charkit.geom.hull',
-                                     'charkit.styles', 'charkit.garments'), name_key=spec['name'],
+                                     'charkit.styles', 'charkit.garments') + (
+                                         ('charkit.geom.lockshell',) if split else ()), name_key=spec['name'],
                             refresh=mode == 'refresh')
         print('CHARKIT_CACHE pieces_hair', r)
     shape['pieces'] = pdir
