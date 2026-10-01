@@ -554,24 +554,35 @@ def limb_mesh(L_):
 
 
 FOOT_PULL = 0.03                # L: the foot inside the boot's surface (the boot's thickness and its shoe's offset)
+FOOTWEAR = ('shoe', 'sandal', 'boot')   # a footwear piece's id prefixes, after Clawd's boot_L / boot_R
+BARE_FOOT_R = 0.5               # L: a bare foot's hull points, this far either side of its ankle
 
 
 def foot(H, side, ankle, step=0.03, nth=48):
     """a foot as sections stacked from the ankle down to the sole round a vertical axis (fit_sections, a foot's
-    proportions: longer than wide), from the boot's hull points below the ankle pulled in by FOOT_PULL. -> dict(axis,
+    proportions: longer than wide), from the boot's hull points below the ankle pulled in by FOOT_PULL (another footwear
+    piece's likewise; with none, the bare foot's hull points as they are). -> dict(axis,
     rows (z), params, th, front, back (the foot's y extent: the toes' end and the heel))."""
     from .geom import loft
     suf = '_L' if side == 'left' else '_R'
-    Q = np.concatenate([H.points(n) for n in ('boot' + suf,) if len(H.points(n))])
+    names = ['boot' + suf] if len(H.points('boot' + suf)) else \
+        [n for n in H.ids if n.startswith(FOOTWEAR) and n.endswith(suf) and len(H.points(n))]
+    pull = FOOT_PULL
+    if names:
+        Q = np.concatenate([H.points(n) for n in names])
+    else:                                   # a bare foot (a base body's hull: no footwear piece): the hull below the
+        V = np.asarray(H.V, float)          # ankle on its side, nothing pulled in
+        Q = V[(V[:, 2] < ankle[2]) & (np.abs(V[:, 0] - ankle[0]) < BARE_FOOT_R)]
+        pull = 0.0
     Q = Q[Q[:, 2] < ankle[2] - 0.02]
     if len(Q) < 50:
-        raise ValueError('foot %s: %d boot points below the ankle' % (side, len(Q)))
+        raise ValueError('foot %s: %d footwear or foot points below the ankle' % (side, len(Q)))
     top, sole = ankle[2], float(Q[:, 2].min())
     c = np.median(Q, 0)
     ax = loft.Axis((c[0], c[1], top), (0, 0, -1), (0, -1, 0))
     t, th, r = ax.coords(Q)
-    r = r - FOOT_PULL
-    rows = np.linspace(0, top - sole - FOOT_PULL, max(6, int((top - sole) / step)))
+    r = r - pull
+    rows = np.linspace(0, top - sole - pull, max(6, int((top - sole) / step)))
     nz = len(rows)
     th_c = -np.pi + (np.arange(nth) + 0.5) * 2 * np.pi / nth
     ii = np.clip(np.rint(np.interp(t, rows, np.arange(nz))).astype(int), 0, nz - 1)
@@ -587,8 +598,8 @@ def foot(H, side, ankle, step=0.03, nth=48):
     r0 = float(np.median(r))
     X0 = np.tile([0.6 * r0, r0, 0.6 * r0, 2.4, 0.0], (nz, 1))
     P = fit_sections(meas, Rc, th_c, 0.0, X0, depth=1.5, n=2.4, w_centre=0.2)
-    return dict(axis=ax, rows=rows, params=P, th=th_c, front=float(Q[:, 1].min() + FOOT_PULL),
-                back=float(Q[:, 1].max() - FOOT_PULL))
+    return dict(axis=ax, rows=rows, params=P, th=th_c, front=float(Q[:, 1].min() + pull),
+                back=float(Q[:, 1].max() - pull))
 
 
 def body(H, sk, drawn=None, drawn_back=None, shoulder=None, arm=None):

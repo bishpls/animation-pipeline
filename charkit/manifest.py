@@ -86,6 +86,10 @@ def resolve(spec):
         ref['window'] = M['window']
     from . import palette
     palette.activate_spec(spec)
+    # a character with a hull and no hair in its spec: the hull's hair (decision 8: the hull is the hair's source), cut
+    # as one surface (geom), with its facial hair where the manifest says the design draws it ('facial_hair')
+    if 'hair' not in spec and 'hull' in R:
+        spec['hair'] = dict(shape=dict(glb=R['hull']['path'], mode='geom', facial=bool(M.get('facial_hair'))))
     # the design's own colours where the spec gives none (else the code's defaults, which are Clawd's): skin, hair,
     # iris, brows and lashes from the palette's roles (palette.spec_colours)
     if palette.active() is not None:

@@ -29,6 +29,13 @@ from . import sheetqa
 from .faceqa import drawn_chin          # the chin rule, shared with the QA's reading of ours
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HEAD_ORDERS = {4: ('front', 'three_quarter', 'profile', 'back'), 3: ('front', 'profile', 'back'), 2: ('front', 'profile')}
+EAR_BEHIND = 0.02   # a head's rear "eye" this far behind its axis (share of its width), the front one EAR_RATIO times as far
+                    # ahead: an ear (a bald construction profile, 2026-10-01); three-quarters' rear eyes lie ahead
+EAR_RATIO = 1.3    # (fronts read 1.02-1.03 on both characters, a construction profile's ear 1.47)
+EDGE_EYE = 0.06     # a dark blob within this share of the head's width of its silhouette's edge is no eye (an ear, a
+                    # nose tip: a bald construction head at full size read its ears as a front pair, 2026-10-01; eyes
+                    # sit 0.19-0.31 of the width inside the edge, Clawd's 0.28-0.31)
 GUIDE = dict(k=4, diff=0.12, share=0.35)   # a guide line: a thin horizontal feature across much of the sheet
 VIEWS = ('front', 'three_quarter', 'profile')
 
@@ -62,6 +69,29 @@ def without_guides(rgb):
     return out, [int(r[len(r) // 2]) for r in runs]
 
 
+def _eyes_off_the_edge(lab, box, m, facing, tries=3):
+    """sheetqa.find_eyes' pair (else one eye) in a head, with blobs at its silhouette's edge (EDGE_EYE) left out and the
+    search run again without them."""
+    lab = lab.copy()
+    w = max(1, box[2] - box[0])
+    for _ in range(tries):
+        e = sheetqa.find_eyes(lab, box, 2, facing=facing, max_tilt=0.25) or sheetqa.find_eyes(lab, box, 1, facing=facing)
+        bad = []
+        for x, y in e:
+            xs = np.nonzero(m[int(round(y))])[0] if 0 <= int(round(y)) < m.shape[0] else []
+            if len(xs) and min(x - xs[0], xs[-1] - x) < EDGE_EYE * w:
+                bad.append((x, y))
+        if not bad:
+            return e
+        r = int(0.04 * w) + 2
+        for x, y in bad:
+            lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1][
+                lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1] == 3] = 0
+            lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1][
+                lab[max(0, int(y) - r):int(y) + r + 1, max(0, int(x) - r):int(x) + r + 1] == 4] = 0
+    return [p for p in e if p not in bad]
+
+
 def detect_heads(rgb, eye_x, facing=-1):
     """the heads on a head sheet: every blob off the background at least a fifth the size of the largest; its view from
     its eyes as sheetqa.detect_figures names a model sheet's (two level eyes centred on the silhouette: front; off
@@ -77,11 +107,19 @@ def detect_heads(rgb, eye_x, facing=-1):
             continue
         box = [int(v) for v in B[i]]
         m = blobs == i + 1
-        e = sheetqa.find_eyes(lab, box, 2, facing=facing, max_tilt=0.25) or sheetqa.find_eyes(lab, box, 1, facing=facing)
+        e = _eyes_off_the_edge(lab, box, m, facing)
         off = None
         if len(e) == 2:
             ey = float(np.mean([p[1] for p in e]))
             c = sheetqa._row_centre(m, int(ey - 20), int(ey + 21))
+            # a profile's ear read as its second eye: the rear blob behind the head's axis while the front one lies
+            # far ahead of it (a front's pair is even about the axis, a three-quarter's rear eye lies ahead of it)
+            w = max(1, box[2] - box[0])
+            fr, re = (min(e, key=lambda p: p[0] * -facing), max(e, key=lambda p: p[0] * -facing))
+            behind, ahead = (re[0] - c) * -facing / w, (c - fr[0]) * -facing / w
+            if behind > EAR_BEHIND and ahead > EAR_RATIO * behind:
+                e = [fr]
+        if len(e) == 2:
             off = (c - float(np.mean([p[0] for p in e]))) / max(1.0, abs(e[1][0] - e[0][0]))
         found.append(dict(box=box, eyes=e, off=off, _mask=m))
     two = [f for f in found if f['off'] is not None]
@@ -90,13 +128,36 @@ def detect_heads(rgb, eye_x, facing=-1):
     front = min(two, key=lambda f: abs(f['off']))
     ppl = abs(front['eyes'][1][0] - front['eyes'][0][0]) / (2 * eye_x)
     ey_front = float(np.mean([p[1] for p in front['eyes']]))
-    heads = {}
-    for f in sorted(found, key=lambda f: f['box'][0]):
+    by_x = sorted(found, key=lambda f: f['box'][0])
+
+    def view_of(f):
         e = f['eyes']
         if len(e) == 2:
-            view = 'front' if f is front and abs(f['off']) < 0.5 else 'three_quarter'
-        else:
-            view = 'profile' if len(e) == 1 else 'back'
+            return 'front' if f is front and abs(f['off']) < 0.5 else 'three_quarter'
+        return 'profile' if len(e) == 1 else 'back'
+    order = HEAD_ORDERS.get(len(by_x))
+    named = [view_of(f) for f in by_x]
+    rank = [('front', 'three_quarter', 'profile', 'back').index(v) for v in named]
+    consistent = all(a < b for a, b in zip(rank, rank[1:]))     # no view twice, left to right in turnaround order
+    if order and by_x[0] is front and not consistent:
+        # the kit's head sheets' layouts (their prompts draw them so), where the eyes' names are inconsistent (a view
+        # twice or out of order: small dark eyes lost at a reduced scale): eyes off the front's eye line dropped, the
+        # missing re-searched on it (slivers)
+        for f, v in zip(by_x, order):
+            want = dict(front=2, three_quarter=2, profile=1, back=0)[v]
+            if v != 'front':
+                f['eyes'] = [p for p in f['eyes'] if abs(p[1] - ey_front) <= sheetqa.EYE_LINE_L * ppl][:want]
+                if 0 < want > len(f['eyes']):
+                    top = int(ey_front - sheetqa.EYE_LINE_L * ppl)
+                    band = (f['box'][0], top, f['box'][2], top + int(2 * sheetqa.EYE_LINE_L * ppl / 0.62))
+                    e = sheetqa.find_eyes(lab, band, want, facing=facing, max_tilt=0.25, soft=True)
+                    if len(e) > len(f['eyes']):
+                        f['eyes'] = e
+            f['_view'] = v
+    heads = {}
+    for f in by_x:
+        e = f['eyes']
+        view = f.get('_view') or view_of(f)
         eye_y = float(np.mean([p[1] for p in e])) if e else ey_front      # a sheet's heads share its eye line
         name = view if view not in heads else '%s_%d' % (view, sum(k.startswith(view) for k in heads) + 1)
         heads[name] = dict(box=f['box'], eyes=[[round(a, 2), round(b, 2)] for a, b in e], eye_y=round(eye_y, 2),

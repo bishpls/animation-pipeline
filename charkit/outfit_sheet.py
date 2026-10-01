@@ -22,7 +22,7 @@ Clawd's 2D rig (its layers and joints) and her notes; a second character has nei
 
     python -m charkit.outfit_sheet SPEC [--out DIR]
 """
-import json, os, sys, time
+import json, math, os, sys, time
 
 import numpy as np
 
@@ -346,6 +346,329 @@ def build(spec, out, log=print):
         log('%s: %s' % (vn, ', '.join('%s %d' % (k.split('__')[1], v.sum()) for k, v in masks.items()
                                          if k.startswith(vn + '__') and v.any())))
     return G, paths
+
+
+# ------------------------------------------------------------------------------- drafting the accessories' templates
+EMBLEM_CELLS = 28           # a pin's emblem: its drawing resampled to this many cells across the face
+
+
+def _peaks(top, min_prom):
+    """the tips of a top outline (heights per column, nan where empty): its peaks standing at least min_prom above the
+    outline either side (scipy.signal.find_peaks' prominence) -> their count."""
+    from scipy.signal import find_peaks
+    t = np.asarray(top, float)
+    ok = np.isfinite(t)
+    if ok.sum() < 3:
+        return 0
+    t = np.where(ok, t, np.nanmin(t))
+    return int(len(find_peaks(t, prominence=min_prom)[0]))
+
+
+def draft_crown(pc, masks, ppl, P):
+    """a crown accessory spec from its piece's front and profile masks (L from the eyes' middle)."""
+    from .accessories import CROWN
+    f, pr = masks.get('front__' + pc['id']), masks.get('profile__' + pc['id'])
+    if f is None or not f.any():
+        return None
+    win = None
+    ys, xs = np.nonzero(f)
+    top = np.full(f.shape[1], np.nan)
+    for c in np.unique(xs):
+        top[c] = -ys[xs == c].min()
+    H = (ys.max() - ys.min() + 1)
+    k = _peaks(top, 0.18 * H)                               # the tips the front shows
+    widths = f.sum(1)[ys.min():ys.max() + 1]
+    band = float(np.sum(widths >= 0.85 * widths.max()) / H)
+    return dict(xs=xs, ys=ys, H=H, k=k, band=band, pr=pr)
+
+
+def _tips_on_sheet(spec, pc, P):
+    """the points round a ring piece (a crown) from its own shape sheet (its shape_ref): the tips its first (front) view
+    draws (peaks of its top outline), at x = R sin(phi) from the middle; 360 degrees over the nearest pair's angle
+    -> count, or None."""
+    from . import manifest
+    from .palette import lab as tolab
+    from .sheetqa import boxes, label
+    ref = pc.get('shape_ref')
+    R = manifest.load(spec['ref']['manifest'])['references'] if ref else {}
+    if ref not in R:
+        return None
+    from PIL import Image
+    rgb = np.asarray(Image.open(_p(R[ref]['path'])).convert('RGB')).astype(float) / 255
+    idx = [P.names.index(n) for n in pc['swatches'] if n in P.names]
+    m = np.isin(P.nearest_among(tolab(rgb), idx), idx)
+    from .bodyqa import dilate
+    lab_, n = label(dilate(m, 3))
+    if not n:
+        return None
+    B, area = boxes(lab_, n)
+    keep = [i for i in range(n) if area[i] >= 0.2 * area.max()]
+    i = min(keep, key=lambda i: B[i][0])                       # the leftmost: its front view
+    x0, y0, x1, y1 = (int(v) for v in B[i])
+    sub = (lab_ == i + 1)[y0:y1 + 1, x0:x1 + 1] & m[y0:y1 + 1, x0:x1 + 1]
+    top = np.full(sub.shape[1], np.nan)
+    for c in range(sub.shape[1]):
+        r = np.nonzero(sub[:, c])[0]
+        if len(r):
+            top[c] = -r.min()
+    from scipy.signal import find_peaks
+    t = np.where(np.isfinite(top), top, np.nanmin(top))
+    pk = find_peaks(t, prominence=0.18 * (y1 - y0 + 1))[0]
+    if len(pk) < 2:
+        return None
+    # the ring's points from their spacing: tips seen at x = R sin(phi) from the middle; the nearest pair's angle
+    half = 0.5 * sub.shape[1]
+    phi = np.degrees(np.arcsin(np.clip((pk - half) / half, -1, 1)))
+    gap = float(np.min(np.diff(np.sort(phi))))
+    return int(np.clip(round(360.0 / max(gap, 1e-6)), 4, 24))
+
+
+def draft_accessories(spec, design, masks, pieces, P, hull_dir=None, log=print):
+    """the accessories' template specs from the outfit graph's crown and pin pieces (accessories.crown / pin): sizes,
+    places and counts from their masks on the body sheet's views (L from the eyes), a pin's depth and facing from the
+    hull's front surface, its emblem from its own sheet's drawing -> [spec]."""
+    from .accessories import CROWN
+    out = []
+    for pc in pieces:
+        if pc['type'] == 'crown':
+            fdv, pdv = design['front'], design.get('profile')
+            ppl, win = fdv['ppl'], fdv['win']
+            f = masks.get('front__' + pc['id'])
+            if f is None or not f.any():
+                continue
+            d = draft_crown(pc, masks, ppl, P)
+            ring = _tips_on_sheet(spec, pc, P)               # its own sheet's front view: the points' spacing
+            X = lambda c, dv: (c + 0.5) / dv['ppl'] - dv['win']['x']
+            Z = lambda r, dv: dv['win']['top'] - (r + 0.5) / dv['ppl']
+            x0, x1 = X(d['xs'].min(), fdv), X(d['xs'].max(), fdv)
+            z0, z1 = Z(d['ys'].max(), fdv), Z(d['ys'].min(), fdv)
+            rx = 0.5 * (x1 - x0) / (1 + CROWN['flare'])
+            ry, yc = rx, 0.0
+            pr = d['pr']
+            if pr is not None and pr.any():
+                py, px = np.nonzero(pr)
+                q0, q1 = X(px.min(), pdv), X(px.max(), pdv)
+                ry, yc = 0.5 * (q1 - q0) / (1 + CROWN['flare']), 0.5 * (q0 + q1)
+            n = ring or (int(max(4, 2 * (d['k'] - 1))) if d['k'] >= 2 else CROWN['points'])
+            col = lambda name: [round(float(v), 4) for v in P.rgb[P.names.index(name)]] if name in P.names else None
+            jewels = [c for c in (col(nm) for nm in pc['swatches'] if 'jewel' in nm) if c] or [[0.8, 0.2, 0.2]]
+            out.append(dict(kind='crown', name=pc['id'], from_eyes=[round(0.5 * (x0 + x1), 4), round(yc, 4), round(z0, 4)],
+                            shape=dict(rx=round(rx, 4), ry=round(ry, 4), height=round(z1 - z0, 4),
+                                       band=round(min(0.7, max(0.15, d['band'])), 3), points=n, jewels=n),
+                            color=col(pc['swatches'][0]), colors=(jewels * 2)[:2],
+                            line=[round(float(v) * 0.5, 4) for v in P.rgb[P.names.index(pc['swatches'][min(1, len(
+                                pc['swatches']) - 1)])]],
+                            drafted='from its masks (band %.2f of its height); %d points from its own sheet\'s tips\' spacing'
+                                    % (d['band'], n)))
+        elif pc['type'] == 'pin':
+            fdv = design['front']
+            f = masks.get('front__' + pc['id'])
+            if f is None or not f.any():
+                continue
+            ys, xs = np.nonzero(f)
+            X = lambda c: (c + 0.5) / fdv['ppl'] - fdv['win']['x']
+            Z = lambda r: fdv['win']['top'] - (r + 0.5) / fdv['ppl']
+            xc, zc = 0.5 * (X(xs.min()) + X(xs.max())), 0.5 * (Z(ys.min()) + Z(ys.max()))
+            r = float(np.sqrt(f.sum() / np.pi)) / fdv['ppl']     # by its area: specks of its colours don't widen it
+            y, facing = _surface(hull_dir, xc, zc, r, pc['id']) if hull_dir else (-0.5, (0.0, 0.0))
+            sh = dict(r=round(r, 4))
+            em = _emblem(spec, pc, P)
+            if em:
+                sh['emblem'] = em
+            names = pc['swatches']
+            col = lambda name: [round(float(v), 4) for v in P.rgb[P.names.index(name)]]
+            bone = pc.get('bone') or 'upperChest'               # the armature's bones carry VRM names (body.build_armature)
+            out.append(dict(kind='pin', name=pc['id'], from_eyes=[round(xc, 4), round(y, 4), round(zc, 4)],
+                            facing=[round(facing[0], 2), round(facing[1], 2)], shape=sh, color=col(names[0]),
+                            colors=[[0.62, 0.62, 0.66]] + [col(n) for n in names[1:]], bone=bone,
+                            drafted='from its front mask; depth and facing from the hull\'s front surface'))
+    return out
+
+
+def _col(P, name):
+    return [round(float(v), 4) for v in P.rgb[P.names.index(name)]]
+
+
+def _shade(P, pc):
+    """a piece's shade multiplier: its second swatch (its shadow) over its first (lit), else none."""
+    sw = pc['swatches']
+    if len(sw) < 2:
+        return None
+    a, b = P.rgb[P.names.index(sw[0])], P.rgb[P.names.index(sw[1])]
+    return [round(float(v), 4) for v in np.clip(b / np.maximum(a, 1e-3), 0.3, 1.0)]
+
+
+def draft_garments(design, masks, pieces, P, sk, log=print):
+    """the garments' template specs (charkit.garments' kinds) for the piece types that have one, from the pieces' masks
+    on the front view and the skeleton (L from the eye line): a tunic as a shell over the torso and upper arms with a
+    skirt from the waist to its hem (its length and flare from the mask), a belt (its height and width), sandals as
+    shoes. Types with no template (a drape) are left out and listed. -> (specs, [types without a template])."""
+    f = design['front']
+    X = lambda c: (c + 0.5) / f['ppl'] - f['win']['x']
+    Z = lambda r: f['win']['top'] - (r + 0.5) / f['ppl']
+    hips_z, spine_z = sk['hips'][0][1], sk['spine'][1][1]
+    frac = lambda z: float(np.clip((z - hips_z) / max(1e-6, spine_z - hips_z), 0.0, 1.2))
+    specs, missing = [], []
+    for pc in pieces:
+        t = pc['type']
+        m = masks.get('front__' + pc['id']) if pc.get('side') != 'split' else None
+        if t == 'tunic' and m is not None and m.any():
+            ys, xs = np.nonzero(m)
+            hem_z = Z(ys.max())
+            waist = 0.55
+            zw = hips_z + (spine_z - hips_z) * waist
+            r_w = [r for r in range(m.shape[0]) if abs(Z(r) - zw) < 0.04]
+            hw_w = np.mean([np.ptp(np.nonzero(m[r])[0]) / 2 / f['ppl'] for r in r_w if m[r].any()]) if r_w else 0.5
+            r_h = [r for r in range(m.shape[0]) if hem_z + 0.02 < Z(r) < hem_z + 0.12 and m[r].any()]
+            hw_h = np.mean([np.ptp(np.nonzero(m[r])[0]) / 2 / f['ppl'] for r in r_h]) if r_h else hw_w
+            length = max(0.2, zw - hem_z)
+            flare = float(np.degrees(np.arctan2(max(0.0, hw_h - hw_w), length)))
+            col, shade = _col(P, pc['swatches'][0]), _shade(P, pc)
+            specs.append(dict(kind='shell', name=pc['id'] + '_top', region=[[b, -1, 3] for b in ('hips', 'spine', 'chest', 'upperChest')] +
+                              [['neck', -1, 0.6], ['leftShoulder', -1, 3], ['rightShoulder', -1, 3],
+                               ['leftUpperArm', -1, 0.45], ['rightUpperArm', -1, 0.45]],
+                              offset=0.02, thick=0.008, color=col, shade=shade,
+                              cuts=[['neck', 0.0, 'below', 0.04]], drafted='tunic: its top over the torso and upper arms'))
+            specs.append(dict(kind='skirt', name=pc['id'] + '_skirt', waist=waist, length=round(length, 4),
+                              flare=round(flare, 2), pleats=24, pleat=0.025, offset=0.02, color=col, hem_color=col,
+                              panel=0.0, shade=shade,
+                              drafted='tunic: its skirt, hem %.2f L under the eye line, flare %.1f deg (its front mask)'
+                                      % (hem_z, flare)))
+        elif t == 'belt' and m is not None and m.any():
+            ys, xs = np.nonzero(m)
+            zc = 0.5 * (Z(ys.min()) + Z(ys.max()))
+            specs.append(dict(kind='belt', name=pc['id'], waist=round(frac(zc), 4),
+                              width=round(float((ys.max() - ys.min() + 1) / f['ppl']), 4), offset=0.04, thick=0.02,
+                              color=_col(P, pc['swatches'][0]), drafted='its front mask: height and middle'))
+        elif t == 'sandal':
+            for side, S_ in (('left', 'L'), ('right', 'R')):
+                specs.append(dict(kind='shoe', name='%s_%s' % (pc['id'], S_), side=side, offset=0.01, sole=0.04,
+                                  color=_col(P, pc['swatches'][0]),
+                                  sole_color=[round(v * 0.7, 4) for v in _col(P, pc['swatches'][0])],
+                                  drafted='a shoe template (no strapped-sandal template)'))
+        elif t == 'drape' and m is not None and m.any():
+            ys, xs = np.nonzero(m)
+            # its diagonal: the mask's row centres over the chest (the eye line to the waist) rise toward one shoulder
+            rows = [r for r in range(m.shape[0]) if spine_z < Z(r) < sk['chest'][1][1] and m[r].any()]   # the chest
+            cx = np.array([np.nonzero(m[r])[0].mean() for r in rows]) if rows else np.array([0.0])
+            zr = np.array([Z(r) for r in rows]) if rows else np.array([0.0])
+            slope = np.polyfit(zr, X(cx), 1)[0] if len(rows) > 3 else -1.0
+            shoulder = 'right' if slope < 0 else 'left'        # x toward the character's left: rising to its right, x falls
+            width = float(np.percentile([np.ptp(np.nonzero(m[r])[0]) for r in rows], 10) / f['ppl'] *
+                          abs(math.cos(math.atan(slope)))) if rows else 0.45
+            col, shade = _col(P, pc['swatches'][0]), _shade(P, pc)
+            specs.append(dict(kind='sash', name=pc['id'], shoulder=shoulder, hip=0.4, width=round(min(0.8, width), 4),
+                              offset=0.05, thick=0.012, color=col, shade=shade,
+                              drafted="a sash over the %s shoulder (the front mask's diagonal), %.2f L wide" % (
+                                  shoulder, width)))
+            # its hanging end: what falls below the hips, as a panel from the waist at its azimuth
+            low = np.array([Z(r) < hips_z for r in ys])
+            if low.any():
+                lx, lz = X(xs[low]), Z(ys[low])
+                hw = float(np.median([np.ptp(xs[low][ys[low] == r]) for r in np.unique(ys[low])]) / f['ppl']) / 2
+                xm = float(np.mean(lx))
+                ring = max(0.3, abs(xm) + 1e-3)
+                az = float(np.degrees(np.arcsin(np.clip(xm / ring, -1, 1))))
+                specs.append(dict(kind='panel', name=pc['id'] + '_end', az=round(az, 1), width=round(2 * hw, 4),
+                                  length=round(float(hips_z + 0.3 - lz.min()), 4), waist=0.5, flare=8, spread=0.1,
+                                  offset=0.06, color=col, shade=shade,
+                                  drafted='the drape\'s hanging end: the front mask below the hips'))
+        elif t not in ('crown', 'pin'):
+            missing.append(t)
+    return specs, missing
+
+
+def draft(spec, log=print):
+    """the outfit's template specs drafted from the character's own references: its produced outfit graph and masks
+    (charkit.outfit_sheet) and hull -> dict(garments, accessories, missing (piece types with no template))."""
+    from . import bodyqa, eyes as eyelib, manifest, palette
+    P = palette.active()
+    M = manifest.load(spec['ref']['manifest'])
+    mp = manifest.produced(spec, 'outfit_masks', log)
+    G = json.load(open(os.path.join(os.path.dirname(mp), 'outfit_graph.json')))
+    masks = dict(np.load(mp))
+    ex = eyelib._knobs(spec.get('eyes'))['x']
+    rgb, D = _sheet(spec['ref']['body_sheet']['image'], ex)
+    design = bodyqa.design_views(rgb, D, D['ppl'])
+    sk = {b: (tuple(s_[0]), tuple(s_[1])) for b, s_ in G['skeleton'].items()}
+    hull = manifest.produced(spec, 'hull', log)
+    acc = draft_accessories(spec, design, masks, M['pieces'], P, os.path.dirname(hull), log)
+    gar, missing = draft_garments(design, masks, M['pieces'], P, sk, log)
+    return dict(garments=gar, accessories=acc, missing=missing)
+
+
+def _surface(hull_dir, x, z, r, piece=None):
+    """the hull's front surface at (x, z) L from its eyes' middle (its sidecar's units, L): its depth y (L, toward the
+    back +) and facing (az, el degrees), from the piece's own labelled vertices there when the hull carries them
+    -> (y, (az, el))."""
+    from .geom import io as gio
+    side = json.load(open(os.path.join(hull_dir, 'hull.glb.json')))
+    M = gio.load(os.path.join(hull_dir, 'hull.glb'))
+    V = np.asarray(M.V if hasattr(M, 'V') else M[0], float)
+    mid = np.asarray(side['eyes'], float).mean(0)
+    Q = V - mid
+    near = (np.abs(Q[:, 0] - x) < 0.6 * r) & (np.abs(Q[:, 2] - z) < 0.6 * r)
+    pf = os.path.join(hull_dir, side.get('pieces') or 'hull_pieces.npy')
+    if piece and os.path.exists(pf):
+        lab = np.load(pf)
+        ids = [int(k) for k, v in (side.get('piece_names') or {}).items() if v == piece]
+        if ids and len(lab) == len(V) and (near & np.isin(lab, ids)).sum() >= 3:
+            near &= np.isin(lab, ids)
+    if not near.any():
+        return -0.5, (0.0, 0.0)
+    fr = Q[near]
+    y = float(fr[:, 1].min())
+    pts = fr[fr[:, 1] < y + 0.05]
+    if len(pts) >= 3:                                        # the facing: the front points' plane, toward -y
+        c = pts.mean(0)
+        _, _, vt = np.linalg.svd(pts - c)
+        nrm = vt[-1] if vt[-1][1] < 0 else -vt[-1]
+    else:
+        nrm = np.array([0.0, -1.0, 0.0])
+    az = float(np.degrees(np.arctan2(nrm[0], -nrm[1])))
+    el = float(np.degrees(np.arcsin(np.clip(nrm[2], -1, 1))))
+    return y, (az, el)
+
+
+def _emblem(spec, pc, P):
+    """a pin's emblem cells from its own sheet's drawing (the piece's shape_ref, its row): the drawing's main blob of the
+    pin's colours, resampled to EMBLEM_CELLS across, each cell its nearest of the pin's swatches (0 the face's)."""
+    from . import manifest
+    ref = pc.get('shape_ref')
+    if not ref:
+        return None
+    R = manifest.load(spec['ref']['manifest'])['references']
+    if ref not in R:
+        return None
+    from PIL import Image
+    rgb = np.asarray(Image.open(_p(R[ref]['path'])).convert('RGB')).astype(float) / 255
+    idx = [P.names.index(n) for n in pc['swatches']]
+    k = P.nearest_among(__import__('charkit.palette', fromlist=['lab']).lab(rgb), idx)
+    m = np.isin(k, idx)
+    H = rgb.shape[0]
+    if pc.get('shape_row') == 'bottom':
+        m[:H // 2] = False
+    elif pc.get('shape_row') == 'top':
+        m[H // 2:] = False
+    from .sheetqa import boxes, label
+    lab_, n = label(m)
+    if not n:
+        return None
+    B, area = boxes(lab_, n)
+    order = np.argsort(-area)
+    i = int(order[0])                                          # the face-on drawing: the largest (an edge view is thin)
+    x0, y0, x1, y1 = (int(v) for v in B[i])
+    s = max(x1 - x0, y1 - y0) + 1
+    cells = np.zeros((EMBLEM_CELLS, EMBLEM_CELLS), int)
+    for a in range(EMBLEM_CELLS):
+        for b in range(EMBLEM_CELLS):
+            ya, yb = y0 + a * s // EMBLEM_CELLS, y0 + (a + 1) * s // EMBLEM_CELLS
+            xa, xb = x0 + b * s // EMBLEM_CELLS, x0 + (b + 1) * s // EMBLEM_CELLS
+            sub = k[ya:max(yb, ya + 1), xa:max(xb, xa + 1)]
+            vals = [idx.index(v) for v in sub.ravel() if v in idx]
+            if vals:
+                cells[a, b] = int(np.bincount(vals).argmax())
+    return dict(cells=cells.tolist())
 
 
 def main(args):

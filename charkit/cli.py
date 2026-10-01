@@ -302,7 +302,7 @@ def _build(args):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
-    for step in (code_head, code_body, hair_select, geom_hair, pieces_hair, garments_geom):
+    for step in (outfit_draft, code_head, code_body, hair_select, geom_hair, pieces_hair, garments_geom):
         with phase(step.__name__):
             spec = step(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
@@ -450,6 +450,27 @@ def _glb_inputs(glb):
     return out
 
 
+def outfit_draft(spec, resolved, out, mode='on'):
+    """venv-side, for a character whose manifest declares its pieces (charkit.outfit_sheet: no 2D rig) and whose spec
+    lists no garments or accessories: their template specs drafted from its own references (outfit_sheet.draft), so the
+    spec carries no hand-written outfit. The piece types with no template are listed in the build (out/outfit_draft.json)."""
+    from . import manifest
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    if not ref.get('manifest') or 'garments' in spec or 'accessories' in spec:
+        return spec
+    M = manifest.load(ref['manifest'])
+    if not M.get('pieces'):
+        return spec
+    from . import outfit_sheet
+    D = outfit_sheet.draft(spec)
+    spec['garments'], spec['accessories'] = D['garments'], D['accessories']
+    json.dump(dict(D, drafted_from=ref['manifest']), open(os.path.join(out, 'outfit_draft.json'), 'w'), indent=1)
+    print('outfit draft: %d garments, %d accessories; no template for: %s' % (
+        len(D['garments']), len(D['accessories']), ', '.join(D['missing']) or 'none'))
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
+
+
 def code_head(spec, resolved, out, mode='on'):
     """venv-side, for spec['base'] == 'code': the authored head (charkit/code_base.py, from the reference images) ->
     out/geom/head_code.npz, and the resolved spec pointed at it (spec['head_code']) for the Blender side. A cached step:
@@ -537,6 +558,8 @@ def geom_hair(spec, resolved, out, mode='on'):
     cut_path = os.path.join(gdir, 'cut.spec.json')
     json.dump(cut, open(cut_path, 'w'), indent=1)
 
+    fpath = os.path.join(gdir, 'facial_hair.npz')
+
     def run():
         from .geom import parts
         C = parts.Case.load(cut_path, fit=False)
@@ -545,6 +568,12 @@ def geom_hair(spec, resolved, out, mode='on'):
         parts.save_part(R, path, meta=dict(align=C.align, measure=st_))
         print('geom hair', path, json.dumps({k: st_[k] for k in ('faces', 'parts', 'open_edges', 'nonmanifold_edges',
                                                                    'self_intersecting_faces', 'silhouette_iou_mean')}))
+        if shape.get('facial'):             # a design's beard and moustache: the hair-coloured hull over the lower face
+            F = parts.facial_hair(C, **shape.get('facial_opts', {}))
+            sf = parts.measure(C, F, parts.facial_region(C), parts.hair_color(C), out_dir=gdir, name='facial_hair')
+            parts.save_part(F, fpath, meta=dict(align=C.align, measure=sf))
+            print('geom facial hair', fpath, json.dumps({k: sf.get(k) for k in ('faces', 'parts', 'open_edges',
+                                                                                 'silhouette_iou_mean')}))
     if mode == 'off':
         run()
     else:
@@ -553,6 +582,8 @@ def geom_hair(spec, resolved, out, mode='on'):
                             modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path
+    if shape.get('facial'):
+        shape['geom_facial'] = fpath
     json.dump(spec, open(resolved, 'w'), indent=1)
     return spec
 

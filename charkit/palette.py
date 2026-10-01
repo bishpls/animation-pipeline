@@ -164,6 +164,22 @@ def eye_mask(lab, P, soft=False):
     return m
 
 
+class RoleClass:
+    """a colour family by the palette's roles (geom.parts' keep_color, as ColorClass is): a colour belongs when its
+    nearest swatch reads as one of `roles` (Palette.reads: a tunic in the hair's white reads as hair; the caller's
+    region tells them apart)."""
+
+    def __init__(self, P, roles):
+        self.P, self.roles = P, tuple(roles)
+        self.idx = [i for i, r in enumerate(P.reads) if r in self.roles]
+
+    def __call__(self, C):
+        return np.isin(self.P.nearest(np.asarray(C, float)[..., :3]), self.idx)
+
+    def to_dict(self):
+        return dict(palette_roles=list(self.roles), swatches=[self.P.names[i] for i in self.idx])
+
+
 def sheet_classes(rgb, P):
     """sheetqa.classes' label image (0 other, 1 skin, 2 hair, 3 iris, 4 line, 5 shaded skin) from palette P."""
     names, k = P.role_image(rgb)
