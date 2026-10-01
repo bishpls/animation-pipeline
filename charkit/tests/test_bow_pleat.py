@@ -100,3 +100,18 @@ def test_the_tails_root_reaches_up_into_the_knot_and_changes_nothing_else():
     assert rz.min() > K[:, 2].min() and rz.max() < K[:, 2].max()      # the root rows inside the knot's height
     keep = np.setdiff1d(np.arange(len(V1)), G1['root_v'])
     assert np.allclose(np.asarray(G0['verts']), V1[keep])            # every other vertex where it was
+
+
+def test_one_switch_turns_the_pleated_bow_and_its_fixes_on_together():
+    import json
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    spec = json.load(open(os.path.join(root, 'charkit', 'spec', 'clawd.json')))
+    bw = next(x for x in spec['garments'] if x['name'] == 'bow')
+    off = g.bow_spec(bw)
+    assert 'pleat' not in off and off.get('knot_box') is None                       # the default: the close-hung pillows
+    assert off['knot'] == 0.6 and off['drop'] == 0.2 and 'root' not in off['ribbon']
+    on = g.bow_spec(dict(bw, pleat=dict(bw['pleat'], on=True)))
+    assert on['pleat']['tuck'] and on['pleat']['strip_ov'] and 'on' not in on['pleat']   # w4 with t12's strip keys
+    assert on['knot_box'] == bw['pleat']['knot_box'] and on['ribbon']['root'] == 0.155    # its knot and the tails' root
+    assert all(k not in on for k in ('knot', 'end', 'end_p', 'drop'))                   # the pillow's knobs gone
+    assert on['ribbon']['turn'] == bw['ribbon']['turn']                                 # the close-hung ribbon kept

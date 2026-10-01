@@ -2472,12 +2472,39 @@ LOBE = 0.52                     # a lobe's far end: this share of the bow's size
 TAIL0 = 0.08                    # the tails start this share of the size under the centre
 
 
+def bow_spec(spec):
+    """the bow's spec with its pleat resolved (round 5, coordinator: land the measurement, hold the geometry): `pleat`
+    with `on` false is dropped, and the knobs that belong to it with it; on (the default when present), its `knot_box`
+    is the bow's knot and its `tails` (the tails' root under the knot: root, root_back, root_seat) join the ribbon's
+    keys, and its `pillow` keys (the pillow lobes' knot, end, end_p, drop) are dropped. So one switch turns the pleated
+    bow and the fixes that go with it on together. -> a copy (or the spec itself when there is no pleat)."""
+    P = spec.get('pleat')
+    if not P:
+        return spec
+    out = dict(spec)
+    if P.get('on', True) is False:
+        out.pop('pleat')
+        return out
+    P = dict(P)
+    for k in ('on', 'knot_box', 'tails'):
+        P.pop(k, None)
+    out['pleat'] = P
+    if spec['pleat'].get('knot_box') is not None:
+        out['knot_box'] = spec['pleat']['knot_box']
+    if spec['pleat'].get('tails'):
+        out['ribbon'] = dict(spec.get('ribbon') or {}, **spec['pleat']['tails'])
+    for k in ('knot', 'end', 'end_p', 'drop', 'drop_p'):
+        out.pop(k, None)
+    return out
+
+
 def bow_hull(A, spec, hull):
     """the bow placed and sized from the hull's points of it and its tails (fold: bow_tail_L, bow_tail_R): its size
     from the lobes' width (2 LOBE sizes), its centre at their middle, the tails' length from how low their points
     reach; the mesh is bow()'s, then (conform, default on) wrapped onto the hull's front there (front_surface), so the
     lobes follow the chest round as the design's do: flat, a bow wide enough from the front sticks out in profile."""
     L = A['head']['L']
+    spec = bow_spec(spec)
     B = _hull_points(hull, {'name': spec['name'], 'piece': spec.get('piece', spec['name'])}, fold=())
     tails = [hull[k] for k in spec.get('fold', ('bow_tail_L', 'bow_tail_R')) if k in hull and len(hull[k])]
     lo, hi = np.percentile(B[:, 0], [2, 98])
