@@ -1,6 +1,6 @@
 # Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: round 2 in progress (see "Round 2" at the end). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: round 2 done (gate PASS; see "Round 2 result" and "Round 3" at the end). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -222,6 +222,42 @@ trim), fold_fix 4 (sw10: a folded shell narrowed 0.7 a step round its folded fac
 1.89 / 2.11). Real builds: `charkit/out/hs2_shells_r` (before fold_fix: folds 12, f10.2 5 and f21.1 2 on the box, 0
 on the laptop: those two locks still fit differently on the two machines), `charkit/out/hs3_shells_r` (the candidate).
 
+## Round 2 result (real render builds; review page charkit/out/hairshell2/review/index.html)
+
+| measure | hull (hs_hull_r) | round 1 (hs_shells_r) | round 2 (hs3_shells_r) |
+|---|---|---|---|
+| art_terminator_hair (placement; 6-placement mean +- std, max) | 2.009 W (2.007 +- 0.081, 2.155) | 2.32 W (1.989 +- 0.183, 2.320) | **1.624 P** (1.956 +- 0.225, 2.234) |
+| per view, 6-placement mean F / 3q / P / B | 7.51 / 8.22 / 3.81 / 1.87 | 6.84 / 5.91 / 2.64 / 2.63 | 6.08 / 4.11 / 1.85 / 2.52 |
+| art_peeks_hair (placement / mean) | 17 / 17.5 | 39 / 34.2 | 18 / 17.0 |
+| hair_noise | 0.0717 W | 0.098 F | 0.0784 W |
+| hair_folds | 9 | 15 | 9 |
+| hair_back_lines | 0.894 W | 1.305 F | **0.459 P** |
+| hair_back_hem | 3 W | 2 P | 2 P |
+| lock lines 3q / profile | 0.176 / 0.104 | 0.271 / 0.223 | 0.228 / 0.112 |
+| truth lock IoU all / side / lower back | 0.355 / 0.394 / 0.304 | 0.387 / 0.521 / 0.333 | **0.401 / 0.569** / 0.328 |
+| side locks F / P | 0.560 / 0.469 | 0.589 / 0.612 | 0.585 / 0.604 |
+| lower back F / P / B | 0.514 / 0.665 / 0.672 | 0.481 / 0.607 / 0.717 | 0.496 / **0.588** / 0.712 |
+| locks in 2+ views | - | 1 / 17 | 2 / 17 |
+
+Still losing to the hull, with causes: hair_noise (front: the lower back's tone edges 224 -> 506, seen beside the
+side shells; the check draws no outlines, so occlusion boundaries count), the lower back's profile IoU (-11.6%: the
+widened side shells cover it), the back view's terminator mean (1.87 -> 2.52: the flicks' terminator steps), peeks at
+the one placement (17 -> 18; the means tie), identity (2 / 17; joined views compromise), 3 locks still
+machine-dependent (f10.2 folds 4 on the box).
+
+## Round 3 (lean): next steps
+
+1. hair_noise: ask the check's owner whether occlusion boundaries should count (it draws without outlines); else
+   shade the lower back where the side shells overlap it toward their tone, measured on noisemap.py.
+2. The lower back's profile: widen the side shells toward their neighbours only (in the front's plane), not in
+   profile; per-view widening from each view's gaps.
+3. The flicks' back terminator: the flick's normal blended toward the mass's over its root half (shade_at was all or
+   nothing).
+4. Identity: a lock breakdown sheet (Michael's rule 2) before more association work; the assoc records
+   (pieces report lock_shells.locks[].assoc) say per view why a lock didn't join.
+5. Then extend (step 6's list: bangs, upper back, whole hem, ahoge/flyaways re-rooted), region by region on real
+   builds.
+
 ## Jobs
 
 None running.
@@ -369,9 +405,8 @@ IoU (0.620 -> 0.583) and the truth score (side locks 0.589 -> 0.559): the joined
 - sw1-sw5 done (`charkit/out/hairshell2/swN.json` -> `swN/`). sw6-sw9 done (sw9: the underlayer set in 0.02 / 0.04 L: folds 7 -> 21-22, side locks' IoU down: off).
 - Merged pipeline-3d d0d6304 (garments4 Part 2) -> bc26951. Pregate at bc26951: PASS, 0 moved
   (`charkit/out/pregate/pregate_tool-hairshell2_bc269518_into_d0d6304c.md`).
-- Real render-box build of the pilot (lockshell DEFAULT = the chosen config; spec tools/hairshell/clawd_shells.json):
-  `charkit/out/hs2_shells_r` (done), `charkit/out/hs3_shells_r` (the candidate at 4c2ddc2, running; log
-  charkit/out/hairshell2/hs3_shells_r.log). Pregate at 4c2ddc2: PASS, 0 moved. **Box gate: PASS** under K, tool/hairshell2
+- Real render-box builds of the pilot (spec tools/hairshell/clawd_shells.json): `charkit/out/hs2_shells_r` (before
+  fold_fix), `charkit/out/hs3_shells_r` (the candidate at 4c2ddc2). None running. Pregate at 4c2ddc2: PASS, 0 moved. **Box gate: PASS** under K, tool/hairshell2
   5ca5f37 (code 4c2ddc2) into pipeline-3d d0d6304: nothing blocks; reported: the motion part's code closure reaches
   hairpieces / lockshell (no check moved: the default's geometry is the same); build CPU 1.17x
   (`charkit/out/gate/gate_tool-hairshell2_5ca5f37_into_d0d6304.md`). (A first launch failed: a notes commit landed
