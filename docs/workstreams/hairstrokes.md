@@ -236,6 +236,21 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   asked: density WARN cost, lock lines A/B, stroke width world vs screen), design | today | A per view, close-ups,
   line weight figures at 400 px/L (heads/), the floors, the A/B.
 
+- **Gate 2** (2e8b73f into ad08152; charkit/out/gate/gate_tool-hairstrokes_2e8b73fb_into_ad081524.md): FAIL under K,
+  1 blocker: no calibration record for the remeasured hair_noise (round 1's without_ink step). Otherwise clean: CPU
+  1104 -> 1500 s (1.36x), 19 new checks PASS/WARN (density 0.384/0.42/0.594 W, dir P, weight 0.32/0.20/0.42 P, taper
+  0.64/0.67/0.68 P, bun lines P), art_terminator_hair 2.002 W -> 1.978 P, flag values moved (peeks 17 -> 18 W, back
+  lines 0.894 -> 0.928 W, lock lines 0.176/0.104 -> 0.281/0.167 F), hair_noise 0.0719 -> 0.0745 W.
+  No stored build fails hair_noise (hair5 0.079 W, hst_base 0.0717 W): it can't be calibrated as it is; the change
+  only acts under the numpy drawing (the render drawing draws an object's primitives whole: inferred from the readings,
+  checked by gate 3). Reverted (dccabbf): hair_noise's measure is pipeline-3d's again. Gate 3 launched (gate3.log).
+- (d) normals sweep (sw_normals, build box over hst_b3, lock lines off, numpy drawing): shadow IoU F/3q/P/B control
+  0.360/0.358/0.451/0.463, terminator 2.107; ellipsoid 0.5 squash 0.8: 0.386/0.376/0.465/0.521, 2.033 (best balance);
+  0.5/0.5: 0.411/0.368/0.445/0.573, 2.169; 1.0/0.8: 0.412/0.373/0.459/0.565, 2.479; 1.0/0.5 worse. Shape IoU and guard
+  clean. Next: lock_shading on top (sw_lockshade, running), then (e) look.hair.lock_shade (the under families' lit
+  toned toward shade; lower_back drawn 90% shade in back vs ours 63%) and (f) on real builds (materials). Our tones
+  are now read by colour as the design's (c12cc22); spec override hair.shape.style for the character's hair_pieces.
+
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store
    `~/animation-pipeline-hair4/charkit/out/calib/builds/hair5_1580f95` into this worktree's
