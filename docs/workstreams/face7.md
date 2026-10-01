@@ -136,6 +136,9 @@ unchanged by construction.
   improved it) -> -0.02 W and the profile spikes 0.75 P -> 0.5 W: two flag regressions; sw11 tries a tighter band (dz
   0.08) and the middle bump stronger, and the override's slide on the rigid head (0.16 overshoots: lead 0.20 vs 0.173).
 
+- Coordinator: the neck-to-shoulder join belongs to tool/garments4-shoulders: don't change the head's neck here (none
+  of this round's changes touch it); the mouth block's outward rounding (headgeom, item 2's) backed out.
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
