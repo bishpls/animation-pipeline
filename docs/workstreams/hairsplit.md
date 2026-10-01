@@ -1,6 +1,6 @@
 # Hair methodology overhaul, step 1: the lock splitter (tool/hairsplit)
 
-State: in progress. Worktree `~/animation-pipeline-hairsplit`, branch `tool/hairsplit` from tool/hair5 `83f503c`.
+State: round 1 done (the splitter landed-ready: gate PASS); step 2 (the B pilot) is the next round. Worktree `~/animation-pipeline-hairsplit`, branch `tool/hairsplit` from tool/hair5 `83f503c`.
 tool/hair5 round 2 is finishing in `~/animation-pipeline-hair4` (read only); until it merges, the hair builder files it
 touches (`charkit/geom/hairpieces.py`, `hairlayers.py`, the spec's hair parts) aren't edited here: new modules only.
 
@@ -118,9 +118,9 @@ dev/, inputs.pkl, ctx5.pkl, ref/h5_base.npz and the hair5truth scores copied fro
 ## Gate
 
 Pregate at 7022c7e: PASS, 0 moved, 0 blocking (`charkit/out/pregate/pregate_tool-hairsplit_7022c7e3_into_de477ddc.md`).
-**Box gate running** (`python -m charkit remote gate tool/hairsplit --into pipeline-3d`, log
-`charkit/out/hairsplit/gate.log`). The branch adds a measurement and tooling only (no QA part, check or builder change):
-expected no moves.
+**Box gate: PASS** under K: tool/hairsplit 7022c7e into pipeline-3d de477dd, nothing blocks, 0 items reported
+(`charkit/out/gate/gate_tool-hairsplit_7022c7e_into_de477dd.md`; log `charkit/out/hairsplit/gate.log`). The branch adds
+a measurement and tooling only (no QA part, check or builder change). Commits after 7022c7e are these notes only.
 
 ## Step 2: the B pilot (not started; the next round's plan)
 
