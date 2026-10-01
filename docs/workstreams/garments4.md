@@ -806,7 +806,7 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   but the arm tube 0.04 L into the torso, 27 vertices). The upper arm over the torso round the rim (torso_arm) and an
   earlier arm weight made it worse (penetration 0.06-0.15 L). Pivots 0.12 / 0.18 / 0.24 all fine for the side raise;
   0.18 chosen (the deltoid's centre, ~0.1 L under the shoulder point).
-- **Candidate in the default spec** (8b..., `spec: the joined shoulder on`): body.shoulder {z -0.525, x 0.38, round
+- **Candidate in the default spec** (b184f019): body.shoulder {z -0.525, x 0.38, round
   0.03, hold 0, fall 0.10, az 50, join [[0,.12],[45,.12],[75,.03],[180,.03]], socket {top 0.36, lift [65, 75], reach
   [0.45, 0.5], arm_w [0.5, 1.0], pivot 0.18}}. Box build g5_c1 (log charkit/out/garments5/build_c1.log).
 - Known-bad g5_base stored on the box (`remote run calibrate store g5_base charkit/out/g5_base ...`: the link made, the
