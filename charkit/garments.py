@@ -427,9 +427,34 @@ def bed(A, sv, sf, spec, hull):
     rule: pieces don't interpenetrate; the piece lying on top keeps its drawn shape and the cloth under it gives (the
     bow presses on the jacket), where tool/pieceref's push of the lobes forward ballooned them. -> sv moved (m)."""
     L = A['head']['L']
+    if isinstance(spec['bed'], (list, tuple)):
+        # several pieces lying on it (round 6: the bow in front and the collar's back flap behind)
+        for b_ in spec['bed']:
+            sv = bed(A, sv, sf, dict(spec, bed=b_), hull)
+        return sv
     b = spec['bed']
     sa = spec.get('_spec') or {}
     ps = next((g for g in sa.get('garments', []) if g.get('name') == b.get('under', 'bow')), None)
+    if ps is not None and ps.get('kind') == 'collar' and ps.get('source') == 'hull':
+        # under the sailor collar (round 6, the joined shoulder: the jacket over the raised shoulder came up through the
+        # hull collar's back flap): seen from `side` ('back': the flap; 'front': the lapels), the jacket set `gap` L
+        # under the collar's inner surface where it covers it, as under the bow
+        G = collar_hull(A, dict(ps, _spec=sa), vertex_normals(A['verts'], A['faces']), hull)
+        P = np.asarray(G['verts'], float)
+        F_ = [tuple(f) for f in G['faces']]
+        # the side's own panel only (the lapels in front, the flap behind: through the body they overlap in projection,
+        # and the other side's surface would drag the shell through the body to it)
+        yc = bone_seg(A, 'neck')[0][1]
+        back_ = b.get('side', 'back') == 'back'
+        F_ = [f for f in F_ if (P[list(f), 1].mean() > yc) == back_]
+        if b.get('side', 'back') == 'back':
+            fl = np.array([1.0, -1.0, 1.0])
+            if b.get('below') is not None:         # (only the flap's rows under this height: L from the eye line)
+                zc = _eye_z(A) + float(b['below']) * L
+                keep = P[:, 2] <= zc
+                F_ = [f for f in F_ if keep[list(f)].all()]
+            return bed_under(sv * fl, sf, P * fl, F_, L, b) * fl
+        return bed_under(sv, sf, P, F_, L, b)
     if ps is None or ps.get('kind') != 'bow' or ps.get('source') != 'hull':
         return sv
     ps = {k: v for k, v in ps.items() if k != 'clear'}           # (its clearance would rebuild this shell)
@@ -3165,7 +3190,24 @@ def puff(A, spec, hull=None):
     if (Fn * rad).sum(1).mean() < 0:
         faces = [tuple(reversed(f_)) for f_ in faces]
     uv = [(0.5, 0.0)] + [((j + 0.5) / nth, i / max(1, nr - 1)) for i in range(nr) for j in range(nth)]
-    return dict(verts=V, faces=faces, weights={side + 'UpperArm': np.ones(len(V))}, uv=uv,
+    W = {side + 'UpperArm': np.ones(len(V))}
+    pw = spec.get('weights')
+    if isinstance(pw, dict) and pw.get('from') == 'body':
+        # the body's weights carried onto the cap (round 6: the joined shoulder's bridge bends with the clavicle and the
+        # upper arm; a puff rigid on the upper arm left the deltoid it holds behind at a 90 degree raise, the skin coming
+        # out under it): the body's weights at the nearest point of its shoulder (the torso, the bridge, the arm) down
+        # to `rigid_from` L along the arm, rigid on the upper arm past it (to the band), eased over `blend` L
+        tv = np.r_[t_top - cap, TT.ravel()]
+        keep = body_part_mask(A, ('torso', 'shoulder_', 'arm_'))
+        sub = dict(A, verts=A['verts'], faces=[f for f in A['faces'] if keep[list(f)].all()]) if keep.any() else A
+        Wb = body_weights(sub, V)
+        r0, bl = float(pw.get('rigid_from', 0.05)), max(1e-6, float(pw.get('blend', 0.1)))
+        u = np.clip((tv - (r0 - bl)) / bl, 0, 1)
+        s_ = 1 - u * u * (3 - 2 * u)                       # 1: the body's, 0: rigid
+        W = {b: s_ * w for b, w in Wb.items()}
+        W[side + 'UpperArm'] = W.get(side + 'UpperArm', 0) + (1 - s_)
+        W = {b: w for b, w in W.items() if np.max(w) > 1e-4}
+    return dict(verts=V, faces=faces, weights=W, uv=uv,
                 frame=dict(origin=h, d=d, o=o, f=f), t_band=t_b0, t_end=t_end)
 
 
@@ -3175,7 +3217,9 @@ def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
     body's part names (['shoulder', 'arm']: the joined shoulder's bridge and the arm); inner: degrees round the
     inner direction left alone, the cap's inner side running into the torso by design; smooth: passes}): per section
     cell the body's outermost point there plus gap, the section taken out to it (never in), the growth eased over the
-    neighbouring cells. The tool/garments4 joined shoulder (2026-10-01): the puff's knots were fitted round the old
+    neighbouring cells; from_t: only the body's points from this station down (L along the arm: the dome above it is
+    left to the jacket, which covers the shoulder's top outside the puff). The tool/garments4 joined shoulder
+    (2026-10-01): the puff's knots were fitted round the old
     capped arm tube; the new deltoid and the jacket over it came out through its inner front. Tables (rows ts down the
     arm, columns th round it) as puff()'s; the rows past t_last (the tuck into the band) kept. -> (X, Y)."""
     from scipy import ndimage
@@ -3195,7 +3239,7 @@ def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
     tq, xq, yq = Q @ d / L, Q @ o / L, Q @ f / L
     thq, rq = np.arctan2(yq, xq), np.hypot(xq, yq)
     keep = np.abs(np.angle(np.exp(1j * (thq - np.pi)))) > np.radians(float(cb.get('inner', 45)))
-    keep &= (tq >= ts[0] - 0.02) & (tq <= t_last)
+    keep &= (tq >= max(ts[0] - 0.02, float(cb.get('from_t', -np.inf)))) & (tq <= t_last)
     if not keep.any():
         return X, Y
     nth = len(th)
