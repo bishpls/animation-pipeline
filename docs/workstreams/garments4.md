@@ -409,3 +409,39 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   design's) and riser-on-fold / tread-crossing counts per view (front, 3q; skirt and flaps), the crease spacing (pleat
   widths) against the drawn folds' spacing; then the stair knots on the pleat folds (risers on folds), the treads along
   the hem, the pleat count/phase fitted jointly to the drawn fold spacing; the merged crease checks must stay PASS.
+- **The join, tried:** g4_nv2j18 / g4_nv2j24 (body.neck_join 0.18 / 0.24 with nv2's V): neck_crease 48.2 / 52.8 FAIL
+  (no better), and the longer loft moves the body's shoulders: sleeve_front_spikes_L/R 0 -> 0.02-0.027 FAIL,
+  shoulder_back_slope W -> F, art_outline_collar P -> W, piece_collar front -13% / -34%; j18 also
+  collar_profile_torn 0 -> 0.021 F. Not the fix.
+
+## Stop point (2026-10-01, lean agent 2, ~520k): what's gated, what's next
+- **Gated:** the cuffs (tool/garments4-cuffs 28f088c2, PASS under K into 1d57838; review
+  charkit/out/garments4/review/cuffs2/index.html).
+- **Not gated (no candidate clears K):** the shoulders + back collar, the neck V. Branch tool/garments4-shoulders
+  carries: collar4's builder code (c95cd257, off by default), declared families top_line / class_iou and `ref`
+  'silhouette' (ca32ff7a, fed2ef44; tests), charkit/shoulderqa.py (6 checks CALIBRATED, 2428729c; they FAIL on the
+  default, so this branch can't gate before the shoulders are fixed: or move shoulderqa.py to defer/ to gate the rest),
+  garments.shoulder_pad + the hull collar's pad/over (k13/k14: not taken), code_base body.neck_join (default unchanged).
+  Shoulders review page (options, asks Michael): charkit/out/garments4/review/shoulders_page/index.html.
+- **Next, the shoulders (a collar milestone):** base body.shoulder + k15's H1 collar (A3 + E2's lapel table, no stand):
+  dips PASS, panel square PASS, guard ok, neck_crease 26 W; blockers art_outline_collar (front: the collar's outer ends
+  at the puff/hair x +-0.35..0.41 z -0.48..-0.52; 3q: those and x -0.07 at the neck) and art_outline_neck (3q 3 corners:
+  the collar's top edge meeting the neck, x 0.13-0.21 z -0.49..-0.53). Box-build H1 (sh0.json + k15's H1 collar), run
+  tools/corners.py on it, then round the outer ends (the front table's top rows easing the outer edge down under the
+  puff) and the neckline by azimuth (outline.top) in a garments sweep on that base; keep shoulder_front_top <= 0.03
+  (the puffs' outer slope is 0.03-0.05 L low: sleeve `out` +0.03 fixes it but tilt FAILs: fit top/tilt jointly).
+- **Next, the neck V (item 4):** nv2's opening rows (tools/garments4/nv2.json) give neck_v_front_skin 0.476 -> 0.765
+  WARN and art_outline_neck W -> P; what blocks is neck_crease 26.9 -> 55.3 F: the body's own neck-to-chest turn (the
+  whole skin reads 40-45 deg in every column; the V now shows columns -25..25). Fix the join's shape, not its reach:
+  the monotone cubic from the cut (neck_curve) turns from vertical to the chest's flare within ~0.02 L; ease the head's
+  neck slope into it over 0.04-0.06 L above the cut (code_base.blend_neck / neck_curve), or a front-only join table
+  that keeps the sides (neck_join as [[0, .18], [40, .12], [180, .12]] keeps the shoulders' rows as they are). Then
+  declare neck_v_front_skin (draft charkit/out/garments4/drafts/neckv.json; class_iou, limits [0.8, 0.6], known-bad
+  g4_cuffs2), calibrate, and gate it alone (branch from the cuffs head + c95cd257 + ca32ff7a + fed2ef44 + f6e33039,
+  without shoulderqa.py).
+- **Next, the staircase (lean relaunch):** see "The staircase hem" above: the check (corner angle |90 - angle| beyond
+  the design's per view; risers on folds and treads crossed by a fold as defects; crease spacing against the drawn
+  folds' spacing), calibrated (design jittered 1-2 px PASS, g4_cuffs2 FAIL); then the stair's azimuth knots on the
+  pleat folds (band_rows `stair` knots at the folds' azimuths: 18 pleats -> folds every 20 deg from the front), treads
+  along the hem's local slope, pleat count and phase fitted jointly to the drawn fold spacing per view; the merged
+  crease checks (skirt_panel_*_creases/_edges/_shape, bow_*_creases) stay PASS.
