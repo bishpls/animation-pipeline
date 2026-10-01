@@ -38,6 +38,8 @@
     python -m charkit outfit score [SPEC] [--masks MASKS.npz]   # the outfit masks against the hand-labelled truth
     python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
     python -m charkit calibrate CHECK [--build DIR] # the calibration triple: design moved 1-2 px, known-bad, random floor
+    python -m charkit sweep run DECL.json | BASE --stage S --oat PATH=[..] .. | swap A B --check C   # declared variants
+                                                 # of a build rebuilt in-process and measured; attribution (charkit/sweep.py)
     python -m charkit hairlocks truth | score BUILD [--json OUT]   # the hair's locks against the lock-level truth
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
@@ -756,7 +758,7 @@ def figures(args):
         print('wrote', mp)
 
 
-CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains')
+CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep')
 
 
 def _cap(args):
@@ -831,6 +833,9 @@ def main(argv=None):
     elif cmd == 'calibrate':
         from . import calibrate
         sys.exit(calibrate.main(rest) or 0)
+    elif cmd == 'sweep':
+        from . import sweep
+        sys.exit(sweep.main(rest) or 0)
     elif cmd == 'hairlocks':
         from . import hairlocks
         sys.exit(hairlocks.main(rest) or 0)
