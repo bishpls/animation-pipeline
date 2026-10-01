@@ -3407,6 +3407,13 @@ def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
     for _ in range(int(cb.get('smooth', 2))):
         g2 = ndimage.uniform_filter(grow, size=3, mode=('nearest', 'wrap'))
         grow = np.maximum(grow, g2)
+    if cb.get('from_t') is not None and cb.get('taper'):
+        # none of it over the dome above from_t (the smoothing carried it up: the puff's top came out flat and level
+        # with the neck in profile, where the design's collar crosses the shoulder over a rounder cap), eased in over
+        # `taper` L of stations
+        tp = float(cb['taper'])
+        u = np.clip((ts - (float(cb['from_t']) - tp)) / tp, 0, 1)
+        grow = grow * (u * u * (3 - 2 * u))[:, None]
     k = np.where(R > 1e-9, (R + grow) / np.maximum(R, 1e-9), 1.0)
     return X * k, Y * k
 
@@ -4366,6 +4373,20 @@ def collar_hull(A, spec, normals, hull):
         G['verts'] = shoulder_pad(A, G['verts'], G['faces'], spec['pad'])
     if isinstance(spec.get('over'), (list, tuple)):   # (lying over the layers under it: collar_drape)
         G['verts'] = collar_drape(A, G['verts'], G['faces'], dict(spec, thick=spec.get('thick', 0.012)), hull)
+    if spec.get('symmetric') and spec.get('v_edge', 'exact') == 'exact':
+        # the two halves made mirror images about the neck's midline (round 6: the hull's collar is a little lopsided,
+        # its flap and lapels conformed to it unlike each other; the design draws one collar, mirrored, and the
+        # jacket bedded under it showed the difference: art_mirror_waist 0.72 -> 2.1 in the back view): each vertex
+        # and its mirror (column i and m - i of a row: the V's exact edges run round from one side to the other)
+        # averaged, x mirrored
+        Vg = np.asarray(G['verts'], float)
+        nr = spec.get('rows', 12)
+        m = len(Vg) // (nr + 1) - 1
+        Gr = Vg.reshape(nr + 1, m + 1, 3)
+        xm = float(bone_seg(A, 'neck')[0][0])
+        Mr = Gr[:, ::-1].copy()
+        Mr[..., 0] = 2 * xm - Mr[..., 0]
+        G['verts'] = (0.5 * (Gr + Mr)).reshape(-1, 3)
     return G
 
 
