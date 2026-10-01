@@ -370,4 +370,6 @@ IoU (0.620 -> 0.583) and the truth score (side locks 0.589 -> 0.559): the joined
 - Merged pipeline-3d d0d6304 (garments4 Part 2) -> bc26951. Pregate at bc26951: PASS, 0 moved
   (`charkit/out/pregate/pregate_tool-hairshell2_bc269518_into_d0d6304c.md`).
 - Real render-box build of the pilot (lockshell DEFAULT = the chosen config; spec tools/hairshell/clawd_shells.json):
-  `charkit/out/hs2_shells_r` (job id in charkit/out/remote/jobs/, log charkit/out/hairshell2/hs2_shells_r.log).
+  `charkit/out/hs2_shells_r` (done), `charkit/out/hs3_shells_r` (the candidate at 4c2ddc2, running; log
+  charkit/out/hairshell2/hs3_shells_r.log). Pregate at 4c2ddc2: PASS, 0 moved. Box gate tool/hairshell2 into
+  pipeline-3d d0d6304: running (log charkit/out/hairshell2/gate.log).
