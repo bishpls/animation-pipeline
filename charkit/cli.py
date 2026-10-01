@@ -500,7 +500,8 @@ def code_body(spec, resolved, out, mode='on'):
     else:
         r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime'),
                                                                  'shoulder': (spec.get('body') or {}).get('shoulder'),
-                                                                 'hand': (spec.get('body') or {}).get('hand')},
+                                                                 'hand': (spec.get('body') or {}).get('hand'),
+                                                                 'arm': (spec.get('body') or {}).get('arm')},
                             gdir, inputs=ins,
                             modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.geom.hullshell',
                                      'charkit.code_hand'),

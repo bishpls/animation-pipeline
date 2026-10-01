@@ -145,6 +145,24 @@ Against b1 (same tree otherwise):
 - The render: both hands now face out and draw a line (ink.py fill share ours/design: front 0.92/0.93, back 0.92/0.91,
   3q L 0.89, profile 0.86; b1 was L 0.80-0.84 with knobs, R 1.0-1.18 with no line). Tiles: charkit/out/hands/ink_b2.
 
+## Round 3 (2026-09-30, relaunched lean; coordinator: fix our arm, option (a))
+- **Measured (charkit/out/hands/armangle.py BUILD OUT.json: per view and side the sleeve cuff's and the wrist cuff's
+  centroids, the forearm's line between them and its skin's long axis; armfit.py: the 3D fit).** b2 (arm_b2.json):
+  drawn forearm off vertical, + out: front 27.6/28.1 (L/R), back 27.2/27.1, 3q 20.9 / -25.3 (image right +), profile
+  -1.1; ours 23.6/24.0, 23.6/23.9, 19.2 / -21.6, -1.4. The sleeve cuffs sit where drawn (front half-sum 0.650 vs 0.651 L
+  from the midline): the upper arm is right, the forearm hangs 3.3-4.1 deg steeper. **The drawn views agree:** one 3D
+  forearm direction fits every view within 0.85 deg (armfit_b2.json: L abduction 27.0, swing 1.4 fwd; R 27.6, 4.1); ours
+  fits one too (23.7, 1.2 / 23.9, 3.1) within 0.2 deg (the projection model checks). So it's ours (step 1).
+- **Cause:** the code body's arm chain is the outfit graph's front-view skeleton, one straight line shoulder to wrist
+  at 22.5 deg; the hull's forearm (its edges' midpoints per height) runs at ~27.7, its cuff at x 1.04 L (the chain
+  0.97 there), so the hull-lofted wrist band sat outside our forearm and was pushed in by the skin clearance.
+- **Fix (code): `body.arm` {out, elbow_out, elbow_fwd} (code_body.ARM_POSE, pose_arm), applied to the arm's chain
+  before its sections are measured round it** (bodypage.save_body, code_hand.Fit; cli.code_body's cache key);
+  test_code_body: identity, lengths kept, angle grows by the knob, mirrored. Knob fit (armfit.py, symmetric, the posed
+  chain's projections vs the drawn line and skin axes, all views): elbow_out 5.1 / fwd 0.9 (the chain alone, rms 0.74
+  deg from 4.62) or 3.9 / 0.7 (b2's rendered offset kept, rms 0.60 from 3.51).
+- A/B on the local evaluator (charkit/out/hands/ab/run_r3.sh: r3_cur, r3_e4, r3_e5; log ab/r3.log).
+
 ## Next steps (exact)
 1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
    skirt's 3q flare, because our forearm hangs 6 deg steeper than drawn (tips.py: 22.5 vs 28.2-28.6 deg off vertical near

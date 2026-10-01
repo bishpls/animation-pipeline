@@ -326,14 +326,15 @@ class Fit:
     def __init__(self, B, design, spec, hull_dir, graph_path):
         from . import bodymeasure, handqa
         from .bodyqa import CLASS
-        from .code_body import Hull, limb_joints, skeleton
+        from .code_body import Hull, limb_joints, pose_arm, skeleton
         self.ctx = design.sheet_context()
         self.ppl, self.az3 = self.ctx['ppl'], self.ctx['az3']
         masks, graph, _ = bodymeasure.piece_masks(B.spec)
         dv = design.design_views()
         self.H = Hull(hull_dir)
         sk = skeleton(json.load(open(graph_path)))
-        self.J = {s: limb_joints(self.H, sk, s, 'arm') for s in ('left', 'right')}
+        arm = (spec.get('body') or {}).get('arm')            # (the build's chain: posed as code_body.limb poses it)
+        self.J = {s: pose_arm(limb_joints(self.H, sk, s, 'arm'), s, arm) for s in ('left', 'right')}
         self.cuff = {s: cuff_end(self.H, s, self.J[s], spec) for s in ('left', 'right')}
         self.drawn = {}
         for v in handqa.VIEWS:

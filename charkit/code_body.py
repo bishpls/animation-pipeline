@@ -12,7 +12,7 @@ inside the hull's torso envelope less a clearance.
     the measures and the review page: charkit.bodypage (python -m charkit.bodypage SPEC), kept apart so a build stage
     importing this module doesn't depend on the QA (charkit.cache's code closure)
 """
-import json, os
+import json, math, os
 
 import numpy as np
 
@@ -434,11 +434,52 @@ def limb_joints(H, sk, side, kind, hy=None):
     return np.array([(x, y, z) for (x, z), y in zip(pts2, ys)])
 
 
-def limb(H, sk, side, kind, hy=None, step=0.04, nth=48):
+ARM_POSE = {'out': 0.0, 'elbow_out': 0.0, 'elbow_fwd': 0.0}
+# the arm's pose on the hull's chain (spec body.arm, degrees; MakeHuman's body.pose knobs don't reach the code body).
+# limb_joints puts the arm on the outfit graph's front-view skeleton, which runs shoulder to wrist in one straight line
+# (22.5 deg off vertical on Clawd), while the drawn forearm hangs ~5 deg further out in every view (armfit: one 3D
+# direction fits front, three-quarter, profile and back within 1 deg). out: the whole arm turned away from her side at
+# the shoulder, in her frontal plane; elbow_out: the forearm and hand turned away from her side at the elbow (frontal
+# plane); elbow_fwd: the forearm and hand swung toward her front at the elbow (her sagittal plane). The sections are
+# measured round the posed chain, so the arm's skin follows the hull's forearm there; the bands on its bones follow it.
+
+
+def pose_arm(J, side, pose):
+    """an arm's joints (shoulder, elbow, wrist, hand's end) turned by the arm pose knobs (ARM_POSE) -> (4, 3)."""
+    p = dict(ARM_POSE, **(pose or {}))
+    J = np.array(J, float)
+    sg = 1.0 if side == 'left' else -1.0                # her outside: +x for her left
+
+    def frontal(P, c, deg):                            # (x, z) about c: the distal end away from her side
+        a = math.radians(deg)
+        v = P - c
+        x = v[:, 0] * math.cos(a) - sg * v[:, 2] * math.sin(a)
+        z = sg * v[:, 0] * math.sin(a) + v[:, 2] * math.cos(a)
+        return c + np.c_[x, v[:, 1], z]
+
+    def sagittal(P, c, deg):                           # (y, z) about c: the distal end toward her front (-y)
+        a = math.radians(deg)
+        v = P - c
+        y = v[:, 1] * math.cos(a) + v[:, 2] * math.sin(a)
+        z = -v[:, 1] * math.sin(a) + v[:, 2] * math.cos(a)
+        return c + np.c_[v[:, 0], y, z]
+    if p['out']:
+        J[1:] = frontal(J[1:], J[0], p['out'])
+    if p['elbow_out']:
+        J[2:] = frontal(J[2:], J[1], p['elbow_out'])
+    if p['elbow_fwd']:
+        J[2:] = sagittal(J[2:], J[1], p['elbow_fwd'])
+    return J
+
+
+def limb(H, sk, side, kind, hy=None, step=0.04, nth=48, pose=None):
     """a limb as sections along its bone chain (fit_sections, near-circular priors), from the points the design shows
     of it (bare skin as it is, a boot or cuff pulled in by its thickness), within reach of its bones in the front view.
+    pose: an arm's pose knobs (pose_arm), applied to its chain before the sections are measured round it.
     -> dict(chain, rows (s), params, measured, src)."""
     J = limb_joints(H, sk, side, kind, hy)
+    if kind == 'arm' and pose:
+        J = pose_arm(J, side, pose)
     ch = Chain(J)
     names = _piece_names(kind, side)
     reach = LIMBS[kind][2]
@@ -550,12 +591,13 @@ def foot(H, side, ankle, step=0.03, nth=48):
                 back=float(Q[:, 1].max() - FOOT_PULL))
 
 
-def body(H, sk, drawn=None, drawn_back=None, shoulder=None):
+def body(H, sk, drawn=None, drawn_back=None, shoulder=None, arm=None):
     """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)}).
-    shoulder: the shoulders' template knobs (the spec's body.shoulder: shoulders()), or None for the fitted sections."""
+    shoulder: the shoulders' template knobs (the spec's body.shoulder: shoulders()), or None for the fitted sections.
+    arm: the arms' pose knobs (the spec's body.arm: ARM_POSE, pose_arm), or None for the hull's chain."""
     T_ = torso(H, sk, drawn=drawn, drawn_back=drawn_back, shoulder=shoulder)
     hy = float(T_['params'][-1, 4])
-    limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None)
+    limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None, pose=arm if k == 'arm' else None)
              for k in ('leg', 'arm') for s_ in ('left', 'right')}
     feet = {'foot_' + s_: foot(H, s_, limbs['leg_' + s_]['chain'].J[-1]) for s_ in ('left', 'right')}
     meshes = {'torso': torso_mesh(T_)}
