@@ -429,6 +429,98 @@ class QAStage:
         return spliced(self.B0, {})
 
 
+SKIN_MASK = '_skin_mask'          # (a garments row's pseudo-object: the skin's hidden cage vertices, always passed on)
+
+
+def mask_delta(G, levels=2):
+    """how the build's Mask moves the subdivided skin (Blender subdivides the masked cage: its boundary rounds off
+    toward the cage's edge, a loose edge's ends sharp): the evaluator's masked skin and whole skin (charkit.bodyeval's
+    parts, roles 'masked' / 'unmasked'; matched to Blender to ~3e-6 L) each subdivided `levels` times, their subdivided
+    faces paired by cage parent and order, corner by corner -> (V whole, delta per whole vertex (masked - whole), has
+    (bool: a pair)) or None."""
+    sk = [p for p in G.parts if p.group == 'skin']
+    Pm = next((p for p in sk if getattr(p, 'role', None) == 'masked'), None)
+    Pf = next((p for p in sk if getattr(p, 'role', None) == 'unmasked'), None)
+    if Pm is None or Pf is None:
+        return None
+    F = [tuple(f) for f in G.A['faces']]
+    index = {f: i for i, f in enumerate(F)}
+    kept = np.array([index[tuple(f)] for f in Pm.polys])
+    Vf, Qf, parf = Pf.subdivided(levels)[:3]
+    Vm, Qm, parm = Pm.subdivided(levels)[:3]
+    Qf, Qm = np.asarray(Qf), np.asarray(Qm)
+    cf = np.asarray(parf)                                       # (the whole part's polys are the cage's faces)
+    cm = kept[np.asarray(parm)]
+    of = np.argsort(cf, kind='stable')
+    om = np.argsort(cm, kind='stable')
+    inkept = np.zeros(len(F), bool); inkept[kept] = True
+    of = of[inkept[cf[of]]]
+    if len(of) != len(om) or not np.array_equal(cf[of], cm[om]):
+        return None
+    vf, vm = Qf[of].ravel(), Qm[om].ravel()
+    D = np.zeros((len(Vf), 3)); has = np.zeros(len(Vf), bool)
+    D[vf] = np.asarray(Vm)[vm] - np.asarray(Vf)[vf]; has[vf] = True
+    return np.asarray(Vf, float), D, has
+
+
+def remasked(B0, hide, delta=None):
+    """the skin's masked variant for another set of hidden cage vertices (round 7, tool/garments4: the garments stage
+    spliced garments only, so a row that moved what the garments hide (a collar's hide_under, a jacket's region or cut)
+    was measured on the base's mask: holes where a smaller cover left masked skin, skin through a larger one; the neck
+    checks read wrong). As the build's Mask does (a cage face goes when any vertex is hidden) on the base's own
+    subdivided skin: its full variant ('bare': the eval mesh with every per-loop and per-vertex array) restricted to
+    the faces whose cage parent ('eval/parent') stays. The base's own masked variant is kept when the row's kept faces
+    are the base's (the control reproduces the build exactly; measured on g7_c4: the same 58421 faces); otherwise the
+    mask's boundary is the full surface's (Blender subdivides the masked cage: 2% of its vertices, at the boundary under
+    the garments, move up to 0.03 L). -> (rep, drop) for spliced(); ({}, []) when the bundle lacks the arrays."""
+    sk = B0.skin().name
+    p = lambda v, k: 'o/%s/%s/%s' % (sk, v, k)
+    need = [p('assembly', 'counts'), p('assembly', 'loopv'), p('eval', 'parent'), p('bare', 'V'), p('bare', 'loopv'),
+            p('bare', 'counts'), p('masked', 'parent')]
+    if not all(B0.has(k) for k in need):
+        return {}, []
+    A = B0._arrays
+    cnt, lv = np.asarray(A[p('assembly', 'counts')]), np.asarray(A[p('assembly', 'loopv')])
+    hide = np.asarray(hide, bool)
+    if len(hide) <= lv.max():
+        return {}, []
+    st = np.r_[0, np.cumsum(cnt)[:-1]]
+    fkeep = np.logical_and.reduceat(~hide[lv], st)
+    par = np.asarray(A[p('eval', 'parent')])
+    if np.array_equal(np.unique(np.nonzero(fkeep)[0]), np.unique(np.asarray(A[p('masked', 'parent')]))):
+        return {}, []
+    sel = fkeep[par]                                             # (the subdivided faces kept)
+    bc = np.asarray(A[p('bare', 'counts')])
+    bl = np.asarray(A[p('bare', 'loopv')])
+    bst = np.r_[0, np.cumsum(bc)[:-1]]
+    lsel = np.repeat(sel, bc)                                    # (the loops of the kept faces)
+    used = np.unique(bl[lsel])
+    remap = np.full(len(np.asarray(A[p('bare', 'V')])), -1, np.int64)
+    remap[used] = np.arange(len(used))
+    Vu = np.asarray(A[p('bare', 'V')], float)[used]
+    md = delta() if callable(delta) else delta
+    if md is not None:
+        # the boundary as Blender's masked subdivision puts it: each kept vertex moved by its whole-surface twin's delta
+        # (the twin: the evaluator's whole subdivided skin's vertex at the same place; the face, which the build fits
+        # apart from the evaluator, finds none and stays)
+        from scipy.spatial import cKDTree
+        Vf, D, has = md
+        dist, j = cKDTree(Vf).query(Vu)
+        Lb = float(B0.assembly['L'])
+        ok = (dist < 2e-4 * Lb) & has[j]
+        Vu = Vu + np.where(ok[:, None], D[j], 0.0)
+    rep = {p('masked', 'V'): Vu, p('masked', 'counts'): bc[sel].astype(np.int32),
+           p('masked', 'loopv'): remap[bl[lsel]].astype(np.int32), p('masked', 'parent'): par[sel].astype(np.int32)}
+    nv, nl, nf = len(np.asarray(A[p('bare', 'V')])), len(bl), len(bc)
+    for k in ('fcast', 'fmask', 'fuv', 'lnor', 'luv', 'pmat', 'shrink'):
+        if not B0.has(p('bare', k)) or not B0.has(p('masked', k)):
+            continue
+        a = np.asarray(A[p('bare', k)])
+        rep[p('masked', k)] = a[used] if len(a) == nv else a[lsel] if len(a) == nl else a[sel] if len(a) == nf else a
+    drop = [k for k in (A.files if hasattr(A, 'files') else list(A)) if k.startswith(p('masked', '')) and k not in rep]
+    return rep, drop
+
+
 class GarmentStage(QAStage):
     """the fast evaluator at the row's spec (one Evaluator: the assembly, hair and unchanged garments cached), its
     garment and accessory objects spliced into the base bundle."""
@@ -444,14 +536,22 @@ class GarmentStage(QAStage):
         G = self.E.geometry(spec=apply(self.spec, row['set']))
         Bd = G.bundle('viewport')
         have = {o.name for o in self.B0.objects(visible=False)}
-        return {o['name']: dict(V=np.asarray(o['V'], float), F=np.asarray(o['F']), pmat=o.get('pmat'), kind='garment')
-                for o in Bd['objects'] if o.get('role') != 'unmasked' and o['name'] in have and
-                (o.get('group') in self.GROUPS or o['name'] in (self.decl.get('objects') or ()))}
+        got = {o['name']: dict(V=np.asarray(o['V'], float), F=np.asarray(o['F']), pmat=o.get('pmat'), kind='garment')
+               for o in Bd['objects'] if o.get('role') != 'unmasked' and o['name'] in have and
+               (o.get('group') in self.GROUPS or o['name'] in (self.decl.get('objects') or ()))}
+        if self.decl.get('remask', True) and getattr(G, 'hide', None) is not None:
+            got[SKIN_MASK] = dict(V=np.asarray(G.hide, float)[:, None], F=np.zeros((0, 3), np.int64), kind='mask',
+                                  delta=lambda G=G: mask_delta(G))
+        return got
 
     def bundle(self, objs):
         rep, drop = {}, []
+        if SKIN_MASK in objs:
+            r, d = remasked(self.B0, objs[SKIN_MASK]['V'][:, 0] > 0.5, objs[SKIN_MASK].get('delta'))
+            rep.update(r)
+            drop += d
         for n, o in objs.items():
-            if not self.B0.has('o/%s/eval/V' % n):
+            if n == SKIN_MASK or not self.B0.has('o/%s/eval/V' % n):
                 continue
             r, d = garment_arrays(self.B0, n, o['V'], o['F'], o.get('pmat'))
             rep.update(r)
@@ -878,7 +978,7 @@ def run_rows(decl, rows, out, log=print):
     done = []
     for r in rows:
         t = time.time()
-        objs = {n: o for n, o in geo.pop(r['name']).items() if n in names}
+        objs = {n: o for n, o in geo.pop(r['name']).items() if n in names or n == SKIN_MASK}
         B = S.bundle(objs)
         C = measure(B, parts, r['set'])
         rec = dict(name=r['name'], set=_plain(r['set']), control=bool(r.get('control')), objects=sorted(objs),
