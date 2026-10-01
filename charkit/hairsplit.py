@@ -1901,7 +1901,8 @@ def save(out, splits, shell, xid, matches, extra=None):
     np.savez_compressed(os.path.join(_p(out), 'hairsplit.npz'), **imgs)
     meta = dict(format=FORMAT, params=P, views={})
     for n, S in splits.items():
-        meta['views'][n] = dict(report=S.report, box=S.box, az=S.az, crown_rc=list(S.crown),
+        meta['views'][n] = dict(report=S.report, box=S.box, az=S.az, crown_rc=list(S.crown), ppl=S.ppl,
+                                col_axis=S.col_axis, row_eye=S.row_eye,
                                 locks={str(k): v for k, v in S.lock_info.items()},
                                 tips=[dict(rc=[round(t['rc'][0], 1), round(t['rc'][1], 1)], sharp=round(t['sharp'], 1),
                                            down=round(t['down'], 3)) for t in S.tip_list],

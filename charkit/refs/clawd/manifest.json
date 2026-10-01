@@ -565,6 +565,20 @@
     "the buns are the outfit's bun pieces (outfit_masks), not the breakdown's"
    ]
   },
+  "hair_split": {
+   "kind": "lock_split",
+   "tracked": false,
+   "produced_by": "charkit.hairsplit",
+   "reads": ["outfit_masks", "outfit_graph", "body_turnaround"],
+   "reads_spec": ["name", "ref", "eyes.x"],
+   "path": "charkit/out/clawd/hair/split/hairsplit.json",
+   "command": "python -m charkit hairsplit {spec} --out {out}",
+   "role": "the drawn hair split into locks per view (charkit.hairsplit: the strokes closed along the flow, tips, the hem's tone necks, the merge along the flow; T-junction layer ranks; cross-view ids): hairsplit.json (per lock its tip, root, axis, widths, layer, cross-view id; per view its grid offsets) and hairsplit.npz (VIEW: the lock image on the design grid). The lock shells' targets (charkit.geom.lockshell, pieces_opts.lock_shells, opt-in). Built where missing or stale (manifest.produced)",
+   "cautions": [
+    "0.627 against the 52-lock truth (random 0.392); the merge rule is its limit (an oracle merge of its regions 0.728): a lock may join two drawn locks or be cut in two",
+    "cross-view ids are weak (lock-level precision 0.40 against the truth): the lock shells associate views by projecting their fit instead"
+   ]
+  },
   "outfit_truth": {
    "kind": "piece_truth",
    "path": "charkit/refs/clawd/outfit_truth.npz",
