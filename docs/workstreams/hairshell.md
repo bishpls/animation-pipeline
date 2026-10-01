@@ -837,3 +837,11 @@ blocking (body_profile_iou_skin 0.727 P -> 0.692 W; sheet_shown_front 0.465 -> 0
 Also reported: scalp_px 4 P -> 65 W (the scalp between the side shells), art_peeks_hair 17 -> 18 W, the flag values
 (back lines 0.928 -> 0.584, lock lines up). Checks: `tools/hairshell3/capcheck.py` (cap bit-identity, skin_clear's moves),
 real build r6_default (render2) with six placements.
+Fix results: capcheck (build box, r5_c1's context; `charkit/out/hairshell3/capcheck/`): the trial-join cap leaves 17 of
+17 shells bit-identical, the fit's CPU 1009 -> 558 s. skin_clear per vertex (r6_default) cleared the penetration but
+folds 9 -> 16, so each station's ring is pushed out by its deepest vertex's need instead (598eb4e). Real build
+**r6b_default** (render2, the default at 598eb4e): hair_penetration 0.0 P, folds 9, art_terminator_hair 1.310 P (six
+1.432 +- 0.164, back 1.77), peeks 19 / 19.0 (r5_c1e 18 / 18.2; this head has face7 gate 2b and hands2), back lines
+0.584 W, hem 2 P, hair_noise 4.37 P, scalp_px 65 W (hull 4), side locks F/P 0.601 / 0.557, lower back 0.511 / 0.610 /
+0.720, pieces_hair 905 -> 481 s, build CPU 1897 -> 1342.5 s (render2). Re-gate: `python -m charkit remote --box render2
+gate tool/hairshell3 --into pipeline-3d --accept hair_noise`.
