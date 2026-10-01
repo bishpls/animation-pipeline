@@ -55,10 +55,11 @@ The declaration is a sweep's (base, stage, spec, set, parts, checks, objects, bo
               (when `objects` isn't declared: what any probe changed), dead knobs (a step that changes nothing),
               and each knob's local effect (sensitivity)
   reference   {NAME: {PATH: value}}: points evaluated beside the search for comparison (a hand-found result)
-  confirm     {top 3, spec, args, where 'auto' | 'here' | 'remote', box, control 'auto'}: the best `top` distinct
-              feasible candidates built for real (`charkit build`: Blender, the render drawing, every QA part),
-              scored against a real build of the control (the base build itself when `set` is empty) with every term
-              and constraint, the real-only ones included; the pick is the best confirmed feasible
+  confirm     {top 3, spec, args, where 'auto' | 'here' | 'remote', box, control 'auto', compare {NAME: BUILD}}: the
+              best `top` distinct feasible candidates built for real (`charkit build`: Blender, the render drawing,
+              every QA part), scored against a real build of the control (the base build itself when `set` is empty)
+              with every term and constraint, the real-only ones included; the pick is the best confirmed feasible;
+              compare: existing builds scored the same way beside them (a hand-found result)
   fidelity    {PATTERN: 'fast' | 'real'}: overrides FIDELITY for this run (a check the audit read differently)
 
 Fidelity (FIDELITY, REAL_PARTS; `optimize audit BUILD` measures it): the screen draws every row with the numpy
@@ -259,8 +260,8 @@ class Problem:
             self.stop['target'] = 0.0
         self.probe = bool(o.get('probe', DEFAULTS['probe']))
         self.reference = o.get('reference') or {}
-        self.confirm = dict(top=3, spec=None, args=['--boards', '', '--no-blend'], where='auto', box=None,
-                            control='auto', **(o.get('confirm') or {}))
+        self.confirm = dict(dict(top=3, spec=None, args=['--boards', '', '--no-blend'], where='auto', box=None,
+                                 control='auto'), **(o.get('confirm') or {}))
         self.fidelity = o.get('fidelity') or {}
 
     def n(self):
@@ -1441,7 +1442,14 @@ class Run:
                 pass
             rows.append(dict(name=h['name'], build=bdir, screen=dict(f=h.get('f'), v=h.get('v')), knobs=h.get('knobs'),
                              cpu=cpu, **{k: sc[k] for k in ('f', 'v', 'feasible', 'terms', 'viol')}))
-        ok = [r for r in rows if r.get('feasible') and r['name'] != CONTROL]
+        for name, path in (C.get('compare') or {}).items():      # (existing real builds scored alike: a hand result)
+            bp = sw._abs(path, ROOT)
+            qp = os.path.join(bp, 'qa', 'qa.json')
+            if os.path.exists(qp):
+                sc = R.score(json.load(open(qp)).get('checks') or {})
+                rows.append(dict(name=name, build=bp, compare=True, **{k: sc[k] for k in ('f', 'v', 'feasible', 'terms',
+                                                                                         'viol')}))
+        ok = [r for r in rows if r.get('feasible') and r['name'] != CONTROL and not r.get('compare')]
         ok.sort(key=lambda r: r['f'])
         res = dict(against=ref_name, against_qa=base_qa if not need_ctrl else os.path.join(
             self.path('confirm', CONTROL, 'build'), 'qa', 'qa.json'), terms=[t['check'] for t in R.terms],

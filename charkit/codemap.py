@@ -43,7 +43,8 @@ regenerate it after changing a module's docstring or public functions. The curat
 - **Calibration**: calibrate.py (the triple: design moved 1-2 px, known-bad, random floor; records in
   calib/records), the stand-ins in calib/*.py (labels.Garments, details.Details, ...), declared.Declared (generic).
 - **Variants and attribution**: sweep.py (`charkit sweep`: declared rows rebuilt at a stage, measured, tabulated with
-  the shape guard; swap mode).
+  the shape guard; swap mode); optimize.py (`charkit sweep optimize`: a fit's knobs tuned by CMA-ES over sweep rows on
+  persistent workers, the constraints enforced, the best confirmed by real builds).
 - **Gate and infrastructure**: gate.py (policy K), pregate.py, codediff.py, closure.py, history.py, remote.py and
   boxjob.py (the boxes), bucketsync.py, procs.py (build slots), worker.py, sparse.py, trace.py.
 - **Review pages**: reviewpage.py (`charkit review page`: the standard page), preview.py (per-merge previews),
