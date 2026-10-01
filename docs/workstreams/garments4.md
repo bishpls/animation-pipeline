@@ -816,3 +816,6 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   calibrate 'body_shoulder_*,body_axilla_*' --declared tools/garments5/drafts/bodyshoulder.json --build
   charkit/out/g5_c1 --json tools/garments5/box_records/cal_body.json`), move them into charkit/bodyshoulderqa.py with
   the records; pregate on the box; gate.
+- Coordinator 10:4x: the build box full (16 slots, sweeps): overflow to render2 (`remote --box render2 ...`). g5_c1
+  relaunched on render2 (log charkit/out/garments5/build_c1.log); the baseline built again there as g5_base_r2 (log
+  build_base_r2.log) so the known-bad can be stored and the drafts calibrated on one box.
