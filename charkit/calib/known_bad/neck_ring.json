@@ -1,0 +1,9 @@
+{
+ "name": "neck_ring",
+ "why": "the neck's join with a ring at the cut: the skin round it 0.02 L proud at the cut, 0.006 L wide (the join before tool/face: the head's neck eased flat into a wide top ring, 'the neck was a stalk ending in a ring', docs/workstreams/face.md). Computed from the build under calibration by charkit.calib.neck (NeckJoin.measure_known_bad), nothing stored",
+ "flag": "the neck join's crease (Michael 2026-09-29: 'there are still major issues with the neck and chin'; neck_crease, tool/face)",
+ "commit": null,
+ "source": null,
+ "computed": "charkit.calib.neck.NeckJoin.measure_known_bad",
+ "stored": "2026-10-01"
+}

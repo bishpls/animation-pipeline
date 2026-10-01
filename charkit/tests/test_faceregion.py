@@ -90,28 +90,73 @@ def test_eye_fill_is_smooth():
     assert max(dxx.max(), dzz.max()) < 40.0              # 1/L: a radius of curvature over 0.025 L
 
 
-def _neck(bump=0.0, flare=True):
-    """a body of revolution round the z axis: a neck of radius 0.12 flaring into shoulders below z = -0.55, with a ring
-    `bump` L proud at the cut (z = -0.52)."""
+def _tris(nrows, ncols):
+    """a closed band of rows (each ncols vertices round the axis) as triangles."""
+    T = []
+    for i in range(nrows - 1):
+        for j in range(ncols):
+            a, b = i * ncols + j, i * ncols + (j + 1) % ncols
+            T += [(a, b, a + ncols), (b, b + ncols, a + ncols)]
+    return np.array(T)
+
+
+def _neck(bump=0.0, flare=True, step=0.005, steep=False):
+    """a body of revolution round the z axis, rows `step` L apart: a neck of radius 0.12 flaring into shoulders below
+    z = -0.55 (steep: as our join does, its outline turning smoothly from vertical to 70 degrees over 0.08 L: the slope
+    a smoothstep), with a ring `bump` L proud at the cut (z = -0.52) -> (V, T)."""
     th = np.linspace(-np.pi, np.pi, 180, endpoint=False)
     V = []
-    for z in np.arange(-0.3, -0.8, -0.005):
-        r = 0.12 + (0.25 * max(0.0, -0.55 - z) ** 1.5 if flare else 0.0) + bump * math.exp(-0.5 * ((z + 0.52) / 0.006) ** 2)
+    zs = np.arange(-0.3, -0.8, -step)
+    k, w = math.tan(math.radians(70)), 0.08
+    for z in zs:
+        d = max(0.0, -0.55 - z)
+        x = min(d / w, 1.0)
+        fl = (0.25 * d ** 1.5 if not steep else k * (w * (x ** 3 - x ** 4 / 2) + max(0.0, d - w))) if flare else 0.0
+        r = 0.12 + fl + bump * math.exp(-0.5 * ((z + 0.52) / 0.006) ** 2)
         V.append(np.stack([np.sin(th) * r, -np.cos(th) * r, np.full(len(th), z)], 1))
-    return np.concatenate(V)
+    return np.concatenate(V), _tris(len(zs), len(th))
 
 
 def test_crease_reads_a_ring_not_a_flare():
     c = np.array([0.0, 0.0, 0.0])
-    smooth = faceregion.crease_of(_neck(), c, 1.0)
-    ring = faceregion.crease_of(_neck(0.02), c, 1.0)
+    smooth = faceregion.crease_of(*_neck(), c, 1.0)
+    ring = faceregion.crease_of(*_neck(0.02), c, 1.0)
     assert smooth['max'] < faceregion.CREASE[0]
     assert ring['max'] > faceregion.CREASE[1]
 
 
+def test_crease_reads_the_surface_not_its_rows():
+    """a steep smooth flare (our join's: vertical to 70 degrees within 0.08 L) reads the same with rows 0.019 L apart
+    (the torso's subdivided rows) as with rows 0.004 L apart, and passes; with a ring at the cut it fails either way.
+    (The vertex measure read the coarse rows' corners on the steep flare: two heights catching one row read flat, then
+    a jump.)"""
+    c = np.zeros(3)
+    fine = faceregion.crease_of(*_neck(steep=True, step=0.004), c, 1.0)
+    coarse = faceregion.crease_of(*_neck(steep=True, step=0.019), c, 1.0)
+    assert fine['max'] < faceregion.CREASE[0] and coarse['max'] < faceregion.CREASE[0]
+    assert abs(fine['max'] - coarse['max']) < 6
+    assert faceregion.crease_of(*_neck(0.02, steep=True, step=0.004), c, 1.0)['max'] > faceregion.CREASE[1]
+
+
+def test_crease_reads_no_bend_across_a_mask_gap():
+    """the flare with a V cut out of its front (the garments' mask: an edge crossing the columns diagonally, as the
+    opened neckline's does) reads as the whole surface does: a column is read on its unbroken runs, never across the
+    gap or past a run's end."""
+    c = np.zeros(3)
+    V, T = _neck(steep=True, step=0.01)
+    whole = faceregion.crease_of(V, T, c, 1.0)
+    th = np.arctan2(V[:, 0], -V[:, 1])
+    hidden = (V[:, 2] < -0.47) & (np.abs(th) > np.radians(12) + 1.5 * (-0.47 - V[:, 2]))   # the V: wider going down
+    Tm = T[~hidden[T].any(1)]
+    masked = faceregion.crease_of(V, Tm, c, 1.0)
+    assert masked['max'] < faceregion.CREASE[0]
+    assert masked['max'] <= whole['max'] + 1.0
+
+
 def _surface(rows, th):
-    """rows [(z, r (len(th),))] round the z axis -> vertices."""
-    return np.concatenate([np.stack([np.sin(th) * r, -np.cos(th) * r, np.full(len(th), z)], 1) for z, r in rows])
+    """rows [(z, r (len(th),))] round the z axis -> (V, T)."""
+    V = np.concatenate([np.stack([np.sin(th) * r, -np.cos(th) * r, np.full(len(th), z)], 1) for z, r in rows])
+    return V, _tris(len(rows), len(th))
 
 
 def test_neck_join_is_one_curve():
@@ -132,7 +177,7 @@ def test_neck_join_is_one_curve():
     assert (np.diff(r) >= -1e-12).all()                                   # widening all the way: no waist
     below = [(z, np.full(N, 0.26 + (z_low - z))) for z in np.arange(z_low - 0.004, z_low - 0.3, -0.004)]
     head = [(z, S.r[i]) for i, z in enumerate(zs) if z > cut + width]
-    K = faceregion.crease_of(_surface(head + [(z, np.full(N, v)) for z, v in zip(zz, r)] + below, S.th), np.zeros(3), 1.0)
+    K = faceregion.crease_of(*_surface(head + [(z, np.full(N, v)) for z, v in zip(zz, r)] + below, S.th), np.zeros(3), 1.0)
     assert K['max'] < faceregion.CREASE[0]
     # the old join: the head eased flat into a top ring at the cut as wide as the torso gets 0.06 L lower
     ring = 0.26 - (base - 0.06)
@@ -140,7 +185,7 @@ def test_neck_join_is_one_curve():
     kf = [i for i in range(len(zs)) if np.isfinite(flat.cy[i]) and zs[i] >= cut]
     old = [(zs[i], flat.r[i]) for i in kf] + [(z, np.full(N, ring + (cut - z) * (0.26 - ring) / base))
                                             for z in np.arange(cut - 0.004, z_low, -0.004)] + below
-    assert faceregion.crease_of(_surface(old, S.th), np.zeros(3), 1.0)['max'] > K['max'] + 3
+    assert faceregion.crease_of(*_surface(old, S.th), np.zeros(3), 1.0)['max'] > K['max'] + 3
 
 
 if __name__ == '__main__':
