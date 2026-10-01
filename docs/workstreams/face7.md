@@ -162,7 +162,27 @@ unchanged by construction.
   (brow arch front 0.003 -> 0.009, profile 0.009 -> 0.001). Report `charkit/out/gate/gate_tool-face7_49dfb80e_into_
   9be5b320.md`. Fixed (the alias carries brows.arch and mouth.view); gate 2b launched, log charkit/out/face7/gate2b.log.
 
-## State
+- **Gate 2b: PASS under K** (items 3 and 1): tool/face7 5d42f2ed into pipeline-3d 9be5b320, nothing blocks, 36 items
+  reported; CPU 1432.7 -> 1180.6 s (0.82x); 94 test files ok; 0 guard findings; the override's record a guard. Report
+  `charkit/out/gate/gate_tool-face7_5d42f2ed_into_9be5b320.md`.
+
+## State (round end, 2026-10-01)
+
+Branch tool/face7 head: see `git log -1` (5d42f2ed gated; later commits notes only). Gate 1 (item 4) merged into
+pipeline-3d (9be5b32); gate 2b (items 3 and 1) PASS, ready to merge. Nothing running.
+
+**Next steps:**
+1. Item 2 (the lower face's width at mouth height): the cheek refit (style face cheek_refit -0.12, cheek_smooth 0.03,
+   cheek_drop_bound; code in headfit, off by default) reaches the 3/4 contour (0.775 -> 0.925) and clears
+   tq_cheek_hollow and chin_angle, but the jaw band (headgeom.jaw_envelope / UnderJaw's side pocket) reads the moved
+   cheek as a new jaw edge (`an/cagecmp2.py`). Make the jaw band's edge independent of the cheek term (read the jaw
+   edge on the sections before the refit, or fold the refit into the envelope's own fit), keeping the mouth block's
+   columns (outward rounding: backed out here, in this file's sw10 note). Coordinate with tool/garments4-shoulders,
+   which owns the neck join. Then the jaw's three WARNs (chin_angle 1.5 and chin_v 0.09 move toward PASS with the
+   refit; jaw_taper_shape 0.0157 needs the front outline).
+2. With item 2, re-tune the override's slide (0.09 on the refit head; 0.11 on today's).
+3. Michael's answers (the review page's questions): brows.arch 0.1 (the views' compromise); the override as per-shot
+   weights or a Blender driver; the follow-up jaw-band round; the 3/4 corner trade (wrap 0.25).
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
   to the build box (no `--box render`); `--box render` only for builds whose boards I need. sw2 (already running on the
