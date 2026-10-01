@@ -636,3 +636,22 @@ Reading: the ellipsoid blend narrows the back view's gap (2.67 -> 2.13 at 1.0) b
 the hull with the blend 1.77); it costs the profile view (1.6 -> 5.1; the check takes the worst view's ratio, so the
 overall still improves). The remaining gap is the flicks' geometry (they hang off the curling hem: (2) above). The
 other checks don't move with the blend (peeks 17, back lines 0.433, hem 2, folds 9, the pieces' IoU: normals only).
+
+## (2c) The flicks' geometry (sweep r4sw2 on r4b_pilot, the build box's pilot build: its QA = r4_pilot's exactly)
+`tools/hairshell3/r4sw2.json` -> `charkit/out/hairshell3/r4sw2/` (sweep.md; `tools/hairshell3/swkeys.py` the key
+columns; term6.json the six placements, `tools/hairshell3/term6.py SWEEP BASE` on the box). The flick group's opts:
+
+| row | terminator place / mean (back mean) | peeks | back_lines | hem | lower back F / P / B | upper back P | side locks P |
+|---|---|---|---|---|---|---|---|
+| control (the pilot) | 1.844 / 1.989 (2.67) | 17 | 0.433 P | 2 | 0.512 / 0.579 / 0.713 | 0.628 | 0.574 |
+| contain 5 | 2.017 / 2.167 (2.90) | 18 | 0.484 P | 3 | 0.509 / **0.642** / 0.713 | 0.668 | 0.576 |
+| min_px 600 | = control (no target that small) | | | | | | |
+| root_in 0 | 2.041 / 2.088 (2.80) | 19 | 0.451 P | 2 | 0.512 / 0.560 / 0.722 | 0.628 | 0.572 |
+| prior_depth 10 | 1.661 / 1.760 (2.34) | 19 | 0.613 W | 3 | 0.500 / 0.604 / 0.707 | 0.650 | 0.563 |
+| prior_depth 3, smooth 0.1 | 1.641 / 1.828 (2.36) | 17 | 0.569 W | 2 | 0.506 / 0.582 / 0.710 | 0.633 | 0.559 |
+| pd 3 + contain 5 + min_px 600 | 1.826 / 2.219 (3.01) | 18 | 0.490 P | 4 | 0.505 / 0.644 / 0.710 | 0.671 | 0.579 |
+
+Reading: pulling the flicks onto the curling mass (prior_depth) lowers the back view's terminator 2.67 -> 2.34 but raises
+back_lines to WARN (the flicks' inked tips now lie inside the mass); holding them in the lower back's drawn region in
+every view (contain 5) mends the lower back's profile (0.579 -> 0.642, the hull 0.665) but steps the back terminator
+(2.90). Neither closes the back view alone (hull 1.87).
