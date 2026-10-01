@@ -11,7 +11,8 @@ accqa.design) as our label images, scored by accqa.evaluate itself (its `labels`
   turned            (floor, axis) each drawn clip turned 25-40 degrees about its centroid
   touching          (probe) the drawn clips moved 2 px into each other (the star over the crab): two clips side by side,
                     touching along their outline, must still read as shown
-  star_under_crab   (probe) the drawn crab moved 0.05 L onto the star, over it: a star a clip covers must read hidden
+  star_under_crab   (floor, the star's visible share) the drawn crab moved 0.05 L onto the star, over it: a star a clip
+                    covers must read hidden (no build hides the star, so this stands for its known-bad)
   compass           (floor, arms) the clips-alone sheet's star (an equal-armed compass star: side arms 0.48 of its height)
   four_point        (floor, minor) the star template without its minor points (the round-1 placeholder's structure)
 Known-bad: acc_r4_overlap (pipeline-3d 00494de, round 4's placement: the star bent over the crab, the crab 62-78% shown)
@@ -82,7 +83,7 @@ class Clips:
         'moved': 'each drawn clip moved 0.07-0.12 L in a random direction',
         'turned': 'each drawn clip turned 25-40 degrees about its centroid',
         'touching': '(probe) the drawn clips moved 2 px into each other, the star over the crab',
-        'star_under_crab': '(probe) the drawn crab moved 0.05 L onto the star, over it',
+        'star_under_crab': 'the drawn crab moved 0.05 L onto the star, over it',
         'compass': "the clips-alone sheet's star (side arms 0.48 of its height) as ours face-on",
         'four_point': 'the star template without its minor points as ours face-on',
     }

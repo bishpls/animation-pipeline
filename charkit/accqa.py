@@ -82,9 +82,9 @@ DECLARED_CHECKS = [
     dict(check='acc_star_{view}_visible', family='visible', piece='pin_star', part='accessories',
          views=['front', 'three_quarter', 'profile'], limits=[0.97, 0.90], better='higher',
          note="the share of our star's own silhouette (drawn alone) that shows (Michael: pieces don't hide each other)",
-         calibrate=dict(no_known_bad='no build hides the star: the drawn arrangement, the star moved over the crab, is '
-                                     'the probe', kind='defect', probes=['touching', 'star_under_crab'],
-                       shape=['acc_star_shape'])),
+         calibrate=dict(no_known_bad='no build hides the star: its floor is the drawing with the crab moved 0.05 L '
+                                     'onto the star, over it (star_under_crab)', kind='defect',
+                       baseline=['star_under_crab'], probes=['touching'], shape=['acc_star_shape'])),
 ]
 
 
