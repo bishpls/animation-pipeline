@@ -1289,7 +1289,7 @@ gating on the build box (below). The integrator (the main session) reviews and m
   - Never seed charkit/out with hard links except `i3d`, which builds only read.
 - **Cross-machine hulls:** same code, different CPU gives different hull labels (see `tool/hull-det`). Each box is
   deterministic run to run. Compare only builds from one machine until hull-det lands.
-- **New worktrees** need `infra/gcp/build.env` and `render.env` copied in (gitignored).
+- **New worktrees** need `infra/gcp/build.env`, `render.env` and `render2.env` copied in (gitignored: every `infra/gcp/*.env`).
 
 **Render box facts (2026-09-29).**
 - A Clawd board frame (540x900, EEVEE, 64 samples) takes 2.4 s on the L4, 2.2 s on a T4 and 2.0 s on the M2 Pro
@@ -1357,6 +1357,14 @@ How the gate gets its code:
 
 The box runs 8 build slots, shared by every worktree's builds there. **The laptop runs 1** (`charkit slots 1`): other
 sessions share its 16 GB.
+
+**The second render box (2026-10-01, Michael's go-ahead): `remote --box render2`.** 32 vCPU, 128 GB and one L4
+(g2-standard-32; an L4 stockout falls back to n1-standard-32 with a T4), made from the first render box's snapshot in
+the same zone, network and service-account setup, gitignored `infra/gcp/render2.env`. New board builds go there;
+the first render box (`--box render`, 8 vCPU, 3 slots) is stopped once its jobs drain, not deleted.
+A cold Clawd board build there (`--boards views,body,design --no-blend`) took 18.2 min: 1.55 cores on average
+(p90 2.3, peak 5.2), 4.6 GB of RAM and 1.6 GB of VRAM at peak, and 22 boards in 62 s (2.2 s a frame). It runs **10
+slots** (CPU and VRAM each allow about 14, RAM 26); tune from `python -m charkit remote load --box render2`.
 
 ## Known issues and work items
 
@@ -1474,8 +1482,8 @@ start gate R1–R6.
   - The Mac has 16 GB, shared with other sessions. One Clawd build peaks at 2.2 GB of Blender. Build on the build box
     (`charkit remote ...`, above) and keep the laptop at `charkit slots 1`.
   - Agents: the old cap (about 3 at once) was about laptop memory, not agents. Blender and heavy Python ran the 16 GB
-    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the GPU render box, `remote
-    --box render`: 3), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
+    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the render box, `remote
+    --box render2`: 10), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
     build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29). Box capacity isn't a
     hard limit either: slots are a setting (tune them from measured load); more boxes, bigger machines or GPUs are
     provisioning changes that need Michael's approval first.
