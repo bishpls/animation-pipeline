@@ -17,7 +17,16 @@ MEASUREMENT_STEPS = [
     ('acc_*_size', 'b45f61e2', "ours as the drawing shows the clip (accqa.as_drawn), then sqrt(area) as before"),
     ('acc_*_pos', 'b45f61e2', "ours as the drawing shows the clip (accqa.as_drawn), then the centroid as before"),
     ('acc_*_angle', 'b45f61e2', "ours as the drawing shows the clip (accqa.as_drawn), then the principal axis as before"),
-    ('acc_*_shown', 'b45f61e2', "ours as the drawing shows the clip (accqa.as_drawn), then its pixels over the design's"),
+    # (the views both sides draw: the back's acc_KIND_back_shown, where the design hides the clips, is measured as
+    # before, as_drawn only applying where both draw the clip)
+    ('acc_*_front_shown', 'b45f61e2', "ours as the drawing shows the clip (accqa.as_drawn), then its pixels over the "
+     "design's"),
+    ('acc_*_three_quarter_shown', 'b45f61e2', "ours as the drawing shows the clip (accqa.as_drawn), then its pixels over "
+     "the design's"),
+    ('acc_*_profile_shown', 'b45f61e2', "ours as the drawing shows the clip (accqa.as_drawn), then its pixels over the "
+     "design's"),
+    ('acc_*_shape', 'b45f61e2', "new (INFO): the clip's as-drawn shape IoU per view in one check (the guard's measure)"),
+    ('acc_*_alone', 'b45f61e2', "new (INFO): our clip face-on against the clips-alone drawing (shape IoU: the structure)"),
     ('acc_*_pos3d', 'b45f61e2', "triangulated from the views' centroids of ours as the drawing shows the clip"),
     ('acc_*_visible', 'b45f61e2', "new (declared, family 'visible'): the share of our clip's own silhouette (drawn "
      "alone) that shows with everything else drawn, in the views the design draws it (Michael's non-occlusion rule)"),
