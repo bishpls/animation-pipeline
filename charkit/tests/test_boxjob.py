@@ -159,6 +159,7 @@ def test_sampler_sees_slots_and_waits():
     s2 = boxjob.sample(boxjob.LOAD, sd, now=time.time() + 60)
     assert s1['slots']['count'] == 3 and s1['slots']['held'] == 1 and s1['slots']['holders'][0]['label'] == 'build'
     assert s1['slots']['waiting'] == 1 and s1['slots']['waiters'][0]['waited'] >= 29
+    assert s1['jobs'] == [] and s1['quiet'] == {}                   # (no job running in this JOBS)
     assert s2['cpu'] is not None and 0 <= s2['cpu']['busy'] <= 1 and len(s2['load']) == 3
     assert os.path.exists(os.path.join(boxjob.LOAD, 'waits.jsonl'))
     samples, waits = boxload.read(boxjob.LOAD, 0)
@@ -213,6 +214,95 @@ def test_gaps_read_by_boot_time():
     assert [x['kind'] for x in g] == ['down', 'missed', '?'], g
     assert g[0]['minutes'] == 66 and g[0]['booted'].endswith('01:05:00Z')
     assert boxload.gaps(S[:2]) == []
+
+
+def _running(jid, kind, silent_min, ran_min, **meta):
+    """a job dir that reads as running (its supervisor: this process) whose log was last written silent_min ago and
+    which started ran_min ago."""
+    d = os.path.join(boxjob.JOBS, jid)
+    os.makedirs(d)
+    json.dump(dict(kind=kind, wt='wt', label='x', **meta), open(os.path.join(d, 'meta.json'), 'w'))
+    now = time.time()
+    for f, ago in (('claim', ran_min), ('log', silent_min)):
+        open(os.path.join(d, f), 'w').write('x\n')
+        os.utime(os.path.join(d, f), (now - 60 * ago, now - 60 * ago))
+    open(os.path.join(d, 'pid'), 'w').write('%d %d\n' % (os.getpid(), os.getpid()))
+    return d
+
+
+def test_stall_alarm_flags_silent_and_overrun_jobs():
+    """task 7: a running job silent past its kind's limit is flagged SILENT (a build 20 min, a gate 45: a gate prints
+    only at its end), one past 2x the minutes it declared OVERRUN, a job's own limit wins; finished jobs and jobs within
+    their limits carry no flag, and nothing is stopped."""
+    _setup()
+    from charkit import remote
+    cases = {'b_quiet25': ('build', 25, 30, {}, ['silent']), 'b_quiet5': ('build', 5, 30, {}, []),
+             'g_quiet25': ('gate', 25, 25, {}, []), 'g_quiet50': ('gate', 50, 50, {}, ['silent']),
+             'p_quiet25': ('pregate', 25, 25, {}, []), 'p_quiet35': ('pregate', 35, 35, {}, ['silent']),
+             's_over': ('sweep', 1, 25, {'expect_min': 10}, ['overrun']),
+             's_both': ('sweep', 21, 25, {'expect_min': 10}, ['silent', 'overrun']),
+             'own_limit': ('build', 6, 10, {'stall_min': 5}, ['silent'])}
+    for jid, (kind, quiet, ran, meta, want) in cases.items():
+        _running(jid, kind, quiet, ran, **meta)
+    done = _running('finished', 'build', 90, 120)
+    open(os.path.join(done, 'exit'), 'w').write('0 %f\n' % time.time())
+    rows = {r['jid']: r for r in (boxjob.info(os.path.join(boxjob.JOBS, j)) for j in list(cases) + ['finished'])}
+    for jid, (kind, quiet, ran, meta, want) in cases.items():
+        got = [f['flag'] for f in rows[jid]['flags']]
+        assert got == want, (jid, got, want)
+        assert rows[jid]['state'] == 'running'
+    assert rows['finished']['flags'] == [] and rows['finished']['state'] == 'done'
+    f = rows['b_quiet25']['flags'][0]
+    assert f['limit'] == 20 and 24.5 < f['minutes'] < 26 and rows['g_quiet50']['flags'][0]['limit'] == 45
+    assert rows['own_limit']['flags'][0]['limit'] == 5
+    assert 24.5 * 60 < rows['b_quiet25']['quiet'] < 26 * 60 and 'quiet' not in rows['finished']
+    txt = remote.flag_text(f, 'b_quiet25')
+    assert txt.startswith('SILENT') and 'not stopped' in txt and 'remote kill b_quiet25' in txt
+    assert 'OVERRUN' in remote.flag_text(rows['s_over']['flags'][0])
+
+
+def test_quiet_sampled_and_silences_by_kind():
+    """the sampler's `quiet` (each running job's log bytes and seconds since its last write) and the per-kind longest
+    silence read back from the samples (`remote jobs --silences`), split by how the job ended."""
+    _setup()
+    a = _running('a', 'build', 3, 30)
+    b = _running('b', 'build', 0, 30)
+    c = _running('c', 'gate', 10, 30)
+    q = boxjob.quiet_now(['a', 'b', 'c', 'gone'], now=time.time())
+    assert set(q) == {'a', 'b', 'c'} and 170 < q['a'][1] < 190 and q['a'][0] == 2
+    t = time.time()
+    with open(os.path.join(boxjob.LOAD, 'load-%s.jsonl' % time.strftime('%Y%m%d', time.gmtime(t))), 'w') as f:
+        for quiet in ({'a': [1, 60], 'b': [5, 30], 'c': [9, 600]}, {'a': [1, 720], 'b': [9, 10], 'c': [9, 1500]},
+                      {'a': [4, 5], 'c': [9, 2100]}):
+            f.write(json.dumps(dict(ts=t, jobs=sorted(quiet), quiet=quiet)) + '\n')
+        f.write(json.dumps(dict(ts=t, jobs=[])) + '\n')                        # (a sample from before `quiet`)
+    for d, rc in ((a, 0), (b, 0), (c, 1)):
+        open(os.path.join(d, 'exit'), 'w').write('%d %f\n' % (rc, t))
+    S = {(r['kind'], r['ended']): r for r in boxjob.silences(days=1)}
+    assert S[('build', 'ok')]['jobs'] == 2 and S[('build', 'ok')]['max'] == 12.0 and S[('build', 'ok')]['worst'] == 'a'
+    assert S[('build', 'ok')]['limit'] == 20 and S[('gate', 'failed')]['max'] == 35.0
+
+
+def test_follow_tells_a_silence_once():
+    """the laptop's follow prints the stall alarm when the job has written nothing for its limit (here 0.03 min), once
+    per silence, and the job goes on to its end (no kill)."""
+    _setup()
+    from charkit import remote
+    d = _job('echo first; sleep 4; echo second; exit 0\n', 'q1')
+    _start('q1')
+
+    def argv(cfg, vm, jid, at):
+        return [sys.executable, os.path.join(d, 'boxjob.py'), 'follow', jid, str(at)]
+    old = remote._follow_argv, remote._cfg, remote._record
+    remote._follow_argv, remote._cfg, remote._record = argv, (lambda: (None, None)), (lambda r: None)
+    err, sys.stderr = sys.stderr, io.StringIO()
+    try:
+        rc = remote.attach('q1', rec={'jid': 'q1', 'kind': 'test', 'stall_min': 0.03}, out=io.BytesIO())
+        told = sys.stderr.getvalue()
+    finally:
+        sys.stderr = err
+        remote._follow_argv, remote._cfg, remote._record = old
+    assert rc == 0 and told.count('has written nothing for') == 1 and 'not stopped' in told, told
 
 
 if __name__ == '__main__':

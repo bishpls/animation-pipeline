@@ -1,0 +1,91 @@
+{
+ "check": "acc_crab_profile_flow",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T18:48:47",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "acc_crab_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.1,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.1,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.2,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.1,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.1,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.1,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.2,
+  "spread": 0.2,
+  "median": 0.1
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "round 5's crab keeps the drawn crab's turn against the hair: its floor is the drawn crab turned across the flow",
+ "floor": {
+  "across_flow": {
+   "values": [
+    93.9,
+    70.6,
+    65.3,
+    117.6,
+    84.6
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 84.6,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 7.2,
+  "status": "PASS",
+  "margin": 0.916
+ },
+ "verdict": "guard",
+ "why": "a defect detector with no known-bad (round 5's crab keeps the drawn crab's turn against the hair: its floor is the drawn crab turned across the flow); the design passes; shape guarded by acc_crab_shape",
+ "build": "charkit/out/acc6/after",
+ "generators": {
+  "across_flow": "the drawn crab turned in place 60-120 degrees (across the hair)"
+ },
+ "seconds": 370.5
+}
