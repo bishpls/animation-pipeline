@@ -117,6 +117,12 @@ unchanged by construction.
   0.75 keeps them too (nearest had taken 27/37). sw10: the refit at 0.75 with the topology kept, fh2c, the combination,
   the override slide (0.09 on the refit; 0.16 on the rigid head).
 
+- **Gate 1: PASS under K** (item 4): tool/face7 93262fdd into pipeline-3d 15e9c55b, nothing blocks, 155 items reported;
+  CPU 1123.8 -> 1493.7 s (1.33x; the hull missed: headfit changed); 0 guard findings; 8 new checks' records (4
+  calibrated, 4 guards). Report `charkit/out/gate/gate_tool-face7_93262fdd_into_15e9c55b.md`. Reported: new FAILs
+  face_contour_three_quarter 0.775 and brow_len_closeup_profile 0.721 (items 2 and 3, open); 34 parts' "measuring code
+  changed" with no check read differently (bundle.py's Bundle.keyed). Sent to the coordinator (SendMessage main).
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
