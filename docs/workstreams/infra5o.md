@@ -49,6 +49,14 @@ in the race; the baseline-lock wait polls (1 s) so it gives up too; after each w
 builds were stopped, by which test, how far in. The tests-first path (machines under 16 cores) no longer builds after a
 failing test. Tests: test_gate `test_fail_fast_*` (2).
 
+**Demonstrated** (planted failing test, tmp/infra5o-failfast b7e92550 into pipeline-3d 59c93f38, `remote gate --code
+tool/infra5-o`, job gate-infra5o-1001-155346-28b3; report charkit/out/gate/gate_tmp-infra5o-failfast_b7e92550_into_
+59c93f38.md): **FAIL in 204.7 s** (setup 22 s; the first failing file 35.1 s in; the candidate build stopped 12.3 s
+after it started, 10 s of CPU; the baseline-lock wait (another gate was building 59c93f38's) given up at the same
+moment; the remaining tests ran to the end, 181 s, so the report names both failing files). Before: a failing test
+was reported after both builds and the 2x2, 15-25 min (today's test_spec_alias / test_tune gates). The report's "why"
+read "None" (the record was written after the event the gate wakes on): fixed, the record first.
+
 ## 6. Declared denominators (registry, qa3d.run, gate.judge)
 
 `@qa_part(..., checks=N | f(B, design))`: how many checks the part measures (status other than SKIPPED). qa3d.run

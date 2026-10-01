@@ -652,9 +652,10 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
 
     def on_fail(name):
         if not failed.is_set():
-            failed.set()
+            # (the record before the event: the gate's thread wakes on the event and reports from it)
             rep['failfast'] = {'test': name, 'at': round(time.time() - clock.t0, 1),
                                'stopped': [getattr(p, 'label', '?') for p in running if p.poll() is None]}
+            failed.set()
             _stop(running)
 
     def tests_failed():
