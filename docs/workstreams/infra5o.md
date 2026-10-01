@@ -199,3 +199,15 @@ in charkit/budget.json itself, with a reason, in the same merge (reviewable: the
 budget). Per-stage budgets stay report-only (they name where the cost went). The total is compared on gate builds
 (threads 4, venv steps restored from the shared step cache); a candidate that rebuilds a venv step its baseline
 restored is judged on the stages both built (the phases in build_cpu.json make that possible now).
+
+## Before and after, side by side (bb: the base code b2d96808 = 60c0f1a4 + the instrumentation; b2: this branch)
+
+Both `--cache off`, `--boards '' --no-blend`, threads 4, launched 30 s apart on the build box
+(~/animation-pipeline-infra5o-base charkit/out/infra5/bb; charkit/out/infra5/b2; `profile bb --vs b2`:
+charkit/out/infra5/profile_bb_b2.md). **Readings: 702 checks, 0 differ; the bundles' 962 arrays identical; every QA
+part ok against its count.** CPU 1525 -> 1446 s, wall 971 -> 944 s. The QA: declared 281 -> 190 s CPU (108 -> 87 s
+wall: the line images' picture); the rest moved because of where shared in-process work fell: bb rebuilt the hull in
+resolve (the stale entry moved aside), which computed the head and the design's clips in-process for the later steps;
+and b2's `--cache off` turned the venv memo off entirely, so face_region, piece_details, skirt and code_body
+recomputed their design side at every call (+60 s). Fixed (a3...: the memo stays in memory with the cache off); the
+clean pair (b3, bb2) is running.
