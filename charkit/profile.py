@@ -302,6 +302,26 @@ def budget_rows(cand, base=None, budget=None):
 
 
 # ------------------------------------------------------------------------------------------------ the QA under cProfile
+def _frames_since(B, seen):
+    """the renderer's frames drawn since the last call (charkit.render.buffers.Frames.timing): how many, their seconds,
+    and how many (and seconds) had the same inputs as a frame drawn earlier in this pass -> dict."""
+    try:
+        from . import qarender
+        Q = qarender.frames(B)
+    except Exception:
+        Q = None
+    if Q is None:
+        return None
+    T = Q.timing
+    i0 = seen.get('i', 0)
+    keys, secs = T.get('keys', [])[i0:], T.get('frames', [])[i0:]
+    seen['i'] = i0 + len(keys)
+    dup = [s_ for k, s_ in zip(keys, secs) if k in seen.setdefault('keys', set())]
+    seen['keys'] |= set(keys)
+    return dict(n=len(keys), seconds=round(sum(secs), 1), dup=len(dup), dup_seconds=round(sum(dup), 1),
+                culled=sum(T.get('culled', [])[i0:]))
+
+
 def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print, cprofile=True):
     """the QA's parts one by one on a bundle (no cache), each under cProfile -> {part: dict(wall, cpu, checks,
     functions [dict(fn, calls, tottime, cumtime)])}; with out, written to out/qa_profile.json and one .prof per part."""
@@ -311,7 +331,7 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print, cprofi
     design = qa3d.Design(B)
     ref = B.spec.get('ref')
     ref_image = ref.get('image') if isinstance(ref, dict) else None
-    res = {}
+    res, seen = {}, {}
     if out:
         os.makedirs(out, exist_ok=True)
     tmp = out or os.path.join(ROOT, 'charkit', 'out', 'profile_qa')
@@ -340,14 +360,19 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print, cprofi
             fns.append(dict(fn='%s:%d:%s' % (os.path.relpath(f, ROOT) if f.startswith(ROOT) else f, ln, fn),
                             calls=nc, tottime=round(tt, 3), cumtime=round(ct, 3)))
         fns.sort(key=lambda x: -x['tottime'])
+        fr = _frames_since(B, seen)
         res[P.name] = dict(wall=round(w, 2), cpu=round(cp, 2), checks=len(C), error=err, functions=fns[:top_n],
+                           frames=fr,
                            cumulative=sorted(fns, key=lambda x: -x['cumtime'])[:top_n],
                            readings={k: [v.get('value'), v.get('status')] if isinstance(v, dict) else [v, None]
                                      for k, v in (C or {}).items()})
         if out and st:
             st.dump_stats(os.path.join(out, 'qa_%s.prof' % P.name))
-        log('profile qa %-14s %7.1f s wall %7.1f s CPU  %d checks%s; top: %s' % (
+        log('profile qa %-14s %7.1f s wall %7.1f s CPU  %d checks%s%s; top: %s' % (
             P.name, w, cp, len(C), (' (%s)' % err) if err else '',
+            '; frames %d (%.1f s), %d again (%.1f s), %d items culled' % (fr['n'], fr['seconds'], fr['dup'],
+                                                                         fr['dup_seconds'], fr['culled'])
+            if fr and fr['n'] else '',
             ', '.join('%s %.1f' % (f['fn'].rsplit(':', 1)[-1], f['tottime']) for f in fns[:3])))
     if out:
         json.dump(res, open(os.path.join(out, 'qa_profile.json'), 'w'), indent=1)
