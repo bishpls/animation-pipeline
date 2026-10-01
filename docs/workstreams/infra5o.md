@@ -239,3 +239,21 @@ the chosen one needs nothing stored. What it can't see: a branch that makes a ca
 restored it (the candidate's cold cost isn't compared); the budget table still shows the candidate's figure per stage.
 Test: test_gate `test_build_cpu_is_compared_like_for_like` (the hair-shell numbers: 1.61x raw, 1.02x like for like;
 cold against cold at 1.62x still blocks; no record: the totals).
+
+## Before and after, the clean pair (bb3: pipeline-3d 27a4b6c3 + the instrumentation; b4: this branch 880d2188)
+
+Side by side on the build2 box (c3-standard-44), `--cache off --boards '' --no-blend`, threads 4 (bb3 in
+~/animation-pipeline-infra5o-base on tmp/infra5o-base2; `profile bb3 --vs b4`: charkit/out/infra5/profile_bb3_b4.md).
+**Readings: 723 checks, 0 differ; the bundles' 962 arrays identical; every part ok against its count.**
+
+| group / stage | before CPU s | after CPU s | change |
+| --- | --- | --- | --- |
+| **QA** | **854.5** (433 s wall) | **749.2** (400 s wall) | **-105 (-12%)**, wall -8% |
+| qa/declared | 280.9 (100 s wall) | 184.7 (75 s wall) | -96 (-34%): the line images' wasted picture |
+| qa/skirt | 28.1 | 20.9 | -7 (the drawn bands in memory once) |
+| qa/look, artifacts, face_flags, motion | 134.6, 101.3, 60.4, 29.8 | 128.5, 99.4, 68.0, 29.1 | noise (unchanged code) |
+| Blender | 175.5 | 180.6 | unchanged code, noise |
+| venv (resolve and the steps) | 321.7 | 549.2 | not comparable: b4 rebuilt the produced references (this branch's keys, once per box), and building the hull in-process computed the head that code_head then reused |
+| total | 1351.8 | 1479.4 | the venv row above; QA and Blender like for like: 1030 -> 930 |
+
+Gate conditions (the gate above, the like-for-like pair): QA 886 -> 709 s CPU, 464 -> 371 s wall.
