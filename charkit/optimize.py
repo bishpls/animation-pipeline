@@ -588,7 +588,7 @@ class Scorer:
         P, C0 = self.P, self.ctrl
         K = P.constraints
         out = []
-        drop = float(K.get('guard') or 0.15)
+        drop = float(K['guard']) if K.get('guard') is not None else 0.15    # (0 or false: off)
         if drop > 0:
             for k, c0 in C0.items():
                 if not sw.SHAPE_CHECK.match(k) or not isinstance(c0, dict) or not isinstance(c0.get('views'), dict):
@@ -2091,6 +2091,62 @@ class Synthetic:
 
 def synthetic(decl):
     return Synthetic(decl)
+
+
+class AccfitPlace:
+    """the clips' placement as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_place'): args
+    {build, spec, start (a JSON with `specs`, else the spec's clips)}; the knobs are paths KIND.at.0..2,
+    KIND.facing.0..1, KIND.tilt and KIND.lsize (the size's log factor on the start's: accfit.fit_place's knobs) ->
+    checks: accfit_loss (accfit.Scene.measure's loss: its own objective) and per clip and view its iou, visible, pos,
+    size, angle, with seat and back px (INFO). One accfit.Scene per worker (the hair and the scene drawn once)."""
+
+    def __init__(self, decl):
+        from . import accfit
+        a = decl.get('args') or {}
+        spec = accfit._spec(a.get('spec') or 'charkit/spec/clawd.json')
+        self.S = accfit.Scene(sw._abs(a['build'], ROOT), accfit.design(spec))
+        self.specs = [x for x in spec.get('accessories') or [] if x['kind'] in accfit.KINDS]
+        if a.get('start'):
+            self.specs = json.load(open(sw._abs(a['start'], ROOT)))['specs']
+        self.accfit = accfit
+
+    def place(self, over):
+        out = [copy.deepcopy(x) for x in self.specs]
+        by = {x['kind']: x for x in out}
+        base = {x['kind']: x for x in self.specs}
+        for k, v in over.items():
+            kind, _, f = k.partition('.')
+            if kind not in by:
+                continue
+            x = by[kind]
+            if f == 'lsize':
+                x['size'] = float(base[kind]['size'] * math.exp(v))
+            elif '.' in f:
+                f0, j = f.split('.')
+                lst = list(x[f0])
+                lst[int(j)] = float(v)
+                x[f0] = lst
+            else:
+                x[f] = float(v)
+        return out
+
+    def evaluate(self, over):
+        r = self.S.measure(self.place(over))
+        C = {'accfit_loss': dict(value=r['loss'], status='INFO', part='accfit')}
+        for kind in self.accfit.KINDS:
+            if kind not in r:
+                continue
+            for view, x in r[kind]['views'].items():
+                for f in ('iou', 'visible', 'pos', 'size', 'angle'):
+                    if x.get(f) is not None:
+                        C['acc_%s_%s_%s' % (kind, view, f)] = dict(value=x[f], status='INFO', part='accfit')
+            C['acc_%s_seat' % kind] = dict(value=r[kind]['seat'], status='INFO', part='accfit')
+            C['acc_%s_back_px' % kind] = dict(value=r[kind]['back'], status='INFO', part='accfit')
+        return C
+
+
+def accfit_place(decl):
+    return AccfitPlace(decl)
 
 
 # ------------------------------------------------------------------------------------------------------------- CLI
