@@ -176,8 +176,9 @@ class Details(Garments):
         C = self.classes(kind, arg)
         names = self.names
 
-        def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
-            return {v: C[v] for v in views if v in C}
+        def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), exclude=()):
+            CC = self.classes_without(kind, exclude) if exclude else C
+            return {v: CC[v] for v in views if v in CC}
 
         def alone(B, names_, view, az3, ppl, keep, depth=False):
             ids = [i for i, n in enumerate(names) if n in keep]

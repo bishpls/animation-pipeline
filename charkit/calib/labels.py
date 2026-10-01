@@ -277,7 +277,13 @@ class Garments:
         """{view: classes} for ours drawn without `exclude`: the design's own (moved for the design) with each
         matching class truth's pixels (the V's skin: neck_v) painted that class, a generator's stand-in the drawing's."""
         from .. import bodyqa
-        C = self.classes(kind, getattr(self, '_move', None) or (0, 0)) if kind == 'design' else dict(self.cls)
+        mv = getattr(self, '_move', None) or (0, 0)
+        if kind != 'design':
+            C = dict(self.cls)
+        elif hasattr(self, 'classes'):                  # (Details: the drawing's classes moved with the labels)
+            C = self.classes(kind, mv)
+        else:
+            C = {v: _shift(c, mv[0], mv[1], 0) for v, c in self.cls.items()}
         got, TM = self._truth_entries(exclude) if kind == 'design' else ([], {})
         out = {}
         for v, c in C.items():
