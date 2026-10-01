@@ -269,14 +269,32 @@ art_terminator_hair, art_peeks_hair, hair_lock_lines_*, face_shadow, art_outline
 coordinator: re-gate against a fresh baseline hull (the stale entry invalidated on render2, or the hull key fixed in
 pipeline-3d first), or accept hair_strokes_three_quarter_taper by name.
 
+## b3 (b39d996b, all fixes 18-25; render2, EEVEE boards): charkit/private/c3/out/b3
+
+QA: 234 checks (46 more than b2: face_flags and artifacts run where they raised), overall 0.44 (applicable 0.39, named
+0.76); the new ones mostly FAIL on Clawd's default face features (eye_lash_*, eye_corner_*, brow_*, nose_mark_*). Against
+b2: the hair better (body_back_iou_hair 0.60 -> 0.72, 3q hair width 0.848 -> 0.952, scalp_px 115 -> 27), neck_crease
+106 -> 27; the face-sheet checks worse (sheet_profile_chin 0.023 -> -0.497, sheet_chin_reach, sheet_width, jaw_taper):
+the QA compares the beard-free jaw with the bearded drawing (its face readers should take the jaw's declared shape truth
+as the head fit now does). Still raising: declared (AttributeError on NoneType.shape), motion (clawd_skin).
+Review page (private, opened): charkit/private/c3/out/review_build/page/index.html (page.json beside it; builder
+charkit/private/c3/review/build_page.py BUILD CLAWD_BUILD --before B1). Report: charkit/private/c3/report/
+{report.json, tally.json, stages.json, template_audit.json, template_audit.md}.
+
 ## Exact next steps
 
-0. (round 2, in flight) the gate of b39d996b (job gate-char3-1001-153423-9793 on render2, log
-   charkit/private/c3/out/gate2.log; report into charkit/out/gate); b3 (job build-char3-1001-153450-356d on render2,
-   log charkit/private/c3/out/b3_build.log, out charkit/private/c3/out/b3); s1, the joined shoulder (job
-   build-char3-1001-151614-f06c on the build box, out charkit/private/c3/out/s1). When b3 lands:
-   `python charkit/private/c3/review/build_page.py charkit/private/c3/out/b3 ~/animation-pipeline-garments4/charkit/out/g7_base --before charkit/private/c3/out/b1`,
-   then `python -m charkit review page charkit/private/c3/out/review_build/page.json --out charkit/private/c3/out/review_build/page`.
+1. The gate: FAIL under K on hair_strokes_three_quarter_taper, attributed to the stale cached baseline hull (above).
+   Coordinator's call: re-gate against a fresh baseline hull (the stale produced-hull entry on render2 invalidated, or
+   the hull key fixed in pipeline-3d first) or accept that check by name. If pipeline-3d moved: merge it, then
+   `python -m charkit remote --box render2 gate tool/char3 --into pipeline-3d` (or `charkit gate --carry`).
+2. Next round (ranked; the audit's table for the taxonomy round): (a) the face measure's chin where drawn folds wall
+   the skin flood (outline-based chin, the QA's face readers on the jaw's shape truth), then the beard cut against it;
+   (b) the hair cut from a hull carved from the hair's shape truth (head_nocrown); (c) face features read from the head
+   sheet (eyes, lashes, brows, blush); (d) the piece-kind taxonomy (manifest kinds, builders and checks dispatching on
+   kind) from charkit/private/c3/report/template_audit.json; (e) the joined shoulder's knobs from the base body sheet
+   (scratch/c3-shoulder 80b2d306 measures it; delete the branch when the refit lands in pipeline-3d).
+3. Parked: the refcheck two-head layout rule (a construction sheet's profile named 'back' at a reduced scale) was tried
+   and dropped (not needed with the beard-free redraw; unverified on Clawd).
 
 1. (done) the venv stages all pass locally.
 2. First box build (LAUNCHED at the checkpoint: `charkit/private/c3/box_build.sh b1`, log
