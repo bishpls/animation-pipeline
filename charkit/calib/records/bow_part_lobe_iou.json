@@ -1,0 +1,111 @@
+{
+ "check": "bow_part_lobe_iou",
+ "part": "bow_parts",
+ "adapter": "BowParts",
+ "module": "charkit.calib.parts",
+ "at": "2026-09-30T21:25:05",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "piece_bow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "a guard: the lobes are sized to the drawn ones, so the flagged build's pillows read 0.715 PASS",
+ "floor": {
+  "voronoi_parts": {
+   "values": [
+    0.0,
+    0.0031,
+    0.0,
+    0.0071,
+    0.212
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0031,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_parts": {
+   "values": [
+    0.2867,
+    0.4294,
+    0.2845,
+    0.3328,
+    0.5048
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "WARN"
+   ],
+   "median": 0.3328,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.8344,
+  "status": "PASS",
+  "margin": 0.801
+ },
+ "verdict": "guard",
+ "why": "no known-bad (a guard: the lobes are sized to the drawn ones, so the flagged build's pillows read 0.715 PASS); the design passes and the floor does not",
+ "build": "charkit/out/pr3",
+ "generators": {
+  "voronoi_parts": "the drawn bow's knot and lobes cut into random cells (3 per part), each a random part (weighted by the parts' drawn areas): the bow's silhouette kept, its parts gone",
+  "affine_parts": "each drawn part (knot, lobes) moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 105.6
+}
