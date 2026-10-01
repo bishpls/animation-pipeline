@@ -358,4 +358,6 @@ IoU (0.620 -> 0.583) and the truth score (side locks 0.589 -> 0.559): the joined
 
 ## Jobs
 
-- sw1-sw5 done (`charkit/out/hairshell2/swN.json` -> `swN/`). sw6-sw8 done. sw9 running: the underlayer set in (under_inset 0.02 / 0.04 L).
+- sw1-sw5 done (`charkit/out/hairshell2/swN.json` -> `swN/`). sw6-sw9 done (sw9: the underlayer set in 0.02 / 0.04 L: folds 7 -> 21-22, side locks' IoU down: off).
+- Real render-box build of the pilot (lockshell DEFAULT = the chosen config; spec tools/hairshell/clawd_shells.json):
+  `charkit/out/hs2_shells_r` (job id in charkit/out/remote/jobs/, log charkit/out/hairshell2/hs2_shells_r.log).
