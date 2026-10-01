@@ -814,8 +814,7 @@ EYE_BLOCK = (0.135, 0.09)   # the eye block's least half-width and half-height (
 
 
 def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_w=0.21, eye_h=0.13, mouth_w=0.12,
-                  mouth_h=0.03, rings=(3, 2), caps=True, eye_outline=None, mouth_block=None, mouth_outline=None, jaw=None,
-                  layout=None):
+                  mouth_h=0.03, rings=(3, 2), caps=True, eye_outline=None, mouth_block=None, mouth_outline=None, jaw=None):
     """the authored cage on the head's own chart (charkit.geom.headmesh.cylinder): rows of the sections from z_top down
     the neck, a dome of rays from the head's centre above, the eyes' and the mouth's blocks where the front view draws
     them. eye_outline: her left eye's opening (K, 2) in L round its centre (x outward, z up; charkit.eyes.
@@ -825,10 +824,7 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
     else +-0.09 x +-0.045. mouth_outline: the lip loop (K, 2) in L round the mouth's centre (x her left, z up), else an
     almond mouth_w x mouth_h. jaw: the jaw's underside (headfit.jaw_under's dict): the rows under the mouth block are
     laid JAW_BAND_DZ apart in the chart and placed along UnderJaw's meridians (Cg.under: the UnderJaw; Cg.chart_z: each
-    vertex's chart height, for the UVs); None: every row on the sections. layout: the sections the feature blocks'
-    columns are read on (default S): a fit's late correction that moves a block's edge across a column (the cheek's
-    refit at the mouth block's edge) leaves the cage's topology as the head without it had. -> (Cage, the dome's
-    centre)."""
+    vertex's chart height, for the UVs); None: every row on the sections. -> (Cage, the dome's centre)."""
     from . import headmesh as hm
     ex, mz = C['eye_x'], C['nose_z'] - 0.11
     mw, mt, mb = mouth_block or (0.09, 0.045, 0.045)
@@ -876,7 +872,7 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         if side and edge and edge.get('z_angle') is not None:
             # the pocket round the sides, per column (SIDE): the band's top raised round the sides over the rim (as
             # EDGE_BAND's), the rim and the throat on fixed band rows
-            t_b = abs(theta_of(layout if layout is not None else S, mw, mz))
+            t_b = abs(theta_of(S, mw, mz))
             z_lat = min(edge['z_angle'] + EDGE_TOP, -EYE_BLOCK[1] - 0.05)
 
             back = [EDGE_TOP_BACK[0], EDGE_TOP_BACK[1]]      # (set from the rim's end below: the top comes back down
@@ -892,7 +888,7 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
             back[0] = float(under.rim_th[-1]) + SIDE_RELAX
             back[1] = back[0] + (EDGE_TOP_BACK[1] - EDGE_TOP_BACK[0])
         elif EDGE_BAND and edge and edge.get('z_angle') is not None:
-            t_b = abs(theta_of(layout if layout is not None else S, mw, mz))                 # (the mouth block's columns)
+            t_b = abs(theta_of(S, mw, mz))                 # (the mouth block's columns)
             z_lat = min(edge['z_angle'] + EDGE_TOP, -EYE_BLOCK[1] - 0.05)
 
             def top(t, z_a=z_a, t_b=t_b, z_lat=z_lat):
@@ -920,8 +916,6 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         a = np.linspace(0, 2 * np.pi, n, endpoint=False)
         return np.stack([cx + w / 2 * np.cos(a), cz + h / 2 * np.sin(a) * (1 + 0.15 * np.cos(a))], 1)
 
-    Ly = layout if layout is not None else S
-
     def chart(outline):
         return np.array([(theta_of(S, x, z), z) for x, z in outline])
     def radius(z):
@@ -929,10 +923,10 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         return float(r[int(np.argmin(np.abs(S.th)))])
     feats = []
     for name, cx, sd in (('eye_L', ex, 1.0), ('eye_R', -ex, -1.0)):
-        j0, j1 = sorted((col(theta_of(Ly, cx - bw, 0.0)), col(theta_of(Ly, cx + bw, 0.0))))
+        j0, j1 = sorted((col(theta_of(S, cx - bw, 0.0)), col(theta_of(S, cx + bw, 0.0))))
         feats.append(dict(name=name, block=(j0, j1, row(bt), row(-bb)), outline_tz=chart(np.stack([cx + sd * eo[:, 0], eo[:, 1]], 1)),
                           rings=rings[0], theta_scale=radius(0.0), cap=caps))
-    j0, j1 = col(theta_of(Ly, -mw, mz)), col(theta_of(Ly, mw, mz))
+    j0, j1 = col(theta_of(S, -mw, mz)), col(theta_of(S, mw, mz))
     mo = almond(0.0, mz, mouth_w, mouth_h) if mouth_outline is None else np.asarray(mouth_outline, float) + np.array([0.0, mz])
     feats.append(dict(name='mouth', block=(j0, j1, row(mz + mt), row(mz - mb)), outline_tz=chart(mo),
                       rings=rings[1], theta_scale=radius(mz), cap=caps))

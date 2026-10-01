@@ -864,7 +864,6 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
     sock = max(0.0, -y_eye) * ('socket' in terms) * (not window)
     R = np.full_like(R0, np.nan)
     dfill = None
-    c2_applied = None
     if window:
         # the anime eye region (eye_fill): the smoothest correction that lays the eye's opening on the design's plane
         # and holds the brow and the cheek behind it, in place of the socket; on the right half's front columns, mirrored
@@ -901,7 +900,6 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
             c2 = np.nan_to_num(_smooth_rows(c2, cst['cheek_smooth'] / A.h), nan=0.0)
             c2 *= _smoothstep((top_r - zs) / CHEEK_REFIT_EASE)
             cheek = cheek + c2
-            c2_applied = c2
             LAST.update(cheek_refit_raw=raw_c2, cheek_refit=c2)
 
     def finish(cheek_v):
@@ -962,19 +960,10 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
         return Rs, ok
 
     Rs, ok = finish(cheek)
-    layout = None
-    if cst['cheek_refit'] is not None and window and c2_applied is not None:
-        # the head without the refit, for the cage's layout (headgeom.cylinder_cage: its feature blocks' columns): the
-        # refit carries the cheek forward where the mouth block's edge meets the surface, and a block's edge moving
-        # across a column changed the cage's topology (and the mouth's rings) for a change that isn't the mouth's
-        Rl, okl = finish(cheek - c2_applied)
-        layout = Sections(zs, np.where(okl, cy, np.nan), np.where(okl[:, None], Rl, np.nan))
     rep = {'socket_L': round(sock, 4), 'eye_window': win if window else None, 'align_dy_L': round(dy, 4), 'skull_chin': round(zc_s, 4), 'design_chin': round(zc_d, 4),
            'cheek_range_L': [round(float(np.min(cheek)), 4), round(float(np.max(cheek)), 4)],
            'cheek_fit_noise_L': round(float(np.nanstd(raw_cheek - cheek)), 4) if np.isfinite(raw_cheek).any() else None}
-    S_out = Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], Rs, np.nan))
-    S_out.layout = layout
-    return S_out, rep
+    return Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], Rs, np.nan)), rep
 
 
 def banding(S, span=np.radians(60), zlo=None, zhi=0.1, scale=0.02):
