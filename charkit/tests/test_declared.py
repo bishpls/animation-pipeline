@@ -209,3 +209,27 @@ def test_relative_lines_are_read_where_they_lie_within_the_region():
     a = declared.ink_inside(Ro, Rd, ctx, region='panel', band=0.05, faint=False)
     r = declared.ink_inside(Ro, Rd, ctx, region='panel', band=0.05, faint=False, relative='cream')
     assert a['value'] == 1.0 and r['value'] < 0.05                           # absolute: 0.25 L off; relative: found
+
+
+def test_area_against_the_drawn_silhouette():
+    # the drawn cuff's fill with a line round it (the drawing's ink between it and the sleeve above, and its outer
+    # outline): our geometry has no ink between pieces, so its size compares with the fill plus the lines given to the
+    # nearest piece (bodymeasure.drawn_labels), not with the fill alone
+    from charkit import bodyqa
+    sleeve, cuff = rect(100, 196, 100, 200), rect(204, 300, 100, 200)       # an 8 px line between them
+    fg = rect(96, 304, 96, 204)                                              # a 4 px outline round both
+    cls = np.where(fg, bodyqa.CLASS['line'], 0)
+    cls[sleeve | cuff] = 2
+    graph = dict(pieces=[dict(id='sleeve'), dict(id='cuff', layer=dict(over=['sleeve']))])
+    I = dict(O={'front': dict(lab=np.where(rect(200, 304, 96, 204), 1, np.where(fg, 0, -1)))},
+             names=['sleeve_obj', 'cuff_obj'], masks={'front__sleeve': sleeve, 'front__cuff': cuff},
+             pm={'sleeve': [('sleeve_obj', None)], 'cuff': [('cuff_obj', None)]}, ppl=PPL,
+             dv={'front': dict(fg=fg, cls=cls)}, graph=graph, skin=[])
+    d = dict(check='c_{view}_size', family='area', piece='cuff', views=['front'], params=dict(round=3),
+             limits=[0.2, 0.4])
+    c = declared.evaluate([d], I)[1]['c_front_size']
+    # ours: the cuff's fill, half the line above it and its outline (104 x 108 px) against the drawn silhouette (the same)
+    assert c['value'] == 0.0 and c['status'] == 'PASS' and c['design'] == 104 * 108
+    assert c['fill'] == 96 * 100 and abs(c['ratio_fill'] - 104 * 108 / 9600) < 1e-3
+    f = declared.evaluate([dict(d, params=dict(round=3, ref='fill'))], I)[1]['c_front_size']
+    assert f['design'] == 96 * 100 and f['status'] == 'PASS' and f['value'] == round(104 * 108 / 9600 - 1, 3)
