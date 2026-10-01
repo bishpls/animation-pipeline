@@ -4,9 +4,13 @@ repainted from hair_clips_layers, ours without our clips). Ours is our classes z
 (bodyqa.zbuffer_views); here the design's own classes (the hair's shape truth: qa3d.Design.shape_views) stand in,
 moved or perturbed, and the part's measuring code runs unchanged on them (patched in for the run).
 
-Generators (the floor and the probe; seeded):
-  voronoi_hair   the head's drawn hair and skin (above the hair/dress split) cut into random cells (40), each hair or
-                 skin at random (weighted by their drawn areas): the head kept, the hair's shape gone
+Generators (the floor and the probes; seeded):
+  voronoi_head   the head's box (above the hair/dress split, the drawn head's columns, background included) cut into
+                 random cells (40), each hair at random (weighted by the hair's drawn share of the box) or else what the
+                 drawing has there (skin where it drew hair): a random hair silhouette round the head
+  voronoi_hair   (probe) the head's drawn hair and skin cut into random cells (40), each hair or skin at random
+                 (weighted by their drawn areas): the head's outline kept, the hair's shape gone inside it (in profile,
+                 where the hair is most of the head, the IoU can't tell it: reported)
   affine_hair    (probe) the drawn hair moved 0.03-0.06 L and scaled 0.9-1.1 about its middle (a sloppy fit)
 """
 import contextlib
@@ -19,13 +23,16 @@ CALIBRATION = [
     # the hair's silhouette per view, a shape check (the anti-gaming guard's kind of measure): no single flagged build
     dict(check='body_*_iou_hair', part='sheet_body', adapter='BodyHair', known_bad=None,
          no_known_bad="a shape check (the hair's silhouette per view against its shape truth): no single flagged build",
-         baseline=['voronoi_hair'], probes=['affine_hair'], shape=[], better='higher'),
+         baseline=['voronoi_head'], probes=['voronoi_hair', 'affine_hair'], shape=[], better='higher'),
 ]
 
 
 class BodyHair:
     part = 'sheet_body'
     generators = {
+        'voronoi_head': "the head's box (above the hair/dress split, the drawn head's columns, background included) cut "
+                        "into random cells (40), each hair at random (weighted by the hair's share of the box) or else "
+                        "what the drawing has there",
         'voronoi_hair': "the head's drawn hair and skin (above the hair/dress split) cut into random cells (40), each "
                         "hair or skin at random (weighted by their drawn areas)",
         'affine_hair': '(probe) the drawn hair moved 0.03-0.06 L and scaled 0.9-1.1 about its middle',
@@ -51,7 +58,19 @@ class BodyHair:
             z = bodyqa.WIN['top'] - (np.arange(L.shape[0]) + 0.5) / self.ppl
             head = (z > bodyqa.HAIR_SPLIT)[:, None] & np.isin(L, [hair, skin])
             L2 = L.copy()
-            if kind == 'voronoi_hair':
+            if kind == 'voronoi_head':
+                cols = np.nonzero(head.any(0))[0]
+                box = np.zeros(L.shape, bool)
+                if len(cols):
+                    box[:, cols.min():cols.max() + 1] = (z > bodyqa.HAIR_SPLIT)[:, None]
+                    rows = np.nonzero(head.any(1))[0]
+                    box[:rows.min()] = False
+                p = float((L[box] == hair).mean()) if box.any() else 0.0
+                if 0 < p < 1:
+                    V = voronoi(box, [1, 0], [p, 1 - p], 40, rng)
+                    keep = np.where(L == hair, skin, L)
+                    L2[box] = np.where(V[box] == 1, hair, keep[box])
+            elif kind == 'voronoi_hair':
                 nh, ns = int((L[head] == hair).sum()), int((L[head] == skin).sum())
                 if nh and ns:
                     V = voronoi(head, [hair, skin], [nh, ns], 40, rng)
