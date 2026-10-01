@@ -48,6 +48,8 @@ DEFAULT_EYE = {
                                   # side) nasal of the fold, just past it, and at the outer corner (linear between)
     'fold_at': 0.0,      # the fold from the iris's nasal edge, in eye widths (+ outward)
     'fold_soft': 0.03,   # the fold's rounding, half-width in eye widths
+    'fold_shape': 1.0,   # how far the fold follows the iris's nasal outline row by row (1) or runs straight down at its
+                         # middle row's x (0)
     'fold_reach': 0.035, # L: how far outside the opening the skin follows the surface (fading to the face's own)
     'fold_follow': 0.0,  # each row's fold at one depth (0: the profile's front edge upright) or at the face's depth
                          # there (1: the edge follows the iris's outline as the face recedes)
@@ -298,6 +300,7 @@ class Surface:
         rx, rz, cz, conv = K['iris']
         self.iris = (rx, rz, cz, conv)
         self.at, self.soft = float(K['fold_at']), max(1e-3, float(K['fold_soft']))
+        self.shape = float(K.get('fold_shape', 1.0))
         self.follow = float(K.get('fold_follow', 0.0))
         tn, tf, tc = (math.radians(a) for a in K['turn'])
         # G(u): the surface's depth (eye widths, + back) at u eye widths outward of the row's fold, 0 at the fold
@@ -334,7 +337,7 @@ class Surface:
         """the fold's x (eye widths) on rows z (eye widths): the iris's nasal outline, fold_at outward of it."""
         rx, rz, cz, conv = self.iris
         q = np.clip(1 - ((np.asarray(z, float) - cz) / rz) ** 2, 0.05, 1)
-        return -(conv + rx * np.sqrt(q)) + self.at
+        return -(conv + rx * (self.shape * np.sqrt(q) + (1 - self.shape))) + self.at
 
     def _raw(self, x, z):
         """the surface's depth (eye widths, + back) relative to the frontal plane through its middle row's fold."""
@@ -631,6 +634,10 @@ def _flick_depth(F, S, eye_c, side, xc, zc, fx, fz, h=0.05, turn=None):
     return yc + slope * (fx - xc) - F.y(ex + side * fx, ez + fz)
 
 
+SPIKE_ROOT = 0.3        # a spike's root inside the lash band, a share of the band's thickness from the lid line (at
+                        # 0.55 the inner spikes, where the band tapers, floated clear of it in the render)
+
+
 def spike_lines(K, L, upper_fn, m=8):
     """each spike's centre line and thickness (eye-local): off the lash band's outer edge at its t, `angle` from straight up
     toward the outer corner, curling a further `curl` over its length -> [(pts (m, 2), th (m,))]."""
@@ -644,7 +651,7 @@ def spike_lines(K, L, upper_fn, m=8):
         if nrm[1] < 0:
             nrm = -nrm
         th0 = K['lash'] * L * (K['lash_inner'] + (1 - K['lash_inner']) * min(t0 / 0.45, 1.0) ** 0.7)
-        base = np.array([x[1], z[1]]) + nrm * th0 * 0.55     # (rooted inside the band's outer edge)
+        base = np.array([x[1], z[1]]) + nrm * th0 * SPIKE_ROOT  # (rooted inside the band, short of its outer edge)
         s = np.linspace(0.0, 1.0, m)
         a = np.radians(ang + curl * s)                         # (from straight up; +: toward the outer corner, +x)
         d = np.stack([np.sin(a), np.cos(a)], 1)

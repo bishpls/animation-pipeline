@@ -81,6 +81,44 @@ eye_*, eye_view_*), `tips.py` (counted lash tips), `eyelab.py`, `lashlab.py`, `b
   corners. Lab: eye_aspect 0.872 -> 0.944 PASS, iris front 1.009 -> 0.998, 3/4 1.383 -> 1.342, face_piece_iris profile
   0.698 -> 0.782; eye_lid_gap 0.0036 -> 0.0042 (WARN by 0.0002); the profile flick 0.531 -> 0.40 (the far corner's
   white now reads to the corner: 3 px further out): lengthen the flick.
+- **Build B's set** (venv lab on face6_a, `run_cand*.log`, `run_v1-3.log`): style anime `eyes.fold_shape` 0 (new knob,
+  eyes.Surface: the fold runs straight down at the iris's middle-row nasal edge; following the iris outline row by row
+  compressed the far eye's iris more in its middle rows: a straight-sided iris), spec `eyes.lash` 0.02 -> 0.022,
+  `lash_inner` 0.75 (the band's inner half had thinned under the measure's opening and swallowed the inner spike), six
+  spikes (two added: t 0.1 and 0.5; the outer-corner one at 0.985), `flick` 0.26 -> 0.32 (the profile flick against
+  the corner the SPAN fix uncovered); eyes.SPIKE_ROOT 0.55 -> 0.3 (roots inside the band). Lab readings, face6_a ->
+  set C: iris 3/4 1.383 FAIL -> 1.127 WARN, iris closeup profile 0.887 -> 0.936 PASS, lash spikes closeup front
+  0.167 FAIL -> 1.0 PASS, gaps front 0.75 -> 0.875, profile gaps 0.4 -> 0.8 PASS, lash band 1.0/1.10/0.9, eye_aspect
+  0.872 -> 0.944 PASS, lid_span 0.843 -> 1.012 PASS, lid_gap 0.0033 PASS, profile flick -0.337 -> -0.056 PASS; every
+  eye_view_* PASS. Pieces' IoU (1580f95 / face6_a / C): iris front 0.847/0.907/0.898, 3/4 0.762/0.817/0.808, profile
+  0.677/0.698/0.721; lash front 0.526/0.514/0.489 (-7%), profile 0.226/0.139/0.233 (+3%), 3/4 0.286/0.23/0.259 (-9%).
+  Tried and dropped: fold_follow 0 (iris 3/4 1.32), fold_soft 0.12 (1.33), fold_at -0.08/+0.1 (1.47/1.43), turn
+  (-10, 20, 50) (1.26, but profile flick -0.36 FAIL, lid_span WARN) and (-10, 30, 60) (3/4 behind FAIL).
+- Still failing after C (lab): `eye_lash_spikes_closeup_profile` 0/4: our profile lash band runs on a slant, and the
+  measure's opening (a disk of 0.45 x the band's median column height, which a slanted band over-reads) erodes the whole
+  band into one wide "tip" that swallows the spikes; the design's profile band runs level over the top. The profile
+  eye's shape (the turned surface: its outer part recedes on a diagonal), not the spikes. `brow_shape_closeup_profile`
+  0.469: our brow spans 0.097 L in depth on the forehead (its profile length) against the drawn 0.136; its front length
+  pins its x-extent (0.155 L), so the forehead at brow height is flatter than the design's (a circle of radius ~0.34 L
+  through the brow's ends against ~0.29): head shape (the head fit's eye window holds the brow region back), not the
+  brow. `mouth_place_three_quarter` (below).
+- **Mouth in three-quarter (Step 1, "is it ours?")**, face6_a's reads (L; x from the eyes' midpoint, the near eye in
+  profile; lead from the leading contour): design front x 0.0003 lead 0.256, 3/4 x +0.0046 lead 0.173 (contour -0.168),
+  profile x -0.047 lead 0.056 (contour -0.103); ours front -0.002 / 0.246, 3/4 -0.031 / 0.097 (contour -0.128),
+  profile -0.070 / 0.018 (contour -0.088). The 0.076 L miss is two parts: (a) the mouth against the eyes, 0.036: ours'
+  own geometry projects the profile's mouth-to-eye depth into three-quarter at 0.443 (0.031 / 0.070); a rigid head
+  with the design's profile (-0.047) puts the 3/4 mouth at -0.021, so the drawing's +0.005 sits 0.025 L back from any
+  rigid head that matches its profile: not ours. Our profile stroke also sits 0.038 L nearer the lip contour than the
+  drawn one (lead 0.018 vs 0.056: the design draws the profile mouth as a short stroke set back from the lips); (b) the
+  far cheek's contour at mouth height, 0.040: our lower face's section is more V-shaped (the 3/4 contour over the front
+  half-width 0.515 against the design's 0.656; a section carrying the width forward reaches up to 0.81): ours, and
+  fixable without moving the front or profile silhouettes (only the section between them), but it is the head fit's
+  (tool/face5's three-quarter cheek and jaw work is landing). Best joint fit for the mouth's depth (least squares over
+  profile and 3/4): profile 0.009 L off, 3/4 0.021 L off (now 0.023 / 0.036); with (b) fixed the 3/4 check would read
+  about 0.025 (WARN). The view-exact placement is a per-shot override for Michael, not the default.
+- `mouth_place_profile` -0.047 WARN: the mouth's absolute height matches (0.199 vs 0.202 L under the eye line; front
+  and 3/4 match too); the between-ratio is off because our profile nose tip is 0.012 L lower (0.090 vs 0.078) and the
+  chin 0.007 lower: head shape (the nose), not the mouth. Not moved.
 
 ## Checkpoint (2026-09-30 night, context limit): state for the next agent
 
