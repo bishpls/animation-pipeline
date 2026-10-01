@@ -21,6 +21,18 @@ def bone_seg(A, bone):
     return np.asarray(A['joints'][h], float), np.asarray(A['joints'][t], float)
 
 
+def arm_seg(A, bone):
+    """bone_seg, but an upper arm from its chain's root (the authored body's arm_roots) when the rig's shoulder joint
+    was moved up the arm's line (code_body.SOCKET's pivot): what's placed along the arm (the puff sleeves' stations,
+    the shells' regions) stays where it was fitted."""
+    h, t = bone_seg(A, bone)
+    if bone.endswith('UpperArm'):
+        r = ((A.get('body') or {}).get('arm_roots') or {}).get(bone[:-len('UpperArm')])
+        if r is not None:
+            h = np.asarray(r, float)
+    return h, t
+
+
 def dominant(A):
     """per vertex: the bone with the largest weight and that weight."""
     names = list(A['weights'])
@@ -30,8 +42,9 @@ def dominant(A):
 
 
 def along(A, bone, P):
-    """the parameter t of points P projected onto a bone (0 head .. 1 tail) and their distance from its axis."""
-    h, t = bone_seg(A, bone)
+    """the parameter t of points P projected onto a bone (0 head .. 1 tail) and their distance from its axis (an upper
+    arm from its chain's root: arm_seg)."""
+    h, t = arm_seg(A, bone)
     d = t - h
     ln = max(1e-9, np.linalg.norm(d))
     u = d / ln
@@ -2865,7 +2878,7 @@ def sleeve_hull(A, spec, hull):
     L = A['head']['L']
     side = spec.get('side', 'left')
     P = _hull_points(hull, spec)
-    h, t_ = bone_seg(A, side + 'UpperArm')
+    h, t_ = arm_seg(A, side + 'UpperArm')
     ax = loft.Axis(h, t_ - h, (0, -1, 0))
     t, th, r = ax.coords(P)
     lo, hi = np.percentile(t, spec.get('span', (1, 99)))
@@ -2987,7 +3000,7 @@ def puff_frame(A, side):
     """a puff sleeve's frame on its upper arm: the shoulder joint (origin), d down the arm, o out across it (away from
     the body's midline), f toward her front. The two sides' frames are mirror images when their joints are, so one knot
     table makes mirror-image sleeves. -> (origin, d, o, f)."""
-    h, e = bone_seg(A, side + 'UpperArm')
+    h, e = arm_seg(A, side + 'UpperArm')
     d = (e - h) / np.linalg.norm(e - h)
     sgn = 1.0 if h[0] >= 0 else -1.0
     o = np.array([sgn, 0.0, 0.0]) - d * (d[0] * sgn)

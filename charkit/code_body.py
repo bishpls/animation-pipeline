@@ -372,7 +372,7 @@ def shoulders(sh, rows, ts, th_c, R, Pi, meas, ay, env, Bh):
 
 # ----------------------------------------------------------------------------------------------- the joined shoulder
 SOCKET = dict(top=0.30, bottom=-1.0, half=30.0, shift=0.0, s0=0.12, lift=(25.0, 75.0), reach=(0.45, 0.45),
-              loops=6, blend=3, clav=(0.6, 0.2), arm_w=(0.0, 1.0), torso_arm=(0.0, 0.1))
+              loops=6, blend=3, clav=(0.6, 0.2), arm_w=(0.0, 1.0), torso_arm=(0.0, 0.1), pivot=0.0)
 # the shoulder joining the arm to the torso (body.shoulder.socket; Michael's diagnosis, 2026-10-01: the body had no
 # shoulder: the torso a tube, the arms capped tubes beside it, nothing joining them). A hole in the torso's side, its
 # rows from where the side reaches `top` L out (on the shoulder's top) down to the armpit at `bottom` (L from the eye
@@ -383,7 +383,9 @@ SOCKET = dict(top=0.30, bottom=-1.0, half=30.0, shift=0.0, s0=0.12, lift=(25.0, 
 # round the shoulder); the arm's columns matched to the rim's at s0 and evened over `blend` rings. clav: the clavicle's
 # weight on the rim and how far (L) it reaches over the torso from it; arm_w: the bridge's share of the way over which
 # the upper arm's weight comes in (a smoothstep from the rim's weights to the arm's); torso_arm: the upper arm's weight
-# on the rim and how far (L) it reaches over the torso.
+# on the rim and how far (L) it reaches over the torso; pivot: the rig's shoulder joint (the upper arm's head, where it
+# turns) moved this far (L) up the arm's line from the chain's root (the 2D rig's joint, ~0.16 L under the deltoid's
+# centre on Clawd); the garments placed on the arm keep the chain's root (the body data's arm_roots).
 
 
 def _wrap(a):
@@ -1055,6 +1057,8 @@ def build_body_data(spec, chin, log=print):
                head_uv_box=HEAD_UV_BOX, parts=parts, eye_y=eye_y)
     if torso_rings is not None:
         out['torso_rings'] = torso_rings                  # (the sockets' rows are partial rings: code_base._torso_rings)
+    if socks:                                             # (the arms' chain roots: the garments placed on the arm)
+        out['arm_roots'] = {sd: [float(x) for x in world(Z['arm_%s_J' % sd][0])] for sd in ('left', 'right')}
     return out
 
 
@@ -1075,7 +1079,10 @@ def _joints(Z, sk, world, L):
         arm = Z['arm_%s_J' % side]; leg = Z['leg_%s_J' % side]
         cz = sk[side + 'Shoulder'][0][1]
         J['clavicle.%s____head' % S_] = world((0.3 * arm[0][0], ty(cz), cz))
-        J['shoulder01.%s____head' % S_] = world(arm[0])
+        pk = 'shoulder_%s_pivot' % side
+        pv = float(Z[pk]) if pk in Z.files else 0.0
+        dv = (arm[1] - arm[0]) / max(1e-9, np.linalg.norm(arm[1] - arm[0]))
+        J['shoulder01.%s____head' % S_] = world(arm[0] - pv * dv)
         J['lowerarm01.%s____head' % S_] = world(arm[1])
         J['wrist.%s____head' % S_] = world(arm[2])
         hk = 'hand_%s_joints' % side
