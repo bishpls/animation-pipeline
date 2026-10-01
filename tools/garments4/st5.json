@@ -1,0 +1,93 @@
+{
+ "base": "charkit/out/g4_cuffs2",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "skirt",
+  "artifacts"
+ ],
+ "checks": [
+  "stair_*",
+  "skirt_*",
+  "hemband_*",
+  "bow_*_creases",
+  "art_band_lower",
+  "art_*_flaps",
+  "art_*_skirt",
+  "flap_*",
+  "piece_skirt*",
+  "piece_overskirt*"
+ ],
+ "boards": {
+  "az": [
+   0,
+   35
+  ],
+  "crop": "skirt",
+  "pad": 0.1
+ },
+ "variants": {
+  "deg4": {
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     13,
+     0.25
+    ],
+    [
+     23,
+     0.15
+    ],
+    [
+     33,
+     0.1
+    ]
+   ]
+  },
+  "deg4_sq15": {
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     13,
+     0.25
+    ],
+    [
+     23,
+     0.15
+    ],
+    [
+     33,
+     0.1
+    ]
+   ],
+   "garments.overskirt_panel_L.square": 1.5
+  },
+  "deg4_sq2": {
+   "garments.skirt.band.stair": [
+    [
+     0,
+     0.35
+    ],
+    [
+     13,
+     0.25
+    ],
+    [
+     23,
+     0.15
+    ],
+    [
+     33,
+     0.1
+    ]
+   ],
+   "garments.overskirt_panel_L.square": 2.0
+  }
+ }
+}

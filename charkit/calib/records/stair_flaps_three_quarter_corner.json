@@ -1,0 +1,93 @@
+{
+ "check": "stair_flaps_three_quarter_corner",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T07:43:08",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_overskirt_panel_L",
+  "piece_overskirt_panel_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.7,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.7,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.7,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.7,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.7,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.7,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.7,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.7,
+    "PASS"
+   ]
+  },
+  "min": 0.7,
+  "max": 0.7,
+  "spread": 0.0,
+  "median": 0.7
+ },
+ "known_bad": {
+  "name": "g4_stairs0",
+  "value": 18.8,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    11.4,
+    null,
+    null,
+    42.4,
+    null
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 26.9,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": 1.027
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), g4_stairs0 reads 18.8 FAIL; a random stand-in fails it; shape guarded by piece_overskirt_panel_L, piece_overskirt_panel_R",
+ "build": "charkit/out/g4_stairs1",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 99.9
+}
