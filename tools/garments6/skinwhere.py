@@ -59,6 +59,26 @@ for k, (a_, b_) in A['body']['parts'].items():
         else 'hand' if k.startswith('hand_') else 'leg'
 why = np.where(bord, 'border', np.where(tk, 'tucked', np.where(reg & ~ins, 'cut', np.where(~reg, 'not_region', 'hidden'))))
 T = bodyj.tris(A['faces'])
+# the masked skin's neck crease (as faceregion.neck_crease reads the build's: faces on a hidden vertex dropped)
+from charkit import faceregion
+c_, L_, _ = faceregion.frame(B0)
+Tv = T[~hidden[T].any(1)]
+K = faceregion.crease_of(V, Tv, c_, L_)
+if K:
+    print('neck crease (masked, unsubdivided): max %s median %s worst %s' % (K['max'], K['median'],
+          sorted(K['per'].items(), key=lambda kv: -kv[1])[:6]))
+    import math
+    zc = c_[2] + faceregion.CUT * L_
+    zs = np.arange(zc - faceregion.JOIN[0] * L_, zc + faceregion.JOIN[1] * L_ + 1e-12, 0.01 * L_)
+    Tb = Tv
+    ring = V[np.abs(V[:, 2] - zc) < 0.02 * L_]
+    axis = ring[:, :2].mean(0)
+    for col in [k for k, _ in sorted(K['per'].items(), key=lambda kv: -kv[1])[:2]]:
+        rr = faceregion.section_outline(V, Tb, axis, math.radians(col), zs)
+        rw = faceregion.section_outline(V, T, axis, math.radians(col), zs)
+        print('  column %d: z (L from the cut) / r masked / r whole:' % col)
+        print('   ' + ' '.join('%+.2f:%s/%s' % ((z - zc) / L_, 'nan' if not np.isfinite(a) else '%.3f' % (a / L_),
+                                             'nan' if not np.isfinite(b) else '%.3f' % (b / L_)) for z, a, b in zip(zs, rr, rw)))
 T = T[~hidden[T].all(1)]
 cats = sorted({(part[t[0]], why[t[0]]) for t in T})
 cid = {c_: i for i, c_ in enumerate(cats)}

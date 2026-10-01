@@ -684,9 +684,12 @@ def flare_neck(S, fl, Bm, ring_b, Vb, axis, Oz, L):
     gap = np.maximum(0.0, r_ring - base[1]) * sh
     LAST_FLARE.update(th=S.th, r_head=base[1], r_ring=r_ring, gap=gap, ring_k=k, ring_z=zr[k], rings_z=zr[:8])
     r = S.r.copy()
+    dz = abs(float(S.zs[1] - S.zs[0]))
     for i, z in enumerate(S.zs):
-        if CUT - 1e-9 <= z <= CUT + h and np.isfinite(r[i]).all():
-            u = (CUT + h - z) / h
+        # (down to a few rows under the cut too, at the full gap: the join's loft and the torso's top ring read the
+        # sections at the cut itself, interpolated between the rows round it)
+        if CUT - 3 * dz <= z <= CUT + h and np.isfinite(r[i]).all():
+            u = min(1.0, (CUT + h - z) / h)
             r[i] = r[i] + gap * u ** p
     return Sections(S.zs, S.cy, r)
 
