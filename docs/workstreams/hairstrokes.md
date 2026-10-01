@@ -219,6 +219,11 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   with all lock lines (hst_b2) taper front 0.364 F, 3q None (strand ends meet the lock lines). hst_b3 (build box,
   bangs + side locks, the qarender fix) reads it. The hst_base store pushed to the build box copy.
 
+- Boxes (coordinator): render2 (32 vCPU, L4, 10 slots: `--box render2`) for builds needing boards; the old render box
+  drains; the build box (no --box) for the rest. hst_s2 (old render box, lock lines on every family) running: the
+  all-families reference with boards. The normals sweep (queued on the old render box) stopped: rerun on the build box
+  over hst_b3.
+
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store
    `~/animation-pipeline-hair4/charkit/out/calib/builds/hair5_1580f95` into this worktree's
