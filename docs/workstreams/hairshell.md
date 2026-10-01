@@ -713,3 +713,30 @@ family, 0.85 front); laid over their own wedges they keep it and add the locks' 
 4.72, lock lines up), so the bangs region is `under: ["bangs"]`.
 Infra note: since ~11:00 the laptop's python3 (python.org 3.11) fails TLS verification on the bucket pulls
 (bucketsync); `CHARKIT_PY=~/animation-pipeline/.venv/bin/python` works (used from here).
+
+## (2e) Free tips (hug_free) and the candidates
+r4sw6 (no ellipsoid) / ell_sw3 (ellipsoid 1.0), six placements, mean (back):
+
+| row | no ellipsoid | ellipsoid 1.0 | peeks | back_lines | hem | lower back P / B |
+|---|---|---|---|---|---|---|
+| pilot pd10 + c5 + hug_free 0.3 | 1.608 (1.98) | **1.361 (1.76)** | 17 / 17.5 | 0.543 W | **2 P** | 0.610 / 0.720 |
+| hem2 pd3 + vd3 + c5 + hf 0.3 | **1.513 (1.93)** | 1.793 (2.43) | 21 / 20.3 | **0.135 P** | 3 | 0.627 / 0.751 |
+| hem2 pd3 + vd3 + c5 + hf 0.5 | 1.609 (1.97) | 1.658 (2.25) | 19 / 19.5 | 0.145 P | 3 | 0.644 / 0.753 |
+| hem2 pd10 + c5 + hf 0.3 | 1.679 (2.20) | 1.881 (2.55) | 17 / 18.5 | 0.108 P | 3 | 0.626 / 0.751 |
+| hem2 pd10 + c5 + hf 0.5 | 1.806 (2.35) | 1.817 (2.46) | 20 / 20.2 | 0.107 P | 3 | 0.634 / 0.755 |
+
+Free tips keep the hem's tips (hem 5 F -> 2-3) at no terminator cost. The pilot's flicks want the ellipsoid (back 1.76
+< the hull's 1.87); the whole hem does better without it (1.93 against 2.25-2.55 with it).
+
+**Merged pipeline-3d 9be5b320** (the hair strokes milestone f28affa with the ellipsoid normals, off by default; the
+clips; face7 gate 1) -> 8e39808 (clean). The coordinator: finish r4 at the bangs/hem results; the next hair round is
+cross-view lock identity; the whole head waits for it.
+
+**Candidates (merged head, specs from mkspec):** C1 the pilot = `tools/hairshell3/c1_pilot.json` (side locks; the left
+hem's flicks phi [100, 175] laid over, opts prior_depth 10, contain 5, hug_free 0.3); C2 extended =
+`tools/hairshell3/c2_ext.json` (side locks; the bangs laid over their wedges; the whole hem, hem_L [90, 180] and hem_R
+[-180, -90], opts prior_depth 3, view_depth 3, contain 5, hug_free 0.3). Ellipsoid: `hair.shape.style`
+{shade_ellipsoid: 1.0} (`tools/hairshell3/ell100.json`). Real builds (`tools/hairshell3/r5_launch.sh NAME SPEC BOX
+BOARDS`: the build, then its six placements on the same box, logs in charkit/out/hairshell3/r5/): r5_hull (render2,
+boards), r5_c1e (render2, boards), r5_c2 (render2, boards), r5_c2e (render2, boards), r5_c1 (build box), r5_hull_e
+(build box).
