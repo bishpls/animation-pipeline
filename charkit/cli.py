@@ -460,7 +460,8 @@ def code_head(spec, resolved, out, mode='on'):
     imgs = [_path(spec['ref']['face_sheet']['image']), _path(M['head_construction']['path'])]
     from . import styles
     key = {'ref': imgs, 'eyes': spec.get('eyes'), 'style': spec.get('style', 'anime'),
-           'face': styles.load(spec.get('style', 'anime'))['face']}          # (the profile's own settings, not just its name)
+           'face': styles.load(spec.get('style', 'anime'))['face'],         # (the profile's own settings, not just its name)
+           'mouth': spec.get('mouth')}                  # (code_base.mouth_block: the mouth's block and rest lip loop)
 
     def run():
         code_base.save_head(spec, path)
@@ -469,7 +470,7 @@ def code_head(spec, resolved, out, mode='on'):
         run()
     else:
         r = cache.file_step('code_head', run, [code_head], key, gdir, inputs=imgs,
-                            modules=('charkit.code_base', 'charkit.geom.headfit', 'charkit.geom.hull'),
+                            modules=('charkit.code_base', 'charkit.geom.headfit', 'charkit.geom.hull', 'charkit.mouth'),
                             name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE code_head', r)
     spec['head_code'] = path

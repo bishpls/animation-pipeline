@@ -659,7 +659,10 @@ def sheet_meshes(B):
                 v, t, _, _ = o.mesh('eval')
                 meshes.append((v, t, np.full(len(t), c)))
     for o in B.objects(groups=('mouth',), visible=False):
-        v, t, _, _ = o.mesh('eval')
+        v, t, tm, _ = o.mesh('eval')
+        if o.part == 'nose':                            # the nose's mark (charkit.nose): its ink tick a line
+            meshes.append((v, t, np.where(tm == 0, CL['line'], CL['other'])))
+            continue
         meshes.append((v, t, np.full(len(t), CL['line'] if 'line' in o.part else CL['other'])))
     covers = []
     for group, c, dst in (('hair', CL['hair'], covers), ('accessory', CL['other'], covers), ('garment', CL['other'], meshes)):
@@ -778,6 +781,9 @@ def _scene_classes(B):
             if o is not None:
                 put(o, lambda mi, c, a, c_=c_, k=k: np.where(a >= 0.5, c_, -1) if k == 'iris' else np.full(len(mi), c_))
     for o in B.objects(groups=('mouth',), visible=False):
+        if o.part == 'nose':                            # the nose's mark (charkit.nose): its ink a line, its highlight white
+            put(o, lambda mi, c, a: np.where(mi == 0, CL['line'], CL['white']))
+            continue
         c_ = CL['white'] if o.part == 'teeth' else CL['line'] if 'line' in o.part else CL['other']
         put(o, lambda mi, c, a, c_=c_: np.full(len(mi), c_))
     for o in _visible(B, ('hair',)):

@@ -21,6 +21,8 @@ DEFAULT_IRIS = {
                                    # pupil sits in the middle of what shows, not of the whole iris
     'striation': 0.25,             # strength of the radial fibres
     'glow': 0.8,                   # the bottom crescent
+    'lid_shadow': 0.45,            # how much the upper lid's shadow darkens the iris's top (0: none; an iris inscribed
+                                   # in the opening shows its whole top, drawn in its own top colour)
     'shine': [                     # (u offset, v offset, rx, rz, alpha) from the iris centre, in eye widths
         (-0.085, 0.14, 0.075, 0.062, 1.0),
         (0.10, -0.12, 0.030, 0.030, 0.9),
@@ -92,7 +94,7 @@ def iris(K=None, n=512):
     pr = np.sqrt((x / K['pupil_rx']) ** 2 + ((zc - K['pupil_cz']) / K['pupil_rz']) ** 2)
     rgb = _mix(rgb, np.array(K['pupil'], float), 1 - _ss(0.92, 1.05, pr))
     # the lid's shadow over the top of the iris
-    rgb = rgb * (1 - 0.45 * _ss(0.05, 0.28, z))[..., None]
+    rgb = rgb * (1 - K['lid_shadow'] * _ss(0.05, 0.28, z))[..., None]
     a = 1 - _ss(0.985, 1.03, r)
     return np.concatenate([np.clip(rgb, 0, 1), a[..., None]], -1)
 

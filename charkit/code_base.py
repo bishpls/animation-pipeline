@@ -385,6 +385,7 @@ def mouth_block(spec):
     xl, zl = lo(s[::-1])
     bulge = MOUTH_LENS * np.sin(np.pi * s) ** 0.8
     loop = np.concatenate([np.stack([xu, zu + bulge], 1), np.stack([xl, zl - bulge[::-1]], 1)[1:-1]])
+    loop[:, 1] -= float((K.get('rest') or {}).get('drop', 0.0))     # the mouth set lower in its block (mouth.py `rest`)
     return (hw + MOUTH_GAP, max(0.045, top + MOUTH_GAP), MOUTH_BELOW), loop
 
 

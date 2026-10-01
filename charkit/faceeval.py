@@ -172,6 +172,9 @@ def features(b, A, S, keys=False):
         if keys:
             var['base'] = dict(G, keys={'mouth_' + sh: D for sh, D in Mo[kk].items()})
         b.add(nm, 'mouth', var, part=nm, materials=[nm])
+    if Mo.get('nose') is not None:                       # the nose's mark (charkit.nose): ink and highlight, no keys
+        v, q, sl = Mo['nose']
+        b.add('nose', 'mouth', {'eval': dict(V=v, faces=q, pmat=sl)}, part='nose', materials=['nose', 'nose_high'])
 
 
 def skin_variants(A, keys=True):
