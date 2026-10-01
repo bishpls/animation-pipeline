@@ -15,7 +15,8 @@ garments away from the drawing to clear a pose shows there).
              the garments bound to the hips, the hair to the upper chest, each finger skinned to the bones two fingers
              on, the skirt and flaps to the left thigh, 2% of the skin's vertices given half their weight on a far bone,
              the garments' weights shuffled
-  reference  the design leg's rig per adapter: Rom the build itself (the checks it passes), RomVolume the same rig
+  reference  the design leg's rig per adapter: Rom and RomShoulder the build itself (the checks it passes; the shoulder's
+             on the joined-shoulder candidate), RomVolume the same rig
              skinned by dual quaternions (volume-keeping), RomRigid every garment rigid on its commonest bone (garment
              strain); RomFit (the body's weights on the garments) is kept for the garment checks' next calibration
 """
@@ -26,7 +27,9 @@ CALIBRATION = [
          shape=['piece_boot_L', 'piece_boot_R'], better='higher', baseline=['shuffled_weights']),
     dict(check='rom_vol_fingers', part='rom', adapter='RomVolume', known_bad='rom_lbs', kind='defect',
          shape=['piece_cuff_L', 'piece_cuff_R'], better='higher', baseline=['shuffled_weights']),
-    dict(check='rom_shoulder_torso', part='rom', adapter='Rom', known_bad='rom_rigid_shoulder', kind='defect',
+    dict(check='rom_shoulder_torso', part='rom', adapter='RomShoulder', known_bad='rom_rigid_shoulder', kind='defect',
+         shape=['piece_top', 'piece_sleeve_L', 'piece_sleeve_R'], better='lower', baseline=['shuffled_weights']),
+    dict(check='rom_shoulder_open', part='rom', adapter='RomShoulder', known_bad='rom_rigid_shoulder', kind='defect',
          shape=['piece_top', 'piece_sleeve_L', 'piece_sleeve_R'], better='lower', baseline=['shuffled_weights']),
     dict(check='rom_hair_shoulders', part='rom', adapter='Rom', known_bad='rom_hair_on_chest', kind='defect',
          shape=['piece_collar', 'piece_top'], better='lower', baseline=['shuffled_weights']),
@@ -197,6 +200,11 @@ class Rom:
         if d is None:
             return None
         return self._checks(calibrate.load_bundle(d))
+
+
+class RomShoulder(Rom):
+    """the shoulder at the arm poses: the design leg the build itself (calibrate it on a joined-shoulder build; the
+    known-bad is the stored rigid-tube body)."""
 
 
 class RomVolume(Rom):

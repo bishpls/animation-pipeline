@@ -804,15 +804,16 @@ class Context:
         self.contact = {}
         shell = shells(o.V, o.F)
         for name, a, b in SKIN_PAIRS:
-            if b in self.bv0 and a in self.pts and not name.startswith('finger_'):
-                idx = self.pts[a]
+            if b in self.bv0 and a in self.R and not name.startswith('finger_'):
+                idx = np.nonzero(self.R[a])[0]                 # (every vertex: a contact is a few dozen of them)
                 idx = idx[~np.isin(shell[idx], np.unique(shell[self.R[b]]))]     # (separate shells only: a joined
                 if not len(idx):                                                   # region stretches, never opens)
                     continue
                 d = self.bv0[b].nearest(o.V[idx])[0]
                 near = (d < CONTACT * self.L) | (self.bv0[b].winding_number(o.V[idx]) > 0.5)
                 if near.sum() >= 8:
-                    self.contact[name] = idx[near]
+                    idx = idx[near]
+                    self.contact[name] = idx[_every(len(idx), max_points)]
         self.skin_bv0 = BVH((o.V, o.F))
         # the skin round each joint (within ZONE L of its head at rest): where its deformation is read
         self.zones = {}
