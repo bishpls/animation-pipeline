@@ -950,3 +950,15 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   back/front projections, clear_body {gap 0.02, from_t -0.3}, the cap's body weights), g6_f1l45 (body F1L45, same);
   specs charkit/out/garments6/specs/b_F1.json, b_F1L45.json; logs build_f1.log, build_f1l45.log. Next garment set gb.json
   (the collar bed along its normal).
+- Builds g6_f1 / g6_f1l45 (render2; garments ga.json) against the old body (kcmp): piece_top f/3q 0.565/0.691 and
+  0.649/0.744 (old 0.749/0.800), sleeve_L front 0.79 / 0.81, sleeve_R front 0.76 / 0.81; bow_front_bleed 0.0125 /
+  0.015 PASS; shoulder_front/back_dip 0 PASS, front tilt 0.10 W / 0.078 P, front top 0.028 W (were FAIL); but
+  neck_crease 96 / 104 FAIL (worst columns +-55..75 deg), collar torn x4 FAIL, piece_collar front/3q -28/-41% and
+  -21/-31% (guard), art_outline_collar 8.8 / 9.6 W, art_outline_neck 9.0 / 6.3 W, art_speckle_neck (flag) 3.9 / 9.2 W,
+  sleeve spikes/profile FAIL. tools/garments6/look.py (renders, collar region): skin patches at the puffs' inner front and
+  back and at the shoulder tops; skinwhere.py: the skin showing is mostly the bridge's skin on the jacket's border
+  (front 0.055 L^2, back 0.066): with tuck margin 0 the jacket's last faces are dropped where one vertex is inside the
+  puff, and the border skin there lies outside it. Next: margin 0.02-0.03; the collar bed along its normal (gb).
+- Builds running (render2): g6_b1 (F1L45 + gb, tuck margin 0.02), g6_b2 (margin 0.03), g6_b3 (F1 + gb margin 0.02);
+  specs charkit/out/garments6/specs/b1-3.json, logs build_b1..3.log.
+- puff_clear `dilate`/`blur` (a smooth plateau over the needs, never under them) added for the lumps.

@@ -3327,6 +3327,14 @@ def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
         grow = np.maximum(grow, g)
         grow = np.maximum(grow, ndimage.gaussian_filter(grow, (1.0, 1.0), mode=('nearest', 'wrap')))
         grow[ts > t_last] = 0.0
+    if cb.get('dilate'):
+        # a smooth plateau over the needs (round 6: the 3x3 mean's peaks stayed lumps on the puff's inner front,
+        # sleeve_*_spikes): dilated over `dilate` cells, blurred by `blur` cells (sigma), never under the needs
+        k = int(cb['dilate'])
+        g2 = ndimage.maximum_filter(grow, size=(k, k), mode=('nearest', 'wrap'))
+        g2 = ndimage.gaussian_filter(g2, float(cb.get('blur', 1.0)), mode=('nearest', 'wrap'))
+        grow = np.maximum(grow, g2)
+        grow[ts > t_last] = 0.0
     for _ in range(int(cb.get('smooth', 2))):
         g2 = ndimage.uniform_filter(grow, size=3, mode=('nearest', 'wrap'))
         grow = np.maximum(grow, g2)
