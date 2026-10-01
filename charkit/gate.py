@@ -720,8 +720,13 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             if failed.is_set():                         # (fail-fast: a test failed; nothing more builds)
                 return dict(ok=False, killed=True, seconds=0.0, cpu=0.0, steps={}, cache=[], log='', threads=None,
                             not_started=True)
+            a = cand_args if side == 'candidate' else list(args) + (
+                # (CHARKIT_GATE_VERIFY_BASE=1: the baseline's shared steps and produced references made afresh and
+                # compared with what a restore would give, CHARKIT_CACHE_STALE where they differ; off by default: the
+                # entries carry the code they ran and a restore checks it, cache.ran)
+                ['--cache', 'verify'] if os.environ.get('CHARKIT_GATE_VERIFY_BASE') == '1' else [])
             with clock('%s build' % side) as ph:
-                r = _build(wt, spec, out, cand_args if side == 'candidate' else args, procs=running, stop=failed, **kw)
+                r = _build(wt, spec, out, a, procs=running, stop=failed, **kw)
                 ph['note'] = 'CPU %s s%s' % (r['cpu'], ', stopped' + (' (a test failed)' if failed.is_set() else '')
                                              if r['killed'] else '')
                 return r
@@ -1352,6 +1357,11 @@ def judge(rep, qa_a, qa_b):
                          'remeasured', 'unregistered', 'twobytwo', 'accepted', 'calibration', 'shapes', 'parts',
                          'notes')}
     R['notes'] += list(rep.get('notes') or ())
+    for side in ('base_build', 'cand_build'):           # (a shared cache entry found stale while the build verified it)
+        st = [l for l in (rep.get(side) or {}).get('cache') or () if 'CHARKIT_CACHE_STALE' in l]
+        if st:
+            R['notes'].append('the %s build found stale cache entries (made afresh, replaced): %s' % (
+                side.split('_')[0], '; '.join(l.split('CHARKIT_CACHE_STALE', 1)[1].strip()[:120] for l in st)))
     over = [r for r in rep.get('budget') or () if r.get('flag')]
     if over:
         R['notes'].append('build CPU past its budget (charkit/budget.json; reported, not blocking): ' + ', '.join(

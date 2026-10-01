@@ -623,6 +623,94 @@ class Tree:
 _TREE = [None]                          # the tree the code walk reads (code_tree()); None: this checkout
 
 
+# ------------------------------------------------------------------------------- the code that ran (the runtime closure)
+RAN_TOOL = 4                            # the sys.monitoring tool id the record uses (0-2 and 5 are Python's named ones)
+
+
+@contextlib.contextmanager
+def ran():
+    """the charkit definitions whose code runs inside the block, recorded as it runs (sys.monitoring's PY_START, each
+    code object reported once: no cost to speak of) -> a dict filled when the block ends: {'path:definition' (or
+    'path:<top>'): its digest now}, as code_units names units. A cache entry keeps it and a lookup checks it
+    (ran_changed): the static walk behind a key can't see everything a step runs (a computed import, a depth limit),
+    the record can. Nested, or without sys.monitoring (Python before 3.12) or a free tool id, the dict stays None-free
+    but marked {'<unrecorded>': why}."""
+    got = {}
+    mon = getattr(sys, 'monitoring', None)
+    if mon is None:
+        got['<unrecorded>'] = 'no sys.monitoring'
+        yield got
+        return
+    try:
+        mon.use_tool_id(RAN_TOOL, 'charkit.cache.ran')
+    except ValueError:
+        got['<unrecorded>'] = 'the record is in use (nested)'
+        yield got
+        return
+    codes = set()
+
+    def seen(code, offset):
+        codes.add((code.co_filename, code.co_qualname))
+        return mon.DISABLE
+    try:
+        mon.register_callback(RAN_TOOL, mon.events.PY_START, seen)
+        mon.restart_events()                    # (code reported to an earlier record reports again)
+        mon.set_events(RAN_TOOL, mon.events.PY_START)
+        yield got
+    finally:
+        mon.set_events(RAN_TOOL, 0)
+        mon.register_callback(RAN_TOOL, mon.events.PY_START, None)
+        mon.free_tool_id(RAN_TOOL)
+        got.update(ran_units(codes))
+
+
+def _ran_module(path):
+    """a source file -> its charkit module name, or None (outside charkit, its tests or outputs)."""
+    path = os.path.abspath(path)
+    if not path.startswith(KIT + os.sep) or not path.endswith('.py') or \
+            path.startswith((os.path.join(KIT, 'out') + os.sep, os.path.join(KIT, 'tests') + os.sep)):
+        return None
+    return os.path.relpath(path, ROOT)[:-3].replace(os.sep, '.').replace('.__init__', '')
+
+
+def ran_units(codes):
+    """(file, qualified name) pairs of code that ran -> {'path:definition' or 'path:<top>': digest} (a nested function
+    or method counts as its top-level definition; a module's own statements and lambdas as its <top>)."""
+    out = {}
+    for f, qn in codes:
+        m = _ran_module(f)
+        if m is None:
+            continue
+        try:
+            M = _mod(m)
+        except (TypeError, OSError, SyntaxError):
+            continue
+        top = qn.split('.')[0]
+        if top in M.defs:
+            out['%s:%s' % (M.rel, top)] = M.defs[top][0]
+        else:
+            out[M.rel + ':<top>'] = M.top
+    return dict(sorted(out.items()))
+
+
+def ran_changed(rec):
+    """a recorded runtime closure (ran()) against the code now -> the first unit that differs or is gone ('<unrecorded>'
+    when there is no record: an entry from before the record, or one made where it couldn't record), else None (an
+    empty record: no charkit code ran, nothing to change)."""
+    if rec is None or '<unrecorded>' in rec:
+        return '<unrecorded>'
+    for u, dg in rec.items():
+        rel, _, name = u.rpartition(':')
+        m = rel[:-3].replace('/', '.').replace('.__init__', '')
+        try:
+            M = _mod(m)
+        except (TypeError, OSError, SyntaxError):
+            return u
+        if (M.top if name == '<top>' else (M.defs.get(name) or [None])[0]) != dg:
+            return u
+    return None
+
+
 @contextlib.contextmanager
 def code_tree(tree):
     """code_units (and _mod) read tree's modules inside: a Tree, or a worktree's path. The memo of parsed modules
@@ -706,8 +794,12 @@ class _Mod:
     names the top level binds to charkit modules (bound) and to names in them (bound_from); the charkit modules it
     imports anywhere. Plain data, memoized on disk by file stamp. For the finer walk (code_units(fine=True): the
     gate's comparisons, not cache keys) also each top-level assignment to plain names (assigns: {name: [digest, names,
-    attrs, local]}) and the rest of the top level without them or the imports (rest, rest_refs)."""
-    SCHEMA = 4
+    attrs, local]}) and the rest of the top level without them or the imports (rest, rest_refs). An import made by a
+    call with a literal name (`m = importlib.import_module('charkit.x')`, `__import__('charkit.x', fromlist=..)`)
+    binds and is followed like an import statement: before 2026-10-01 it was invisible, and code_base.head_sections'
+    runtime headfit import kept the hull's shared-cache key blind to headfit (a stale baseline hull faked a regression
+    in a gate after face7 changed headfit)."""
+    SCHEMA = 5
 
     def __init__(self, name, path, d=None):
         self.name, self.path = name, path
@@ -726,6 +818,10 @@ class _Mod:
             if isinstance(n, (ast.Import, ast.ImportFrom)):
                 for k, v in self._binds(n).items():
                     (self.bound if isinstance(v, str) else self.bound_from)[k] = v
+            elif isinstance(n, ast.Assign) and self._dyn(n.value):       # (a top-level `m = import_module('..')`)
+                for t_ in n.targets:
+                    if isinstance(t_, ast.Name):
+                        self.bound[t_.id] = self._dyn(n.value)
         used = set()
         for n in tree.body:
             refs = self._refs(n)
@@ -783,6 +879,25 @@ class _Mod:
                     out[a.asname or a.name] = [m, a.name]
         return out
 
+    def _dyn(self, n):
+        """a call importing a module by a literal name (importlib.import_module, __import__ with a fromlist: the module
+        itself) -> that charkit module, or None (a computed name, or not charkit's: not followed)."""
+        if not isinstance(n, ast.Call) or not n.args:
+            return None
+        f = n.func
+        fname = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else None
+        a = n.args[0]
+        if fname not in ('import_module', '__import__') or not (isinstance(a, ast.Constant) and isinstance(a.value, str)):
+            return None
+        m = a.value
+        if m.startswith('.'):                       # (import_module('.x', __package__): relative to this package)
+            lv = len(m) - len(m.lstrip('.'))
+            pkg = self.pkg.split('.')
+            m = '.'.join(pkg[:len(pkg) - (lv - 1)] + [m.lstrip('.')])
+        if fname == '__import__' and not (len(n.args) > 3 or any(k.arg == 'fromlist' for k in n.keywords)):
+            m = m.split('.')[0] if '.' in m else m      # (no fromlist: __import__ returns the top package)
+        return m if _module_file(m) else None
+
     def _refs(self, node):
         """what a top-level statement refers to outside its own scopes -> {'names': free names, 'attrs': [[name, attr]]
         (a free name's attribute), 'imps': charkit modules imported inside, 'local': [[module, attr or None]] (through
@@ -794,8 +909,22 @@ class _Mod:
                 b = self._binds(n)
                 binds.update(b)
                 imps |= {v if isinstance(v, str) else v[0] for v in b.values()}
+            elif isinstance(n, ast.Assign) and self._dyn(n.value):
+                m = self._dyn(n.value)                  # (`x = importlib.import_module('charkit.m')`: x binds m)
+                binds.update({t_.id: m for t_ in n.targets if isinstance(t_, ast.Name)})
+                imps.add(m)
 
         def walk(n, bound):
+            if isinstance(n, ast.Assign) and self._dyn(n.value):
+                for t_ in n.targets:                    # (the call is the binding above, not a use of the module)
+                    walk(t_, bound)
+                return
+            if isinstance(n, ast.Attribute) and self._dyn(n.value):
+                local.add((self._dyn(n.value), n.attr))     # (`__import__('charkit.m', fromlist=[..]).f`)
+                return
+            if isinstance(n, ast.Call) and self._dyn(n):
+                local.add((self._dyn(n), None))         # (imported and used otherwise: the module whole)
+                return
             if isinstance(n, _SCOPES + _COMPS):
                 bound = bound | _bindings(n)
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id not in bound:
@@ -2471,14 +2600,16 @@ def _unport(p, build_out):
 
 
 def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False, depth=None,
-              build_out=None):
+              build_out=None, verify=False):
     """a venv-side step whose product is files under `out` (the geom hair cut, before Blender): restored by copying them
     when its code (fns and `modules` with what they import, `depth` imports deep: step_depth()), the venv's packages,
     `key` (what it is given, exactly), the content of `inputs` and of every file it opened are unchanged. Paths in the
     key, the inputs and the reads are keyed portably (the build's out folder, build_out, default out's parent when out
     is its geom folder, as '<out>/'; the worktree's relative), so entries hit across worktrees and gate clones (step_dir()).
     A hit records what the step depends on in the build's input closure (charkit.closure: the files it would have read
-    and its code), as the step itself would have. -> 'hit' | 'miss: why'."""
+    and its code), as the step itself would have. verify (a build's --cache verify): the entry a lookup would restore
+    isn't; the step runs and its products are compared with the entry's (same_product): CHARKIT_CACHE_STALE when they
+    differ, the entry replaced. -> 'hit' | 'miss: why' | 'verified' | 'stale: files'."""
     global _REC
     d = step_dir()
     files = Files(d)
@@ -2495,10 +2626,20 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
     static = digest([SCHEMA, 'venv', name, units, envv, _port(key, pre),
                      sorted((_port(os.path.abspath(p), pre), files.get(p)) for p in inputs)])
     kd = os.path.join(d, 'venv', name, static[:20])
+    ran_why = was = None
     for c in _entries(kd) if not refresh else []:
         try:
             E = Entry(c)
             if all(files.get(_unport(p, build_out)) == h for p, h in E.m['reads']):
+                # (the code the step ran, recorded as it ran: what the key's static walk can't see; a change there,
+                # or an entry with no record, is a miss and the entry goes: 2026-10-01's stale baseline hull)
+                ran_why = ran_changed(E.m.get('ran'))
+                if ran_why is not None:
+                    shutil.rmtree(E.dir, ignore_errors=True)
+                    continue
+                if verify:
+                    was = E                             # (what a lookup would restore: compared after the run)
+                    break
                 for rel in E.m['files']:
                     dst = os.path.join(out, rel)
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -2512,7 +2653,8 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
                 return 'hit'
         except (OSError, ValueError, KeyError):
             continue
-    why = 'refresh' if refresh else 'file changed' if _entries(kd) else 'no entry'
+    why = 'refresh' if refresh else ('code it ran changed: %s' % ran_why) if ran_why else 'file changed' \
+        if _entries(kd) else 'no entry'
     last = os.path.join(d, 'last', 'venv_%s_%s.json' % (name, name_key or 'build'))
     try:
         L = json.load(open(last))
@@ -2531,12 +2673,24 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
     lines, errs = [], []
     _REC = rec
     try:
-        with _tee(lines, errs):
+        with _tee(lines, errs), ran() as R:
             run()
     finally:
         _REC = None
     after = _tree(out)
     outs = sorted(k for k, v in after.items() if before.get(k) != v)
+    verdict = None
+    if was is not None:
+        bad = sorted(set(was.m['files']) ^ set(outs)) + [
+            rel for rel in sorted(set(was.m['files']) & set(outs))
+            if not same_product(os.path.join(was.dir, 'files', rel), os.path.join(out, rel))]
+        verdict = ('stale: ' + ', '.join(bad[:6])) if bad else 'verified'
+        if bad:
+            print('CHARKIT_CACHE_STALE step %s: %s (made %s)' % (name, ', '.join(bad[:6]), was.m.get('created')),
+                  flush=True)
+            shutil.rmtree(was.dir, ignore_errors=True)  # (this run's own takes its place)
+        else:
+            return verdict
     reads = sorted((_port(p, pre), files.get(p)) for p in rec.files)
     key2 = digest([static, reads])
     from . import closure
@@ -2547,6 +2701,8 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
         return 'miss: charkit changed during the step (not stored)'
     if _caught(errs):
         return 'miss: %s (an error was caught while it ran: not stored)' % why
+    if '<unrecorded>' in R:
+        return 'miss: %s (the code it ran was not recorded, %s: not stored)' % (why, R['<unrecorded>'])
     os.makedirs(d, exist_ok=True)                   # (room() asks its disk: a new shared folder has none yet)
     if not room(d):
         return 'miss: %s (the disk is nearly full: not stored)' % why
@@ -2558,6 +2714,7 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
             shutil.copyfile(os.path.join(out, rel), dst)
         _write_json(os.path.join(tmp, 'manifest.json'), dict(schema=SCHEMA, kind='venv', step=name, static=static, units=units,
                                                              env=envv, reads=reads, files=outs, out=os.path.abspath(out),
+                                                             ran=R,
                                                              created=time.strftime('%Y-%m-%dT%H:%M:%S'),
                                                              stdout=[l for l in lines if l.startswith(('geom ', 'CHARKIT_'))]))
         final = os.path.join(kd, key2[:24])
@@ -2576,7 +2733,7 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
     except Exception:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
-    return 'miss: ' + why
+    return verdict or 'miss: ' + why
 
 
 # ------------------------------------------------------------------------------------------------------ venv QA parts
@@ -2670,7 +2827,8 @@ def qa_part(name, fn, B, design, out, args=(), mode='on'):
                 R = E_.m['reads']
                 bad = next((k for k, h in R['arrays'] if not B.has(k) or B.hash_of(k) != h), None) or \
                     next(('/'.join(p) for p, h in R['meta'] if B.hash_of(tuple(p)) != h), None) or \
-                    next((p for p, h in R['files'] if files.get(p) != h), None)
+                    next((p for p, h in R['files'] if files.get(p) != h), None) or \
+                    (lambda u: u and 'the code it ran: %s' % u)(ran_changed(E_.m.get('ran')))
                 if bad is None:
                     E = E_
                     break
@@ -2697,7 +2855,7 @@ def qa_part(name, fn, B, design, out, args=(), mode='on'):
             E = None
     before = _tree(out) if out else {}
     lines, errs = [], []
-    with B.recording() as rd, _tee(lines, errs):
+    with B.recording() as rd, _tee(lines, errs), ran() as ran_rec:
         result = fn(B, design, out, *args)
     after = _tree(out) if out else {}
     outs = sorted(k for k, v in after.items() if before.get(k) != v and k != 'qa.json')
@@ -2715,13 +2873,18 @@ def qa_part(name, fn, B, design, out, args=(), mode='on'):
             info['stale'] = bad[:6]
             print('CHARKIT_CACHE_STALE %s: %s' % (name, ', '.join(bad[:6])))
     edited = kit_edited() if mode != 'off' else None
-    if mode != 'off' and not _caught(errs) and room(d) and not edited:
+    def stale(final):
+        try:
+            return ran_changed(Entry(final).m.get('ran')) is not None
+        except (OSError, ValueError, KeyError):
+            return True
+    if mode != 'off' and not _caught(errs) and room(d) and not edited and '<unrecorded>' not in ran_rec:
         reads = dict(arrays=sorted([k, B.hash_of(k)] for k in rd.arrays),
                      meta=sorted([list(p), B.hash_of(p)] for p in rd.meta),
                      files=sorted([p, files.get(p)] for p in rd.files))
         key = digest([static, reads])[:24]
         final = os.path.join(kd, key)
-        if not os.path.exists(final) or mode == 'refresh':
+        if not os.path.exists(final) or mode == 'refresh' or stale(final):
             tmp = tempfile.mkdtemp(prefix='.w-', dir=d)
             try:
                 for rel in outs:
@@ -2731,7 +2894,7 @@ def qa_part(name, fn, B, design, out, args=(), mode='on'):
                 _write_state(os.path.join(tmp, 'state.pkl'), pickle.dumps(result, protocol=pickle.HIGHEST_PROTOCOL))
                 _write_json(os.path.join(tmp, 'manifest.json'), dict(
                     schema=SCHEMA, kind='qa', step=name, static=static, units=units, env=venv_env(), reads=reads,
-                    files=outs, digests={rel: content_digest(os.path.join(out, rel)) for rel in outs},
+                    ran=ran_rec, files=outs, digests={rel: content_digest(os.path.join(out, rel)) for rel in outs},
                     created=time.strftime('%Y-%m-%dT%H:%M:%S')))
                 os.makedirs(kd, exist_ok=True)
                 if os.path.exists(final):
@@ -2746,7 +2909,9 @@ def qa_part(name, fn, B, design, out, args=(), mode='on'):
         files.save()
     elif mode != 'off':
         info.update(stored=False, uncacheable='%s changed during the QA' % edited if edited else
-                    'an error was caught while it ran' if _caught(errs) else 'the disk is full')
+                    'an error was caught while it ran' if _caught(errs) else
+                    'the code it ran was not recorded (%s)' % ran_rec['<unrecorded>'] if '<unrecorded>' in ran_rec
+                    else 'the disk is full')
     trace.event('part', name, dt=round(time.perf_counter() - t, 4), cache=info, where='venv')
     return result
 
@@ -2984,6 +3149,25 @@ def content_digest(p):
             return hashlib.sha256(f.read()).hexdigest()
     except OSError:
         return 'absent'
+
+
+def same_product(a, b):
+    """two products' files the same? An .npz by its arrays (its zip members carry the time it was written), anything
+    else by content_digest."""
+    if a.endswith('.npz') and b.endswith('.npz'):
+        try:
+            A, B = np.load(a, allow_pickle=False), np.load(b, allow_pickle=False)
+            if sorted(A.files) != sorted(B.files):
+                return False
+            for k in A.files:
+                x, y = A[k], B[k]
+                if x.dtype != y.dtype or x.shape != y.shape or not np.array_equal(
+                        x, y, equal_nan=x.dtype.kind in 'fc'):
+                    return False
+            return True
+        except (OSError, ValueError):
+            pass
+    return content_digest(a) == content_digest(b)
 
 
 def room(d, need_gb=None):

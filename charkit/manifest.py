@@ -251,8 +251,9 @@ def stamp(spec, r, parts=False):
 
 
 STAMP_DEPTH = 1             # the producer's code one import deep: its own module's functions it runs and the modules
-                            # they import, not theirs in turn (those reach all of charkit, so any edit anywhere would
-                            # rebuild the hull: 2-3 minutes a build in every worktree)
+                            # they import, not theirs in turn (all of it reaches the design side's measures in the QA's
+                            # modules: a QA edit would rebuild this copy's hull, 2-3 minutes). A deeper change keeps this
+                            # copy's product: the shared cache's key (CACHE_DEPTH) and `--cache verify` catch it
 
 
 def _producer_code(r, depth=STAMP_DEPTH):
@@ -268,8 +269,10 @@ def _producer_code(r, depth=STAMP_DEPTH):
 
 
 # ------------------------------------------------------------------------------ the shared cache of produced references
-CACHE_DEPTH = 2             # the key's code: two imports deep, one more than the stamp. A miss costs a rebuild (what a
-                            # fresh copy pays today); a false hit would restore what older code made, so err to missing
+CACHE_DEPTH = None          # the key's code: all of it (2 until 2026-10-01: face7 changed headfit, two imports below
+                            # the hull's producer, and a gate restored a baseline hull older code made; a false regression
+                            # followed). A miss costs a rebuild (what a fresh copy pays); a false hit restores what older
+                            # code made, so err to missing
 CACHE_KEEP = 30             # entries kept per reference, newest (by last use) first; CHARKIT_PRODUCED_CACHE_KEEP
 _TAG = 'CHARKIT_PRODUCED'   # the log lines' prefix, so a build's output can be searched for them
 
@@ -424,6 +427,24 @@ def cache_restore(root, rid, key, st, p):
     return E, 'hit'
 
 
+def _ran_stale(root, rid, key):
+    """the shared entry RID/KEY checked against the code it ran when it was made (its entry.json's `ran`: what the
+    key's static walk can't see) -> None (no entry, or its code unchanged: restore it), or why it's a miss (the entry
+    then deleted, so this build's own takes its place)."""
+    from . import cache
+    e = os.path.join(root, rid, key)
+    try:
+        E = json.load(open(os.path.join(e, 'entry.json')))
+    except (OSError, ValueError):
+        return None                                     # (none, or damaged: cache_restore says which)
+    u = cache.ran_changed(E.get('ran'))
+    if u is None:
+        return None
+    _drop(e)
+    return ('made with no record of the code it ran' if u == '<unrecorded>' else
+            'the code it ran changed (%s)' % u) + ', deleted'
+
+
 def cache_store(root, rid, key, p, rels, **meta):
     """the files `rels` (relative to the reference's folder) stored as entry RID/KEY: copied into KEY.tmp-PID with an
     entry.json of their sizes and sha256s, then renamed into place. Where another build stored KEY first, this one is
@@ -514,9 +535,24 @@ def produced(spec, rid, log=print):
     if not r.get('produced_by'):
         return p
     sp = p + '.stamp'
-    have = lambda: open(sp).read().strip() if os.path.exists(sp) else None
+    from . import cache
+
+    def have():
+        """this copy's stamp, when the code its build ran (PATH.stamp.json's `ran`, since 2026-10-01) is unchanged"""
+        if not os.path.exists(sp):
+            return None
+        try:
+            rec = json.load(open(sp + '.json')).get('ran')
+        except (OSError, ValueError):
+            rec = None
+        if rec and '<unrecorded>' not in rec and cache.ran_changed(rec) is not None:
+            return 'stale: the code its build ran changed (%s)' % cache.ran_changed(rec)
+        return open(sp).read().strip()
     st, parts = stamp(spec, r, parts=True)
-    if os.path.exists(p) and have() == st:
+    # (a build's --cache verify: CHARKIT_PRODUCED_VERIFY=1; made afresh and compared with what would have been kept
+    # or restored: CHARKIT_CACHE_STALE when they differ)
+    verify = os.environ.get('CHARKIT_PRODUCED_VERIFY') == '1'
+    if os.path.exists(p) and have() == st and not verify:
         return p
     for k in r.get('reads', ()):
         if k != rid and (R.get(k) or {}).get('produced_by'):
@@ -527,8 +563,12 @@ def produced(spec, rid, log=print):
     with open(p + '.lock', 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         was = have()
-        if os.path.exists(p) and was == st:                      # another build in this copy made it meanwhile
+        if os.path.exists(p) and was == st and not verify:       # another build in this copy made it meanwhile
             return p
+        old = None
+        if verify and os.path.exists(p) and was == st:          # (this copy's own, kept aside for the comparison)
+            old = p + '.verify-old'
+            shutil.copyfile(p, old)
         root = cache_root()
         log('%s: %s%s' % (rid, 'missing' if not os.path.exists(p) else 'stale (its producer or inputs changed)'
                           if was else 'unstamped (made before stamps, or by hand)', '' if root else ', building'))
@@ -544,7 +584,12 @@ def produced(spec, rid, log=print):
             t0 = time.time()
             key = '%s-%s' % (st, code2(R, rid))
             short = '%s-%s' % (st[:8], key.split('-')[1][:8])
-            E, why = cache_restore(root, rid, key, st, p)
+            E, why = None, _ran_stale(root, rid, key)
+            if why is None and verify and old is None and os.path.isdir(os.path.join(root, rid, key)):
+                old = os.path.join(root, rid, key, 'files', os.path.basename(p))
+                why = 'verify'                          # (the entry a lookup would restore, compared after the build)
+            if why is None:
+                E, why = cache_restore(root, rid, key, st, p)
             if E:
                 dt = time.time() - t0
                 size = sum(v[0] for v in E['files'].values())
@@ -565,22 +610,44 @@ def produced(spec, rid, log=print):
         t0 = time.time()
         if r['produced_by'] == 'charkit.geom.hull':
             from .geom import hull
-            hull.build(json.loads(json.dumps(cut)), d, validate_views=False, page=False)
+            with cache.ran() as ran_rec:                # (the code it ran: the stamp's and the entry's runtime record)
+                hull.build(json.loads(json.dumps(cut)), d, validate_views=False, page=False)
         else:
-            import shlex, subprocess, sys
+            import shlex, subprocess, sys, tempfile
             rel = lambda x: os.path.relpath(x, ROOT) if x.startswith(ROOT + os.sep) else x
             cmd = r['command'].replace('{spec}', rel(cut_path)).replace('{out}', rel(d))
             args = shlex.split(cmd)
             if args[0].startswith('python'):
                 args[0] = sys.executable
             log('%s: %s' % (rid, cmd))
-            subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+            fd, rp = tempfile.mkstemp(prefix='charkit-ran-', suffix='.json')
+            os.close(fd)
+            try:                                        # (the producer's process records the code it ran: cli.main)
+                subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.DEVNULL,
+                               env=dict(os.environ, CHARKIT_RAN_OUT=rp))
+                try:
+                    ran_rec = json.load(open(rp))
+                except (OSError, ValueError):           # (not a charkit command: none of charkit's code ran in it)
+                    ran_rec = {} if '-m' not in args or 'charkit' not in args else \
+                        {'<unrecorded>': 'the charkit command wrote no record'}
+            finally:
+                os.remove(rp)
+        if old is not None and os.path.exists(p):
+            same = cache.same_product(old, p)
+            log('CHARKIT_CACHE_%s produced %s: %s' % ('VERIFIED' if same else 'STALE', rid, 'the same as %s' % (
+                'this copy\'s' if old.endswith('.verify-old') else 'the shared entry') if same else
+                'differs from %s (made by other code)' % ('this copy\'s' if old.endswith('.verify-old') else
+                                                          'the shared entry %s' % short)))
+            if old.endswith('.verify-old'):
+                os.remove(old)
+            elif not same:
+                _drop(os.path.join(root, rid, key))     # (this build's own is stored in its place)
         if not os.path.exists(p):               # a producer that ran without making it: never stamped, and the build
             raise RuntimeError('%s: its producer (%s) ran but made no %s; the build stops rather than going on '
                                'without it' % (rid, r['produced_by'], r['path']))
         dt = time.time() - t0
         with open(sp + '.json.tmp', 'w') as f:
-            json.dump(dict(parts, stamp=st), f, indent=1, sort_keys=True)
+            json.dump(dict(parts, stamp=st, ran=ran_rec), f, indent=1, sort_keys=True)
         os.replace(sp + '.json.tmp', sp + '.json')
         with open(sp + '.tmp', 'w') as f:
             f.write(st + '\n')
@@ -589,7 +656,9 @@ def produced(spec, rid, log=print):
             rels = _written(before, _listing(d), p)
             size = sum(os.path.getsize(os.path.join(d, x)) for x in rels)
             res = cache_store(root, rid, key, p, rels, stamp=st, code2=key.split('-')[1], seconds=round(dt, 1),
-                              stored=time.strftime('%Y-%m-%dT%H:%M:%S'), copy=ROOT)
+                              stored=time.strftime('%Y-%m-%dT%H:%M:%S'), copy=ROOT, ran=ran_rec) \
+                if '<unrecorded>' not in ran_rec else 'skipped: the code it ran was not recorded (%s)' % \
+                ran_rec['<unrecorded>']
             gone = cache_prune(root, rid)
             log('%s %s: built in %.1f s; %s %s: %d files, %s%s' % (
                 _TAG, rid, dt, res, short, len(rels), _mb(size), '; pruned %d' % gone if gone else ''))

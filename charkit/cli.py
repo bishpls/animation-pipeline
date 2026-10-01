@@ -304,6 +304,8 @@ def _build(args):
     if n:
         print('build: %d files in %s were hard-linked elsewhere; unshared' % (n, out))
     phase = _phases()
+    if opt('--cache') == 'verify':              # (the produced references are made afresh and compared too)
+        os.environ['CHARKIT_PRODUCED_VERIFY'] = '1'
     with phase('resolve'):                      # the references produced, the design measured, the knobs fitted
         spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args, base=opt('--base'))
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
@@ -497,7 +499,7 @@ def code_head(spec, resolved, out, mode='on'):
         r = cache.file_step('code_head', run, [code_head], key, gdir, inputs=imgs,
                             modules=('charkit.code_base', 'charkit.geom.headfit', 'charkit.geom.hull', 'charkit.mouth',
                                      'charkit.faceregion'),
-                            name_key=spec['name'], refresh=mode == 'refresh')
+                            name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE code_head', r)
     spec['head_code'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -533,7 +535,7 @@ def code_body(spec, resolved, out, mode='on'):
                             modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.geom.hullshell',
                                      'charkit.code_hand'),
                             name_key=spec['name'],
-                            refresh=mode == 'refresh')
+                            refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE code_body', r)
     spec['body_code'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -570,7 +572,7 @@ def geom_hair(spec, resolved, out, mode='on'):
     else:
         r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir,
                             inputs=_glb_inputs(shape['glb']) + ([spec['head_code']] if spec.get('head_code') else []),
-                            modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
+                            modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -612,7 +614,7 @@ def hair_select(spec, resolved, out, mode='on'):
         r = cache.file_step('hair_select', run, [hair_select], key, gdir, inputs=ins + _glb_inputs(shape['glb']),
                             modules=('charkit.bodyeval', 'charkit.geomstage', 'charkit.character', 'charkit.code_base',
                                      'charkit.code_body', 'charkit.geom.bvh', 'charkit.geom.parts', 'charkit.target3d',
-                                     'charkit.scene'), name_key=spec['name'], refresh=mode == 'refresh')
+                                     'charkit.scene'), name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE hair_select', r)
     shape['selection'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -712,7 +714,7 @@ def pieces_hair(spec, resolved, out, mode='on'):
                                          ('charkit.geom.hairink', 'charkit.inkfit', 'charkit.hairflagqa',
                                           'charkit.hairlayers', 'charkit.bodyqa', 'charkit.sheetqa')
                                          if strokes_in else ()), name_key=spec['name'],
-                            refresh=mode == 'refresh')
+                            refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE pieces_hair', r)
     shape['pieces'] = pdir
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -752,7 +754,7 @@ def garments_geom(spec, resolved, out, mode='on'):
                             inputs=ins + (_glb_inputs(glb) if glb else []),
                             modules=('charkit.geomstage', 'charkit.garments', 'charkit.character', 'charkit.code_base',
                                      'charkit.code_body', 'charkit.geom.loft', 'charkit.scene'),
-                            name_key=spec['name'], refresh=mode == 'refresh')
+                            name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE garments_geom', r)
     spec['garments_geom'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -830,6 +832,22 @@ def _cap(args):
 
 
 def main(argv=None):
+    """the command line; with CHARKIT_RAN_OUT=FILE (a produced reference's producer, charkit.manifest), the code the
+    command ran is recorded there (charkit.cache.ran: the produced cache keeps it and checks it on a restore)."""
+    rp = os.environ.pop('CHARKIT_RAN_OUT', None)
+    if not rp:
+        return _main(argv)
+    from . import cache
+    R = {'<unrecorded>': 'the command did not start'}
+    try:
+        with cache.ran() as R:                  # (its exit fills R, on a return and on a SystemExit alike)
+            return _main(argv)
+    finally:
+        with open(rp, 'w') as f:
+            json.dump(R, f)
+
+
+def _main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ('-h', '--help'):
         print(__doc__); return

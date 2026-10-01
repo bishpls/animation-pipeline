@@ -313,15 +313,47 @@ def test_off_turns_it_off():
 
 
 def test_the_clawd_references_keys_reach_deeper_than_their_stamps():
-    """on the real producers: the key's code (two imports) holds more modules than the stamp's (one), and the hull's key
-    folds in the outfit's (it reads the masks)."""
+    """on the real producers: the key's code (all of it: no depth limit since 2026-10-01, when a depth-2 key missed
+    face7's headfit change two imports below the hull's producer and a gate restored a stale baseline hull) holds more
+    modules than the stamp's (one import), headfit's head fit among them; and the hull's key folds in the outfit's (it
+    reads the masks)."""
     R = manifest.load('charkit/refs/clawd/manifest.json')['references']
+    assert manifest.CACHE_DEPTH is None
     for rid, deeper in (('hair_layers', 'charkit/outfit.py'), ('outfit_masks', 'charkit/target3d.py'),
                         ('hull', 'charkit/bodymeasure.py')):
         one = {k.split(':')[0] for k in manifest._producer_code(R[rid])}
         two = {k.split(':')[0] for k in manifest._producer_code(R[rid], manifest.CACHE_DEPTH)}
         assert one < two and deeper in two - one, (rid, sorted(two - one))
+    assert any(k.startswith('charkit/geom/headfit.py:assemble') for k in
+               manifest._producer_code(R['hull'], manifest.CACHE_DEPTH))
     assert 'outfit_masks' in R['hull']['reads'] and 'outfit_masks' in R['hair_layers']['reads']
+
+
+def test_verify_makes_it_afresh_and_names_a_stale_entry():
+    """a build's --cache verify (CHARKIT_PRODUCED_VERIFY=1): the reference is made afresh in a fresh copy and compared
+    with the shared entry a restore would have used: the same reads CHARKIT_CACHE_VERIFIED, an entry other code made
+    reads CHARKIT_CACHE_STALE and is replaced by this build's."""
+    d, spec, out = _setup()
+    try:
+        manifest.produced(spec, 'made', log=QUIET)
+        _fresh_copy(out)
+        os.environ['CHARKIT_PRODUCED_VERIFY'] = '1'
+        msgs = []
+        manifest.produced(spec, 'made', log=msgs.append)
+        assert _runs(d) == 2 and any('CHARKIT_CACHE_VERIFIED produced made' in m for m in msgs), msgs
+        e, = _entries()
+        open(os.path.join(e, 'files', 'made.json'), 'w').write('{"made": "by older code"}')
+        _fresh_copy(out)
+        msgs = []
+        manifest.produced(spec, 'made', log=msgs.append)
+        assert any('CHARKIT_CACHE_STALE produced made' in m for m in msgs), msgs
+        os.environ.pop('CHARKIT_PRODUCED_VERIFY')
+        _fresh_copy(out)
+        manifest.produced(spec, 'made', log=QUIET)                     # restored: this build's own, not the older
+        assert _runs(d) == 3 and json.load(open(out))['name'] == 't'
+    finally:
+        os.environ.pop('CHARKIT_PRODUCED_VERIFY', None)
+        shutil.rmtree(d)
 
 
 if __name__ == '__main__':
