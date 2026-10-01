@@ -90,6 +90,29 @@ Compared with 004efc3 (the mitten build's qa.json with the batch gate's candidat
 - Decision routed by the coordinator: the hand's turn goes to Michael with recommendation A (the joint fit); round 2
   proceeds on A unless he says otherwise.
 
+## Round 2 (2026-09-30, relaunched lean; Michael chose hand rest A, the joint fit, as the default)
+Merged pipeline-3d 3f7b730 (879b387). Harness (charkit/out/hands/, local): ink.py (the hands drawn with their screen
+lines at the sheet's scale, fill share vs the design; --k simulates an outline weight), occl.py (what hides each hand),
+geomview.py (the skin's hand geometry per bundle variant, back faces blue), evalab.py (the local evaluator on spec
+variants: `evalab.py NAME '{"path": value}'`, ~150 s), legbumps.py, tips.py, alinerows.py.
+- **b1's hands rendered broken (found on the boards, not in any check): fixed a1bbeb7.** The right hand was inside out
+  (its frame is mirrored, so its rings ran the other way: the outline hull went inside the skin, no line, a fat pale
+  hand); the left folded over at every knuckle (the knuckle loops' averaged frames were right-handed between its
+  left-handed segment frames: knobs with back faces showing). Tests: charkit/tests/test_code_hand.py.
+- The skin's screen-width outline (0.0022 of the page, ~0.0034 m at full figure; no cap on the skin) moves each
+  finger's visible surface inward by the whole width: fingers 0.014 m wide lose half to ink. ink.py on b1's left hand:
+  fill share ours/design 0.73 (front), 0.75 (3q), 0.75 (profile); an outline weight of 0.5 on the hand gives 0.84 /
+  0.76 / 0.83, 0.3 gives 0.90 / 0.78 / 0.87 (the knobs stayed: geometry, now fixed). Decide after the next build.
+- **art_bumps_legs is the fingertips, not the skirt:** every leg bump sits on row z = -2.631 L, the fingertips just
+  under LEG_TOP (-2.62). Ours hang to -2.64/-2.65 in front/back, the design's to -2.585 (3q L -2.632, profile -2.665:
+  the drawn views disagree by 0.08 L); the design's 3q value 88.4 is its own fingertip. The 2x2 means a remeasure
+  can't escape it (the old measure on the new geometry regresses): the fix is placement.
+- **The 3q skirt aline is not the clearance:** clear_hands off changes nothing (-0.313 both; IoUs +0.003). The design's
+  3q rows are all "a hand against it" (aline falls back to all rows); ours leaves 52 rows free because our far hand
+  (R) is 63% hidden behind the skirt in 3q (occl.py), so a few odd rows decide it. Same cause as hand_shape_R 3q 0.21.
+- Our arms hang steeper than drawn (body_front_arms: ours 15.5 deg shoulder to hand, the design 18.3-19.0; it was
+  17 with the mitten): pose.arm_down 11.05 was fitted with the mitten. Testing arm_down 8-9.5 with evalab.
+
 ## Next steps (exact)
 1. Clear the two K blockers above (art_bumps_legs, body_three_quarter_skirt_aline) and the 3q R hand; rebuild.
 2. Calibration records: copy b1 to `charkit/out/calib/cur_hands` (hard links + its qa.json), then
