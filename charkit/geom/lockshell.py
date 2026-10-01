@@ -39,7 +39,7 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
                join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex',
                det=True, det_method='lm', det_step=1e-6, det_tol=1e-10, det_nfev=600, det_q_in=2.0 ** -12,
-               det_q_out=2.0 ** -12)
+               det_q_out=2.0 ** -12, widen_back=1.0)
 # (tool/hairshell3) det: the reproducible fit (the same shells on every machine): a smooth objective (the drawn
 # centrelines through cubic splines, the fields and the envelope's depth sampled by cubic splines, soft limits for the
 # containment and the skin, the widths' Gaussian weights on squared distance), its Jacobian by finite differences
@@ -573,7 +573,16 @@ class Lock:
         W = W * np.clip((1 - u) / 0.2, self.o['tip_w'], 1.0) ** 0.6
         wl = self.o['widen_lw']
         wl = float(wl.get(self.family, 1.0)) if isinstance(wl, dict) else float(wl)
-        W = W + 2 * wl * self.o.get('lw_px', 2.0) / ppl * s_ * np.clip((1 - u) / 0.2, 0, 1)
+        wb = self.o.get('widen_back', 1.0)
+        wb = float(wb.get(self.family, 1.0)) if isinstance(wb, dict) else float(wb)
+        ext = wl * self.o.get('lw_px', 2.0) / ppl * s_ * np.clip((1 - u) / 0.2, 0, 1)      # m, each side
+        W = W + (1.0 + wb) * ext
+        if wb != 1.0:
+            # (tool/hairshell3) the edge toward the back of the head widened wb as much as the front's (a side lock
+            # widened at its back covers the lower back in profile): the centreline moved toward the front edge
+            _, _, b_ = frames(P, self.F['chart'], self.twist, bool(self.o.get('det')))
+            sg = np.sign(b_[:, 1])[:, None]                       # +1 where +b points to the back (+y)
+            P = P - sg * b_ * ((1.0 - wb) * ext / 2.0)[:, None]
         # the root carried on into the hair: along the lock's own direction root_in L, diving toward the scalp as it
         # goes (its radius blended to the skin's clearance where there is skin under it), narrowing to 0.6 of its width
         ch, G = self.F['chart'], self.F['grid']
@@ -868,7 +877,9 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                     p_ = x.get('tip_phi')
                     if p_ is None or not (grp['phi'][0] <= p_ <= grp['phi'][1]):
                         continue
-                lk = Lock('%s:%s%d.%d' % (key, pv[0], lid, T_['id'][1]), fam, pv, F, views, hull_frame, L, o)
+                # (tool/hairshell3) a group's own options over the shells' (e.g. its depth_ratio: the hem flicks thin)
+                lk = Lock('%s:%s%d.%d' % (key, pv[0], lid, T_['id'][1]), fam, pv, F, views, hull_frame, L,
+                          dict(o, **(grp.get('opts') or {})) if grp else o)
                 lay = x.get('layer') or 0.0
                 lk.offset = o['inset'] * L * ((hi - lay) / max(1e-6, hi - lo) if hi > lo else 0.0)
                 if grp and not grp.get('replace', True):

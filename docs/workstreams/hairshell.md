@@ -1,6 +1,6 @@
 # Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: round 3 in progress (tool/hairshell3; see "# Round 3" at the end). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -457,6 +457,41 @@ identity 14/14 (but the back numbered as a mirror of the front). Neither draws t
 flicks; line F and the 52-lock IoU at or below their random floors. Not registered. So the canonical rule's step 3:
 the best joint fit with per-view costs (sweep rows `joint_all*`: view_cost_max 1000, every associated view kept).
 
+## (b) The back view's terminator, step 3 and the lower back (sweeps sw1-sw3, base hs3_shells_r, numpy drawing)
+
+`charkit/out/hairshell3/swN.json` -> `swN/` (sweep.md), six placements per row `term6.py SWEEP BASE` (term6.json),
+attribution `term6mix.py BASE ROW OTHER NAMES` (a row with some pieces from another), truth `tools/hairshell/lockpics.py`
+(lp1). Terminator: placement / six-placement mean (back view's mean).
+
+| row | terminator | back mean | peeks place / mean | back_lines | hem | lock lines 3q / P | side locks F / P | lower back P | truth all / side | 2+ views |
+|---|---|---|---|---|---|---|---|---|---|---|
+| hull (spliced) | 2.196 / 2.057 | 1.70 | 17 / 17.5 | 0.894 W | 3 W | 0.176 / 0.105 | 0.560 / 0.469 | 0.665 | 0.356 / 0.394 | - |
+| round 2 fit (det off) | 1.629 / 1.822 | 2.33 | 20 / 19.0 | 0.474 P | 2 | 0.228 / 0.159 | 0.584 / 0.606 | 0.588 | 0.397 / 0.558 | 2/17 |
+| **det fit (control)** | 1.64 / 1.904 | 2.58 | 17 / 17.3 | 0.433 P | 2 | 0.223 / 0.119 | 0.608 / 0.579 | 0.579 | 0.400 / 0.563 | 2/17 |
+| shade_at surface_over | 1.446 / 1.873 | 2.54 | 17 / 17.3 | 0.433 | 2 | = | = | = | | |
+| shade_at surface (all shells) | 1.926 / 2.008 | 2.52 | 17 | | | | | | | |
+| step 3: every associated view kept | 1.808 / 2.208 | 2.99 | 27 / 24.3 | 0.706 W | 3 W | 0.240 / 0.129 | 0.620 / 0.508 | 0.616 | 0.384 / 0.532 | 9/16 (costs 4-24 px) |
+| over 0.002 / 0.0005 L | 1.447 / 1.867, 1.648 / 1.829 | 2.51, 2.46 | 17 / 17.5 | 0.444 | 2 | | 0.608 / 0.574 | 0.600 | | |
+| over_ink 0.45 | 1.441 / 1.534 | **1.69** | 17 / 17.3 | 0.627 **W** | 2 | | = | = | | |
+| widen_back 0.5 / 0 (side locks) | 1.666, 1.665 | 2.58 | 19 / 19.8, 26 / 26.0 | 0.437, 0.505 | 2 | 0.235 / 0.144, 0.243 / 0.183 | 0.613 / 0.597, 0.597 / 0.600 | 0.590, 0.594 | | |
+
+Readings: (1) the det fit reads as round 2's fit (truth 0.400 against 0.397, side locks F +0.024, P -0.027). (2) The
+back view's excess (2.58 against the hull's 1.70) is the flicks' (the hull's lower_back in its place: 2.23) and the
+side shells' (the hull's side locks: 2.41); their normals aren't the cause (shading them from the mass's surface under
+them changes nothing), nor their offset; inking 45% of each flick (the design's notch ticks, longer) takes the back to
+the hull's 1.69 (overall mean 1.53) but back_lines 0.433 PASS -> 0.627 WARN (a flag check): sw3 tries 0.35 / 0.40 and
+the flicks in one tone. sw3: over_ink 0.35 back 2.41 (back_lines 0.485 PASS), 0.40 back 2.15 (0.545 WARN); the
+flicks in one tone (over_tone 'root', new) worse, back 2.96; widen_back 0.75 peeks 20 / 18.8, lower back P +0.006.
+sw4 (single placement only; stopped at the wrap-up): thin flicks (a group's own depth_ratio, `groups[].opts`, new)
+worse: 0.15 back 2.94, 0.08 back 3.30 (control 2.22), terminator 2.17-2.43 WARN. So the flicks' terminator step is
+neither their normals, their offset nor their thickness; inking them longer hides it at back_lines' cost. Overlays:
+`charkit/out/hairshell3/back_term_hull_det.png` (kinks where the terminator crosses the left flick group's edges and
+where the group starts at her left side, and the side shells' silhouette there). (3) Step 3 (the best joint fit, every associated view kept): 9 of 16 locks in 2+ views at
+per-view costs up to 24 px, and it loses: peeks 17 -> 27, side locks' profile 0.579 -> 0.508, truth 0.400 -> 0.384,
+back lines WARN, hem WARN. The sequential join (a view kept when the fit follows it within 4 px) stays the base
+model's best fit; per-view costs are in the pieces report. (4) The lower back's profile (-13%) is the side shells'
+cover; asymmetric widening (widen_back, new) buys +0.011..0.015 at peeks +2..+9; over 0.0005 L +0.021 free.
+
 ## hair_noise remeasure (side branch tool/hairshell3-noise, aa7b3e6)
 
 `qa3d.hair_noise` draws the hair with its outlines as the render does; a pixel within 1 px of ink is the line's (the
@@ -475,3 +510,52 @@ noise. A speckle prototype (`speckle_proto.py`: the hair's share in tone islands
 (design 0.020, ck6 0.030, hull 0.010, floor 0.040). So the triple can't come out calibrated without redefining what
 hair_noise measures: kept off this branch (the gate blocks a remeasured check without a calibrated record);
 a decision for Michael.
+
+## Where round 3 stopped (2026-10-01, the coordinator's wrap-up) and exact next steps
+
+Committed: the det fit (default for shells), its test, det_inputs; options shade_at 'surface'/'surface_over',
+over_tone 'root', widen_back, groups[].opts (all opt-in, off by default); harness tools/hairshell3/ (determ.py,
+xmachine.py, refcheck_exploded.py, numpics.py); the hair_noise remeasure on the side branch tool/hairshell3-noise
+(aa7b3e6, not merged: its design leg fails). No box jobs running (the box splitter job hairsplit-hairshell-1001-045050
+finished; nothing else sent). No real build of a round-3 candidate, no pregate, no gate.
+
+**The pilot so far** (numpy-drawing sweep rows on hs3_shells_r's bundle; round 2's real builds for reference):
+the det fit reads as round 2's (truth 0.400 / side locks 0.563 against 0.397 / 0.558; terminator 1.64 PASS, six-
+placement mean 1.904 against the spliced hull's 2.057; peeks 17 / 17.3 against 17 / 17.5; back_lines 0.433 PASS against
+0.894 W; hem 2 PASS against 3 W; lock lines 3q 0.223 / profile 0.119 against 0.176 / 0.105; folds 9 = 9). Still losing:
+the back view's six-placement terminator 2.58 against 1.70, the lower back's profile 0.579 against 0.665 (-13%),
+hair_noise 0.0782 against 0.0716 under the current measure (0.030 against 0.034 under the remeasure).
+
+**Next steps, in order** (each: sweep rows on hs3_shells_r, six placements with term6.py, then a real build):
+1. The back view's terminator: attribute it per flick (term6mix with one flick at a time from the hull row: which
+   of b13/b23/b36/b38 carries it), and try the group's phi range trimmed (phi [110, 175]: the group's start at her
+   left side is a kink) and over_ink 0.35 (back 2.41, back_lines 0.485 PASS) as the candidate if nothing better.
+2. The candidate spec `tools/hairshell3/clawd_shells3.json` (tools/hairshell/clawd_shells.json with the chosen
+   options; det is the default), a render-box build (`python -m charkit remote --box render build SPEC --boards
+   views,body,design --out charkit/out/hs4_shells_r`, about 13 min), then on the laptop `python
+   tools/hairshell3/xmachine.py charkit/out/hs4_shells_r charkit/out/hairshell3/xm` (laptop vs box, bit for bit:
+   the round's acceptance for (a) on a real build), lockpics against hs_hull_r, term6 on the build's own bundle.
+3. Review page (`python -m charkit review page charkit/out/hairshell3/review.json --open`, round 2's review.json as
+   the template): summary box asking Michael (A) the default switch for the pilot region yes/no, (B) extend to the
+   whole head yes/no, (C) hair_noise: redefine (a speckle measure) or keep as is; the reference result
+   (`charkit/out/hairshell3/ref/index.html`) and step 3's rows as figures.
+4. `python -m charkit pregate`, then `python -m charkit remote gate tool/hairshell3 --into pipeline-3d` (opt-in:
+   nothing should move on the default spec; the det fit changes only lockshell and the new options default off).
+5. **The default switch** (only on Michael's yes): set `hair.shape.pieces_opts.lock_shells` (the candidate's) in
+   charkit/spec/clawd.json; it moves the default's geometry, so the gate scores it as a geometry change: expect the
+   flag checks art_terminator_hair (back view), hair_back_lines, hair_back_hem and the lower back's profile IoU to
+   move; the build's CPU rises ~2 min (the det fit: 196 s against 57 s for the pilot; check the 1.5x limit).
+6. **The whole head** (only if the pilot wins on every count), region by region on real builds, each against the
+   hull with the guard per view: bangs (families ['bangs', 'side_locks'], primary front then profile; the hull's
+   bangs score 0.769 IoU: guard every view), upper back (primary back, phi 100-260, replace false first), the whole
+   hem (both sides, phi 90-270, a hooked-flick template: a curl angle at the tip, unit 'cells'), ahoge and flyaways
+   re-rooted on the shells. Identity across views stays the open problem: three generated references have failed;
+   step 3 (keep every associated view) loses on peeks, terminator and the truth; a hand-made correspondence
+   (the truth's cross-view names for the side locks) would be the next reference, but it is the scoring truth, so it
+   needs its own held-out check before it is used for fitting.
+7. hair_noise (Michael's call): the remeasure (outlines drawn as the render draws them) is right for ours (the flagged
+   blotchy build ck6_body 0.104 FAIL, the round-1 shells' false FAIL gone), but the design leg can't pass: the
+   design's own cel tones read 0.216 (its lock-shaped shadows; hair_noise rewards flat shading). Options: (A) a speckle
+   measure (tone islands under a size; the prototype doesn't separate yet: design 0.020, ck6 0.030), (B) keep the old
+   measure and its WARN, (C) the remeasure with a 'defect' record calibrated on the known-bad and the floor only
+   (needs the gate to accept a defect detector without a design leg).
