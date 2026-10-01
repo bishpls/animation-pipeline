@@ -1115,3 +1115,7 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - Profile/back (look_collar_back.png): the puff's dome rises over the collar's shoulder band in profile (the design lays
   the band over a lower puff) and the puffs' inner backs lap over the flap's corners: the same crowded shoulder top
   opt1 searches (the dome's growth vs the collar's lengths).
+- piece_top on c4 (topiou, xsec_c4.png): the extra jacket +0.061 L^2 front, all z -0.5..-0.7; at z -0.55 the puff's
+  dome is a small ring (x 0.4-0.6, y 0..0.2) while the jacket over the bridge spans y -0.1..0.27 at x 0.4-0.45: the
+  jacket stands out of the dome in front and behind. The dome must hold the bridge's top (clear_body.from_t toward
+  -0.38: gen 0's best probe); the sleeves' spikes and the profile's flat top are that growth's cost.
