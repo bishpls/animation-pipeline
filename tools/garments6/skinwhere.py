@@ -51,6 +51,8 @@ for f in A['faces']:
         border.update(f)
 bord = np.zeros(nV, bool); bord[list(border)] = True
 hidden = ins & ~bord
+if c.get('hide_under'):
+    hidden[gm.under_sheet(A, P['collar'], c['hide_under'])] = True
 reg = gm.region(A, G['top']['region'])
 tk = gm.tucked(A, G['top']['tuck'], spec, hull) if G['top'].get('tuck') else np.zeros(nV, bool)
 part = np.full(nV, 'head', object)

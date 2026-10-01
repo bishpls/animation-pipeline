@@ -500,6 +500,49 @@ def bed(A, sv, sf, spec, hull):
     return bed_under(sv, sf, P, F_, L, b)
 
 
+def under_sheet(A, G, hu):
+    """the body's vertices a sheet lying on it covers (a hull collar's `hide_under` {reach L, rim: faces in from its
+    rim kept}; round 6): each vertex's nearest point on the sheet inside a face at least `rim` faces in from its rim,
+    within `reach` L, and the vertex on the sheet's inner side -> indices, for the skin's mask, as a shell hides the
+    body under it (the skin under the collar had shown through it at the joined shoulder's level top, and neck_crease,
+    whose intent leaves a flare under a collar out, read the neck's flare there)."""
+    from .geom.bvh import BVH
+    from collections import Counter
+    L = A['head']['L']
+    P = np.asarray(G['verts'], float)
+    T = np.array([(f[0], f[k], f[k + 1]) for f in G['faces'] for k in range(1, len(f) - 1)], np.int64)
+    V = np.asarray(A['verts'], float)
+    body = body_part_mask(A, ('torso', 'shoulder_', 'arm_'))
+    if not body.any():
+        body = np.ones(len(V), bool)
+    ring = (A.get('body') or {}).get('neck_ring')
+    if ring is not None and len(ring):
+        # the head's neck too, up to `neck` L over the cut's ring (the collar starts up the neck at the sides: the neck's
+        # flare into the shoulders lies under it), never the jaw
+        zr = float(np.mean(V[list(ring), 2]))
+        body = body | (V[:, 2] < zr + float(hu.get('neck', 0.08)) * L)
+    idx = np.nonzero(body)[0]
+    d, f, q, reg = BVH((P, T)).nearest(V[idx], return_region=True)
+    ec = Counter((min(a, c), max(a, c)) for t in T for a, c in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])))
+    near_rim = np.zeros(len(P), bool)
+    for (a, c), n in ec.items():
+        if n == 1:
+            near_rim[[a, c]] = True
+    adj = [set() for _ in range(len(P))]
+    for t in T:
+        for a in t:
+            adj[a].update(t)
+    for _ in range(int(hu.get('rim', 1))):
+        near_rim = near_rim | np.array([near_rim[list(n)].any() for n in adj])
+    n = np.cross(P[T[f, 1]] - P[T[f, 0]], P[T[f, 2]] - P[T[f, 0]])
+    yc = float(np.mean(V[:, 1]))
+    rad = np.c_[q[:, 0], q[:, 1] - yc, np.zeros(len(q))]
+    n[np.sum(n * (rad + np.array([0.0, 0.0, 0.5])), 1) < 0] *= -1
+    inner = np.sum((V[idx] - q) * n, 1) < 0
+    ok = (d < float(hu.get('reach', 0.08)) * L) & inner & ~near_rim[T[f]].any(1)
+    return idx[ok]
+
+
 def bed_sheet(A, sv, sf, P, F_, L, b):
     """bed()'s geometry along a sheet's own normal (side 'normal'; round 6): a thin piece lying on the shell (the sailor
     collar over the jacket: its lapels, the flap, and over the shoulders' tops, where no one projection sees it) and the
@@ -3270,6 +3313,11 @@ def puff(A, spec, hull=None):
     if (Fn * rad).sum(1).mean() < 0:
         faces = [tuple(reversed(f_)) for f_ in faces]
     uv = [(0.5, 0.0)] + [((j + 0.5) / nth, i / max(1, nr - 1)) for i in range(nr) for j in range(nth)]
+    if spec.get('bed') and hull is not None:
+        # held behind the bow where its loops lie over the puff in front (round 6: the puffs grown round the joined
+        # shoulder's deltoid came forward to the loops' ends, the outline between them lost: bow_front_bleed), as the
+        # jacket is (bed)
+        V = bed(A, V, faces, spec, hull)
     W = {side + 'UpperArm': np.ones(len(V))}
     pw = spec.get('weights')
     if isinstance(pw, dict) and pw.get('from') == 'body':
@@ -4566,6 +4614,8 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
             _thick(ob, 0.012 * L)
+            if s.get('hide_under'):
+                hide[under_sheet(A, G, s['hide_under'])] = True
         elif k == 'collar':
             G = collar(A, s, nrm)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
