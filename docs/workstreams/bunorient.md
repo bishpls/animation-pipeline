@@ -106,3 +106,23 @@ pair, section 1): the buns 4.8e-7 L, 0.000 deg.
   three-quarter pulls it off (profile 0.907 -> 0.79): the guard fails; tq_near (the near bun only) is the variant.
 - per_side and tq_near: killed at the 30-minute background limit, relaunched (-> spread_tq_near.json,
   spread_per_side.json).
+- per_side reads exactly as default (the per-side masks and the halves agree in front, profile and back); tq_near:
+  bun_L as tq, bun_R as default (`charkit/out/bo/spread_per_side.json`, `spread_tq_near.json`).
+
+**Reading.** The silhouettes leave the buns' orientation undetermined, and the kept fit is a local basin: bun_L's
+lowest basin is 13% lower in loss (0.2412 vs 0.2773), 62 deg away, and the held-out three-quarter prefers it (0.850 vs
+0.758); a second basin at 0.2439 sits 33.5 deg from it. The near bun's three-quarter in the fit agrees on that basin
+(2.9 deg), but leaves three basins within 0.3% spanning 42.7 deg: it doesn't make the optimum unique either. The far
+bun can't take the three-quarter without occlusion (its profile IoU 0.907 -> 0.79).
+
+## Checkpoint (2026-09-30 late; the face5 agent's round): exact next steps
+1. **The terminator per basin first** (Michael's flag decides): add `bun_starts` to `fit_block`'s soft path (block_frame's
+   pose plus rotations +-10 / 20 deg about each axis, keep the lowest soft loss, report every start's loss), off by
+   default, read from `pieces_opts`. A variant spec (charkit/spec/clawd.json with `hair.shape.pieces_opts.bun_starts`;
+   the build has no override flag) -> `python -m charkit remote build SPEC --boards '' --no-blend`; read
+   art_terminator_hair (bo_base 1.804), hair_piece_buns (0.862), hair_bun_outline (0.459), piece_bun_* per view.
+   Then bunstab at 1 / 10 um on its inputs: does keep-lowest flip between bun_L's 0.2412 and 0.2439 basins (33.5 deg)?
+2. If the terminator holds and the fit is stable: the near bun's three-quarter as a held-out check (0.758 -> 0.85) or
+   a fit term (tq_near); the far bun stays out.
+3. If keep-lowest flips: the drawn inner lines (candidate B) or fewer free parameters (the loops' place and size trade).
+4. Slim charkit/tests/test_bun_fit.py (81 s); calibrate any new check; pregate; gate into pipeline-3d (now 640ca7c).
