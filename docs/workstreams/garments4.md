@@ -575,3 +575,7 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   0-2.6 every move; known-bad g4_stairs0 crossed 2 / 1, skirt corners 8.9 / 6.0, flaps 11.4 / 18.8 FAIL; the voronoi
   floor passes crossed and skirt_front_corner: a defect detector's floor).
 - Pregate (30610f7a into 00494dec): PASS, 36 moved, 0 blocking.
+- **Stairs gate 1: FAIL under K, one blocker: test_spec_alias** (clawd_body_pieces.json must equal clawd.json; the stair
+  knots and the flap square reached clawd.json only): fixed (the alias copied). Otherwise: no new FAIL, no flag
+  regression (art_band_lower 1.185 -> 1.111 P, art_mirror_waist 0.715 -> 0.72 P); report
+  charkit/out/gate/gate_tool-garments4-stairs_7134ff6d_into_00494dec.md. Gate 2 running.
