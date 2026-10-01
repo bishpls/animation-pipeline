@@ -359,6 +359,8 @@ STRUCT = 0.1     # the fit's weight on each structure measure at its PASS limit 
 STRUCT_CAP = 3.0 # a structure term's units are capped here (a FAIL either way; the deepest pocket can jump from one
                  # pocket to another as a knob moves, and an uncapped jump steers the search)
 FLOOR_W = 5.0    # the cost of each IoU point under a view's floor (Fit.floors: the guard's intent inside the fit)
+FAIL_COST = 0.5  # the cost of a graded structure term past its WARN limit (a FAIL: the gate's 'no new FAIL' inside the
+                 # fit; rest1 folded the thumb in for IoU and lost the three-quarter's cleft, 0.16 vs 0.62)
 
 
 class Fit:
@@ -473,6 +475,8 @@ class Fit:
                     T = self.terms(d, self.structure(dict(mask=m, c=c, u=uf, end=0.0)), v, S) if m.sum() > 50 else {}
                     if structure:
                         cost += STRUCT * sum(min(t[2], STRUCT_CAP) for t in T.values())
+                        cost += FAIL_COST * sum(1 for k, t in T.items()
+                                                if k in handqa.LIMITS and t[2] * handqa.LIMITS[k][0] > _warn(k))
                     full['%s_%s' % (v, S)] = dict(iou=round(iou, 4), reach=round(r - d['reach'], 4),
                                                   terms={k: (None if a is None else round(a, 3),
                                                              None if b is None else round(b, 3), round(u, 2))
@@ -579,6 +583,12 @@ def search(fit, knobs, rounds=3, log=print, method='powell', workers=1, seed=0, 
 
 
 _DE = None
+
+
+def _warn(k):
+    """a structure check's WARN limit (handqa.LIMITS: past it, FAIL)."""
+    from . import handqa
+    return handqa.LIMITS[k][1]
 
 
 def _de_init(src, floors, P0, knobs, lo, hi):
