@@ -272,9 +272,10 @@ def design_head(B, design):
     ex = B.assembly['eye_knobs']['x']
     rgb = design.rgba(fs['image'])[..., :3]
     st = design.shape_head('hair')          # (the hair's shape truth: the head sheet with its clips repainted away)
+    # (kept on disk too, design.memo: a pure function of the sheet's pixels, 8 s a QA pass)
     if st is not None:
-        return B.memo(('hairweight_design', ex, 'shape'), lambda: _design_head(st, ex, fs.get('facing', -1)))
-    return B.memo(('hairweight_design', ex), lambda: _design_head(rgb, ex, fs.get('facing', -1)))
+        return B.memo(('hairweight_design', ex, 'shape'), lambda: design.memo(_design_head, st, ex, fs.get('facing', -1)))
+    return B.memo(('hairweight_design', ex), lambda: design.memo(_design_head, rgb, ex, fs.get('facing', -1)))
 
 
 def _design_head(rgb, ex, facing):

@@ -1299,7 +1299,9 @@ def _line_images(B, ppl, az3, views, hide=()):
         for v in views:
             fr = _Grid(bodyqa.origin(v, az[v], iw, As['centre']), float(As['L']), ppl)
             aux = {}
-            qa3d.draw(B, surfs, az[v], fr, ss=1, aux=aux)
+            # (the buffers alone: the picture qa3d.draw also made, 4 x 4 supersampled on the renderer, was thrown away:
+            # 35 s of the part's 136 on the build box; aux is the same buffer either way)
+            qa3d.draw_lit(B, qa3d.draw_view(B, surfs, az[v], fr), None, ss=1, aux=aux, picture=False)
             mesh = aux['mesh']
             out[v] = hull[np.where(mesh >= 0, mesh, len(surfs))]
         return out
@@ -1541,7 +1543,37 @@ def evaluate_part(part, I, decls=None):
     return evaluate(ds, I) if ds else ({}, {})
 
 
-@qa_part('declared', order=1790, table='declared')
+def expected(B, design, part='declared'):
+    """the part's denominator (registry `checks`): its declarations per view (expand) that the design side says can be
+    measured: the view among the design's figures, every piece in the outfit graph's piece map and drawn in that view
+    (its mask, or the drawn region it names; the hair as a piece wherever the view is drawn). Read from the
+    declarations and the design only, never from our geometry, so a family that skips a check it should measure
+    (returns nothing, our side missing) shows as a shortfall -> int."""
+    from . import bodymeasure
+    ds = [d for d in declarations() if d.get('part', 'declared') == part]
+    if not ds:
+        return 0
+    got = bodymeasure.piece_masks(B.spec)
+    if got is None or 'why' in design.sheet_context():
+        return 0                                        # (no design sheet or outfit masks: the part reports SKIPPED)
+    masks, graph, _ = got
+    pm = dict(bodymeasure.piece_map(graph, B.spec), **{HAIR: True})
+    dv = design.design_views()
+    n = 0
+    for name, view, d in expand(ds):
+        if view not in dv:
+            continue
+        pieces = d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]
+        drawn = (d.get('params') or {}).get('drawn')
+        if any(p not in pm for p in pieces):
+            continue
+        if any(p != HAIR and '%s__%s' % (view, drawn or p) not in masks for p in pieces):
+            continue
+        n += 1
+    return n
+
+
+@qa_part('declared', order=1790, table='declared', checks=lambda B, design: expected(B, design))
 def declared(B, design=None, out=None):
     """the declared checks of no other part (DECLARED_CHECKS with part 'declared', and CHARKIT_DECLARED's): each family
     on our labels against the drawn pieces. Nothing declared: nothing measured."""

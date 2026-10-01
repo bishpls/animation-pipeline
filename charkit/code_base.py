@@ -124,8 +124,9 @@ def head_sections(spec, log=print):
         S = Sections(z['zs'], z['cy'], z['r'])
         return S, json.loads(str(z['C'])), json.loads(str(z['rep']))
     # computed from the reference images: venv-side only (a build's Blender side loads the file cli.code_head wrote).
-    # Imported at run time, not named in an import statement: the build stages' code closure (charkit.cache) follows
-    # import statements, and the fitting reaches the QA's modules, which a build stage mustn't depend on
+    # Imported at run time (they reach the QA's modules, which Blender's side mustn't import). The code walk behind the
+    # cache keys (charkit.cache) follows these literal imports since 2026-10-01: when it didn't, the hull's shared-cache
+    # key was blind to headfit and a gate restored a stale baseline hull
     import importlib
     refcheck = importlib.import_module('charkit.refcheck')
     headfit = importlib.import_module('charkit.geom.headfit')
