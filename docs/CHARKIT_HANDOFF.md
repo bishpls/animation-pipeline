@@ -726,7 +726,56 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
-## Wrap-up (2026-10-01 morning, account at 95% of weekly capacity): START HERE
+## Day 2 (2026-10-01, new account): START HERE, then the wrap-up below
+
+**Merged today** (pipeline-3d, pushed after each merge, Michael's standing OK; main untouched): garments4-neck (ff41ca2:
+neck-chest join; neck_crease remeasured, it never measured a real crease), garments4-stairs (0d53cb8: the staircase
+squared to the pleats, risers on folds), garments4-v (9f6379e: the V opened to skin; the bow-less bodice reference
+`bodice_layers` registered), render2 (ad08152), garments4-motionfix (e9cb156: motion QA had crashed since the creases
+milestone, the skirt's crease ink broke the cloth grid; the gates reported motion SKIPPED instead of blocking).
+
+**Infra:** a second render box `render2` (g2-standard-32, L4, 10 slots; `--box render2`; names in gitignored
+`infra/gcp/render2.env`); the old render box drains, then its idle stop stops it (not deleted). Build box slots 8 -> 16
+(`SLOTS=16` in each worktree's gitignored build.env; `python -m charkit remote load --hours N` measured CPU mean 15%).
+Board renders are CPU-bound (GPU mean 1%); build-box QA also draws with the toon renderer, so only boards need render2.
+Laptop: sweeps, labs, fits and calibrations run on the boxes (six agents' local jobs filled swap).
+
+**Rules from Michael today:** push after each merge; let a subagent with its end in sight finish rather than relaunch
+(checkpoint only near ~900k); a new check shipping at FAIL is reported, not blocking (only existing checks regressing,
+flag regressions, CPU block); moving the crab clip is fine (visibility and seating outrank the drawn spot); the
+shoulder problem is the BODY's (separate torso and arm meshes, no real shoulder; `body.shoulder` was off), garments
+drape over it; Sonnet is fine for bounded research, builds and pages.
+
+**In flight** (each in its worktree; notes in `docs/workstreams/`):
+- `tool/hands2` (`~/animation-pipeline-hands`): the default hand rebuilt from the comb (fingers together, thumb,
+  wrist taper); fit on the box, then calibrate, gate, review.
+- `tool/garments4-shoulders` -> `tool/garments4-lapels` (`~/animation-pipeline-garments4`): body shoulder first
+  (a continuous shoulder joining arms and torso, against `base_body_turnaround`, a 90-degree arm-raise check), then the
+  garment shoulders and back collar, then flat lapels (they failed on our dipped shoulder line), then re-judge
+  art_outline_collar.
+- `tool/hairstrokes` (`~/animation-pipeline-hairstrokes`): strokes gate 3; tones (per-lock ellipsoid shading normals in
+  `shade_normals`, underside tone, highlight ring F1 0.36: front 0.55, 3q 0.48, profile 0.20, back 0.21).
+- `tool/hairshell3` (`~/animation-pipeline-hairshell`): with hairstrokes' normals plus flick depth pull/containment,
+  six-placement back view 1.78 vs the hull's 1.87, terminator 1.369, back lines 0.531, lower back profile 0.639 vs
+  0.665. MERGE ORDER: hairstrokes first, then hairshell3 on top; then the pilot region's default switch -> Michael;
+  hair_noise redefined as a speckle measure.
+- `tool/face7` (`~/animation-pipeline-face7`): the profile eye gating first (item 4), then forehead, lower-face width,
+  the 3q mouth override (per-shot, off by default).
+- `tool/accessories5` (`~/animation-pipeline-acc5`): clips remade from the separated references and re-placed fully
+  visible (crab 98.5-99.3% visible, moved down below the star); gate 2 running; review page built.
+- `tool/optimize` (`~/animation-pipeline-optim`): `charkit sweep --optimize` (CMA-ES batches sized to free slots, the
+  guard as constraints, fast/real fidelity). The 2026-10-01 audit (`charkit/out/audit/20261001/`): 93 hand-stepped
+  sweep round trips, median 8.2 min and 12 agent turns each, 51% of active agent time in the loop; the clips' optimizer
+  ran ~75 evaluations per design turn against ~0.2 for sweeps. When it lands, switch face, lapels and hair fits to it.
+
+**Next, in order:** the range-of-motion measurement (after the hand and the body shoulder); the infra gate fixes (a QA
+part that crashes must block; motion QA in gate builds; acceptances covering a batch's branches; no-op remeasure
+detection; CPU warm vs warm; gate latency; the sweep's look-check fidelity, its quick drawing has no highlights) as the
+Sonnet-vs-Opus paired test; then softras r5, the buns' orientation, calibration follow-ups. Paused: expressions, the
+hand-pose library; parked: cloth (the staircase raised kick-inside 0.0024 -> 0.0071 WARN). Research verdicts: see-through
+(skip), NVIDIA Lyra (skip: Lyra 2 weights research-only, Lyra 1 ~43 GB VRAM, baked splats).
+
+## Wrap-up (2026-10-01 morning, account at 95% of weekly capacity): read after Day 2 above
 
 Every workstream stopped at a checkpoint; nothing is running. pipeline-3d f0975ad has everything merged through the
 night (the evening run below, then: hairshell r1-r2 opt-in, garments4 Part 1 (the bow's geometry with its neighbours),
