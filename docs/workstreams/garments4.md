@@ -1256,3 +1256,17 @@ the targets (g7_base, pipeline-3d's default before the switch; builds g7_base / 
   shared across worktrees); it conflicted, so git kept the entry; my two files were restored from HEAD; stash@{0}
   ("infra5-s: stopped agent wip (boxjob, remote)") is intact.
 - Gate 3 running (with the acceptances and --accept naming the 15; log charkit/out/garments7/gate3.log).
+- **Gate 3** (c8d30430 into 27a4b6c3, build2; report charkit/out/gate/gate_tool-garments4-shoulders_c8d30430_into_27a4b6c3.md):
+  FAIL under K, **5 blockers, none the garments'**: the 15 garment regressions reported as accepted (Michael, by name);
+  left: (1-4) the 2x2 couldn't run the old measure on the new geometry for motion_kick/squat_skirt_inside/stretch
+  (pipeline-3d's motion code reads no skirt values on the joined body; the new measure reads them the same on both
+  geometries: 0.0071 W / 0.0796 P / 0.0171 I / 0.1338 P); (5) motion_kick_skirt_inside's record not refreshed
+  (MISCALIBRATED on today's skirt, upstream). Not accepted (outside Michael's named list): the coordinator's call
+  (`--accept 'motion_*_skirt_*'` for the 2x2 cells; a decision on kick_inside's record). Build CPU 1.02x; 104 test
+  files, 0 failing. Reported (not blocking): neck_crease 12.7 -> 24.2 W, poke_share 0.0029 -> 0.0074 W,
+  hair_penetration 0 -> 0.0065 W; collar_back_rows ships at FAIL (0.160; the old body read 0.147 FAIL).
+- Review page: charkit/out/garments7/review/index.html (source tools/garments7/review/round7.json).
+- **Exact next steps**: (1) the coordinator decides the 5 motion blockers; then `python -m charkit gate --carry
+  tool/garments4-shoulders --into pipeline-3d` (or a re-gate with --accept naming them); (2) round 8 (fresh agent): the
+  separated references, then the flat lapels and the puffs' dome (handoff above); tools/garments5/v/candidate_shoulder.json
+  is unchanged (its socket keys implicit: the same values as the default's explicit ones).
