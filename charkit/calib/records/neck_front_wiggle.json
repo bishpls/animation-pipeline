@@ -1,0 +1,98 @@
+{
+ "check": "neck_front_wiggle",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T20:46:03",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    null,
+    "SKIPPED"
+   ],
+   "+0,+2": [
+    null,
+    "SKIPPED"
+   ],
+   "+1,+0": [
+    null,
+    "SKIPPED"
+   ],
+   "+2,+0": [
+    null,
+    "SKIPPED"
+   ],
+   "+0,-1": [
+    null,
+    "SKIPPED"
+   ],
+   "+0,-2": [
+    null,
+    "SKIPPED"
+   ],
+   "-1,+0": [
+    null,
+    "SKIPPED"
+   ],
+   "-2,+0": [
+    null,
+    "SKIPPED"
+   ]
+  },
+  "min": null,
+  "max": null,
+  "spread": null,
+  "median": null
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": 31.4,
+  "status": "FAIL"
+ },
+ "floor": {
+  "warp_jaw": {
+   "values": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "statuses": [
+    "SKIPPED",
+    "SKIPPED",
+    "SKIPPED",
+    "SKIPPED",
+    "SKIPPED",
+    "SKIPPED",
+    "SKIPPED",
+    "SKIPPED",
+    "SKIPPED"
+   ],
+   "median": null,
+   "status": "SKIPPED",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 5.4,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "miscalibrated",
+ "why": "the design reads SKIPPED moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "warp_jaw": "each view's picture (and head_construction's region) displaced by a smooth random field: three sines 0.004-0.008 L, wavelengths 0.06-0.2 L, across and down (slope under 0.5)"
+ },
+ "seconds": 69.4
+}

@@ -1,0 +1,126 @@
+{
+ "check": "chin_underside",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T20:46:03",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    13.7,
+    "PASS"
+   ],
+   "+0,+2": [
+    13.7,
+    "PASS"
+   ],
+   "+1,+0": [
+    13.7,
+    "PASS"
+   ],
+   "+2,+0": [
+    13.7,
+    "PASS"
+   ],
+   "+0,-1": [
+    13.7,
+    "PASS"
+   ],
+   "+0,-2": [
+    13.7,
+    "PASS"
+   ],
+   "-1,+0": [
+    13.7,
+    "PASS"
+   ],
+   "-2,+0": [
+    13.7,
+    "PASS"
+   ]
+  },
+  "min": 13.7,
+  "max": 13.7,
+  "spread": 0.0,
+  "median": 13.7
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": -7.5,
+  "status": "FAIL"
+ },
+ "floor": {
+  "affine_jaw": {
+   "values": [
+    15.0,
+    17.2,
+    12.4,
+    14.7,
+    12.2,
+    11.0,
+    14.3,
+    10.5,
+    18.1
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 14.3,
+   "status": "PASS",
+   "passing": 9
+  },
+  "widths_jaw": {
+   "values": [
+    13.8,
+    14.6,
+    14.6,
+    12.7,
+    12.9,
+    13.7,
+    12.3,
+    12.9,
+    13.0
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 13.0,
+   "status": "PASS",
+   "passing": 9
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 14.1,
+  "status": "PASS",
+  "margin": 9.0
+ },
+ "verdict": "coarse",
+ "why": "a random baseline passes (affine_jaw: 14.3)",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
+  "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)"
+ },
+ "seconds": 69.4
+}

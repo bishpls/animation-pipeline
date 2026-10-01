@@ -1,0 +1,126 @@
+{
+ "check": "jaw_line_front",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T20:46:03",
+ "better": "higher",
+ "kind": "defect",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": 0.042,
+  "status": "FAIL"
+ },
+ "floor": {
+  "affine_jaw": {
+   "values": [
+    0.937,
+    0.916,
+    1.137,
+    0.874,
+    0.895,
+    0.937,
+    1.147,
+    0.927,
+    0.927
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.927,
+   "status": "PASS",
+   "passing": 9
+  },
+  "other_view": {
+   "values": [
+    0.79,
+    0.79,
+    0.79,
+    0.79,
+    0.79,
+    0.79,
+    0.79,
+    0.79,
+    0.79
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.79,
+   "status": "PASS",
+   "passing": 9
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.137,
+  "status": "PASS",
+  "margin": 1.968
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), jaw0_flagged reads 0.042 FAIL; a random stand-in passes it (affine_jaw, other_view); shape guarded by NONE: name one",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
+  "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
+ },
+ "seconds": 69.4
+}

@@ -1,0 +1,154 @@
+{
+ "check": "neck_to_face",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T20:46:03",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.988,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.97,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.03,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.06,
+    "PASS"
+   ]
+  },
+  "min": 0.97,
+  "max": 1.06,
+  "spread": 0.09,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": 0.777,
+  "status": "WARN"
+ },
+ "floor": {
+  "affine_jaw": {
+   "values": [
+    0.822,
+    0.853,
+    0.835,
+    1.514,
+    1.5,
+    1.652,
+    0.814,
+    1.381,
+    0.803
+   ],
+   "statuses": [
+    "WARN",
+    "PASS",
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "WARN"
+   ],
+   "median": 0.853,
+   "status": "PASS",
+   "passing": 1
+  },
+  "widths_jaw": {
+   "values": [
+    0.88,
+    1.082,
+    0.988,
+    0.947,
+    1.141,
+    0.988,
+    0.933,
+    1.135,
+    1.105
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.988,
+   "status": "PASS",
+   "passing": 9
+  },
+  "other_view": {
+   "values": [
+    1.17,
+    0.872,
+    0.877,
+    1.17,
+    0.863,
+    0.867,
+    0.882,
+    0.867,
+    1.17
+   ],
+   "statuses": [
+    "WARN",
+    "PASS",
+    "PASS",
+    "WARN",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "WARN"
+   ],
+   "median": 0.877,
+   "status": "PASS",
+   "passing": 6
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.972,
+  "status": "PASS",
+  "margin": 0.772
+ },
+ "verdict": "blind",
+ "why": "the known-bad jaw0_flagged reads 0.777 WARN",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
+  "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)",
+  "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
+ },
+ "seconds": 69.4
+}

@@ -1,0 +1,98 @@
+{
+ "check": "tq_cheek_hollow",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T20:46:03",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0017,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0017,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0017,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0017,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0017,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0017,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0017,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0017,
+    "PASS"
+   ]
+  },
+  "min": 0.0017,
+  "max": 0.0017,
+  "spread": 0.0,
+  "median": 0.0017
+ },
+ "known_bad": {
+  "name": "jaw4_review",
+  "value": 0.0097,
+  "status": "FAIL"
+ },
+ "floor": {
+  "warp_jaw": {
+   "values": [
+    0.003,
+    0.0049,
+    0.009,
+    0.0049,
+    0.007,
+    0.0048,
+    0.0063,
+    0.0072,
+    0.0039
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "FAIL",
+    "PASS",
+    "WARN",
+    "PASS",
+    "WARN",
+    "WARN",
+    "PASS"
+   ],
+   "median": 0.0049,
+   "status": "PASS",
+   "passing": 5
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0056,
+  "status": "WARN",
+  "margin": -0.219
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), jaw4_review reads 0.0097 FAIL; a random stand-in passes it (warp_jaw); shape guarded by NONE: name one",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "warp_jaw": "each view's picture (and head_construction's region) displaced by a smooth random field: three sines 0.004-0.008 L, wavelengths 0.06-0.2 L, across and down (slope under 0.5)"
+ },
+ "seconds": 69.4
+}

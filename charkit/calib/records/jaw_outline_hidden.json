@@ -1,0 +1,126 @@
+{
+ "check": "jaw_outline_hidden",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T20:46:03",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0004,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0004,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.001,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0019,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0004,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0004,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.001,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0018,
+    "PASS"
+   ]
+  },
+  "min": 0.0004,
+  "max": 0.0019,
+  "spread": 0.0015,
+  "median": 0.0007
+ },
+ "known_bad": {
+  "name": "f5_base",
+  "value": 0.0112,
+  "status": "FAIL"
+ },
+ "floor": {
+  "affine_jaw": {
+   "values": [
+    0.0219,
+    0.0304,
+    0.0353,
+    0.0444,
+    0.0434,
+    0.0319,
+    0.0446,
+    0.0349,
+    0.0242
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0349,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "widths_jaw": {
+   "values": [
+    0.0151,
+    0.0134,
+    0.0072,
+    0.0143,
+    0.0181,
+    0.0224,
+    0.0237,
+    0.0108,
+    0.0345
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0151,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0025,
+  "status": "PASS",
+  "margin": 0.926
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0015), f5_base reads 0.0112 FAIL, the floor affine_jaw FAIL, widths_jaw FAIL",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
+  "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)"
+ },
+ "seconds": 69.4
+}

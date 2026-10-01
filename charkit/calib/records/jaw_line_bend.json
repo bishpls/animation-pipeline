@@ -1,0 +1,126 @@
+{
+ "check": "jaw_line_bend",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T20:46:03",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    4.2,
+    "PASS"
+   ],
+   "+0,+2": [
+    4.2,
+    "PASS"
+   ],
+   "+1,+0": [
+    4.3,
+    "PASS"
+   ],
+   "+2,+0": [
+    4.3,
+    "PASS"
+   ],
+   "+0,-1": [
+    4.2,
+    "PASS"
+   ],
+   "+0,-2": [
+    4.2,
+    "PASS"
+   ],
+   "-1,+0": [
+    4.7,
+    "PASS"
+   ],
+   "-2,+0": [
+    5.6,
+    "PASS"
+   ]
+  },
+  "min": 4.2,
+  "max": 5.6,
+  "spread": 1.4,
+  "median": 4.25
+ },
+ "known_bad": {
+  "name": "jaw4_review",
+  "value": 24.6,
+  "status": "FAIL"
+ },
+ "floor": {
+  "warp_jaw": {
+   "values": [
+    15.3,
+    13.2,
+    15.7,
+    12.8,
+    15.5,
+    16.9,
+    18.2,
+    11.1,
+    12.8
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 15.3,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "other_view": {
+   "values": [
+    74.2,
+    80.4,
+    83.7,
+    74.2,
+    74.8,
+    77.2,
+    86.6,
+    77.1,
+    75.9
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 77.1,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 4.7,
+  "status": "PASS",
+  "margin": 0.989
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 1.4), jaw4_review reads 24.6 FAIL; a random stand-in fails it; shape guarded by NONE: name one",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "warp_jaw": "each view's picture (and head_construction's region) displaced by a smooth random field: three sines 0.004-0.008 L, wavelengths 0.06-0.2 L, across and down (slope under 0.5)",
+  "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
+ },
+ "seconds": 69.4
+}
