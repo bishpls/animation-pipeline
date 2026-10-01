@@ -446,3 +446,19 @@ hands2 | hands3, per pose and view; 3q rest close-ups), calibrate, pregate --box
   three tips (two fingers, the thumb 0.277 at +32). Relative to the middle: little 0.78, ring 0.90, index 0.92.
 - hands2's template drawn open (fan 14/0/-16/-34, thumb out 45): back IoU 0.513 (palm 0.29 vs 0.40, knuckles 0.43 vs
   0.49), side 0.351 (2 tips vs 3). **open1** fit running on the build box (charkit/out/hands3/open1, log open1.log).
+- **Open-pose fits (build box, `charkit handsheet fit`):** open1 merged two fingers for IoU while the per-digit terms
+  fell away (fixed: every drawn digit is matched, an unmatched one costs its terms; a tip more or fewer 0.25); open2
+  matched all five digits but the side row read curled (curl bound 0) and pure-side (the sheet's side is drawn turned:
+  view_turn_side, a comparison parameter, side IoU 0.39 -> 0.58 at -20 deg). **open3** (charkit/out/hands3/open3): back
+  IoU 0.640, 5/5 tips, lengths little 0.386/0.385, ring 0.464/0.446, middle 0.488/0.496, index 0.448/0.454, thumb
+  0.322/0.320; widths RMS 0.002-0.005 (thumb 0.020); angles within 2-9 deg (middle 7.5 vs -6.4); palm 0.387/0.404;
+  knuckles 0.497/0.494. Side IoU 0.713, 3/3 tips, lengths within 0.015. Structure taken into the spec (c… commit):
+  palm 0.5175, palm_w 0.281, wrist_w 0.109, palm_t 0.084, taper 0.461, overlap -0.017 (a hairline seam), fingers
+  0.936/1/0.979/0.812, thumb_base 0.093, thumb_across 0.481, thumb_len 0.389, thumb_w 0.082; line 1.0. The sheet's
+  open palm (0.40 of the reach) agrees with the turnaround's front hand once its turn is undone (~0.39).
+- **fingerlines_{view}_{L,R}** (declared in handqa.py: ink_inside on the hands as pieces, declared.py's new HANDS and
+  align 'centroid'; front/3q/back L, front/back R; limits 0.4/0.5; Michael's flag). Dry calibration on the box: design 0
+  (every move), paddle_hand (hands2's hand, stored known-bad) 0.72-0.83 front/back, 0.58 in 3q, floors 1.
+- **rest1** running (build box): open3's structure fixed; length, curl, spread, thumb_out/down, bend, dev fitted to
+  the turnaround, floors the comb's QA hand_shape views + 0.02 (charkit/out/hands3/floors_rest.json).
+- The seam gap: `tip_gap` (fingertips apart, the hulls draw the hairline) and code_hand.SEAM_MAX 0.005 L.
