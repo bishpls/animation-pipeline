@@ -651,6 +651,45 @@ def _iou(a, b):
     return float((a & b).sum() / u) if u else None
 
 
+CORNER_COLS = (0.05, 0.075, 0.1, 0.125, 0.15)           # the opening's outermost shares of its width read as its far corner
+                                                  # (their mean: one share's few columns at 400 px per L read 0.04 of
+                                                  # the opening's height off with the drawing moved a pixel)
+CONTOUR_ROWS = (0.17, 0.25)                       # L under the eye line: the lower face at the mouth's height
+
+
+def corner_share(E, side):
+    """an eye's far (outer) corner: the middle row of the opening's outermost CORNER_COLS of its columns (her left eye
+    'L' the picture's right, her right eye the left; in profile the backmost), as a share of the opening's height from
+    its bottom row (0 the bottom, 1 the top) -> float or None. Orthographic views keep a point's height, so a model's
+    corner reads the same in every view unless the backmost point in profile is another point of the opening."""
+    if E is None or not E['O'].any():
+        return None
+    O = E['O']
+    rows, cols = np.nonzero(O.any(1))[0], np.nonzero(O.any(0))[0]
+    top, bot = rows[0], rows[-1]
+    got = []
+    for share in np.atleast_1d(CORNER_COLS):
+        k = max(2, int(round(share * (cols[-1] - cols[0] + 1))))
+        sel = cols[-k:] if side == 'L' else cols[:k]
+        rr = np.nonzero(O[:, sel].any(1))[0]
+        got.append((bot - (rr.min() + rr.max()) / 2) / (bot - top + 1))
+    return round(float(np.mean(got)), 3)
+
+
+def contour_at(F, rows_L):
+    """the face's leading contour (its leftmost face column per row: in three-quarter the far cheek) at the given band
+    of heights (L under the eye line): its mean distance to the left of the anchor (the eyes' midpoint), L -> float or
+    None."""
+    ppl = F['ppl']
+    ax, ey = F['anchor']
+    r0, r1 = int(round(ey + rows_L[0] * ppl)), int(round(ey + rows_L[1] * ppl))
+    lead = F['lead'][max(0, r0):max(0, r1) + 1]
+    lead = lead[np.isfinite(lead)]
+    if len(lead) < 0.5 * (r1 - r0 + 1):
+        return None
+    return round(float((ax - lead).mean()) / ppl, 4)
+
+
 def numbers(F):
     """a view's features (features(), with 'eye_masks' {side: eye_masks()}) -> its flag measures (see the module)."""
     ppl, view = F['ppl'], F['view']
@@ -658,6 +697,12 @@ def numbers(F):
     N = {'view': view, 'eyes': {}, 'brows': {}}
     for side, E in (F.get('eye_masks') or {}).items():
         N['eyes'][side] = {k: v for k, v in eye_numbers(E, ppl).items() if not k.startswith('_')}
+        c = corner_share(E, side)
+        if c is not None:
+            N['eyes'][side]['corner'] = c
+    cm = contour_at(F, CONTOUR_ROWS)
+    if cm is not None:
+        N['contour_mouth'] = cm
     for side, m in F['brow'].items():
         b = _brow_numbers(m, ppl)
         if b:
@@ -719,6 +764,13 @@ FLAG = {
     'placeprof': "Michael 2026-09-30: in profile the mouth reads higher than the reference",
     'nose': "Michael 2026-09-30: the nose is invisible from the front and three-quarter views (the design draws a small "
             "nose mark there)",
+    'corner': "Michael 2026-10-01 (item 4, approved for a fix): in profile the eye's far corner sits below the opening's "
+              "middle where the design's sits above it, so the lash band slants and the profile spikes don't read",
+    'contour': "Michael 2026-10-01 (item 2, approved for a fix): the lower face is too narrow at the mouth's height in "
+               "three-quarter (its far contour 0.515 of the front half-width against the design's 0.656), part of the "
+               "three-quarter mouth's miss",
+    'forehead': "Michael 2026-10-01 (item 3, approved for a fix): the profile brow is short (0.097 L deep against 0.136): "
+                "the forehead is flatter at brow height than the design's",
 }
 
 
@@ -798,6 +850,9 @@ LIMITS = {                      # (pass, warn): ratios |ours / design - 1|, diff
     'placeprof': (0.035, 0.06),                 # the mouth's height between the nose tip and the chin
     'nose': (0.35, 0.18),                       # ours' mark's ink over the drawn mark's: at least (and at most 1 / it)
     'nose_at': (0.015, 0.03),                   # L between the marks' centres
+    'corner': (0.04, 0.06),                     # the far corner's height in the opening (share), ours less the design's
+    'contour': (0.05, 0.10),                    # ratios: the three-quarter's far contour at the mouth's height
+    'brow_len': (0.08, 0.15),                   # ratios: the brow's length (its column span) in the close-up's view
 }
 
 
@@ -849,6 +904,8 @@ def compare(reads):
     """the flag checks from {(sheet, view): (design numbers, our numbers)} -> {check: dict}."""
     from .registry import flag_check
     C = {}
+    reads = dict(reads)
+    override = reads.pop(OVERRIDE, None)
 
     def put(name, flag, rows, info=None, **extra):
         c = _worst(rows)
@@ -893,8 +950,43 @@ def compare(reads):
             put('eye_lash_band_' + sfx, 'lash', bd, note="the upper lash line's band thickness, ours over the design's")
             put('eye_lash_gaps_' + sfx, 'lash', gp, note="the skin between the lash line's strokes (separation), ours "
                                                          "over the design's", info=INFO.get(('lash_detail', sheet, view)))
+        # the far corner's height in the opening: a symmetric model is read on both eyes' mean in front (the drawing's two
+        # eyes differ by 0.04-0.09 of the opening), the near eye in three-quarter (the far eye's corner is foreshortened
+        # to a few pixels) and in profile
+        cd = {sd: e.get('corner') for sd, e in Nd['eyes'].items() if e.get('corner') is not None}
+        co = {sd: e.get('corner') for sd, e in No['eyes'].items() if e.get('corner') is not None}
+        pick = ('L', 'R') if view == 'front' else ('L',)
+        dv = [cd[sd] for sd in pick if sd in cd]
+        ov = [co[sd] for sd in pick if sd in co]
+        if len(dv) == len(pick):
+            if len(ov) == len(pick):
+                a = round(float(np.mean(ov) - np.mean(dv)), 3)
+                rows = [(a, _st(a, LIMITS['corner']), dict(ours=round(float(np.mean(ov)), 3),
+                                                            design=round(float(np.mean(dv)), 3), eyes=list(pick)))]
+            else:
+                rows = [(None, 'FAIL', dict(why='no opening of ours found', design=round(float(np.mean(dv)), 3)))]
+            put('eye_corner_' + sfx, 'corner', rows, note="the eye's far corner's height in its opening (share from its "
+                                                          "bottom), ours less the design's")
+        # the lower face's width at the mouth's height in three-quarter: the far cheek's contour from the eyes' midpoint
+        if view == 'three_quarter' and Nd.get('contour_mouth') and No.get('contour_mouth') is not None:
+            r = _ratio(No['contour_mouth'], Nd['contour_mouth'])
+            put('face_contour_three_quarter', 'contour', [(r, _st(r, LIMITS['contour'], 'ratio'), dict(
+                ours=No['contour_mouth'], design=Nd['contour_mouth'], rows=list(CONTOUR_ROWS)))],
+                note="the far cheek's contour from the eyes' midpoint over the rows %.2f-%.2f L under the eye line "
+                     "(the mouth's height), ours over the design's" % CONTOUR_ROWS)
         # the brows: the close-up (the turnaround's are under the fringe)
         if sheet == 'construction':
+            ln = []
+            for side, d in Nd['brows'].items():
+                o = No['brows'].get(side)
+                if o is not None:
+                    r = _ratio(o['length'], d['length'])
+                    ln.append((r, _st(r, LIMITS['brow_len'], 'ratio'), dict(eye=side, ours=o['length'],
+                                                                            design=d['length'])))
+            if ln:
+                put('brow_len_' + sfx, 'forehead' if view == 'profile' else 'brow', ln,
+                    note="the brow's length (its column span: in profile its depth on the forehead), ours over the "
+                         "design's")
             sh, tk, ar = [], [], []
             for side, d in Nd['brows'].items():
                 o = No['brows'].get(side)
@@ -949,6 +1041,15 @@ def compare(reads):
             else:
                 rows = [(None, 'FAIL', dict(why='no mark of ours' if 'x' in nd else 'no drawn mark'))]
             put('nose_mark_at_' + view, 'nose', rows, note="L between the marks' centres (from the eyes' midpoint)")
+    if override is not None:                    # the three-quarter with the per-shot override on (mouth.VIEW's keys)
+        (Nd, No), w = override[:2], (override[2] if len(override) > 2 else None)
+        md, mo = Nd.get('mouth'), No.get('mouth')
+        if md and mo and md.get('lead') is not None and mo.get('lead') is not None:
+            dd = round(float(np.hypot(mo['lead'] - md['lead'], mo['y'] - md['y'])), 4)
+            put('mouth_place_three_quarter_override', 'place3q', [(dd, _st(dd, LIMITS['place3q']), dict(
+                ours=[mo['lead'], mo['y']], design=[md['lead'], md['y']], weights=w))],
+                note="as mouth_place_three_quarter, with the drawn placement's per-shot keys (charkit.mouth.VIEW) at "
+                     "their weights for the three-quarter's camera: the override a shot asks for (off by default)")
     return C
 
 
@@ -1038,9 +1139,36 @@ def shape_checks(per_read):
 
 
 # ------------------------------------------------------------------------------------------------------------ the part
+OVERRIDE = '_override'                          # reads' key of the three-quarter read with the per-shot override on
+
+
+def view_override(B, az3):
+    """the bundle with the drawn placement's per-shot keys (charkit.mouth.VIEW) at their weights for the three-quarter's
+    camera, when the build has them -> (Bundle, weights) or None."""
+    from . import mouth as mouthlib
+    MK = mouthlib._knobs(B.spec.get('mouth'))
+    sk = B.skin()
+    if mouthlib.view_knobs(MK) is None or sk is None or not sk.has('base'):
+        return None
+    have = set(sk.keys('base'))
+    w = {k: v for k, v in mouthlib.view_weights(MK, view_az('three_quarter', az3), 1.0).items() if k in have}
+    if not any(w.values()):
+        return None
+    Bk = B.keyed(w)
+    moved = {}                                      # (each object's largest move by the keys, L: the override's reach)
+    for o in B.objects(visible=False):
+        for vn in ('bare', 'eval'):
+            if o.has(vn) and Bk.has('o/%s/%s/V' % (o.name, vn)):
+                d = np.abs(np.asarray(Bk.array('o/%s/%s/V' % (o.name, vn)), float) - np.asarray(o.V(vn), float)).max()
+                if d > 0:
+                    moved['%s/%s' % (o.name, vn)] = round(float(d) / float(B.assembly['L']), 4)
+    return Bk, dict(w, moved=moved)
+
+
 def measure_reads(B, design=None, picture=False):
     """every read, both sides -> (reads {(sheet, view): (Nd, No)}, shapes {(sheet, view): {piece: IoU}}, features
-    {(sheet, view): (Fd, Fo)})."""
+    {(sheet, view): (Fd, Fo)}); with the per-shot mouth keys, reads[OVERRIDE] = (Nd, No, weights): the three-quarter
+    read with them on (view_override)."""
     az3 = _az3(B, design)
     reads, shapes, feats = {}, {}, {}
     for sheet, view in READS:
@@ -1050,6 +1178,10 @@ def measure_reads(B, design=None, picture=False):
         shapes[(sheet, view)] = pair(Fd, Fo, No)
         reads[(sheet, view)] = (Nd, No)
         feats[(sheet, view)] = (Fd, Fo)
+    ov = view_override(B, az3)
+    if ov is not None:
+        Fo = ours_read(ov[0], 'turnaround', 'three_quarter', az3)
+        reads[OVERRIDE] = (reads[('turnaround', 'three_quarter')][0], numbers(Fo), ov[1])
     return reads, shapes, feats
 
 
@@ -1061,8 +1193,12 @@ def checks_of(reads, shapes):
 
 def _table(reads, shapes):
     strip = lambda N: {k: v for k, v in N.items() if not k.startswith('_')}
-    return {'%s_%s' % (s, v): {'design': strip(Nd), 'ours': strip(No), 'shapes': shapes[(s, v)]}
-            for (s, v), (Nd, No) in reads.items()}
+    T = {'%s_%s' % k: {'design': strip(r[0]), 'ours': strip(r[1]), 'shapes': shapes[k]}
+         for k, r in reads.items() if k != OVERRIDE}
+    if OVERRIDE in reads:
+        r = reads[OVERRIDE]
+        T['turnaround_three_quarter_override'] = {'design': strip(r[0]), 'ours': strip(r[1]), 'weights': r[2]}
+    return T
 
 
 from .registry import qa_part  # noqa: E402

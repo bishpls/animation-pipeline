@@ -1,0 +1,96 @@
+{
+ "check": "hair_strokes_three_quarter_density",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T06:05:55",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_bangs",
+  "hair_piece_side_locks",
+  "hair_piece_upper_back",
+  "hair_piece_lower_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.027,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.049,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.02,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.036,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.025,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.046,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.024,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.041,
+    "PASS"
+   ]
+  },
+  "min": 0.02,
+  "max": 0.049,
+  "spread": 0.029,
+  "median": 0.0315
+ },
+ "known_bad": {
+  "name": "hst_base",
+  "value": 1.0,
+  "status": "FAIL"
+ },
+ "floor": {
+  "scattered_strokes": {
+   "values": [
+    0.7,
+    0.714,
+    0.577,
+    0.755,
+    0.75
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.714,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.42,
+  "status": "WARN",
+  "margin": 0.431
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.029), hst_base reads 1.0 FAIL, the floor scattered_strokes FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/hst_s1",
+ "generators": {
+  "scattered_strokes": "the drawn strands inside the hair's mass each put anywhere in the mass at random (their length and direction kept: strokes in the wrong places)"
+ },
+ "seconds": 251.7
+}

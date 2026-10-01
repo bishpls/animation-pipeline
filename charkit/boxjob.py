@@ -632,6 +632,9 @@ def main(argv):
     if cmd == 'version':
         print(VERSION)
         return 0
+    if cmd == 'slots':                      # (charkit.remote.box_slots: the slots now, as one JSON line)
+        print(json.dumps(slots_now()))
+        return 0
     print(__doc__)
     return 1
 

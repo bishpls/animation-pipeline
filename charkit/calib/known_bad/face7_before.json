@@ -1,0 +1,10 @@
+{
+ "name": "face7_before",
+ "why": "Michael's 2026-10-01 items on the face6 build (merged as pipeline-3d's state, preview 52f6324): the lower face too narrow at the mouth's height in three-quarter (item 2), the profile brow short / the forehead flat at brow height (item 3), the profile eye's far corner below the opening's middle (item 4)",
+ "flag": "face base shape (Michael, 2026-10-01)",
+ "commit": "52f6324",
+ "source": "~/animation-pipeline-3d/charkit/out/previews/52f6324",
+ "stored": "2026-10-01",
+ "bundle": "524c21a8f0797e80",
+ "qa_checks": 631
+}

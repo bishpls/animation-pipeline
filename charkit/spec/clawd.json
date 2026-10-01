@@ -117,7 +117,7 @@
  "brows": {
   "thick": 0.016,
   "height": 0.44,
-  "arch": 0.095,
+  "arch": 0.1,
   "inner": -0.37,
   "outer": 0.435,
   "peak": 0.54,
@@ -134,7 +134,8 @@
    "gap": 0.0015,
    "line_w": 0.005,
    "drop": 0.012
-  }
+  },
+  "view": {"slide": 0.11, "curve": [[0.0, 0.0], [35.7, 1.0], [90.0, 0.0]]}
  },
  "nose": {
   "tick": [0.0075, 0.022, -0.007]
@@ -319,6 +320,14 @@
    "pieces_opts": {
     "bun": "ribbon",
     "eye_anchor": "iris"
+   },
+   "strokes": {
+    "set": "strand",
+    "width": 0.0035,
+    "taper": 0.6,
+    "tip": 0.15,
+    "buns": true,
+    "lock_lines": false
    }
   },
   "silhouette": {

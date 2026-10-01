@@ -29,7 +29,38 @@ DEFAULT_MOUTH = {
     'jaw_follow': 0.3,  # the same on an authored base, whose jaw region moves whole (the lips' rings take the rest): the
                         # dial between a jaw that drops (1) and the drawn heads' kept outline (0); 0.6 -> 0.3 took the
                         # laugh's chin drop 0.096 -> 0.069 L with every key's folds 0 (docs/workstreams/mouth.md)
+    'view': {},         # the drawn placement as a per-shot override (VIEW; Michael, 2026-10-01): empty, none built
 }
+
+# The mouth's placement as the drawings place it, a per-shot override of the rigid head's (Michael, 2026-10-01: the rigid
+# placement is the default; the three-quarter's drawn placement is the drawing's own, about 0.025 L of the 0.075 L
+# miss, and a shot may ask for it). Two keys slide the whole mouth (the lips' loop and rings on the skin, the line, the
+# teeth, the tongue) along the face toward her left (view_mouth_L) or her right (view_mouth_R), `slide` L of front-view x
+# at weight 1. Nothing drives them by default: a shot sets their weights (view_weights: the curve at its camera's yaw
+# times its setting), or binds Blender drivers to its camera (charkit.character.drive_view_mouth).
+VIEW = {'slide': 0.0,                     # L of front-view x at weight 1 (0: no keys)
+        'curve': [[0.0, 0.0], [35.7, 1.0], [90.0, 0.0]]}   # the weight per camera yaw from the face's front (degrees,
+                                                           # |yaw|, linear between; the camera on her left (+yaw) slides
+                                                           # the mouth toward her left: the drawn three-quarter's mouth
+                                                           # sits nearer the eyes' midpoint than a rigid muzzle puts it)
+VIEW_KEYS = ('view_mouth_L', 'view_mouth_R')
+
+
+def view_knobs(K):
+    """the view override's knobs (VIEW, the spec's mouth.view over them) -> dict, or None when it builds no keys."""
+    V = dict(VIEW); V.update((K or {}).get('view') or {})
+    return V if float(V.get('slide') or 0.0) != 0.0 else None
+
+
+def view_weights(K, yaw, setting=1.0):
+    """the view keys' weights for a camera at `yaw` degrees from the face's front (+ on her left, as the QA's azimuth)
+    and a shot's setting (0: the rigid placement, the default; 1: the drawn) -> {key: weight}."""
+    V = view_knobs(K)
+    if V is None:
+        return {}
+    c = np.asarray(V['curve'], float)
+    w = float(np.interp(min(abs(float(yaw)), 180.0), c[:, 0], c[:, 1])) * float(setting)
+    return {'view_mouth_L': w if yaw > 0 else 0.0, 'view_mouth_R': w if yaw < 0 else 0.0}
 
 RINGS = 9                                  # outer rings that can follow the lips (the spread decides how far)
 JAW_CORE = 0.98                            # an authored base's jaw weight from which the skin moves with the jaw whole

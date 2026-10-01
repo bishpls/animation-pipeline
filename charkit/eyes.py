@@ -57,6 +57,16 @@ DEFAULT_EYE = {
     'anchor': 'min',     # the surface's depth: 'min' never in front of `depth`; 'mean' its mean over the opening
                          # there; 'corners' the opening's two corners there (their mean); 'fold' the fold there
     'flick_turn': None,  # 'turned': the flick's own angle from facing front (degrees; None: the surface's at the corner)
+    'wrap': 0.0,         # 'turned': the upper lid's outer part wrapped back round the head: depth (eye widths) per eye
+                         # width of height above the outer corner, at the outer corner, eased in from `wrap_from` (eye
+                         # widths outward of the centre). In profile the opening's backmost point (its far corner as
+                         # drawn) climbs from the corner up the upper lid; the front view is unchanged (every (x, z) kept).
+                         # Michael (2026-10-01): the profile's far corner sits below the opening's middle, the design's
+                         # above it (the lash band slants, the profile spikes don't read)
+    'wrap_from': 0.0,
+    'wrap_reach': None,  # L: how far outside the opening the skin follows the wrap (None: fold_reach): the lash's
+                         # spikes stand at their root's depth, so the skin over the lid must recede with the lid or it
+                         # comes in front of them (the front view's spikes hid: eye_lash_spikes_closeup_front 1.0 -> 0.33)
     'converge': 0.0,     # the irises' rest place toward the nose (eye widths) when the spec's iris doesn't set it
     'iris': (0.285, 0.54, -0.01, 0.0),  # the iris at rest: half-width, half-height, centre height and convergence, in
                                         # eye widths (knobs() takes them from the iris knobs): the fold follows its
@@ -302,6 +312,9 @@ class Surface:
         self.at, self.soft = float(K['fold_at']), max(1e-3, float(K['fold_soft']))
         self.shape = float(K.get('fold_shape', 1.0))
         self.follow = float(K.get('fold_follow', 0.0))
+        self.wrap, self.wrap_from = float(K.get('wrap', 0.0)), float(K.get('wrap_from', 0.0))
+        self.wrap_reach = float(K['wrap_reach']) * L if K.get('wrap_reach') is not None else float(K['fold_reach']) * L
+        self.wrap_z = float(outline(K, 1.0, np.array([1.0]), 'upper')[1][0] / K['width']) if self.wrap else 0.0
         tn, tf, tc = (math.radians(a) for a in K['turn'])
         # G(u): the surface's depth (eye widths, + back) at u eye widths outward of the row's fold, 0 at the fold
         e0 = -(rx + conv) + self.at                          # the fold at the iris's middle row
@@ -348,6 +361,13 @@ class Surface:
             out = out + self.follow * (self._face(xf, z) - self._face(self.fold_x(np.zeros(1)), np.zeros(1)))
         return out
 
+    def _wrap(self, x, z):
+        """the wrap's extra depth (eye widths, + back) at (x, z) eye widths (K['wrap'])."""
+        if not self.wrap:
+            return 0.0
+        x, z = np.asarray(x, float), np.asarray(z, float)
+        return self.wrap * np.maximum(z - self.wrap_z, 0.0) * _smooth(self.wrap_from, 0.5, x)
+
     def _face(self, x, z):
         """the face's depth at (x, z) eye widths, bilinear on the grid (numpy: Blender's Python has no scipy)."""
         n, m = self.yF.shape
@@ -366,10 +386,13 @@ class Surface:
             return np.zeros(x.shape)
         P = np.stack([x.ravel(), z.ravel()], 1)
         d = _seg_dist(P, self.poly)
-        w = np.where(_inside(P, self.poly), 1.0, 1 - _smooth(0.0, self.reach, d))
+        ins = _inside(P, self.poly)
+        w = np.where(ins, 1.0, 1 - _smooth(0.0, self.reach, d))
         xw, zw = P[:, 0] / self.W, P[:, 1] / self.W
-        f = (self._raw(xw, zw) + self.c0 - self._face(xw, zw)) * self.W
-        return (f * w).reshape(x.shape)
+        f = (self._raw(xw, zw) + self.c0 - self._face(xw, zw)) * self.W * w
+        if self.wrap:
+            f = f + self._wrap(xw, zw) * self.W * np.where(ins, 1.0, 1 - _smooth(0.0, self.wrap_reach, d))
+        return f.reshape(x.shape)
 
     def world(self, X, Z):
         """the extra depth at world (X, Z)."""

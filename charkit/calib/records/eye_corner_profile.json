@@ -1,0 +1,93 @@
+{
+ "check": "eye_corner_profile",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-10-01T11:54:34",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "face_piece_lash",
+  "face_piece_iris"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.013,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.013,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.025,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.025,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.013,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.013,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.025,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.025,
+    "PASS"
+   ]
+  },
+  "min": -0.025,
+  "max": -0.013,
+  "spread": 0.012,
+  "median": -0.019
+ },
+ "known_bad": {
+  "name": "face7_before",
+  "value": -0.074,
+  "status": "FAIL"
+ },
+ "floor": {
+  "corner_moved": {
+   "values": [
+    -0.137,
+    0.251,
+    -0.196,
+    0.237,
+    -0.137
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.137,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": -0.017,
+  "status": "PASS",
+  "margin": 1.017
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.012), face7_before reads -0.074 FAIL, the floor corner_moved FAIL",
+ "build": "charkit/out/face7_g2",
+ "generators": {
+  "corner_moved": "each eye's masks warped (both eyes the same way): its columns shifted 0.15-0.3 x the opening's height up or down times t^2 (0 at the inner end, 1 at the outer): the far corner moved, the inner part kept"
+ },
+ "seconds": 40.7
+}

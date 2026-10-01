@@ -1,0 +1,95 @@
+{
+ "check": "hair_strokes_profile_weight",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T08:07:02",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_bangs",
+  "hair_piece_side_locks",
+  "hair_piece_upper_back",
+  "hair_piece_lower_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.038,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.038,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.032,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.032,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.038,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.038,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.038,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.038,
+    "PASS"
+   ]
+  },
+  "min": 0.032,
+  "max": 0.038,
+  "spread": 0.006,
+  "median": 0.038
+ },
+ "known_bad": {
+  "name": "hst_base",
+  "value": null,
+  "status": "FAIL"
+ },
+ "floor": {
+  "heavy_strokes": {
+   "values": [
+    1.876,
+    1.871,
+    1.884,
+    1.879,
+    1.881
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 1.879,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.422,
+  "status": "PASS",
+  "margin": 0.791
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.006), hst_base reads None FAIL, the floor heavy_strokes FAIL",
+ "build": "charkit/out/hst_s1",
+ "generators": {
+  "heavy_strokes": "the head sheet's strands repainted in the outline's ink at the outline's weight (inner strokes as heavy as the silhouette's line)"
+ },
+ "seconds": 304.1
+}

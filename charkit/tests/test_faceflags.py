@@ -75,6 +75,34 @@ def test_brow_numbers_read_a_crescent_thicker_in_its_middle():
     assert b['taper'] < 0.6 and 0.12 < b['arch'] < 0.17, b
 
 
+def test_corner_share_reads_the_far_corner_height():
+    """the opening's far (outer) corner as a share of its height from the bottom (tool/face7): an opening whose outer
+    fifth is a sliver a quarter of the way down its height reads 0.75 on that side; her right eye's outer end is the
+    picture's left."""
+    n = 200
+    O = np.zeros((n, n), bool)
+    top, bot = 50, 150                                     # rows; the corner row 75 -> (150 - 75) / 101
+    for c in range(20, 181):
+        t = (c - 20) / 160.0                               # 0 at the left end, 1 at the right
+        if t > 0.8:
+            O[74:77, c] = True                             # the far corner's sliver
+        else:
+            O[top:bot + 1, c] = True
+    E = dict(O=O, I=np.zeros_like(O), U=np.zeros_like(O))
+    got = ff.corner_share(E, 'L')
+    assert abs(got - 75 / 101.0) < 0.03, got
+    left = ff.corner_share(E, 'R')                         # the left end spans the whole height: its middle row
+    assert abs(left - 0.5) < 0.03, left
+
+
+def test_contour_reads_the_leading_edge_from_the_anchor():
+    ppl = 200.0
+    F = dict(ppl=ppl, anchor=(100.0, 50.0), lead=np.full(400, 70.0))      # the face's left edge 30 px left of it
+    assert abs(ff.contour_at(F, ff.CONTOUR_ROWS) - 30 / ppl) < 1e-9
+    F['lead'][:] = np.nan
+    assert ff.contour_at(F, ff.CONTOUR_ROWS) is None
+
+
 def test_the_calibration_registry_reads():
     from charkit import calibrate
     E = [e for e in calibrate.entries() if e['module'] == 'charkit.calib.faceflags']
