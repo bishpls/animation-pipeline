@@ -290,8 +290,11 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      remeasured), bow_profile_tail_*/loop_*, iso_bow_body, iso_bow_knot_line, iso_bow_crease_* (4466d2f: pr3's qa.json given the
      un-prefixed iso_bow_* names, as the fixed QA names them); GUARD bow_part_lobe_iou; **BLIND bow_part_knot_iou**
      (front only, the known-bad g3_render3's front knot reads 0.467 WARN).
-   - Tests ok (partqa, isoqa, spec_alias, manifest); pregate 3ae7e5e into 640ca7c PASS, 0 blocking. Gate launched
-     (4466d2f; log charkit/out/pieceref/harness/gate1.log): expected FAIL on the new FAILs above.
+   - Tests ok (partqa, isoqa, spec_alias, manifest); pregate 3ae7e5e into 640ca7c PASS, 0 blocking. **Gate FAIL**
+     (493cad7 into 640ca7c, charkit/out/gate/gate_tool-pieceref_493cad7_into_640ca7c.md), 10 blockers: art_outline_collar
+     (flag) 1.379 P -> 2.096 W; new FAILs bow_front_bleed 0.275, bow_front/3q/profile_torn, collar_front_torn,
+     sleeve_front_spikes_L/R; the 2x2's bow_profile_ribbon under the old measure 0.053 P -> 0.553 F (the close-hung bow,
+     option C's reason; new measure 0 P); bow_part_knot_iou's record BLIND.
    - Fixes for the coordinator's findings: isoqa lost its doubled part prefix (17106263: the box named them
      iso_iso_bow_*); QA part orders unique (e9319b8: bow_profile 1767, bow_parts 1772, iso_pieces 1776; with tool/hands
      merged (merge-tree) the registry loads, 31 parts, no shared orders); pipeline-3d 640ca7c merged (e9a670a);
