@@ -19,6 +19,7 @@
     python -m charkit preview [REF] | hook install | serve               # after a merge: the combined preview (charkit/preview.py); serve: click-to-flag (charkit/flags.py)
     python -m charkit evaldrift [SPEC] [--stages]                      # the numpy evaluator against a box build (charkit/evaldrift.py)
     python -m charkit evalmesh lab | build BUILD [--render]           # our Subdivision Surface and Solidify against Blender's (charkit/evalmesh.py)
+    python -m charkit rom BUILD [--out DIR] [--poses a,b] [--boards]   # the range-of-motion suite: the rig posed and measured (charkit/rom.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -57,7 +58,7 @@ and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D 
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
 out/sheet_body.png, out/sheet_face.png. Every build writes what charkit's toon renderer draws: out/NAME.look.glb (the
-export without shape keys or weights; --no-look leaves it out) and, with --vrm, the full out/NAME.vrm besides
+export without shape keys, its skin weights kept; --no-look leaves it out) and, with --vrm, the full out/NAME.vrm besides
 (charkit/gltf.py); the QA and the toon boards draw the look export when there is one.
 The QA draws with the renderer from it when its drawing is set so (charkit.qa3d.DRAW, CHARKIT_QA_DRAW; charkit/qarender.py),
 and so do the boards with --boards-renderer toon, the default where CHARKIT_NO_RENDER=1 (the CPU build box: the views,
@@ -320,7 +321,7 @@ def _build(args):
     if qa not in (None, 'venv', 'blender'):
         raise SystemExit('--qa venv|blender')
     # every build exports what charkit.render draws (the QA's drawing, the toon boards): NAME.look.glb (the export
-    # without shape keys or weights: gltf.export look_only; --no-look leaves it out), and with --vrm the full NAME.vrm
+    # without shape keys, its skin weights kept: gltf.export look_only; --no-look leaves it out), and with --vrm the full NAME.vrm
     # besides. The drawing takes the look export first (render.buildboards.export_of), so a --vrm build's QA draws what
     # every other build's draws: a gate whose candidate built with --vrm and no look export drew it from the VRM, and 7
     # face_shadow values moved with no change (tool/evalmesh ed0f91a's gate, 2026-09-30)
@@ -939,6 +940,9 @@ def main(argv=None):
     elif cmd == 'evalmesh':
         from . import evalmesh
         raise SystemExit(evalmesh.main(rest))
+    elif cmd == 'rom':
+        from . import rom
+        raise SystemExit(rom.main(rest))
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)
