@@ -318,8 +318,7 @@ def _frames_since(B, seen):
     seen['i'] = i0 + len(keys)
     dup = [s_ for k, s_ in zip(keys, secs) if k in seen.setdefault('keys', set())]
     seen['keys'] |= set(keys)
-    return dict(n=len(keys), seconds=round(sum(secs), 1), dup=len(dup), dup_seconds=round(sum(dup), 1),
-                culled=sum(T.get('culled', [])[i0:]))
+    return dict(n=len(keys), seconds=round(sum(secs), 1), dup=len(dup), dup_seconds=round(sum(dup), 1))
 
 
 def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print, cprofile=True):
@@ -370,8 +369,7 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print, cprofi
             st.dump_stats(os.path.join(out, 'qa_%s.prof' % P.name))
         log('profile qa %-14s %7.1f s wall %7.1f s CPU  %d checks%s%s; top: %s' % (
             P.name, w, cp, len(C), (' (%s)' % err) if err else '',
-            '; frames %d (%.1f s), %d again (%.1f s), %d items culled' % (fr['n'], fr['seconds'], fr['dup'],
-                                                                         fr['dup_seconds'], fr['culled'])
+            '; frames %d (%.1f s), %d again (%.1f s)' % (fr['n'], fr['seconds'], fr['dup'], fr['dup_seconds'])
             if fr and fr['n'] else '',
             ', '.join('%s %.1f' % (f['fn'].rsplit(':', 1)[-1], f['tottime']) for f in fns[:3])))
     if out:
