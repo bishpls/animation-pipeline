@@ -2527,8 +2527,85 @@ def bow_hull(A, spec, hull):
             # `stand` followed the lobes' frontmost and floated it in front of them
             dyk = side - seat * L - V[kv, 1].max()
         V[kv, 1] += dyk
+    clr = spec.get('clear')
+    if clr:
+        # pieces don't interpenetrate (the placement rules outrank the reference's exact placement): the lobes held
+        # off the jacket. The wrap puts the bow's front on the hull's, so its lower layer's back sank up to 0.03 L into
+        # the jacket and the lower edge's outline, drawn behind the jacket's surface, didn't show (bow_front_bleed).
+        sel = np.ones(len(G['verts']), bool)
+        if clr.get('parts', 'lobes') == 'lobes':
+            if G.get('knot_v') is not None:
+                sel[G['knot_v']] = False
+            sel[~np.isnan(np.asarray(G['tail_s'], float))] = False
+        if clr.get('bake', True):
+            # cleared as it renders: the build's Subdivision (level 1, limit) baked into the mesh first, the piece then
+            # built without one. Clearing the cage left the subdivided strip's lower edge 0.0016 L into the jacket
+            # where the cage's vertices stood 0.0096 L clear (the cage's edges, 0.014 L, span the bust's round)
+            from .geom.subsurf import subdivide
+            wk = sorted(G['weights'])
+            car = np.c_[np.asarray(G['uv'], float).reshape(len(G['verts']), -1), sel.astype(float),
+                        np.stack([np.asarray(G['weights'][k], float) for k in wk], 1)]
+            R = subdivide(np.asarray(G['verts'], float), [tuple(f) for f in G['faces']], levels=1, carry=car)
+            nuv = car.shape[1] - 1 - len(wk)
+            G['verts'] = np.asarray(R['V'], float)
+            G['faces'] = [tuple(int(i) for i in q) for q in R['quads']]
+            G['uv'] = [tuple(x) for x in R['carry'][:, :nuv]]
+            sel = R['carry'][:, nuv] > 0.5                       # (the parts are disconnected: exact)
+            G['weights'] = {k: R['carry'][:, nuv + 1 + i] for i, k in enumerate(wk)}
+            G['subdiv'] = 0
+            for k in ('knot_v', 'lobe_v', 'tail_s'):
+                G.pop(k, None)
+        G['verts'][sel] = clear_of(G['verts'][sel], A, spec, hull, clr)
     G['fit'] = dict(size=sz / L, tail=tail, depth=depth / L, centre=[0.5 * (lo + hi), y, z])
     return G
+
+
+def clear_of(P, A, spec, hull, c):
+    """points held off other garments' surfaces: each moved out along the surface's normal (the nearest faces' planes,
+    inverse-distance weighted over 6) to at least `gap` L in front of it by a soft floor (d -> gap + soft log(1 +
+    e^((d - gap) / soft)), L: monotone, so a thin layer's front and back keep their order, and points more than a few
+    `soft` clear barely move). c: dict(of=[garment names, shells; default the jacket 'top'], gap (L, 0.006), soft (L,
+    0.002), limit (default True: against the shells' level-1 Subdivision, as they render; a concave cage renders in
+    front of itself)). The shells are rebuilt from the spec (`_spec`) as the build makes them. -> P moved (m)."""
+    from scipy.spatial import cKDTree
+    L = A['head']['L']
+    sa = spec.get('_spec') or {}
+    names = c.get('of', ['top'])
+    nrm = vertex_normals(A['verts'], A['faces'])
+    C, N = [], []
+    for g in sa.get('garments', []):
+        if g.get('name') not in names or g.get('kind') != 'shell':
+            continue
+        S = shell(A, dict(g, _spec=sa), nrm, hull)
+        SV, SF = np.asarray(S['verts'], float), S['faces']
+        if c.get('limit', True):
+            # the surface as it renders: the build's Subdivision (level 1, limit), which pushes a concave cage out (the
+            # chest under the bow's lower edge: the render up to 0.007 L in front of the cage)
+            from .geom.subsurf import subdivide
+            R = subdivide(SV, [tuple(f) for f in SF], levels=1)
+            SV, SF = np.asarray(R['V'], float), [tuple(q) for q in R['quads']]
+        out = nrm[cKDTree(A['verts']).query(SV)[1]]               # outward: the body's normal under each vertex
+        Tr = np.array([(f[0], f[k], f[k + 1]) for f in SF for k in range(1, len(f) - 1)], np.int64).reshape(-1, 3)
+        a, b, d = SV[Tr[:, 0]], SV[Tr[:, 1]], SV[Tr[:, 2]]
+        n_ = np.cross(b - a, d - a)
+        ln = np.linalg.norm(n_, axis=1)
+        ok = ln > 1e-15
+        n_ = n_[ok] / ln[ok, None]
+        n_ *= np.where((n_ * out[Tr[ok]].sum(1)).sum(1) < 0, -1.0, 1.0)[:, None]
+        C.append(((a + b + d) / 3)[ok]); N.append(n_)
+    if not C:
+        return P
+    C, N = np.concatenate(C), np.concatenate(N)
+    P = np.asarray(P, float).copy()
+    _, j = cKDTree(C).query(P, k=6)
+    dist = np.linalg.norm(P[:, None, :] - C[j], axis=2)
+    w = 1 / np.maximum(dist, 1e-6)
+    d = (((P[:, None, :] - C[j]) * N[j]).sum(2) * w).sum(1) / w.sum(1)
+    n = (N[j] * w[..., None]).sum(1)
+    n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-15)
+    gap, soft = c.get('gap', 0.006) * L, c.get('soft', 0.002) * L
+    f = gap + soft * np.logaddexp(0.0, (d - gap) / soft)
+    return P + (f - d)[:, None] * n
 
 
 def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0, end_p=2.0, drop=0.0, drop_p=1.5,
