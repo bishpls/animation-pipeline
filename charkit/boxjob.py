@@ -22,6 +22,7 @@ Box side (python3 JOBS/<jid>/boxjob.py CMD ...):
     list [--days N]             every job as a JSON line (running, done, lost), finished ones from the last N days
     kill JID                    SIGTERM to the job's processes (its process group and descendants; nothing else)
     sample [--boot]             one load sample into LOAD/load-YYYYMMDD.jsonl (cron, once a minute and at boot; see below)
+    slots                       the slots, cores, load and memory now, one JSON line (charkit.remote's box picker)
     supervise JID charkit-job   (internal) the detached supervisor; its command line names charkit so the build box's
                                 idle stop (`pgrep -f charkit`) counts a running job as busy
 
@@ -485,6 +486,27 @@ def slots_now(slots_dir=SLOTS_DIR):
                 waiters=waiting)
 
 
+def reading(slots_dir=SLOTS_DIR):
+    """what charkit.remote.pick_box routes by, now: the build slots (slots_now) with the box's cores (ncpu), its 1-, 5-
+    and 15-minute load, the memory available (GB) and the GPU's use where there is one. A build holds a slot only for
+    its Blender step, so the slots alone miss a box whose cores are oversubscribed (the build box at load 129 on 32
+    vCPUs with slots to spare, 2026-10-01): the load shows it."""
+    r = slots_now(slots_dir)
+    try:
+        r['load'] = [round(x, 2) for x in os.getloadavg()]
+    except OSError:
+        r['load'] = None
+    r['ncpu'] = os.cpu_count()
+    try:
+        r['mem_avail_gb'] = round(_meminfo().get('MemAvailable', 0), 1)
+    except OSError:
+        pass
+    g = _gpu()
+    if g:
+        r['gpu'] = g
+    return r
+
+
 def _classify(argv):
     """a process's class for the CPU accounting: blender, charkit <sub> (build, tune, qa, gate, fit, ...), or other."""
     if not argv:
@@ -632,8 +654,8 @@ def main(argv):
     if cmd == 'version':
         print(VERSION)
         return 0
-    if cmd == 'slots':                      # (charkit.remote.box_slots: the slots now, as one JSON line)
-        print(json.dumps(slots_now()))
+    if cmd == 'slots':                      # (charkit.remote.box_slots: the slots, cores and load now, one JSON line)
+        print(json.dumps(reading()))
         return 0
     print(__doc__)
     return 1
