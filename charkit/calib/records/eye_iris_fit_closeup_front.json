@@ -1,0 +1,92 @@
+{
+ "check": "eye_iris_fit_closeup_front",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_iris"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.983,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.983,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.983,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.983,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.983,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.983,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.983,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.983,
+    "PASS"
+   ]
+  },
+  "min": 0.983,
+  "max": 0.983,
+  "spread": 0.0,
+  "median": 0.983
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": 1.514,
+  "status": "FAIL"
+ },
+ "floor": {
+  "iris_scaled": {
+   "values": [
+    0.599,
+    1.241,
+    0.777,
+    0.716,
+    1.245
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.777,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.514,
+  "status": "FAIL",
+  "margin": 3.578
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), face6_before reads 1.514 FAIL, the floor iris_scaled FAIL",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "iris_scaled": "each iris scaled 1.25-1.6x or 0.6-0.8x in height about its middle, clipped to the opening"
+ },
+ "seconds": 62.9
+}

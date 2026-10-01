@@ -1,0 +1,93 @@
+{
+ "check": "mouth_place_closeup_profile",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_mouth"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.002,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.002,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.002,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.002,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.002,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.002,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.002,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.002,
+    "PASS"
+   ]
+  },
+  "min": -0.002,
+  "max": -0.002,
+  "spread": 0.0,
+  "median": -0.002
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": -0.075,
+  "status": "FAIL"
+ },
+ "floor": {
+  "mouth_moved": {
+   "values": [
+    0.102,
+    -0.14,
+    0.166,
+    -0.156,
+    -0.197
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.14,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": -0.075,
+  "status": "FAIL",
+  "margin": 0.471
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), face6_before reads -0.075 FAIL, the floor mouth_moved FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "mouth_moved": "the mouth moved 0.03-0.06 L up or down and 0.03-0.06 L across, at random"
+ },
+ "seconds": 62.9
+}

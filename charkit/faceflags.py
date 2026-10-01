@@ -288,8 +288,8 @@ def design_eye_px(heads, view, ppl, win=WIN):
 # per view: where the mouth and the nose's mark are looked for, (x range, y range) in L from the anchor (the eyes'
 # midpoint in front and three-quarter, the eye in profile; + right, + down)
 BOXES = {
-    'front': dict(mouth=((-0.20, 0.20), (0.12, 0.31)), nose=((-0.07, 0.07), (0.04, 0.20))),
-    'three_quarter': dict(mouth=((-0.26, 0.16), (0.12, 0.31)), nose=((-0.24, 0.02), (0.06, 0.20))),
+    'front': dict(mouth=((-0.20, 0.20), (0.12, 0.31)), nose=((-0.07, 0.07), (0.03, 0.155))),
+    'three_quarter': dict(mouth=((-0.26, 0.16), (0.12, 0.31)), nose=((-0.24, 0.02), (0.05, 0.16))),
     'profile': dict(mouth=((-0.36, 0.0), (0.12, 0.31))),
 }
 EYE_R = 0.13                                     # L round an eye centre: its opening, lashes and lids (not its brow)
@@ -361,8 +361,9 @@ def features(view, ppl, eyes, masks):
                         m |= c
                 F['mouth'] = m
         else:
-            F['nose_ink'] = bm & masks['nose_ink']
-            F['nose_high'] = bm & masks['nose_high']
+            away = ~_grow(F['mouth'], max(1, int(round(0.01 * ppl)))) if F.get('mouth') is not None else True
+            F['nose_ink'] = bm & masks['nose_ink'] & away
+            F['nose_high'] = bm & masks['nose_high'] & away
     return F
 
 
@@ -415,6 +416,7 @@ def ours_features(cls, view, ppl, eyes):
 # ------------------------------------------------------------------------------------------------------------ eyes
 EYE_CROP = 0.42                                   # L: an eye's crop (qa3d.EYE_SIZE: our eye_image's window)
 LASH_TIP = 0.012                                  # L: a lash spike's least length (its top-hat piece's extent)
+LASH_THIN = 0.5                                   # a spike's mean width (area / length) at most this share of the band
 
 
 def paper_of(rgb):
@@ -550,7 +552,7 @@ def eye_numbers(E, ppl):
                     opening heights
       lash_band     the upper lash line's thickness over the opening's middle 60% (median, L)
       lash_spikes   its spikes and flicks: its pieces thinner than its band (what an opening by a disk of 0.45 x the
-                    band removes) at least LASH_TIP long
+                    band removes) at least LASH_TIP long and at most LASH_THIN of the band wide
       lash_gaps     the skin between its strokes: its convex hull less itself, clear of the opening, in pieces"""
     from . import eyeqa
     from scipy import ndimage
@@ -579,8 +581,12 @@ def eye_numbers(E, ppl):
         disk = np.hypot(*np.mgrid[-r:r + 1, -r:r + 1]) <= r
         tips = U & ~ndimage.binary_opening(U, structure=disk)
         amin = max(2, int(round((0.004 * ppl) ** 2)))
-        out['lash_spikes'] = sum(1 for c in _cc(tips, amin)
-                                 if max(np.ptp(np.nonzero(c)[0]), np.ptp(np.nonzero(c)[1])) + 1 >= LASH_TIP * ppl)
+        n = 0
+        for c in _cc(tips, amin):
+            ln = max(np.ptp(np.nonzero(c)[0]), np.ptp(np.nonzero(c)[1])) + 1
+            if ln >= LASH_TIP * ppl and c.sum() / ln <= LASH_THIN * max(th, 1.0):
+                n += 1                          # long, and thin against the band: a lash, not a lump
+        out['lash_spikes'] = n
         gaps = convex_hull_image(U) & ~U & ~_grow(O, max(1, int(round(0.004 * ppl))))
         out['lash_gaps'] = len(_cc(gaps, amin))
         out['_tips'] = tips
@@ -744,8 +750,11 @@ def design_read(sheet, view, shift=(0, 0)):
 
 
 def _shift(a, sh):
-    """a picture moved (rows, columns) with its edge pixels repeated."""
+    """a picture moved (rows, columns) with its edge pixels repeated: each whole-pixel move and half a pixel more the
+    same way (bilinear), so the move re-samples the drawing's anti-aliased edges too."""
+    from scipy import ndimage
     dy, dx = sh
+    a = ndimage.shift(a, (0.5 * np.sign(dy), 0.5 * np.sign(dx), 0), order=1, mode='nearest')
     out = np.roll(a, (dy, dx), (0, 1))
     if dy > 0:
         out[:dy] = out[dy:dy + 1]
@@ -772,20 +781,34 @@ def ours_read(B, sheet, view, az3, picture=False):
 
 
 # ------------------------------------------------------------------------------------------------------------ checks
-LIMITS = {                      # (pass, warn): ratios |ours / design - 1|, differences |ours - design|, or as noted
+LIMITS = {                      # (pass, warn): ratios |ours / design - 1|, differences |ours - design|, or as noted; set
+                                # at the thirds of the gap between the design's worst move and the flagged build
+                                # (charkit/calib/records: the calibration rule, docs/workstreams/calib.md)
     'iris_fit': (0.10, 0.20),
     'lash_spikes': (0.70, 0.45),                # ours / design at least (fewer spikes than drawn: the block)
+    'lash_gaps': (0.60, 0.35),                  # ours / design at least (the strokes run together)
     'lash_band': (0.20, 0.40),
-    'brow_shape': (0.70, 0.55),                 # the brows' IoU, each centred on its centroid, at least
-    'brow_thick': (0.20, 0.40),
-    'brow_arch': (0.03, 0.06),
+    'brow_shape': (0.75, 0.60),                 # the brows' IoU, each centred on its centroid, at least
+    'brow_thick': (0.12, 0.25),
+    'brow_arch': (0.012, 0.022),
     'smile_width': (0.15, 0.30),
-    'smile_curve': (0.04, 0.08),
-    'smile_open': (1.6, 2.4),                   # ours' thickness over the drawn line's, at most
+    'smile_curve': (0.02, 0.035),
+    'smile_open': (1.6, 2.2),                   # ours' thickness over the drawn line's, at most
     'place3q': (0.02, 0.04),                    # L between the mouths' centres (from the leading contour, the eye line)
-    'placeprof': (0.05, 0.10),                  # the mouth's height between the nose tip and the chin
-    'nose': (0.5, 0.25),                        # ours' mark's ink over the drawn mark's: at least (and at most 1 / it)
+    'placeprof': (0.035, 0.06),                 # the mouth's height between the nose tip and the chin
+    'nose': (0.35, 0.18),                       # ours' mark's ink over the drawn mark's: at least (and at most 1 / it)
     'nose_at': (0.015, 0.03),                   # L between the marks' centres
+}
+
+
+# reads reported, not graded (the reference can't resolve them: the triple's design moves don't hold, or a random
+# stand-in passes; docs/workstreams/face6.md)
+INFO = {
+    ('iris', 'turnaround', 'profile'): "the head sheet's profile iris is about 15 px across: the design moved 1-2 px "
+                                       "reads 0.98-1.12 against itself (graded on the close-up's profile)",
+    ('lash_detail', 'turnaround', 'three_quarter'): "the head sheet's three-quarter lash line is drawn at 400 px per L "
+                                                    "with the fringe's strands over it: its spikes read 0.6-0.8 against "
+                                                    "themselves moved 1-2 px, and a smoothed lash keeps its 'gaps'",
 }
 
 
@@ -827,12 +850,16 @@ def compare(reads):
     from .registry import flag_check
     C = {}
 
-    def put(name, flag, rows, **extra):
+    def put(name, flag, rows, info=None, **extra):
         c = _worst(rows)
         if c is None:
             C[name] = {'status': 'SKIPPED', 'why': 'not found on either side'}
             return
         c.update(extra)
+        if info:                                # read, not graded: the reference can't resolve it (`info` says why)
+            c['grade'], c['status'], c['why_info'] = c['status'], 'INFO', info
+            C[name] = c
+            return
         C[name] = flag_check(c, FLAG[flag])
     for (sheet, view), (Nd, No) in reads.items():
         sfx = _suffix(sheet, view)
@@ -844,21 +871,28 @@ def compare(reads):
             rows.append((r, _st(r, LIMITS['iris_fit'], 'ratio') if r is not None else 'FAIL',
                          dict(eye=side, ours=o.get('iris_fit'), design=d.get('iris_fit'),
                               ours_bottom=o.get('iris_bottom'), design_bottom=d.get('iris_bottom'))))
-        put('eye_iris_fit_' + sfx, 'iris', rows, note="the iris's own height over the opening's, ours over the design's")
+        put('eye_iris_fit_' + sfx, 'iris', rows, note="the iris's own height over the opening's, ours over the design's",
+            info=INFO.get(('iris', sheet, view)))
         # the lashes: the close-up's front and profile (hair-free), the three-quarter's near eye (the sheet's only one)
         if sheet == 'construction' or view == 'three_quarter':
             sides = [s for s in Nd['eyes'] if view != 'three_quarter' or s == 'L']
-            sp, bd = [], []
+            sp, bd, gp = [], [], []
             for side in sides:
                 d, o = Nd['eyes'][side], No['eyes'].get(side) or {}
                 r = _ratio(o.get('lash_spikes'), d.get('lash_spikes'))
                 sp.append((r, _st(r, LIMITS['lash_spikes'], 'min'), dict(eye=side, ours=o.get('lash_spikes'),
-                           design=d.get('lash_spikes'), ours_gaps=o.get('lash_gaps'), design_gaps=d.get('lash_gaps'))))
+                                                                         design=d.get('lash_spikes'))))
+                r = _ratio(o.get('lash_gaps'), d.get('lash_gaps'))
+                gp.append((r, _st(r, LIMITS['lash_gaps'], 'min'), dict(eye=side, ours=o.get('lash_gaps'),
+                                                                       design=d.get('lash_gaps'))))
                 r = _ratio(o.get('lash_band'), d.get('lash_band'))
                 bd.append((r, _st(r, LIMITS['lash_band'], 'ratio'), dict(eye=side, ours=o.get('lash_band'),
                                                                          design=d.get('lash_band'))))
-            put('eye_lash_spikes_' + sfx, 'lash', sp, note="the upper lash line's spikes and flicks, ours over the design's")
+            put('eye_lash_spikes_' + sfx, 'lash', sp, note="the upper lash line's spikes and flicks, ours over the design's",
+                info=INFO.get(('lash_detail', sheet, view)))
             put('eye_lash_band_' + sfx, 'lash', bd, note="the upper lash line's band thickness, ours over the design's")
+            put('eye_lash_gaps_' + sfx, 'lash', gp, note="the skin between the lash line's strokes (separation), ours "
+                                                         "over the design's", info=INFO.get(('lash_detail', sheet, view)))
         # the brows: the close-up (the turnaround's are under the fringe)
         if sheet == 'construction':
             sh, tk, ar = [], [], []

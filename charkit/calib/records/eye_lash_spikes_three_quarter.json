@@ -1,0 +1,92 @@
+{
+ "check": "eye_lash_spikes_three_quarter",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "face_piece_lash"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.8,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.8,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.6,
+    "WARN"
+   ],
+   "+2,+0": [
+    0.6,
+    "WARN"
+   ],
+   "+0,-1": [
+    0.8,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.8,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.6,
+    "WARN"
+   ],
+   "-2,+0": [
+    0.6,
+    "WARN"
+   ]
+  },
+  "min": 0.6,
+  "max": 0.8,
+  "spread": 0.2,
+  "median": 0.7
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": 0.2,
+  "status": "FAIL"
+ },
+ "floor": {
+  "lash_smoothed": {
+   "values": [
+    0.2,
+    null,
+    0.2,
+    0.2,
+    0.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.2,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.2,
+  "status": "FAIL",
+  "margin": 0.0
+ },
+ "verdict": "miscalibrated",
+ "why": "the design reads WARN moved +1,+0, +2,+0, -1,+0, -2,+0 px (4 of 8 moves)",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "lash_smoothed": "the upper lash line low-passed (a Gaussian of 0.6-1.2 x its band, cut at half): its thin spikes and the gaps between its strokes gone"
+ },
+ "seconds": 62.9
+}
