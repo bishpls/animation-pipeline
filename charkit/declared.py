@@ -32,6 +32,16 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
                (our folds' spacing where they meet the band against the drawn steps' widths, |ratio - 1|); our folds
                are our lines and our geometry's (our_folds)
 
+  side_line    the outer edge of the figure per row over z bands, per side (the deltoid and the upper arm, front and
+               back), ours against the reference's where its edge isn't hair: the median |x| difference (dx), its rms,
+               or the armpit's height (axilla: the highest row where the arm parts from the torso), |ours - design|
+
+A declaration with params ref 'base_body' compares our skin alone (our_body: the skin z-buffered, garments off) with
+the base body sheet (base_body: the manifest's base_body_turnaround, the body in a plain sleeveless bodysuit; Michael,
+2026-10-01: the authority for the bare shoulder), its figure less its hair on the design's grids (the hair is its
+occluder: hair_drawn); `below` (L from the eye line) clears both above that row (the head), `window` [x0, x1, z top, z
+bottom] keeps both inside it. Its piece names what it's about ('skin'); the outfit's masks aren't read.
+
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
   check     the name; '{view}' expands per view (shorts_{view}_width)
@@ -349,6 +359,71 @@ def top_line(Mo, Md, ctx, x=((-0.7, -0.15), (0.15, 0.7)), measure='dz', min_cols
             o_, d_ = collarqa.trough(zo), collarqa.trough(zd)
             per[k] = dict(ours=round(o_, 4), design=round(d_, 4), cols=int(ok.sum()))
             vals.append(max(0.0, o_ - d_))
+    if not vals:
+        return None
+    return dict(value=round(max(vals), round_), ours=per, design=None)
+
+
+def side_line(Mo, Md, ctx, z=((-0.58, -0.95),), measure='dx', sides=('left', 'right'), min_rows=8, round_=4):
+    """the outer edge of the figure (the image's left and right sides of the midline) per row over z bands (L from the
+    eye line), ours against the reference's; a row whose reference edge pixel lies next to hair is left out (the hair
+    hides the edge). measure 'dx': per band and side the median of ours less the design's |x| (+ ours wider), the worse
+    |.|; 'rms': their rms, the worse; 'axilla': the highest row under z[0][0] where the figure, going out from the
+    midline, parts (a gap between the torso and the arm), |ours - design's| in L, the worse side."""
+    from . import bodyqa, pieceqa
+    ppl = ctx['ppl']
+    Mo = np.any(Mo, 0) if isinstance(Mo, (list, tuple)) else Mo
+    Md = fit(Md, Mo.shape)
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    if Mo.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    hair = ctx.get('hair_drawn')
+    hair = None if hair is None else fit(hair, Mo.shape)
+    W = bodyqa.WIN
+    c0 = int(round(W['x'] * ppl))
+    row = lambda zz: int(round((W['top'] - zz) * ppl - 0.5))
+    per, vals = {}, []
+    for sd in sides:
+        sg = 1 if sd == 'right' else -1
+        if measure == 'axilla':
+            got = []
+            for M in (Mo, Md):
+                zz = None
+                for r in range(max(0, row(z[0][0])), min(M.shape[0], row(z[-1][1]))):
+                    rr = M[r, c0:] if sg > 0 else M[r, :c0 + 1][::-1]
+                    k = np.nonzero(rr)[0]
+                    if len(k) and (~rr[k[0]:k[-1] + 1]).sum() >= 2:
+                        zz = W['top'] - (r + 0.5) / ppl
+                        break
+                got.append(zz)
+            if got[1] is None:
+                continue
+            if got[0] is None:
+                return dict(value=None, why='ours: the arm never parts from the torso in the window')
+            per[sd] = dict(ours=round(got[0], 4), design=round(got[1], 4))
+            vals.append(abs(got[0] - got[1]))
+            continue
+        for k, (za, zb) in enumerate(z):
+            d = []
+            for r in range(max(0, row(za)), min(Mo.shape[0], row(zb) + 1)):
+                eo, ed = [], []
+                for M, e in ((Mo, eo), (Md, ed)):
+                    cs = np.nonzero(M[r, c0:])[0] + c0 if sg > 0 else np.nonzero(M[r, :c0 + 1])[0]
+                    e.append((cs.max() if sg > 0 else cs.min()) if len(cs) else None)
+                if eo[0] is None or ed[0] is None:
+                    continue
+                if hair is not None:
+                    c = ed[0]
+                    if hair[r, max(0, c - 2):c + 3].any():
+                        continue
+                d.append((abs(eo[0] - c0 + 0.5) - abs(ed[0] - c0 + 0.5)) / ppl)
+            if len(d) < min_rows:
+                continue
+            d = np.array(d)
+            v = float(np.median(d)) if measure == 'dx' else float(np.sqrt(np.mean(d ** 2)))
+            per['%s_%d' % (sd, k)] = dict(v=round(v, 4), rows=int(len(d)))
+            vals.append(abs(v))
     if not vals:
         return None
     return dict(value=round(max(vals), round_), ours=per, design=None)
@@ -786,10 +861,10 @@ def stair(Mo, Md, ctx, measure='corner', above=0.08, tol=0.02, round_=2):
 
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
                 position=position, ink_inside=ink_inside, area=area, top_line=top_line, class_iou=class_iou,
-                stair=stair)
+                stair=stair, side_line=side_line)
 HIGHER = ('shape_iou', 'class_iou')                 # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside', 'stair')     # families that read our drawn lines (inputs' lines)
-HAIR_FAMILIES = ('top_line',)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
+HAIR_FAMILIES = ('top_line', 'side_line')                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
 CLASS_FAMILIES = ('class_iou', 'stair')           # families that read our model-sheet classes (inputs' classes)
 FOLD_FAMILIES = ('stair',)                        # families that read our geometry's folds (inputs' folds: our_folds)
 
@@ -802,7 +877,7 @@ def grade(v, limits, better='lower'):
 
 
 # ------------------------------------------------------------------------------------------------------------ measuring
-def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False):
+def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, body=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines) -> dict, or None when the design or the outfit masks are missing."""
@@ -826,6 +901,9 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False):
         out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
     if folds:                                     # (the stair family: our geometry's folds, as the design's lines)
         out['folds'] = our_folds(B, ctx['ppl'], ctx['az3'], tuple(O))
+    if body:                                      # (ref 'base_body': our skin alone, the base body sheet)
+        out['base_body'] = base_body(design, tuple(O))
+        out['our_body'] = our_body(B, ctx['ppl'], ctx['az3'], tuple(O))
     return out
 
 
@@ -1011,9 +1089,32 @@ def evaluate(decls, I):
             continue
         lab = O[view]['lab']
         pieces = d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]
+        params = dict(d.get('params') or {})
+        if params.get('ref') == 'base_body':
+            # our skin alone against the base body sheet (its figure less its hair; the hair its occluder)
+            bb = (I.get('base_body') or {}).get(view)
+            if bb is None:
+                continue
+            ob = (I.get('our_body') or {}).get(view)
+            if ob is None:
+                C[name] = {'value': None, 'status': 'FAIL', 'why': WHY_OURS}
+                continue
+            params.pop('ref')
+            clip = body_window(ppl, params.pop('below', None), params.pop('window', None))
+            hd = fit(bb['hair'], ob.shape)
+            # (where the sheet's hair lies neither is seen: ours there left out as the sheet's body is)
+            Mo, Md = clip(ob) & ~hd, clip(fit(bb['body'], ob.shape))
+            ctx = dict(ppl=ppl, view=view, piece=pieces[0], hair_ours=None, hair_drawn=hd)
+            fam = FAMILIES[d['family']]
+            if 'round' in params:
+                params['round_'] = params.pop('round')
+            r = fam(Mo, Md, ctx, **params)
+            if r is None:
+                continue
+            C[name] = _graded(d, r, T, name)
+            continue
         if any(p not in pm for p in pieces):
             continue
-        params = dict(d.get('params') or {})
         M = masks
         if params.pop('fold', False) and I.get('graph') is not None:      # (the drawn pieces we don't build folded in)
             from .bodymeasure import folded
@@ -1050,24 +1151,133 @@ def evaluate(decls, I):
         r = fam(Mo if len(pieces) > 1 else Mo[0], Md if len(pieces) > 1 else Md[0], ctx, **params)
         if r is None:
             continue
-        better = d.get('better') or ('higher' if d['family'] in HIGHER else 'lower')
-        if r.get('value') is None:
-            c = {'value': None, 'status': 'FAIL', 'why': r.get('why') or WHY_OURS}
-        else:
-            st = grade(r['value'], limits_of(d), better)
-            if r.get('count_status'):
-                st = pieceqa.worst(st, r['count_status'])
-            c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
-            for k in ('count', 'ratio', 'fill', 'ratio_fill'):
-                if k in r:
-                    c[k] = r[k]
-            if d.get('note'):
-                c['note'] = d['note']
-            T[name] = dict(ours=r.get('ours'), design=r.get('design'))
-        if d.get('flag'):
-            flag_check(c, d['flag'])
-        C[name] = c
+        C[name] = _graded(d, r, T, name)
     return T, C
+
+
+def _graded(d, r, T, name):
+    """a family's result graded by its declaration (qa.json's dict; the table T gets ours and the design's)."""
+    from . import pieceqa
+    better = d.get('better') or ('higher' if d['family'] in HIGHER else 'lower')
+    if r.get('value') is None:
+        c = {'value': None, 'status': 'FAIL', 'why': r.get('why') or WHY_OURS}
+    else:
+        st = grade(r['value'], limits_of(d), better)
+        if r.get('count_status'):
+            st = pieceqa.worst(st, r['count_status'])
+        c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
+        for k in ('count', 'ratio', 'fill', 'ratio_fill'):
+            if k in r:
+                c[k] = r[k]
+        if d.get('note'):
+            c['note'] = d['note']
+        T[name] = dict(ours=r.get('ours'), design=r.get('design'))
+    if d.get('flag'):
+        flag_check(c, d['flag'])
+    return c
+
+
+def body_window(ppl, below=None, window=None):
+    """a mask clipper for the base body declarations: rows above `below` (L from the eye line) cleared, and outside
+    `window` [x0, x1, z top, z bottom] (L from the midline and the eye line)."""
+    from . import bodyqa
+    W = bodyqa.WIN
+    row = lambda z: int(round((W['top'] - z) * ppl))
+    col = lambda x: int(round((x + W['x']) * ppl))
+
+    def clip(m):
+        m = m.copy()
+        if below is not None:
+            m[:max(0, row(below))] = False
+        if window is not None:
+            x0, x1, zt, zb = window
+            k = np.zeros(m.shape, bool)
+            k[max(0, row(zt)):max(0, row(zb)), max(0, col(x0)):max(0, col(x1))] = True
+            m &= k
+        return m
+    return clip
+
+
+BASE_BODY = 'base_body_turnaround'     # the manifest's body reference (layerref's 'body' kind)
+BASE_BODY_OPEN = 3                     # px: the hair's outline fringe, absorbed into its neighbours' class, opened away
+BASE_BODY_MIN = 2000                   # px: the body's components kept (the fringe's crumbs dropped)
+
+
+def base_body(design, views=VIEWS):
+    """the base body sheet (BASE_BODY) on the design's grids: its figures detected at the turnaround's scale (the
+    manifest's refcheck: by the figures' heights, its eyes being drawn closer together), each view's grid shifted
+    onto the turnaround's head (the best IoU of the figures above z -0.40 within +-8 px) -> {view: dict(body (the
+    figure less its hair, opened BASE_BODY_OPEN px, components of BASE_BODY_MIN px or more), hair, shift)}, or None."""
+    got = getattr(design, '_base_body', None)
+    if got is not None:
+        return got
+    from scipy import ndimage
+    from PIL import Image
+    from . import bodyqa, manifest, sheetqa
+    spec = design.B.spec
+    try:
+        e = manifest.load(spec['ref']['manifest'])['references'][BASE_BODY]
+    except (KeyError, TypeError, OSError):
+        return None
+    path = manifest._p(e['path'])
+    if not os.path.exists(path):
+        return None
+    design._rec(path)
+    ctx = design.sheet_context()
+    if 'why' in ctx:
+        return None
+    rgb = np.asarray(Image.open(path).convert('RGB')).astype(float) / 255.0
+    if ctx['rgb'].max() > 1.5:
+        rgb = rgb * 255.0
+    ppl = ctx['ppl'] / float((e.get('refcheck') or {}).get('scale', 1.0))
+    facing = (design.ref().get('body_sheet') or {}).get('facing', -1)
+    Dbb = sheetqa.detect_figures(rgb, ppl=ppl, eye_x=ctx['eye_x'], facing=facing)
+    dvb = bodyqa.design_views(rgb, Dbb, ppl)
+    dv = design.design_views()
+    out = {}
+    rows = int(round((bodyqa.WIN['top'] - (-0.40)) * ctx['ppl']))
+    for v in views:
+        if v not in dvb or v not in dv:
+            continue
+        t, c = dv[v]['fg'], dvb[v]['fg']
+        H, W_ = min(t.shape[0], c.shape[0]), min(t.shape[1], c.shape[1])
+        t, c = t[:H, :W_], c[:H, :W_]
+        best = (-1.0, 0, 0)
+        for dy in range(-8, 9):
+            for dx in range(-8, 9):
+                a, b = t[:rows], np.roll(np.roll(c, dy, 0), dx, 1)[:rows]
+                iou = (a & b).sum() / max(1, (a | b).sum())
+                if iou > best[0]:
+                    best = (float(iou), dy, dx)
+        sh = lambda m: np.roll(np.roll(m[:H, :W_], best[1], 0), best[2], 1)
+        fg, cls = sh(dvb[v]['fg']), sh(dvb[v]['cls'])
+        hair = fg & (cls == bodyqa.CLASS['hair'])
+        body = ndimage.binary_opening(fg & ~hair, np.ones((BASE_BODY_OPEN, BASE_BODY_OPEN)))
+        lab, n = ndimage.label(body)
+        if n:
+            sz = ndimage.sum(body, lab, range(1, n + 1))
+            body = np.isin(lab, 1 + np.nonzero(sz >= BASE_BODY_MIN)[0])
+        out[v] = dict(body=body, hair=hair, shift=best[1:], head_iou=round(best[0], 4))
+    design._base_body = out
+    return out
+
+
+def our_body(B, ppl, az3, views=VIEWS):
+    """our skin alone (garments off: the skin object's evaluated mesh, unmasked) z-buffered on the design's grids ->
+    {view: bool image}. The calibration's stand-in patches it."""
+    from . import bodyqa, qa3d
+    from .faceqa import zbuffer
+    sk = [o for o in B.objects(groups=('skin',)) if o.has('eval')]
+    if not sk:
+        return {}
+    meshes = []
+    for o in sk:
+        V, T, _, _ = o.mesh('eval')
+        meshes.append((np.asarray(V, float), np.asarray(T), np.zeros(len(T), int)))
+    iris = np.array(qa3d.iris_centres(B))
+    az = bodyqa.azimuths(az3)
+    return {v: zbuffer(meshes, az[v], bodyqa.origin(v, az[v], iris, B.assembly['centre']), B.assembly['L'],
+                       1.0 / ppl, bodyqa.WIN)[1] >= 0 for v in views}
 
 
 def evaluate_part(part, I, decls=None):
@@ -1087,7 +1297,8 @@ def declared(B, design=None, out=None):
     I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
                classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) or d['family'] in CLASS_FAMILIES
                            for d in ds),
-               folds=any(d['family'] in FOLD_FAMILIES for d in ds))
+               folds=any(d['family'] in FOLD_FAMILIES for d in ds),
+               body=any((d.get('params') or {}).get('ref') == 'base_body' for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}
@@ -1133,5 +1344,25 @@ class Declared(_calib_base()):
 
         def folds(B, ppl, az3, views=VIEWS, **kw):
             return lines(B, ppl, az3, views)            # (the drawing draws its folds as lines)
+
+        def body(B, ppl, az3, views=VIEWS):
+            # the base body declarations' stand-in for our skin alone: the base body sheet's own body moved for the
+            # design (its hair's place counted as body: ours has no hair over it); a floor's, the turnaround's
+            # figure less its hair (the costume's silhouette: what a body fitted to the visual hull takes)
+            bb = base_body(self.design) or {}
+            out = {}
+            for v in views:
+                if v not in bb:
+                    continue
+                if kind == 'design':
+                    out[v] = _shift(bb[v]['body'] | bb[v]['hair'], arg[0], arg[1], False)
+                else:
+                    d = self.dv.get(v) or {}
+                    fg = d.get('fg')
+                    if fg is None:
+                        continue
+                    out[v] = fit(fg & (d['cls'] != bodyqa.CLASS['hair']), bb[v]['body'].shape)
+            return out
         return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines),
-                                                (sys.modules[__name__], 'our_folds', folds)]
+                                                (sys.modules[__name__], 'our_folds', folds),
+                                                (sys.modules[__name__], 'our_body', body)]
