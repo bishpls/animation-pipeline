@@ -3,7 +3,7 @@
  "part": "motion",
  "adapter": "Motion",
  "module": "charkit.calib.motion",
- "at": "2026-09-30T22:27:15",
+ "at": "2026-10-01T21:55:54",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -12,56 +12,56 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.00291,
-    "PASS"
+    0.00847,
+    "WARN"
    ],
    "+0,+2": [
-    0.00244,
-    "PASS"
+    0.00669,
+    "WARN"
    ],
    "+1,+0": [
-    0.00225,
-    "PASS"
+    0.00728,
+    "WARN"
    ],
    "+2,+0": [
-    0.00235,
-    "PASS"
+    0.00779,
+    "WARN"
    ],
    "+0,-1": [
-    0.00216,
-    "PASS"
+    0.00618,
+    "WARN"
    ],
    "+0,-2": [
-    0.00178,
+    0.00407,
     "PASS"
    ],
    "-1,+0": [
-    0.00169,
-    "PASS"
+    0.0061,
+    "WARN"
    ],
    "-2,+0": [
-    0.00394,
-    "PASS"
+    0.00881,
+    "WARN"
    ]
   },
-  "min": 0.00169,
-  "max": 0.00394,
-  "spread": 0.0022,
-  "median": 0.0023
+  "min": 0.00407,
+  "max": 0.00881,
+  "spread": 0.0047,
+  "median": 0.006985
  },
  "known_bad": {
   "name": "motion_nocol",
-  "value": 0.01248,
+  "value": 0.01719,
   "status": "FAIL"
  },
  "floor": {
   "shuffled_weights": {
    "values": [
-    0.05556,
-    0.04889,
-    0.04927,
-    0.05762,
-    0.05377
+    0.06868,
+    0.06335,
+    0.06546,
+    0.06419,
+    0.06275
    ],
    "statuses": [
     "FAIL",
@@ -70,7 +70,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 0.05377,
+   "median": 0.06419,
    "status": "FAIL",
    "passing": 0
   }
@@ -78,15 +78,16 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.00244,
-  "status": "PASS",
-  "margin": 0.997
+  "value": 0.00711,
+  "status": "WARN",
+  "margin": 0.998
  },
- "verdict": "calibrated",
- "why": "a defect detector: the design passes every move (spread 0.0022), motion_nocol reads 0.01248 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
- "build": "charkit/out/hands_b4",
+ "verdict": "miscalibrated",
+ "why": "the design reads WARN moved +0,+1, +0,+2, +1,+0, +2,+0 px (7 of 8 moves)",
+ "build": "charkit/out/g7_c7",
  "generators": {
   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
  },
- "seconds": 217.9
+ "seconds": 656.7,
+ "note": "refreshed on today's skirt (g7_c7, tool/garments4-shoulders, on the coordinator's instruction 2026-10-01): upstream drift, not this branch's: the kick reads 0.0071 WARN on pipeline-3d's own default build and on the joined shoulder alike (identical on both geometries), against 0.00244 PASS when it was calibrated on hands_b4 (2026-09-30); on today's skirt its design stand-in (the held solve nudged) reads WARN in 7 of 8 moves (0.0041-0.0088 against PASS <= its limit): miscalibrated, as motion_squat_skirt_inside was in round 3 (made ungraded then: charkit.sim.motionqa.UNGRADED)"
 }
