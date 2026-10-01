@@ -731,8 +731,9 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
 Every workstream stopped at a checkpoint; nothing is running. pipeline-3d f0975ad has everything merged through the
 night (the evening run below, then: hairshell r1-r2 opt-in, garments4 Part 1 (the bow's geometry with its neighbours),
 the skirt's creases, the cuffs, the layer references (base body, hair without clips, skirt layers, clips alone)). The
-final review page: `charkit/out/final/20261001/index.html`, a preview with the strokes and staircase branches merged on
-tmp/final-1001.
+final review page: `charkit/out/final/20261001/index.html`, a preview with tool/hairstrokes merged on tmp/final-1001
+(the staircase branch conflicts in charkit/declared.py and CODEMAP.md with it, so it's left out; resolve when merging).
+QA 1580f95 -> now: 289/46/54 -> 370/74/43 (PASS/WARN/FAIL; about 100 more checks now).
 
 **Unmerged branches, each with exact next steps in its notes:**
 - `tool/hands2` c6aceaa1 (`docs/workstreams/hands.md`). Why the default hand looks off-model, measured:
