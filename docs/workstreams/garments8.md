@@ -89,3 +89,21 @@ the profile: not registered anyway.
   ours without the bow, windows to z -0.90 (were -0.75 above the knot). Needs a MEASUREMENT_STEPS entry
   (charkit/steps/necklineqa.py) with the commit, and refreshed calibration records (known-bad g4_v0).
 - Harness: tools/garments8/truthlab.py BUILD (the truth checks and pictures on a fetched build).
+
+### Committed (2201e679 the references, truths and checks; 5336dcb6 the steps)
+Truth checks on fetched builds (tools/garments8/truthlab.py, the views front/3q/profile/back; collar without profile):
+| check | g7_base (old body = pipeline-3d's default geometry) | g7_c4 (joined shoulder, round 7) |
+|---|---|---|
+| collar_{front,3q,back}_truth | 0.617 / 0.514 / 0.872 | 0.751 / 0.514 / 0.813 |
+| top_{front,3q,profile,back}_truth | 0.801 / 0.743 / 0.826 / 0.911 | 0.734 / 0.679 / 0.777 / 0.877 |
+| neck_v_{front,3q}_skin (remeasured) | 0.574 / 0.505 FAIL | 0.561 / 0.491 FAIL |
+- The collar's profile view dropped from its truth check: edge-on, ~0.04 L thick, the truth moved 6 px reads 0.58 (an
+  offset, not a shape; other views 0.92-0.97 at 6 px).
+- vlab (charkit/out/garments8/look/v_g7_c4.png): without the bow our V closes at about z -0.70 (cream: our lapels and
+  bib meet), the truth's V reaches -0.88: the V's lower part is the miss.
+- Calibration plan (box): known-bad `g8_lapels0` = the branch base's default build (the bunched hull lapels flagged
+  2026-10-01). With the a-priori limits [0.75, 0.5] the flagged lapels read WARN (0.51-0.62): the triple decides the
+  limits (the collarqa precedent: limits between the design's moves and the flagged build). top_*_truth: no flagged
+  build separates it (0.73 vs 0.80 front): kind shape without a known-bad (guard) unless one does.
+- Running: box build g8_base (charkit/spec/clawd.json at 5336dcb6, --boards '' --no-blend), log
+  charkit/out/garments8/build_g8_base.log -> charkit/out/g8_base.
