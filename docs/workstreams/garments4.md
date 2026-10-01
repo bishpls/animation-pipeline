@@ -858,3 +858,34 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   template wider (x ~0.55-0.6) under the join's reach so the torso's rows make the shoulder cap, the rim below them.
   Decision asked of Michael (review page): A flare the head's neck above the cut (face workstream), B a lower shoulder
   top, C re-measure neck_crease.
+
+### Round 5 stop point (2026-10-01): the body's shoulder done, off by default; the garments next
+- **Branch tool/garments4-shoulders** (pipeline-3d e9cb156 merged in). Carries, off by default: the joined shoulder
+  (code_body socket/bridge, weights, the rig's pivot; garments.arm_seg keeps the arm-placed garments on the chain's
+  root), garments.puff_clear, declared `ref` 'base_body' + side_line, `charkit script` (hairshell3's d9b5e521),
+  known-bad g5_base, plus the earlier shoulder work (collar4's builder code, shoulderqa.py's 6 calibrated garment
+  shoulder checks: they FAIL on the default body, so this branch still can't gate as is). The spec switch was tried
+  (b184f019) and reverted (6739aa7f); the candidate's knobs: tools/garments5/v/candidate_shoulder.json.
+- **Review page:** charkit/out/garments5/review/body_shoulder/index.html (source tools/garments5/review/body_shoulder.json,
+  built on render2: `remote --box render2 run --fetch tools/garments5/review/page review page
+  tools/garments5/review/body_shoulder.json --out tools/garments5/review/page`). Asks Michael: keep the moved joint;
+  the neck join A (flare the head's neck above the cut: face workstream) / B (a lower shoulder top) / C (re-measure
+  neck_crease); refit the garments to the body rather than slim the body.
+- **Builds (render2 and local):** g5_base_r2 (the old default), g5_c1 (the switch on). Build box: g5_base, g5_sh0.
+- **Exact next steps (the garment round, with the switch on: tools/garments5/v/candidate_shoulder.json into the spec):**
+  1. The shoulder's top: fix the bridge's top loops overlapping the torso's top rows near the neck (lift top 65 -> 30-45,
+     or the rim's top further out), then the neck join per Michael's A/B/C (B: the template wider, x 0.55-0.6, under
+     a 0.08-0.10 L join so the torso's rows make the shoulder cap, the rim below them; bodyj.py with the join modelled).
+  2. The socket's front edge back (half 30 -> 20-24, or shift toward the back) so the deltoid's front stays under the
+     puffs, and puff_clear for the rest (inner 20-30 deg, gap 0.035); guard piece_top F, piece_sleeve_R 3q.
+  3. The jacket's neck cut 0.06 (covers the shoulder tops; clears collar front/3q torn).
+  4. The collar on the new body: the walk's lengths (side_depth, back_depth) refit so the back panel and the lapels'
+     outer ends land as before (collar_back_rows/square/iou, torn, art_outline_collar), or the hull collar's conform
+     reach; the jacket bedded under the back flap (bed() generalised: the collar, from the back).
+  5. bow_front_bleed (flag): find what moved under the bow (the template's sides widen from 40 deg: az 50 -> 35).
+  6. Calibrate the body-shoulder drafts on render2 (`calibrate 'body_shoulder_*,body_axilla_*' --declared
+     tools/garments5/drafts/bodyshoulder.json --build charkit/out/<candidate>`; the known-bad g5_base must be stored on
+     that box: `calibrate store g5_base charkit/out/g5_base_r2 ...`), move them into charkit/bodyshoulderqa.py with the
+     records; motion_* step if the rig moves the motion values; pregate on the box; gate.
+  7. Then the flat lapels (tool/garments4-lapels) on it, and re-judge art_outline_collar.
+- tool/optimize (`charkit sweep --optimize`) was in testing on the boxes, not landed: use it for steps 1-4 once it is.
