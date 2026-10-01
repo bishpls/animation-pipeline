@@ -1,0 +1,113 @@
+{
+ "base": "charkit/out/r4b_pilot",
+ "stage": "hair",
+ "objects": [
+  "hair_bangs",
+  "hair_side_lock_L",
+  "hair_side_lock_R",
+  "hair_upper_back",
+  "hair_lower_back",
+  "hair_bun_L",
+  "hair_bun_R",
+  "hair_ahoge",
+  "hair_flyaways"
+ ],
+ "parts": [
+  "artifacts",
+  "hair_noise",
+  "hair_flags"
+ ],
+ "control": true,
+ "set": {
+  "hair.shape.pieces_opts.lock_shells.groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0
+    }
+   }
+  ]
+ },
+ "variants": {
+  "bangs": {
+   "hair.shape.pieces_opts.lock_shells.families": [
+    "side_locks",
+    "bangs"
+   ]
+  },
+  "bangs_fp": {
+   "hair.shape.pieces_opts.lock_shells.families": [
+    "side_locks",
+    "bangs"
+   ],
+   "hair.shape.pieces_opts.lock_shells.primary": {
+    "side_locks": [
+     "front",
+     "profile"
+    ],
+    "lower_back": [
+     "back",
+     "front",
+     "profile"
+    ],
+    "bangs": [
+     "front",
+     "profile"
+    ]
+   }
+  },
+  "bangs_w4": {
+   "hair.shape.pieces_opts.lock_shells.families": [
+    "side_locks",
+    "bangs"
+   ],
+   "hair.shape.pieces_opts.lock_shells.widen_lw": {
+    "side_locks": 4.0,
+    "lower_back": 2.0,
+    "bangs": 4.0
+   }
+  },
+  "bangs_under": {
+   "hair.shape.pieces_opts.lock_shells.families": [
+    "side_locks",
+    "bangs"
+   ],
+   "hair.shape.pieces_opts.lock_shells.under": [
+    "bangs"
+   ]
+  },
+  "bangs_fp_w4": {
+   "hair.shape.pieces_opts.lock_shells.families": [
+    "side_locks",
+    "bangs"
+   ],
+   "hair.shape.pieces_opts.lock_shells.primary": {
+    "side_locks": [
+     "front",
+     "profile"
+    ],
+    "lower_back": [
+     "back",
+     "front",
+     "profile"
+    ],
+    "bangs": [
+     "front",
+     "profile"
+    ]
+   },
+   "hair.shape.pieces_opts.lock_shells.widen_lw": {
+    "side_locks": 4.0,
+    "lower_back": 2.0,
+    "bangs": 4.0
+   }
+  }
+ }
+}
