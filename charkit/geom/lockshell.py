@@ -34,13 +34,15 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                prior_depth=0.15, prior_smooth=1.0, prior_twist=0.5, assoc=0.35, assoc_cover=0.3, tip_w=0.12,
                w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'), facing=0.2,
                assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0, frag_L2=0.008, frag_reach=4,
-               widen_lw=1.0, contain=1.0, dedup=0.5, unit='locks', over=0.004,
-               contain_family=True, view_depth=1.0, soft_width=True, diff_step=1e-3, shade='proxy', shade_lock=None,
+               widen_lw={'side_locks': 4.0, 'lower_back': 2.0}, contain=1.0, dedup=0.5, unit='locks', over=0.004,
+               contain_family=True, view_depth=1.0, soft_width=True, diff_step=1e-3, shade='proxy', shade_lock=0.0,
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
-               join='sequential', over_ink=None, under_inset=0.0)
+               join='sequential', over_ink=0.3, under_inset=0.0)
 # (tool/hairshell2) shade: 'proxy' (the shells' normals from the default pieces' envelope: hairpieces.shade_normals) or
 # 'union' (round 1: the envelope of every piece, shells included); shade_lock: lock_shading on the shells (None: the
-# style's); under: families whose wedges stay under their shells; widen_lw: a number or {family: number}; trim_other,
+# style's; 0: the shells' own relief tore the terminator); under: families whose wedges stay under their shells (with
+# under_inset L set in; off: it brought back the hull's terminator and folds); widen_lw: a number or {family: number}
+# (line widths each side: the side locks' shells overlap, closing the gaps the back showed through); trim_other,
 # root_w_other, tip_w_other: a secondary view's drawn lock trimmed to the heights the shell spans, its root's end not
 # pulled (another view's drawn lock is cut where its family's mask ends), its tip's; primary_slack: px the joint fit
 # may cost the primary view (None: unbounded); join: 'sequential' (each other view tried alone, kept if the fit
