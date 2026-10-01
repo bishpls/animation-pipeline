@@ -1670,9 +1670,13 @@ def save(out, splits, shell, xid, matches, extra=None):
                                            down=round(t['down'], 3)) for t in S.tip_list],
                                 notches=[dict(rc=[round(t['rc'][0], 1), round(t['rc'][1], 1)], sharp=round(t['sharp'], 1))
                                          for t in S.notch_list],
-                                layer_votes=[[int(a), int(b), int(w)] for (a, b), w in S.layer_votes.items()])
+                                layer_votes=[[int(a), int(b), int(w)] for (a, b), w in S.layer_votes.items()],
+                                tips_head=getattr(S, 'tips_head', None))
     if shell is not None:
-        meta['shell'] = dict(check=shell.check)
+        meta['shell'] = dict(check=shell.check, z=shell.z[::5].round(3).tolist(), x0=shell.x0[::5].round(4).tolist(),
+                             a=shell.a[::5].round(4).tolist(), y0=shell.y0[::5].round(4).tolist(),
+                             b=shell.b[::5].round(4).tolist())
+        meta['tip_matches'] = getattr(shell, 'tip_matches', None)
     meta['matches'] = matches
     if extra:
         meta.update(extra)
@@ -1721,10 +1725,18 @@ def _mean_scores(runs):
     return out
 
 
-def score(imgs, truth=None):
-    """lock images {view: int image} against the lock truth -> hairlocks.score's result (per view and family, 'all')."""
+def truth_of(spec):
+    """the spec's lock truth (the manifest's hair_locks_truth) or None."""
+    from . import hairlocks as hk, manifest
+    R = manifest.load(spec['ref']['manifest'])['references']
+    return hk.load_truth(R['hair_locks_truth']['path']) if 'hair_locks_truth' in R else None
+
+
+def score(imgs, truth=None, spec=None):
+    """lock images {view: int image} against the lock truth (given, or the spec's) -> hairlocks.score's result (per
+    view and family, 'all')."""
     from . import hairlocks as hk
-    T = truth or hk.load_truth('charkit/refs/clawd/hair_locks_truth.npz')
+    T = truth or truth_of(spec)
     hair = {v: np.ones(t.shape, bool) for v, t in T[0].items()}
     return hk.score({v: imgs[v] for v in T[0] if v in imgs}, T, hair, T[2]['ppl'])
 
@@ -1758,10 +1770,17 @@ def main(args):
     splits, shell, xid, matches = split_views(I, views, stage)
     extra = {}
     if '--score' in args:
-        r = score(lock_images(splits))
-        extra['score'] = table(r)
-        for v, x in extra['score'].items():
+        T = truth_of(spec)
+        if T is None:
+            print('no lock truth in the manifest: nothing to score')
+        else:
+            r = score(lock_images(splits), T)
+            extra['score'] = table(r)
+            extra['floors'] = {k: {v: x[v]['lock_iou'] for v in x} for k, x in floors(T).items()}
+        for v, x in extra.get('score', {}).items():
             print('%-14s %s' % (v, '  '.join('%s %.3f' % (f, q) for f, q in sorted(x.items()))))
+        if 'floors' in extra:
+            print('floors (all): %s' % ', '.join('%s %.3f' % (k, x['all']) for k, x in extra['floors'].items()))
     save(out, splits, shell, xid, matches, extra)
     print('wrote', os.path.join(out, 'hairsplit.json'))
     return 0

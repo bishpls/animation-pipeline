@@ -41,6 +41,8 @@
     python -m charkit sweep run DECL.json | BASE --stage S --oat PATH=[..] .. | swap A B --check C   # declared variants
                                                  # of a build rebuilt in-process and measured; attribution (charkit/sweep.py)
     python -m charkit hairlocks truth | score BUILD [--json OUT]   # the hair's locks against the lock-level truth
+    python -m charkit hairsplit [SPEC] [--out DIR] [--stage cells|tips|locks] [--score] [--cache]
+                                                     # the design's hair split into locks per view, cross-view ids
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
                                                  # the hair pieces rebuilt over a build with overrides and measured
@@ -840,6 +842,9 @@ def main(argv=None):
     elif cmd == 'sweep':
         from . import sweep
         sys.exit(sweep.main(rest) or 0)
+    elif cmd == 'hairsplit':
+        from . import hairsplit
+        sys.exit(hairsplit.main(rest) or 0)
     elif cmd == 'hairlocks':
         from . import hairlocks
         sys.exit(hairlocks.main(rest) or 0)
