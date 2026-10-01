@@ -525,3 +525,10 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   0.697 / 0.821 (0.691 / 0.812). The anchoring/lean code was removed (7a6d6af5); calibrate's draft-check filter fixed.
 - Merged pipeline-3d 393539e7 (92cfd7f5). Box build g4_stairs1 (the default spec) next; then calibrate 'stair_*' on it,
   pregate, gate.
+- Coordinator (2026-10-01): Michael says yes to the base body reference's profile for the torso: use
+  base_body_turnaround (pipeline-3d 393539e) for the neck-chest join (milestone 2, step 1). skirt_layers take 1 is
+  being registered as the structure authority for the panel and pleats without the flaps; its flaps-alone row is the
+  shape authority for the staircase's edges. The staircase milestone converged on the turnaround before it landed:
+  follow-up (after this gate) = re-measure the stair family against skirt_layers (the pleat widths at the sides: the
+  flat band beyond the stair still crosses the side pleats, 2 front / 1 3q, reported not counted) and the flaps-alone
+  row (the flap square dial 2.0).
