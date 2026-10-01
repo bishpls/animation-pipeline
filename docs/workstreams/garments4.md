@@ -87,3 +87,74 @@ p1 against before (pipeline-3d's bow), the moves:
 - Spec (2b4653d): close_hung.on, pleat.on, sleeve_L.profile = V1, top.bed, bodice_panel.bed (tools/garments4/part1.json,
   setspec.py keeps the file's formatting). Pregate (2b4653d+dirty into 257222b): PASS, 57 moved, 0 blocking.
   pipeline-3d 257222b (tool/hairsplit + the handoff) merged (fe90cb19).
+
+## Part 1: box build, gate, review page
+- Box build `charkit/out/g4_part1` (2b4653d): confirms the sweeps. Against g4_before (pipeline-3d's bow): piece_bow
+  0.753 -> 0.863 (F/3q/P 0.896/0.758/0.345 -> 0.934/0.855/0.683), bow_front_bleed 0 -> 0 P, sleeve spikes 0 -> 0 P,
+  shoulder_back_line (flag) 0.0565 F -> 0.0047 P, art_outline_collar (flag) 1.379 -> 1.442 P, loop_lean 19.9 F -> 0.62 P,
+  loop_thick 0.076 F -> 0.031 W, tail_hang 12.6 F -> 0 P, bow_part_knot_iou 0.536 F -> 1.0 P, knot_line 0.904 F ->
+  0.046 P, crease_len 1.0 F -> 0.21 P, iso_bow_body 0.679 F -> 0.811 W, piece_top 0.714 W -> 0.775 P, piece_collar
+  0.754 -> 0.767. PASS -> WARN (not blocking): body_profile_chest 0.002 -> 0.048, collar_three_quarter_torn 0 -> 0.004,
+  sleeve_front_profile_R 0.014 -> 0.021. FAIL -> worse FAIL: sleeve_back_profile_L/R 0.066 -> 0.083/0.086.
+  Guard IoUs (before -> after): sleeve_L F/3q/P/B 0.859/0.976/0.983/0.893 -> 0.948/0.986/0.941/0.854; sleeve_R F/3q/B
+  0.889/0.353/0.900 -> 0.954/0.323/0.862; top F/3q/P/B 0.492/0.570/0.527/0.914 -> 0.583/0.688/0.620/0.931; bodice_panel
+  P 0.169 -> 0.192; collar F/3q/P/B 0.603/0.403/0.025/0.928 -> 0.657/0.470/0.026/0.928.
+- **Gate (running at checkpoint):** `remote gate tool/garments4 --into pipeline-3d` at def9343a (into 257222b), box job
+  `gate-garments4-1001-001736-397a`, log `charkit/out/garments4/gate_part1.log`; report lands in charkit/out/gate/.
+  If the session ends first: `python -m charkit remote attach gate-garments4-1001-001736-397a`.
+- **Review page:** `charkit/out/garments4/review/part1/index.html` (part1.json beside it; sweep s3's boards). Asked of
+  Michael: (1) the knot graded on the front only, (2) w4's slanted loop ends, (3) the loops' bottom at 0.30, (4) the far
+  sleeve's 3q cost (0.353 -> 0.323).
+
+## Part 2: started, parked on branch `tool/garments4-part2` (3f2d550d, from def9343a; not gated, not in tool/garments4)
+Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box-built:
+- **The crease mechanism (a line layer):** `garments.ink_strokes(G, creases, L, frame)` / `with_ink`: strokes given in a
+  piece's UV, or `space: 'front'` as (x, z) in L in the QA's front frame (midline, iris eye line: `_eye_z`), placed on
+  the piece's level-1 subdivided surface (frontmost for front strokes), `lift` L off it, `width`, `taper`, `tip`;
+  appended to the same object on an `<name>_ink` toon slot (one object per garment: the evaluator and the piece masks
+  stay as they are), weights from the surface; `outline_w` vertex group 0 on the strokes (_object makes it: shade.outline
+  reads it, so no hull on them); `evalmesh.finalize` keeps ink faces out of the venv Solidify. `qa3d.render_surfaces`
+  draws `*_ink` triangles as line surfaces (our_lines / partqa read them as lines); `sweep.garment_arrays` gives ink
+  vertices no outline shrink. Wired in `garments.build` for the skirt and the hull bow (no-op without `creases`).
+- **The measure:** declared family `ink_inside` (declared.py; LINE_FAMILIES) = 1 - recall: the share of the drawn
+  creases' skeleton (ink + outfit.ridges faint strokes inside the drawn region, its outline band left out) with none of
+  our lines within `tol` 0.015 L; `ours`, `design` lengths and `precision` reported. The generic calibration stand-in
+  (declared.Declared) now draws the design's lines with its faint strokes. Declarations in `charkit/creaseqa.py`:
+  skirt_panel_{front,three_quarter}_creases (piece skirt, region skirt_panel), bow_{front,three_quarter}_creases;
+  limits [0.35, 0.6]; flags Michael's; calibrate known_bad 'g4_before'.
+- **Readings (local, `charkit/out/garments4/tools/decl.py`):** g4_before: skirt 0.998 / 1.0 FAIL, bow 0.925 / 0.902
+  FAIL; g4_p1 (pleated bow): skirt 0.998 / 1.0 FAIL, bow 0.46 / 0.41 WARN (the pleat's almond and lower crease sit
+  0.01-0.02 L off the drawn ones; the drawn almond tops, the spokes from the knot and the knot's side lines are missing:
+  `review/inkov_bow_front_p1.png`). The drawn panel has 2 creases in front (~0.9 L each, from z -1.69 to the hem at
+  |x| 0.06 -> 0.19), 2.5 L of lines in 3q.
+- **Strokes traced from the design:** `python -m charkit.inkfit SPEC PIECE [--region R] [--band] [--min] --build DIR`
+  (skeleton -> polylines, RDP, joined across junctions) -> `charkit/out/garments4/strokes_{skirt,bow}_front.json`; the
+  ink variant spec `charkit/out/garments4/specs/ink1.json` (= Part 1's spec + skirt and bow `creases`; overrides in
+  `tools/garments4/ink1.json`).
+
+### Part 2: exact next steps (lean relaunch)
+1. On tool/garments4-part2 (merge tool/garments4 / pipeline-3d first): box-build ink1
+   (`remote build charkit/out/garments4/specs/ink1.json --out charkit/out/g4_ink1 --boards '' --no-blend`); check the
+   strokes render (Blender: outline_w group present, no hull on strokes; the bundle's materials include skirt_ink /
+   bow_ink), the crease checks (`decl.py '*creases*' charkit/out/g4_ink1`), every piece's shape IoU (skirt, bow) and the
+   art_* checks. Then sweeps on g4_ink1 as base (its bundle has the ink slots, so spliced strokes read as lines) for
+   width/lift and stroke choice (the bow: strokes for the drawn almond tops, spokes and knot sides; consider the pleat's
+   almond lens off when the strokes draw it; the skirt: check the 3q recall: the drawn 3q panel shows more folds, maybe
+   strokes along the pleats' ridges in UV space instead of front projection).
+2. Store the known-bad (`python -m charkit calibrate store g4_before charkit/out/g4_before --why "no creases on the
+   skirt's cream panel; pillow bow without wrinkles"`), calibrate `skirt_panel_*_creases,bow_*_creases` (`--build` the
+   ink build), commit records; register a MEASUREMENT_STEPS entry if the gate flags qa3d/declared measuring code (values
+   on old geometry are unchanged: no ink slots there).
+3. Cuffs (item 2): the cream is already measured and calibrated (cuff_{front,back}_trim_{L,R}: FAIL 0.29-0.30 on every
+   build: ours have no cream); the size (ours 1.5-2.4x the drawn area, hands round) needs a declared check (width family
+   on piece cuff_L/R, or a shape_iou guard) calibrated. The fix exists as code: `garments.cuff` (band `source:
+   template`: a frustum with a cream top band and front tab, garments2), never fitted into the spec since the hands
+   round moved the arms: fit `span`, `top`, `bottom`, `band`, `tab`, `shift` to the drawn per-view cuffs (sweep), with
+   piece_cuff_L/R per view as the guard (before: L 0.614/0.831/0.742/0.636, R 0.604/0.325/0.602).
+4. Shoulders + the back view's cream collar (item 3): collar_back_iou 0.745 F, _square 0.325 F, _lay 0.042 F on
+   pipeline-3d; the lapels' width at the shoulder (drawn 0.40 L, ours 0.22). tool/collar4's template collar E2 and
+   body.shoulder (collar.md rounds 7-8: the guard, torn, neck_crease, art_outline_neck still blocking there) are the
+   prior work; Part 1's V1 sleeves already put shoulder_back_line at 0.0047 P.
+5. Neck to bow V (item 4): the jacket's `opening` table starts at z -0.72 (half 0), so the V between the lapels above
+   the knot is jacket (orange); extend the opening up the collar's V (collar round 1's variant D: the jacket's opening
+   carrying the collar's V) so the skin shows, and check neck_crease (26.9 W now) for the neck-chest join.
