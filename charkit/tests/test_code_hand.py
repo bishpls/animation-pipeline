@@ -130,6 +130,22 @@ def test_fist_precheck():
             assert v['deepest'] <= rep['rest_overlap'][k]['deepest'] + 0.006, (k, v, rep['rest_overlap'][k])
 
 
+def test_ratio_mode_is_live():
+    """the ratio mode (body.hand.palm_len): the hand built from its structural ratios at its size, derived when the hand
+    is built (ratio2 moved palm_len to its bound with no effect: the knobs had been derived once at params())."""
+    spec = json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')))
+    P = ch.params(spec, palm_len=0.3, wrist_offset=0.034)
+    J = np.array([[0.5, 0, -1.0], [0.6, 0, -1.8], [0.65, 0, -2.5], [0.67, 0, -2.8]])
+    tip = lambda P_: ch.hand(J, 'left', P_)['digits']['middle'][0][-1]
+    a, b = tip(P), tip(dict(P, palm_len=0.35))
+    assert np.linalg.norm(b - J[2]) > np.linalg.norm(a - J[2]) + 0.05
+    R = dict(P['ratios'], middle=P['ratios']['middle'] * 1.2)
+    c = tip(dict(P, ratios=R))
+    assert np.linalg.norm(c - J[2]) > np.linalg.norm(a - J[2]) + 0.02
+    G = ch.geometry(P)
+    assert abs(G['palm_w'] - P['ratios']['span'] * 0.3) < 1e-9 and abs(G['palm'] * G['length'] - (0.034 + 0.3)) < 1e-9
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
