@@ -160,6 +160,20 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   material `hair_lock_ink` (scene.py), which declared.our_ink and hairweight leave out of the strands (lines, not
   strokes; hairflagqa reads them as lines). Sweep lock_lines on over hst_s1: charkit/out/hairstrokes/sw_locklines.
 
+- Commit d3ac002: the weight/taper checks and records (all 6 CALIBRATED: design 0.017-0.038 / 0.91-1.0, hst_base
+  FAIL, floors heavy 1.97 / blunt 0.25 FAIL; hst_s1 weight 0.32/0.20/0.42, taper 0.64/0.67/0.68 PASS), lock lines,
+  hairtones + the `tones` family. charkit/hairtoneqa.py (the tones checks' declarations, provisional limits) is kept
+  uncommitted until calibrated, so the strokes gate carries no uncalibrated check.
+- **Laptop memory critical (coordinator, 2026-10-01 08:10): no heavy local jobs.** Calibrations, sweeps, builds, labs
+  on the boxes: `charkit sweep ... --box render`, `charkit remote --box render run ...`; harness scripts pushed with
+  `CHARKIT_BOX_ENV=infra/gcp/render.env bash infra/gcp/build.sh push charkit/out/hairstrokes/tools/
+  /srv/work/animation-pipeline-hairstrokes/charkit/out/hairstrokes/tools/` and run with `build.sh run $PWD 'python
+  ...'`, outputs fetched with `build.sh fetch $PWD DIR` (the sync leaves charkit/out alone). On the render box:
+  hst_base, hst_s1, the store charkit/out/calib/builds/hst_base (linked; the box copy's synced files are read-only,
+  so `calibrate store` fails writing the tracked record after linking: harmless).
+- Box jobs (2026-10-01 ~08:10): the lock-line sweep (charkit/out/hairstrokes/sw_locklines, sw_locklines.log), the
+  tones triple on hst_s1 (box_tonecal.log: QA re-run there, calibrate --no-write), the shadow blame (blame/).
+
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store
    `~/animation-pipeline-hair4/charkit/out/calib/builds/hair5_1580f95` into this worktree's
