@@ -48,6 +48,8 @@ REGIONS = {
               (-1.75, 1.75, -1.75, -3.0), 120),
     'skirt': ('the skirt: its cream front panel, the panel\'s creases and folds, the pleats and hem band',
               ('front', 'three_quarter', 'profile'), 'body', (-1.2, 1.2, -1.35, -2.8), 140),
+    'clips': ('the hair clips: the crab and the star on her left side (Michael: pieces don\'t hide each other)',
+              ('front', 'three_quarter', 'profile'), 'head', (-0.9, 0.9, 0.85, -0.15), 330),
 }
 CLOSE_H = 300                       # px: every close-up shown at this height (a region's crops share one window)
 CSS = """

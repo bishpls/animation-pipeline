@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T20:39:42",
+ "at": "2026-10-01T07:43:44",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -102,16 +102,16 @@
  },
  "blind_to": [],
  "current": {
-  "value": 3.766,
-  "status": "FAIL",
-  "margin": 11.238
+  "value": 0.928,
+  "status": "WARN",
+  "margin": 3.568
  },
  "verdict": "calibrated",
  "why": "a defect detector: the design passes every move (spread 0.0), hair5_1580f95 reads 3.761 FAIL; a random stand-in passes it (voronoi_lines); shape guarded by hair_piece_upper_back, hair_piece_lower_back",
- "build": "charkit/out/h5_base",
+ "build": "charkit/out/hst_s1",
  "generators": {
   "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
   "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
  },
- "seconds": 143.5
+ "seconds": 39.3
 }

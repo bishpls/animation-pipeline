@@ -12,7 +12,9 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            shade_close and shade_blur (L: the envelope those normals come from, closed across the gaps between locks and
            blurred to the shadow shapes' scale), relief (L: each lock's ridge across it, the grooves between locks),
            lock_shading (0..1: how much of each lock's own outer normal, smoothed within the lock lock_shading_smooth
-           times, is blended into the mass's, so its relief and grooves shade), strand_tone ('root': each flyaway strand
+           times, is blended into the mass's, so its relief and grooves shade), shade_ellipsoid and shade_squash (0..1:
+           the mass's normals blended toward an ellipsoid's round the hair, its vertical semi-axis times shade_squash:
+           shading by height, the hair's lower ends and hem in shade in every view; off by default), strand_tone ('root': each flyaway strand
            shades in one tone, its root's normal, no terminator across a thin strand; 'surface': per vertex), bun_e, bun_q, bun_slab (a block bun's squareness (0 a box, 1 an ellipsoid), the share of the hull's bun
            points its extent ignores at either end, its folded slab's share of its width)
   face     the face's construction (charkit.geom.headfit): eye_region ('socket': a dip at each eye takes the surface back

@@ -12,4 +12,10 @@ MEASUREMENT_STEPS = [
     ('hair_back_hem', '31e6654', "new: the back view's hem tips against the drawing's (the smooth bob)"),
     ('hair_lock_lines_*', '31e6654', "new: the layering's ink inside the mass (our outline hulls) in three-quarter and "
      "profile against the drawn lines, a line F-score (the solid mass, the janky layering)"),
+    # tool/hairstrokes: the hair's ink strokes (charkit.geom.hairink's ribbons on an ink slot) are lines, not hair: drawn
+    # as ink inside the mass (our_ink) and left out of the hair's parts (our_labels); unchanged on a build without strokes
+    ('hair_back_lines', 'ae33ac8', "our ink strokes (an ink slot's faces) drawn as ink inside the mass beside the "
+     "outline hulls (unchanged without strokes)"),
+    ('hair_lock_lines_*', 'ae33ac8', "our ink strokes (an ink slot's faces) drawn as ink inside the mass beside the "
+     "outline hulls (unchanged without strokes)"),
 ]

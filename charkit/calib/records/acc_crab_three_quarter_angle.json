@@ -1,0 +1,92 @@
+{
+ "check": "acc_crab_three_quarter_angle",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T13:30:15",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "acc_crab_shape",
+  "acc_star_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.7,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.7,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.7,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.7,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.7,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.7,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.7,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.7,
+    "PASS"
+   ]
+  },
+  "min": 0.7,
+  "max": 0.7,
+  "spread": 0.0,
+  "median": 0.7
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled",
+ "floor": {
+  "turned": {
+   "values": [
+    -29.5,
+    -26.9,
+    -19.6,
+    -22.9,
+    -29.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -26.9,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": -1.1,
+  "status": "PASS",
+  "margin": 0.935
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled); the design passes and the floor does not",
+ "build": "charkit/out/acc5/after2",
+ "generators": {
+  "turned": "each drawn clip turned 25-40 degrees about its centroid"
+ },
+ "seconds": 35.7
+}

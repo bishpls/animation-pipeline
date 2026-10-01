@@ -37,6 +37,7 @@
                                                  # the outfit component graph from the references (charkit/outfit.py)
     python -m charkit outfit score [SPEC] [--masks MASKS.npz]   # the outfit masks against the hand-labelled truth
     python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
+    python -m charkit accfit shape|place|measure ...   # the hair clips' template and placement fits (charkit/accfit.py)
     python -m charkit calibrate CHECK [--build DIR] # the calibration triple: design moved 1-2 px, known-bad, random floor
     python -m charkit sweep run DECL.json | BASE --stage S --oat PATH=[..] .. | swap A B --check C   # declared variants
                                                  # of a build rebuilt in-process and measured; attribution (charkit/sweep.py)
@@ -621,6 +622,12 @@ def pieces_hair(spec, resolved, out, mode='on'):
         sp_ = manifest.produced(spec, 'hair_split')
         popts['lock_shells'] = dict(popts['lock_shells'], split=sp_)
         split = [sp_, os.path.join(os.path.dirname(sp_), 'hairsplit.npz')]
+    strokes_in = []
+    if shape.get('strokes'):
+        # (tool/hairstrokes: the strokes read the hair truth, the lock split and the body sheet)
+        sp_ = manifest.produced(spec, 'hair_split')
+        strokes_in = [sp_, os.path.join(os.path.dirname(sp_), 'hairsplit.npz'),
+                      _path(M['references']['hair_truth']['path'])]
     cut = {k: v for k, v in spec.items() if k != 'garments'}
     cut['hair'] = dict(spec['hair'], shape={k: v for k, v in shape.items() if k not in ('geom', 'pieces')})
     # the pieces' own eye anchor (pieces_opts.eye_anchor, target3d.eye_target): the hair aligned to our irises without
@@ -656,23 +663,35 @@ def pieces_hair(spec, resolved, out, mode='on'):
         else:
             fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views,
                                         masks, info['ppl'])
-        style = styles.load(spec.get('style', 'anime'))['hair_pieces']
+        # (hair.shape.style: this character's overrides of the style profile's hair_pieces section, e.g. its shading
+        # normals' head envelope, tool/hairstrokes (d))
+        style = styles.merge(styles.load(spec.get('style', 'anime'))['hair_pieces'], shape.get('style') or {})
         R = hp.build(C, fam, masks, style, views=views, hull_frame=(C.align['scale'], np.asarray(C.align['translate'])),
                      opts=popts, points=pts)
         R['report']['labelled'] = counts
+        if shape.get('strokes'):
+            # (tool/hairstrokes: the design's strokes inside the mass, a line layer on the pieces: charkit.geom.hairink)
+            from .geom import hairink
+            iris = [np.asarray(e['iris'][0], float).mean(0) for e in C.A['eyes']]
+            skin = (np.asarray(C.A['verts'], float),
+                    np.array([(f[0], f[k], f[k + 1]) for f in C.A['faces'] for k in range(1, len(f) - 1)]))
+            R['report']['strokes'] = hairink.build(R, spec, iris, C.centre, C.L, shape['strokes'], skin=skin)
         hp.save_parts(R, pdir, meta=dict(style=spec.get('style', 'anime'), normals=style['normals']))
         print('pieces hair', pdir, json.dumps({k: (r['locks'], r['tris']) for k, r in R['report']['pieces'].items()}))
     if mode == 'off':
         run()
     else:
         r = cache.file_step('pieces_hair', run, [pieces_hair], cut, gdir,
-                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] + split + [
+                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] + split + strokes_in + [
                                 p_ for p_ in [os.path.join(os.path.dirname(_path(shape['glb'])), 'hull.npz')]
                                 if os.path.exists(p_)] +
                             ([spec['head_code']] if spec.get('head_code') else []),
                             modules=('charkit.geom.parts', 'charkit.geom.hairpieces', 'charkit.geom.hull',
                                      'charkit.styles', 'charkit.garments') + (
-                                         ('charkit.geom.lockshell',) if split else ()), name_key=spec['name'],
+                                         ('charkit.geom.lockshell',) if split else ()) + (
+                                         ('charkit.geom.hairink', 'charkit.inkfit', 'charkit.hairflagqa',
+                                          'charkit.hairlayers', 'charkit.bodyqa', 'charkit.sheetqa')
+                                         if strokes_in else ()), name_key=spec['name'],
                             refresh=mode == 'refresh')
         print('CHARKIT_CACHE pieces_hair', r)
     shape['pieces'] = pdir
@@ -773,7 +792,7 @@ def figures(args):
         print('wrote', mp)
 
 
-CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep')
+CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep', 'accfit')
 
 
 def _cap(args):
@@ -851,6 +870,9 @@ def main(argv=None):
     elif cmd == 'sweep':
         from . import sweep
         sys.exit(sweep.main(rest) or 0)
+    elif cmd == 'accfit':
+        from . import accfit
+        accfit.main(rest)
     elif cmd == 'hairsplit':
         from . import hairsplit
         sys.exit(hairsplit.main(rest) or 0)
