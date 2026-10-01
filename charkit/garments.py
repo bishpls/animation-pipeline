@@ -466,8 +466,21 @@ def bed(A, sv, sf, spec, hull):
         if b.get('side') == 'normal':
             # (passes: a pass's smoothing can carry a neighbour's move across a fold of the sheet; the next pass, its
             # nearest points read again, takes it back under)
+            hold = None
+            if b.get('hold') and spec.get('opening'):
+                # round 7: the hull collar's crumpled lapels turn their normals sideways, and the moves along them slid
+                # the jacket's V edge into the opening (the edge notched, the jacket showing between the lapel and the
+                # V: art_outline_neck); within `hold` L outside the opening's edge the moves keep x and z (sunk back, not slid)
+                g_op = opening_cut(A, spec['opening'])
+                hold = lambda X, g_op=g_op: g_op(X) < float(b['hold']) * L
             for _ in range(int(b.get('passes', 6))):
+                sv0 = sv
                 sv = bed_sheet(A, sv, sf, P, F_, L, b)
+                if hold is not None:
+                    h_ = hold(sv0)
+                    sv[h_, 0] = sv0[h_, 0]
+                    if b.get("hold_z", True):
+                        sv[h_, 2] = sv0[h_, 2]
             return sv
         # the side's own panel only (the lapels in front, the flap behind: through the body they overlap in projection,
         # and the other side's surface would drag the shell through the body to it)
