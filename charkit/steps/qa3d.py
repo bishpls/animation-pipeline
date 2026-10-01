@@ -136,7 +136,4 @@ MEASUREMENT_STEPS = [
     ('hair_bun_*', '9bfbc8b', "the hair layers without the drawn clips: hair_bun_outline 0.456 -> 0.458"),
     ('hair_noise', 'ae33ac8', "the hair's ink strokes (an ink slot's faces, charkit.geom.hairink) left out of the shading "
      "drawn (qa3d.without_ink: drawn lines, not shading; unchanged without strokes)"),
-    ('hair_noise', '99970f7', "the render drawing leaves the ink primitives out too (charkit.qarender: an object whose "
-     "surface list dropped its ink slots, qa3d.without_ink, has its ink primitives skipped; the render drawing drew them as "
-     "the hair's shading: hst_b2 0.085 with strands and lock lines); unchanged without ink"),
 ]

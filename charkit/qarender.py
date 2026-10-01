@@ -93,12 +93,11 @@ class View:
     """one view of a qa3d surface list drawn by the renderer: draw_view's dict where the QA reads it (['mesh'],
     ['depth'], ['az']), draw_lit's picture and buffers by lit(), the mesh index per pixel by ids()."""
 
-    def __init__(self, B, Q, surfs, az, fr, draw, off, paint, line, index, variants=None, skip=None):
+    def __init__(self, B, Q, surfs, az, fr, draw, off, paint, line, index, variants=None):
         self.B, self.Q, self.surfs, self.az, self.fr = B, Q, surfs, az, fr
         self.draw, self.off, self.paint, self.line = draw, off, paint, line
         self.variants = variants or {}                      # {object: variant}: the skin 'bare'
         self.index = index                                  # (part, hull) -> the surface's index in surfs
-        self.skip = set(skip or ())                         # primitives not drawn (ink left out: qa3d.without_ink)
         self._aux = {}
 
     def camera(self, k=1):
@@ -122,7 +121,7 @@ class View:
                 self._aux.pop(next(iter(self._aux)))
             self._aux[key] = self.Q.frame(self.camera(1), draw=self.draw, off=self.off, paint=self.paint,
                                           light=ldir if ldir is not None else light(self.B, self.az), line=self.line,
-                                          variants=self.variants, **dict(kw, **({'skip': self.skip} if self.skip else {})))
+                                          variants=self.variants, **kw)
             note(self.B, 'render')
         return self._aux[key]
 
@@ -192,7 +191,6 @@ def view(B, surfs, az, fr, Q=None):
     for k, name in enumerate(Q.objects):
         by_name.setdefault((name, Q.prims[k].variant), []).append(k)
     draw, off, index, paint, variants = set(), set(), {}, {}, {}
-    skip = set()
     widths = []
     from .qa3d import is_ink
     names = [m.get('name') for m in (Q.M.js.get('materials') or [])] if getattr(Q, 'M', None) is not None else []
@@ -214,12 +212,7 @@ def view(B, surfs, az, fr, Q=None):
                 if prim_ink(k):
                     index[(k, False)] = i
             continue
-        inked = any(is_ink(m) for m in (o.materials or []))
-        no_ink = inked and not s['hull'] and not any(is_ink(o.materials[int(t)]) for t in np.unique(s['slots']))
         for k in ks:
-            if no_ink and prim_ink(k) and not any(x['o'] is o and x['hull'] for x in surfs):
-                skip.add(k)                   # (qa3d.without_ink: this object's ink strokes left out, as numpy draws)
-                continue
             index.setdefault((k, bool(s['hull'])), i)
         if s.get('line_k') is not None and o.outline and not s['hull']:
             widths.append((o, float(s['line_k'])))
@@ -233,7 +226,7 @@ def view(B, surfs, az, fr, Q=None):
         if line is None:
             note(B, 'numpy (line widths not one screen width)')
             return None
-    return View(B, Q, surfs, az, fr, draw, off, paint, line, index, variants, skip)
+    return View(B, Q, surfs, az, fr, draw, off, paint, line, index, variants)
 
 
 def screen_line(Q, widths):

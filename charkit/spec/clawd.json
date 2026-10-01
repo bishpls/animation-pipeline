@@ -326,10 +326,7 @@
     "taper": 0.6,
     "tip": 0.15,
     "buns": true,
-    "lock_lines": [
-     "bangs",
-     "side_locks"
-    ]
+    "lock_lines": false
    }
   },
   "silhouette": {
