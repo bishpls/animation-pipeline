@@ -204,6 +204,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hairflags.py` | `hair_back_lines` | hair_flags | HairFlags | hair5_1580f95 |
 | `hairflags.py` | `hair_lock_lines_*` | hair_flags | HairFlags | hair5_1580f95 |
 | `hairflags.py` | `hair_back_hem` | hair_flags | HairFlags | hair5_1580f95 |
+| `hairnoise.py` | `hair_noise` | hair_noise | HairNoise | ck7_blotchy |
 | `hairtruth.py` | `hair_truth_accuracy` | None | HairTruth | hair_transfer |
 | `hands.py` | `hand_shape_[LR]` | hands | Hands | mitten |
 | `hands.py` | `hand_*_reach_[LR]` | hands | Hands | mitten |
@@ -246,7 +247,6 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `labels.py` | `hair_bun_outline` | hair_pieces | Hair | - |
 | `motion.py` | `motion_kick_skirt_stretch` | motion | Motion | motion_skinned |
 | `motion.py` | `motion_squat_skirt_stretch` | motion | Motion | motion_skinned |
-| `motion.py` | `motion_kick_skirt_inside` | motion | Motion | motion_nocol |
 | `neck.py` | `neck_crease` | face_region | NeckJoin | neck_ring |
 | `parts.py` | `bow_part_knot_iou` | bow_parts | BowParts | g3_render3 |
 | `parts.py` | `bow_part_lobe_iou` | bow_parts | BowParts | - |
@@ -2827,7 +2827,12 @@ Measured QA for a built character (docs/CHARKIT.md §4): numbers instead of eyeb
 - `draw_ids(B, surfs, az, fr)`: the surface (its index in surfs) each pixel of frame fr shows, -1 none: draw_view's 'mesh' without its shading ...
 - `hair_noise_group(o)`: an object's tone group for hair_noise: 1 the hair's mass, 2 + k for HAIR_NOISE_GROUPS[k] (a piece of that family: ...
 - `tone_edges(lum, grp, min_px=50)`: the tone edges of a picture's hair: per group (grp: 0 none, else the pixel's tone group) its pixels' luminance ...
-- `hair_noise(B, design=None, out=None)`: the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a ...
+- `hair_noise_ink(ink, shape, ss=FIG_SS, reach=None)`: a picture's pixels the drawn lines take (hair_noise): ink (the measuring grid's, ss of its pixels to a picture's ...
+- `hair_cel_step(B, design=None)`: the hair's cel step (sRGB luminance, lit - shade): the design's hair palette (paletteqa's lit and shade on the ...
+- `speckles(px, lab, ink, step, ppl, area=HAIR_SPECK, dl=HAIR_SPECK_DL, ...)`: a hair picture's speckles: per tone group (lab: 0 none, else hair_noise_group's), the blobs of its luminance ...
+- `hair_noise(B, design=None, out=None)`: the hair's speckle (round 4, tool/hairshell3: speckled shading, the flagged blotchy hull-era hair's light ...
+- `hair_tone_edges(B, hair)`: hair_noise's measure before round 4 (INFO): the hair drawn with its own materials, without its outlines, behind ...
+- `hair_noise_views(B, hair)`: hair_noise's pictures: per view (0, 90, 180 degrees) (az, the picture (RGBA), each pixel's tone group (0 none, ...
 - `scalp(B, design=None, out=None)`: pixels of scalp showing through the hair: the skin's base polygons over the upper cranium and the back of the ...
 - `poke(B, design=None, out=None)`: body vertices (the unmasked ones) lying just outside a garment's surface, where the garment is close: the body ...
 - `mesh_info(B, design=None, out=None)`: open edges and loose parts per hair and garment object's own mesh (information).
@@ -3676,11 +3681,13 @@ Hair locks as their own shells (option B, Michael 2026-09-30; tool/hairshell, do
 - `lock_family(img, masks, view, families)`: per lock of one view's image: its family by majority over the hair layers' masks (None where no mask names it) -> ...
 - `bernstein(Q, t)`: a Bezier curve of degree len(Q) - 1 at parameters t -> (len(t), 3).
 - `bernstein_matrix(n, t)`
-- `frames(P, chart, twist=0.0)`: per centreline point: tangent t, thickness axis a (out of the chart's centre, square to t, turned by twist rad ...
+- `snap(x, q)`: x rounded to multiples of q (a power of two: exact; charkit.geom.det.snap).
+- `frames(P, chart, twist=0.0, smooth=False)`: per centreline point: tangent t, thickness axis a (out of the chart's centre, square to t, turned by twist rad ...
 - `tube(P, W, Tk, chart, twist=0.0, n_ring=10)`: a closed lens-section tube along P (root to tip): width W, thickness Tk per point.
 - `silhouette(V, T, view, az, hull_frame, shape)`: a mesh's silhouette on a view's design grid (its triangles filled) -> bool image.
 - `envelope_points(F, view, az, hull_frame, cols, rows, L)`: each pixel's ray (the view's camera: the viewer at e = (sin az, -cos az, 0)) cast onto the hair's envelope (the ...
 - class `Lock`: one lock's fit: its views' drawn centrelines and widths, the curve, the twist, the widths.
+- `det_inputs(F, views, hull_frame, L, q=2.0 ** (-12))`: the lock fit's float inputs snapped (tool/hairshell3, lock_shells det): two machines' hulls, and so their ...
 - `build_shells(F, masks, views, hull_frame, L, ls, log=print)`: the lock shells the spec asks for (pieces_opts.lock_shells: see the module) -> dict(parts {family or group: [part ...
 - `context(build, cache=None, log=print)`: what the hair pieces step has when it shapes the pieces (charkit.cli.pieces_hair's run on a build's own cut spec, ...
 - `visible(parts, ctx, vn, az, shape)`: the shells z-buffered among the scene's occluders (our skin, the other hair pieces) on a view's design grid -> ...
@@ -4254,6 +4261,12 @@ Calibration adapter for Michael's hair flags (charkit.hairflagqa, part 'hair_fla
 
 - class `HairFlags`
 
+#### `charkit/calib/hairnoise.py` (1 calibration entries)
+
+Calibration adapter for hair_noise (charkit.qa3d.hair_noise). Round 4 (tool/hairshell3) redefined it as a speckle measure: blobs under 0.002 L^2 standing out by half the hair's cel step, per L^2 of hair (qa3d.speckles), on the hair drawn with its outlines as the render draws them (the ink and its filtered edge not counted). The measure before it (tone ...
+
+- class `HairNoise`
+
 #### `charkit/calib/hairtruth.py` (1 calibration entries)
 
 Calibration adapter for the hair truth's score (charkit.hairlayers.score: the hair layer masks against the hand-checked truth, charkit/refs/clawd/hair_truth.npz; tool/hairtag). A score, not a graded check: its calibration is its separations. The design: the truth's own regions as masks (each region its accepted set's first family and bun side), moved 1-2 ...
@@ -4284,7 +4297,7 @@ Calibration adapters for the QA parts that read our pieces as label images on th
 - class `Pieces`: sheet_pieces (piece_*): the same stand-ins through qa3d's z-buffer.
 - class `Hair`: hair_pieces (hair_piece_*): the hair layers' drawn families as our hair's family labels (bodyqa.zbuffer_views'), ...
 
-#### `charkit/calib/motion.py` (3 calibration entries)
+#### `charkit/calib/motion.py` (2 calibration entries)
 
 Calibration adapter for motion QA (charkit.sim.motionqa: the skirt's new penetration into the skin and its stretch, worst over the kick and the squat, moved as the style profile says). Defect detectors: a random stand-in has no motion to be wrong in, so there is no floor; the shape they could be gamed against is the skirt's (piece_skirt; the rest shape ...
 
@@ -4391,7 +4404,7 @@ The measurement steps of the checks charkit/isoqa.py measures (charkit.registry;
 
 The measurement steps of the checks charkit/lookqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/motionqa.py` (2 measurement steps)
+#### `charkit/steps/motionqa.py` (3 measurement steps)
 
 The measurement steps of the checks charkit/sim/motionqa.py reports (motion_<pose>_<garment>_*; charkit.registry). A step: (check pattern, the commit that changed the measurement, what changed).
 
@@ -4403,7 +4416,7 @@ The measurement steps of the checks charkit/partqa.py measures (charkit.registry
 
 The measurement steps of the checks charkit/pieceqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/qa3d.py` (65 measurement steps)
+#### `charkit/steps/qa3d.py` (66 measurement steps)
 
 The measurement steps of the checks charkit/qa3d.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
