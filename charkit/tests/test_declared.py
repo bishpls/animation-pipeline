@@ -163,3 +163,32 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_a_region_of_a_piece_by_its_class_and_the_lines_along_a_region():
+    # drawn: the region compared in place of the piece's (the skirt's cream panel); ours_cls: our piece's pixels of
+    # that class (its material there)
+    from charkit import bodyqa
+    ours = rect(100, 300, 50, 250)
+    cls = np.zeros((H, W), int)
+    cls[100:300, 100:200] = bodyqa.CLASS['cream']
+    I = inputs({'front': ours}, {'front': rect(100, 300, 50, 250)})
+    I['masks']['front__panel'] = rect(100, 300, 100, 200)
+    I['cls_ours'] = {'front': cls}
+    d = dict(check='p_{view}_shape', family='shape_iou', piece='shorts', views=['front'], limits=[0.9, 0.8],
+             params=dict(drawn='panel', ours_cls='cream', close=True))
+    assert declared.evaluate([d], I)[1]['p_front_shape']['value'] == 1.0
+    I['cls_ours'] = {'front': np.zeros((H, W), int)}
+    assert declared.evaluate([d], I)[1]['p_front_shape']['status'] == 'FAIL'   # no cream of ours there
+    # ink_inside's edge: the drawn lines along a region's outline, not inside it
+    R = rect(100, 300, 100, 200)
+    raw = np.zeros((H, W), int)
+    raw[100:300, 98:100] = bodyqa.CLASS['line']                              # a fold along its left edge
+    raw[100:300, 149:151] = bodyqa.CLASS['line']                             # a crease down its middle
+    ctx = dict(ppl=PPL, view='front', masks={'front__panel': R}, dv=dict(raw=raw, rgb=None))
+    ours_l = np.zeros((H, W), bool)
+    ours_l[100:300, 99] = True
+    e = declared.ink_inside(R, R, dict(ctx, lines=ours_l), region='panel', band=0.05, faint=False, edge=True)
+    assert e['value'] < 0.1                                                   # the fold found along the edge
+    i = declared.ink_inside(R, R, dict(ctx, lines=ours_l), region='panel', band=0.05, faint=False)
+    assert i['value'] == 1.0                                                  # the crease inside: none of ours

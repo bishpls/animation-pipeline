@@ -1558,6 +1558,10 @@ def skirt_hull(A, spec, hull):
         VVg, hb = band_rows(spec['band'], F.th, half, hem_at(F.th) - t0_at(F.th), vs, L)
         R = np.array([np.interp(VVg[:, k], vs, F.R[:, k]) for k in range(n)]).T + off + depth * zig * VVg ** 0.7
         T = t0_at(TH) + VVg * (hem_at(TH) - t0_at(TH))
+        lenc = hem_at(F.th) - t0_at(F.th)
+        vb = 1 - hb / np.maximum(1e-9, lenc)                                     # per face column: the band's top (v)
+        band = [int(hb[k] > 0 and VVg[i, k] >= vb[k] - 1e-9 and abs(F.th[k]) >= half)
+                for i in range(VVg.shape[0] - 1) for k in range(n)]
     THv = np.broadcast_to(TH, R.shape)
     warped = bool(spec.get('panel_shape')) and half > 0
     if warped:
@@ -1570,10 +1574,6 @@ def skirt_hull(A, spec, hull):
         THv = panel_warp(F.th, half, VVg, spec['panel_shape'])
         R = _field_at(F, vs, VVg, THv) + off + depth * zig * VVg ** 0.7
         T = t0_at(THv) + VVg * (hem_at(THv) - t0_at(THv))
-        lenc = hem_at(F.th) - t0_at(F.th)
-        vb = 1 - hb / np.maximum(1e-9, lenc)                                     # per face column: the band's top (v)
-        band = [int(hb[k] > 0 and VVg[i, k] >= vb[k] - 1e-9 and abs(F.th[k]) >= half)
-                for i in range(VVg.shape[0] - 1) for k in range(n)]
     nrow = VVg.shape[0] - 1
     tuck = None
     under = spec.get('under')
