@@ -1,0 +1,10 @@
+{
+ "name": "comb_hand",
+ "why": "the default hand merged at de2fa87 (tool/hands b4 build, 397ffa1: the same code_hand.py and body.hand knobs): four separate thin finger tubes fanned apart with an outline round each (a comb or rake; the fingertips' gaps 0.10-0.18 of the hand's span where the drawn hands' are 0-0.025), fingertips side by side at one level (taper 0.59-0.67 where the drawing converges to 0.40-0.51), the thumb a nub against the palm (the deepest pocket a gap between fingers at 72-76% of the reach, the drawn thumb's cleft at 56-64%)",
+ "flag": "the default hand looks very bad to a visual inspection, clearly extremely off-model (Michael, 2026-10-01)",
+ "commit": "397ffa1",
+ "source": "~/animation-pipeline-hands/charkit/out/hands_b4",
+ "stored": "2026-10-01",
+ "bundle": "093b74746dc089d0",
+ "qa_checks": 560
+}
