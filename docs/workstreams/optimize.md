@@ -131,6 +131,12 @@ hair, the merged spec), 14 knobs as accfit.fit_place's.
   box's worktree copy has no .git), the target's baseline kept per commit in /srv/work/pregate-out, the report back
   into charkit/out/pregate. The committed tip only.
 
+## Gates
+- Pregate on the box (`pregate --box auto` -> build; tip 49b57a86 merged into pipeline-3d 9be5b320): **PASS, 0 moved,
+  0 blocking**, 356 s (charkit/out/pregate/pregate_tool-optimize_49b57a86_into_9be5b320.md). (A laptop pregate at
+  369719c1 read 18 moves: pipeline-3d had moved to 9be5b320 since my merge; merged again, 0 moved.)
+- **Running:** `remote gate tool/optimize --into pipeline-3d` (log charkit/out/optimize/gate.log).
+
 ## Next steps
-1. Pregate, then `remote gate tool/optimize --into pipeline-3d` (tooling: no check should move; sweep.py,
-   optimize.py, remote.py, boxjob.py, codemap.py are outside the build).
+1. Read the gate (expect: no build (nothing the build reads changed), the tests, no check moved).
+2. If pipeline-3d moves first: merge it, `gate --carry tool/optimize --into pipeline-3d`.
