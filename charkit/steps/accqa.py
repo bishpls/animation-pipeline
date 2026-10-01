@@ -53,4 +53,16 @@ MEASUREMENT_STEPS = [
     ('acc_crab_claw_notch', '6bcf6e39', "new (declared, limbs): the claws' deepest notch over their size against the "
      "sheet's"),
     ('acc_crab_stalks', '6bcf6e39', "new (declared, limbs): the eye stalks' reach above the body against the sheet's"),
+    # tool/accessories6, the crab against the star (Michael 2026-10-01: a moved piece keeps its relations, not its
+    # absolute drawn angle): ours each drawn alone against the drawn pair, the crab's own axis (ours from its frame,
+    # the drawing's accqa.CRAB_AXIS) and our hair's strands as the flow under it. On pipeline-3d 25ff0f25 (A3): bearing
+    # 66 / 59 / 64 deg off, turn 60 / 61 / 77 deg off, flow 17 / 2 / 26 deg off, gap 0
+    ('acc_crab_*_bearing', '2f19de99', "new (declared, family 'pair'): the direction from the star's centroid to the "
+     "crab's against the drawn pair's"),
+    ('acc_crab_*_gap', '2f19de99', "new (declared, pair): the clear distance between the crab and the star past the "
+     "drawn pair's"),
+    ('acc_crab_*_turn', '2f19de99', "new (declared, pair): the crab's own axis less the bearing against the drawn "
+     "pair's"),
+    ('acc_crab_*_flow', '2f19de99', "new (declared, pair): the crab's own axis less the hair's flow under it against "
+     "the drawn crab's"),
 ]

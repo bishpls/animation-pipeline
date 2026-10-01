@@ -62,7 +62,59 @@ body's sides (leg_at roots, leg_dir directions, leg_bend), eyes on stalks. Defau
 with poses 0.848 / 0.797 / 0.768). accfit.shape_checks / shape_loss: a template scored as the QA scores the built clip
 (per view as-drawn IoU, piece_pin_crab per view, alone, side, the declared FACE checks through charkit.declared).
 
+## Part A: the template fit (sweep optimize, stage adapter accfit_shape)
+- opt_crab (charkit/out/acc6/opt_crab, 656 evaluations): failed: sigma0 0.2 of each range on 28 knobs with hard
+  constraints (guard 15% per view, the parts checks as flags/keep): 90% of rows infeasible, the best a probe row.
+- opt_crab2 (2,671 evaluations, 6 min on 13 build-box workers; per-knob steps 0.75 x accfit.SHAPE_KNOBS, poses 4 deg):
+  shape_loss 0.943 -> 0.720; turnaround as-drawn IoU 0.693 / 0.680 / 0.657 -> 0.841 / 0.763 / 0.757; but the parts
+  rested on their PASS edges (leg reach 0.198 of 0.2, stalks 0.247 of 0.25: legs 20% shorter than the sheet's), the
+  face-on 0.883 -> 0.781, side 0.651 -> 0.540: the loss had no pull inside PASS.
+- opt_crab3 (from opt_crab2's best; w_alone 1.0, w_side 0.3, w_parts 0.3 with pull: each parts check's value over its
+  pass limit inside PASS too): running/see below.
+
+## Part B: diagnosis (tools: charkit/out/acc6/work/diag.py, diag2.py; terms.py: accfit's loss by term; the A3 crab
+template as built: pipeline-3d's accessories.crab)
+Michael's placement by hand (the crab upper-left of the star in front, bearing 135, its axis 135 = pincers upper-left,
+0.01 L clear; its facing turned with its anchor): accfit loss **10.57 vs A3 5.67**. The terms that prefer A3: the
+absolute angle (+6.0: the crab's axis 50-65 deg off the drawn absolute angle), the crab IoU (+0.65: the shape IoU aligns
+centroid and area, not rotation, so a turned crab reads worse: 0.51 / 0.42 / 0.51 vs 0.72 / 0.77 / 0.65), pos +0.32,
+size +0.10. Visible 1.0 / 1.0 / 1.0, seats 0. And it was never searched: round 5's starts A / B / C all moved the crab
+down. Other hand placements (loss): the drawn arrangement nudged 0.01 L clear (left of the star, upright) 6.50 (profile
+visible 0.979); upper-left upright 5.99; upper-left with the drawn turn kept (axis 30) 8.83; upper-left 'rotated
+slightly' (axis 115) 6.85.
+
+The relations (front / three-quarter / profile; ours vs the drawn pair):
+- drawn: bearing 188 / 189 / 190 (the crab left of the star), axis 83 / 78 / 82 (upright), turn -105 / -112 / -108,
+  axis against the hair's flow 171 / 164 / 166 (the claws up against the strands), gap 0 (touching).
+- A3: bearing 254 / 249 / 253, turn -165 / -172 / 176, flow -172 / 162 / 140, overlapping silhouettes.
+- Michael's (bearing 135, axis 135): turn 0 / -17 / -50, flow -156 / -149 / -157.
+- The finding: Michael's rotation keeps the crab's turn against the hair (axis 115: flow -173, the drawn 171), not its
+  turn against the star (the drawing's crab stands upright beside the star: -105). The turn check (target the drawn
+  pair's) fails his placement (105 deg off); the flow check passes it at axis 115. A decision for Michael.
+
+## Part B: the relational checks (declared family `pair`, accqa.DECLARED_CHECKS; 2f19de99)
+acc_crab_VIEW_{bearing [30, 55] deg, gap [0.025, 0.05] L past the drawn, turn [25, 45] deg, flow [25, 45] deg}, front /
+three-quarter / profile; ours each clip drawn alone, the crab's axis its frame's y in the picture (accqa.axis_in_view),
+the drawing's accqa.CRAB_AXIS (90 + the template fit's roll per view), the flow our hair's strands (geom/hair_pieces
+`strand`, root to tip) under the crab (accqa.hair_flow, flow_under). Calibration (Clips): the drawn pair passes every
+move (all 0.0-0.4); floors orbit (bearing 101-145 F), pointing_away (turn 105-112 F), across_flow (flow 71-116 F), apart
+(gap 0.052-0.076 F); A3 fails bearing (66 / 59 / 64 with [30, 55]) and turn (60 / 61 / 77). Known-bad acc_a3_crab stored
+on the build box (charkit/out/calib/builds/acc_a3_crab; charkit/calib/known_bad/acc_a3_crab.json).
+
+## The tool: sweep optimize, first real use (for the coordinator)
+- `starts` added (a ring of starts: each its own CMA-ES from that point with its share of the budget, one history,
+  the best across; test_optimize::test_a_ring_of_starts_searches_from_each).
+- Friction: sigma0 0.2 of each range is too wide for a 28-knob template fit under hard constraints (90% infeasible);
+  per-knob `step` fixed it. The stall rule's 'still wide' x3 spent 45 generations on a run that had stalled.
+- accfit_place now emits graded visible / seat / pair checks and piece_pin_KIND (the guard reads them); args shapes,
+  relate {w_rel, angle_near}.
+
+## art_terminator_hair (six placements, tools/acc6/term6.py on the build box)
+| build | single | six-placement mean +- std | per view f / 3q / p / back | peeks |
+|---|---|---|---|---|
+| A3 (pipeline-3d 25ff0f25, charkit/out/acc6/base) | 2.432 | 2.204 +- 0.151 | 8.25 / 7.71 / 4.46 / 1.87 | 17.3 |
+
 ## Next steps
-1. Commit; MEASUREMENT_STEPS for the new checks and acc_*_alone's own frame; store acc_a3_crab on the box.
-2. optimize stage adapter `accfit_shape`; fit the crab template on the box; spec; build.
-3. Part B.
+1. opt_crab3 -> the crab shape; CRAB_AXIS from its poses; the specs (tools/acc6/specs.py).
+2. tools/acc6/ring.py on the box (starts round the star, Michael's and the drawn-nudged placements); sweep optimize
+   placement with starts; build the fit and Michael's placement; term6; calibrate; review page; pregate; gate.
