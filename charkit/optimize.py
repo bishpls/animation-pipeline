@@ -3,7 +3,8 @@ the table, design the next sweep: face on sweep 8, lapels 7+, hair shells 11 on 
 (tool/optimize, docs/workstreams/optimize.md). Each generation's population runs in parallel through the sweep's own
 stages (charkit/sweep.py: the variant rebuilt at its stage, spliced into the base bundle, measured by the QA's parts)
 on persistent workers, each holding the stage's context and a build slot; the top candidates are then confirmed by real
-builds.
+builds. The workers are background work (charkit.procs.background: niceness 10; a worker gives its slot to a gate
+waiting for one between rows, its row going to another worker, and takes one again behind the gate).
 
     python -m charkit sweep optimize DECL.json [--out DIR] [--workers N|auto] [--reserve K] [--resume] [--no-confirm]
                                      [--confirm K] [--evals N] [--minutes M] [--generations G] [--seed S]
@@ -779,6 +780,12 @@ def serve(decl_path, out, wid=0):
             req = json.loads(line)
             if req.get('op') == 'stop':
                 break
+            gate = lock.claim() if lock is not None else None
+            if gate:                                    # a gate waits for a build slot: this row goes to another
+                proto.write(json.dumps(dict(id=req['id'], yielded=True)) + '\n')   # worker, this one's slot to the gate
+                gave = lock.give(gate)
+                proto.write(json.dumps(dict(resumed=True, seconds=round(gave, 1))) + '\n')
+                continue
             try:
                 if req.get('op') == 'changes':
                     rec = ctx.changes(req['row'])
@@ -936,12 +943,29 @@ class Pool:
                 else:
                     batch.done(i, dict(error='worker %d died' % w, worker=w))
                 return
+            if reply.get('yielded'):                     # its slot went to a waiting gate (charkit.procs): the row
+                self.jobs.put((batch, i, req, tries))    # goes back to the queue, the worker waits for a slot again
+                self._set(w, 'yielded')
+                self.log('optimize: worker %d gave its build slot to a waiting gate; its row goes to another' % w)
+                line = p.stdout.readline()
+                try:
+                    back = json.loads(line) if line else None
+                except ValueError:
+                    back = None
+                if not back or not back.get('resumed'):
+                    self.log('optimize: worker %d ended while it waited for a slot (%s)' % (w, os.path.join(
+                        self.out, 'workers', 'worker_%d.log' % w)))
+                    self._set(w, 'dead')
+                    return
+                self._set(w, 'ready')
+                self.log('optimize: worker %d has a slot again (%s s without one)' % (w, back.get('seconds')))
+                continue
             reply.pop('id', None)
             reply['worker'] = w
             batch.done(i, reply)
 
     def _alive(self):
-        return any(s in ('ready', 'starting') for s in self.state.values())
+        return any(s in ('ready', 'starting', 'yielded') for s in self.state.values())
 
     def run(self, reqs, on_result=None):
         batch = _Batch(len(reqs), on_result)
@@ -1080,7 +1104,8 @@ class Run:
             return InProc(self.decl, self.out, self.log)
         env = {}
         if self.decl.get('stage') == 'python':
-            env['CHARKIT_OPT_SLOT'] = '0'               # (a python evaluator is light: no build slot)
+            env['CHARKIT_OPT_SLOT'] = os.environ.get('CHARKIT_OPT_SLOT') or '0'   # (a python evaluator is light: no
+                                                        # build slot, unless asked: test_slotprio's pool)
         return Pool(self.decl_path, self.out, n, self.log, env)
 
     def n_workers(self, lam_default):
