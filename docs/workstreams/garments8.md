@@ -150,3 +150,11 @@ Step 2's targets from these (goals, not merge gates; coordinator 2026-10-01: und
 reported, not blocking; blocking is existing checks regressing to FAIL, flag-check regressions, CPU > 1.5x, missing
 calibration records and the guard): collar_front/3q_truth >= 0.70 (Michael wants the lapels right), neck_v_* up from
 0.574 / 0.505 (the base under the new measure), top_* WARN or better. If one stops short: report it, bend nothing.
+- Records committed (09ebeb00): collar_front/3q_truth CALIBRATED, top_*_truth GUARD, neck_v_*_skin CALIBRATED.
+- pipeline-3d 241f0547 (tool/rom, tool/hairtruth) merged in (0b4065f9): hairtruth added the same z-buffer option as
+  `hide` (pieceqa.our_labels): adopted (our_classes' too); the stand-in draws a garment truth's way only when the
+  hidden objects are a garment truth's covers (the hair's clips keep its labels); Clawd's shape_truth now holds the
+  hair's entry (pipeline-3d's, read by charkit.shapetruth) and garments8's in one object (the auto-merge had left two
+  "shape_truth" keys). The truth checks on g8_base read the same after the merge. Tests: manifest, declared, registry,
+  calibrate, spec_declared, shapetruth, hairtruth, rom, hairflags pass.
+- Waiting: the shoulder switch's merge (tool/garments4-shoulders c8d30430, not in pipeline-3d yet).
