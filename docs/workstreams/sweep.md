@@ -114,34 +114,29 @@ docstring's opening and each public function's signature and first docstring sen
   reported (no check moved); the candidate built (cli.py changed: its venv steps' keys missed, CPU 737 -> 940 s,
   1.28x); 78 test files ok. Report `charkit/out/gate/gate_tool-sweep_1381b4f_into_961037c.md`. Pregate PASS (0 moved).
 
-## State (checkpoint 2026-09-30 ~22:45, context ceiling: the coordinator relaunches lean)
-- All four pieces done and committed: 3d75bb3 sweep (+ a3a7f2a grid/oat list check, + the docstring/codemap-format
-  commit after it), 49d073b declared checks, 927ba74 review page, 0707d4c code map. Merged pipeline-3d 961037c at
-  1381b4f.
-- Gated: deliverable 1 (1381b4f) PASS (above). Running when checkpointed (box jobs; `remote attach JID` collects):
-  - gate-sweep-0930-223835-8b30: tmp/sweep-declared (= 49d073b, deliverable 2 alone) into pipeline-3d; log
-    charkit/out/sweep/gate2.log
-  - gate-sweep-0930-223837-ac66: tool/sweep a3a7f2a (deliverables 2-4) into pipeline-3d; log charkit/out/sweep/gate3.log
-  - sweep-sweep-0930-223713-c7e5: `sweep ... --box --jobs 2` on bow2's b2_close (box path), the --box demo; log
-    charkit/out/sweep/box_demo.log, outputs charkit/out/sweep/box_demo (a first --box try on a preview failed cleanly:
-    previews keep no bundle on the box)
-  - local: `sweep swap h5_base hair5_b --check art_terminator_hair --objects hair_ahoge --inputs
-    hair.shape.pieces_opts --stage hair` -> charkit/out/sweep/acceptance/swap_inputs(.log): the first real test of
-    --inputs
-- Pregates: 1381b4f+dirty PASS (0 moved, 289 s); 0707d4c PASS (0 moved, 78 s).
-- Last commit (docstring and codemap without line counts) is after a3a7f2a: tests-only change (sweep.py, codemap.py,
-  CODEMAP.md: not in any build's closure), not gated; re-gate the tip (tests only) or carry.
+## State (round end, 2026-09-30 ~23:00)
+- All four pieces done, committed and gated:
+  - Gate 1, deliverable 1 (sweep): tool/sweep 1381b4f into 961037c: **PASS under K**, 0 items, CPU 1.28x, 78 tests ok.
+  - Gate 2, deliverable 2 alone (tmp/sweep-declared = 49d073b) into 961037c: **PASS under K**; 1 item reported, not
+    blocking: piece_details' measuring code changed with no registered step, **0 checks moved** (same geometry; the
+    port is identical); CPU 762.8 s against 737.1 (1.03x). Report charkit/out/gate/gate_tmp-sweep-declared_49d073b_
+    into_961037c.md.
+  - Gate 3, deliverables 2-4 (tool/sweep a3a7f2a) into 961037c: **PASS under K**, the same one reported item, 0
+    checks moved, CPU 762.1 s (1.03x), 81 test files ok. Report charkit/out/gate/gate_tool-sweep_a3a7f2a_into_961037c.md.
+  - 20ef2a7 (docstrings, codemap without line counts, notes) and this notes commit came after: no build reads them
+    (sweep.py, codemap.py, CODEMAP.md, docs); test_sweep and test_codemap pass locally. Carry or a tests-only re-gate.
+- tmp/sweep-declared deleted after its gate; the w4 reproduction's throwaway worktree removed.
+- Functional runs at round end: `--box --jobs 2` on bow2's b2_close (box path, 348 s, fetched to
+  charkit/out/sweep/box_demo): its guard flagged turn=50 (bow_profile_ribbon improves while piece_bow profile 0.543 ->
+  0.352, -35%): the bow-ribbon gaming pattern, caught by the tool. `swap --inputs hair.shape.pieces_opts --stage hair`
+  on h5_base/hair5_b (charkit/out/sweep/acceptance/swap_inputs): runs end to end; its hair-stage control reproduces
+  hair5_b's own art_terminator_hair 2.575.
 
 ## Next steps
-1. Read gate2.log / gate3.log (or `python -m charkit remote attach JID`); record the readings under K here. Expect PASS
-   with 0 moves: the port's 413 checks are identical, the 'declared' part has no declarations of its own.
-2. Read box_demo (its sweep.md) and swap_inputs (swap.md, inputs/sweep.md); fix --inputs if it failed.
-3. Gate the tip once more (tests only) after the docstring commit; delete tmp/sweep-declared after its gate is read.
-4. Remove the throwaway worktree: `git worktree remove --force <scratchpad>/pr_beb14922` (the w4 reproduction's
-   beb14922 checkout; recreate with `git worktree add --detach` + sparse charkit + projects/tsuzuku/rig/clawd,
-   projects/hello-world/refs to rerun).
-5. Possible follow-ups (coordinator's call): port more hand checks to declarations (collarqa's are other branches'
-   ground: coordinate), teach the gate's guard to read declared shape_iou, a sweep stage for the face (code_head).
+1. The coordinator merges tool/sweep (tip) or 1381b4f / 49d073b as wanted; nothing running.
+2. Possible follow-ups (coordinator's call): port more hand checks to declarations (collarqa's are other branches'
+   ground: coordinate); the gate's guard reading declared shape_iou checks; a sweep stage for the face (code_head);
+   `sweep --box` uploading a local base.
 
 ## What other agents should switch to
 - variant harnesses (var.py, sweep.py, batch.sh, lab.py) -> `python -m charkit sweep` (garments / hair / qa stage);
