@@ -29,4 +29,5 @@ for x in a[1:]:
         lab, out['terminator_hair']['place'], out['terminator_hair']['mean'], out['terminator_hair']['std'],
         out['terminator_hair']['views'], out['peeks_hair']['place'], out['peeks_hair']['mean']), flush=True)
 if js:
+    os.makedirs(os.path.dirname(os.path.abspath(js)), exist_ok=True)
     json.dump(res, open(js, 'w'), indent=1)
