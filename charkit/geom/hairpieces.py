@@ -2886,6 +2886,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     ap = V[fam == fam_id('ahoge')]
     if ah is not None:
         add('ahoge', 'ahoge', [ah])
+        if 'fit' in ah:
+            report['ahoge_fit'] = ah['fit']
     elif len(ap) > 20:
         ch, G = F['chart'], F['grid']
         aph, ath, _ = ch.coords(ap)

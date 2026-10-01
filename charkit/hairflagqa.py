@@ -580,3 +580,25 @@ def picture(ours, pieces, D, ppl, views=VIEWS):
         return np.ones((8, 8, 3))
     H = max(r.shape[0] for r in rows)
     return np.concatenate([np.pad(r, ((0, H - r.shape[0]), (0, 0), (0, 0)), constant_values=1.0) for r in rows], 1)
+
+
+# ------------------------------------------------------------------------------------------------------------ the lab
+LAB_KEYS = ('hair_ahoge_shape', 'hair_ahoge_bend', 'hair_attached', 'hair_back_lines', 'hair_back_hem',
+            'hair_lock_lines_three_quarter', 'hair_lock_lines_profile', 'hair_piece_bangs', 'hair_piece_side_locks',
+            'hair_piece_upper_back', 'hair_piece_lower_back', 'hair_piece_buns', 'hair_piece_ahoge',
+            'hair_piece_flyaways', 'hair_bun_outline', 'hair_tips_back', 'hair_tips_front', 'hair_fringe_low',
+            'hair_penetration')
+
+
+def lab_measure(B, design, hair):
+    """the hair flags and the hair pieces' checks (every family's IoU per view: the anti-gaming guard's shapes) for
+    hair {piece: (V, T)} over a bundle (charkit.hairlab's rebuilt pieces) -> (checks, ours, pieces)."""
+    from . import qa3d
+    _, Cq = qa3d.hair_pieces_measure(B, design, {n: (vt, vt) for n, vt in hair.items()})
+    D, ppl = design_inputs(B, design)
+    ours, pieces = our_labels(B, design, hair)
+    _, Cf = measure_labels(ours, pieces, D, ppl)
+    keep = ('value', 'status', 'views', 'tips', 'worst', 'p', 'r', 'ours', 'design', 'wave_L', 'detached', 'drawn')
+    out = {k: {a: b for a, b in c.items() if a in keep} for k, c in list(Cf.items()) + list(Cq.items())
+           if k in LAB_KEYS}
+    return out, ours, pieces
