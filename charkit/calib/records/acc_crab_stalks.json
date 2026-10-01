@@ -1,0 +1,92 @@
+{
+ "check": "acc_crab_stalks",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T18:48:47",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "acc_crab_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.005,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.009,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.005,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.002,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.005,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.009,
+  "spread": 0.009,
+  "median": 0.0035
+ },
+ "known_bad": {
+  "name": "acc_a3_crab",
+  "value": null,
+  "status": "FAIL"
+ },
+ "floor": {
+  "no_stalks": {
+   "values": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": null,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.003,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.009), acc_a3_crab reads None FAIL; a random stand-in fails it; shape guarded by acc_crab_shape",
+ "build": "charkit/out/acc6/after",
+ "generators": {
+  "no_stalks": "the clips-alone sheet's crab with its eye stalks cut"
+ },
+ "seconds": 370.5
+}

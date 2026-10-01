@@ -57,6 +57,10 @@ The declaration is a sweep's (base, stage, spec, set, parts, checks, objects, bo
   probe       true (default): before the search, each knob one step either side of the start (OAT): the splice set
               (when `objects` isn't declared: what any probe changed), dead knobs (a step that changes nothing),
               and each knob's local effect (sensitivity)
+  starts      {NAME: {KNOB: value}} (tool/accessories6: "a ring of starts, not one local polish"): the search run
+              from each start in turn, each its own CMA-ES from that point (knobs it doesn't name at their x0) with
+              its share of the budget (evaluations, generations and minutes split evenly; the stall rule per start),
+              one history (rows named sNAME_gGG_KK), the best across them all; without it, one search from the x0s
   reference   {NAME: {PATH: value}}: points evaluated beside the search for comparison (a hand-found result)
   confirm     {top 3, spec, args, where 'auto' | 'here' | 'remote', box, control 'auto', compare {NAME: BUILD}}: the
               best `top` distinct feasible candidates built for real (`charkit build`: Blender, the render drawing,
@@ -273,6 +277,13 @@ class Problem:
             self.stop['target'] = 0.0
         self.probe = bool(o.get('probe', DEFAULTS['probe']))
         self.reference = o.get('reference') or {}
+        names = {k.name for k in self.knobs}
+        self.starts = []
+        for nm, vals in (o.get('starts') or {}).items():
+            bad = sorted(set(vals) - names)
+            if bad:
+                raise SystemExit('optimize: start %s names knobs that are none: %s' % (nm, ', '.join(bad)))
+            self.starts.append((str(nm), dict(vals)))
         self.confirm = dict(dict(top=3, spec=None, args=['--boards', '', '--no-blend'], where='auto', box=None,
                                  control='auto'), **(o.get('confirm') or {}))
         self.fidelity = o.get('fidelity') or {}
@@ -289,6 +300,13 @@ class Problem:
 
     def x0(self):
         return {k.name: k.value(k.x0) for k in self.knobs}
+
+    def start_vals(self, i):
+        """the i-th start's knob values (its named knobs over the x0s), or the x0s without starts."""
+        v = self.x0()
+        if self.starts:
+            v.update({k.name: k.value(self.starts[i][1][k.name]) for k in self.knobs if k.name in self.starts[i][1]})
+        return v
 
     def overrides(self, vals):
         """{knob name: value} -> the row's overrides (the sweep's `set` form): knobs with a path, then the template."""
@@ -1099,7 +1117,8 @@ class Run:
         def head(c):
             return dict(name=c['name'], kind=c['kind'], gen=c.get('gen'), knobs=c['vals'],
                         u=[round(x, 6) for x in self.P.unit(c['vals'])], key=c['key'],
-                        y=None if c.get('y') is None else [round(float(x), 8) for x in c['y']])
+                        y=None if c.get('y') is None else [round(float(x), 8) for x in c['y']],
+                        **({'start': c['start']} if c.get('start') is not None else {}))
 
         def done(j, r):
             c = todo[j]
@@ -1146,9 +1165,11 @@ class Run:
                 '; %d from the cache' % (len(cands) - n_new) if len(cands) > n_new else ''))
         return out
 
-    def best(self, kinds=('cma', 'probe', 'start', 'partial')):
-        """the best feasible evaluation of the search (control and references aside) -> history entry or None."""
-        got = [h for h in self.H if h.get('kind') in kinds and h.get('f') is not None and not h.get('cached')]
+    def best(self, kinds=('cma', 'probe', 'start', 'partial'), start=None):
+        """the best feasible evaluation of the search (control and references aside; start: that start's own) ->
+        history entry or None."""
+        got = [h for h in self.H if h.get('kind') in kinds and h.get('f') is not None and not h.get('cached') and
+               (start is None or h.get('start') == start)]
         got.sort(key=lambda h: (rank_key(h), h['i']))
         return got[0] if got and got[0].get('feasible') else (got[0] if got else None)
 
@@ -1242,39 +1263,71 @@ class Run:
             s0 = next((h for h in self.H if h['kind'] == 'start'), {})
             self.log('optimize: control f %s v %s; start f %s v %s' % (ctrl.get('f'), ctrl.get('v'), s0.get('f'),
                                                                        s0.get('v')))
-            # the search
-            O = self.optimizer(st, lam)
-            best_hist = list(meta.get('best_hist') or [])
+            # the search: one CMA-ES from the x0s, or one from each start in turn (`starts`: a ring of starts)
+            n_st = max(1, len(P.starts))
+            si = min(int(meta.get('start_i') or 0), n_st - 1)
+            O = self.optimizer(st, lam, start=si)
+            stop = None
             while True:
-                stop = self.should_stop(O, best_hist, meta)
-                if stop:
-                    break
-                g = O.gen
-                Y = O.ask()
-                U = reflect(Y) if P.method == 'cma' else Y
-                cands = [dict(name='g%02d_%02d' % (g, k), vals=P.values(u), kind='cma', gen=g, y=y)
-                         for k, (u, y) in enumerate(zip(U, Y))]
-                part = [h for h in self.H if h.get('kind') == 'cma' and h.get('gen') == g]
-                if part:                                     # (a generation cut short: kept as the cache)
-                    for h in part:
-                        h['kind'] = 'partial'
-                    self.rewrite_history()
-                hs = self.evaluate(E, cands, objects)
-                order = sorted(range(len(hs)), key=lambda k: (rank_key(hs[k]), k))
-                O.tell(Y, order)
-                b = self.best()
-                best_hist.append(b['f'] if b and b.get('feasible') else None)
-                feas = sum(1 for h in hs if h.get('feasible'))
-                self.log('gen %2d: %d/%d feasible, its best f %s; best so far %s f %s v %s; sigma %.4f; %d evaluations, '
-                         '%.0f s' % (g, feas, len(hs), hs[order[0]].get('f'), b['name'] if b else '-',
-                                     b.get('f') if b else None, b.get('v') if b else None,
-                                     float(getattr(O, 'sigma', float('nan'))), self.n_evals(),
-                                     meta['seconds_before'] + time.time() - self.t0))
-                meta['best_hist'] = best_hist
-                meta['sigma_hist'] = list(meta.get('sigma_hist') or []) + [float(getattr(O, 'sigma', 0.0))]
-                meta['mean_hist'] = list(meta.get('mean_hist') or []) + [[round(float(x), 6) for x in reflect(O.m)]]
+                tag = ('s%s_' % sw._safe(P.starts[si][0])) if P.starts else ''
+                if P.starts and O is None:
+                    O = self.optimizer(None, lam, start=si)
+                if P.starts and not any(h.get('name') == 'start_' + P.starts[si][0] for h in self.H):
+                    self.log('optimize: start %d of %d: %s %s' % (si + 1, n_st, P.starts[si][0],
+                                                                 json.dumps(P.starts[si][1])))
+                    self.evaluate(E, [dict(name='start_' + P.starts[si][0], vals=P.start_vals(si), kind='start',
+                                           gen=-1, start=P.starts[si][0])], objects)
+                best_hist = list(meta.get('best_hist') or [])
+                while True:
+                    stop = self.should_stop(O, best_hist, meta, share=(si + 1, n_st))
+                    if stop:
+                        break
+                    g = O.gen
+                    Y = O.ask()
+                    U = reflect(Y) if P.method == 'cma' else Y
+                    cands = [dict(name='%sg%02d_%02d' % (tag, g, k), vals=P.values(u), kind='cma', gen=g, y=y,
+                                  **({'start': P.starts[si][0]} if P.starts else {}))
+                             for k, (u, y) in enumerate(zip(U, Y))]
+                    part = [h for h in self.H if h.get('kind') == 'cma' and h.get('gen') == g and
+                            h.get('start') == (P.starts[si][0] if P.starts else None)]
+                    if part:                                     # (a generation cut short: kept as the cache)
+                        for h in part:
+                            h['kind'] = 'partial'
+                        self.rewrite_history()
+                    hs = self.evaluate(E, cands, objects)
+                    order = sorted(range(len(hs)), key=lambda k: (rank_key(hs[k]), k))
+                    O.tell(Y, order)
+                    b = self.best(start=P.starts[si][0] if P.starts else None)
+                    best_hist.append(b['f'] if b and b.get('feasible') else None)
+                    feas = sum(1 for h in hs if h.get('feasible'))
+                    ba = self.best()
+                    self.log('%sgen %2d: %d/%d feasible, its best f %s; best so far %s f %s v %s%s; sigma %.4f; %d '
+                             'evaluations, %.0f s' % (tag, g, feas, len(hs), hs[order[0]].get('f'), b['name'] if b else '-',
+                                                      b.get('f') if b else None, b.get('v') if b else None,
+                                                      ' (all starts: %s f %s)' % (ba['name'], ba.get('f'))
+                                                      if P.starts and ba else '',
+                                                      float(getattr(O, 'sigma', float('nan'))), self.n_evals(),
+                                                      meta['seconds_before'] + time.time() - self.t0))
+                    meta['best_hist'] = best_hist
+                    meta['sigma_hist'] = list(meta.get('sigma_hist') or []) + [float(getattr(O, 'sigma', 0.0))]
+                    meta['mean_hist'] = list(meta.get('mean_hist') or []) + [[round(float(x), 6) for x in reflect(O.m)]]
+                    meta['start_i'] = si
+                    self.write_state(meta, O)
+                if P.starts:
+                    b = self.best(start=P.starts[si][0])
+                    meta.setdefault('starts_done', {})[P.starts[si][0]] = dict(
+                        stop=stop, best=b['name'] if b else None, f=b.get('f') if b else None,
+                        v=b.get('v') if b else None, generations=O.gen)
+                    self.log('optimize: start %s stopped: %s; its best %s f %s' % (
+                        P.starts[si][0], stop, b['name'] if b else '-', b.get('f') if b else None))
+                if (stop.startswith('budget') and not stop.startswith('budget: share')) or si + 1 >= n_st:
+                    break                     # (the whole budget, or the last start: a resume carries this one on)
+                si += 1
+                meta['start_i'] = si
+                meta['best_hist'] = []
+                meta['opt'] = O = None                   # (the next start's search begins afresh)
                 self.write_state(meta, O)
-            meta['stop'] = stop
+            meta['stop'] = stop if not P.starts else '%s (%d of %d starts)' % (stop, si + 1, n_st)
             meta['workers'] = max(meta.get('workers') or 0, E.n)
             self.log('optimize: stopped: %s' % stop)
             if d.get('boards'):
@@ -1386,27 +1439,35 @@ class Run:
             for h in self.H:
                 f.write(json.dumps(h) + '\n')
 
-    def optimizer(self, st, lam):
+    def optimizer(self, st, lam, start=0):
         P = self.P
         if st and st.get('opt'):
             return (CMA if P.method == 'cma' else Uniform).from_state(st['opt'])
         if P.method == 'random':
-            return Uniform(P.n(), lam, P.seed)
-        u0 = P.unit(P.x0())
+            return Uniform(P.n(), lam, P.seed + start)
+        u0 = P.unit(P.start_vals(start))
         stds = [max(k.unit_step(P.sigma0), k.int_floor()) for k in P.knobs]
-        return CMA(u0, P.sigma0, lam=lam, stds=stds, floors=[k.int_floor() for k in P.knobs], seed=P.seed)
+        return CMA(u0, P.sigma0, lam=lam, stds=stds, floors=[k.int_floor() for k in P.knobs], seed=P.seed + start)
 
-    def should_stop(self, O, best_hist, meta):
+    def should_stop(self, O, best_hist, meta, share=(1, 1)):
+        """share (i, n): the i-th of n starts, which may use i/n of the evaluations and minutes and 1/n of the
+        generations."""
         P = self.P
         B, S = P.budget, P.stop
+        i, n = share
         if self.n_evals() >= int(B.get('evals') or 1e9):
             return 'budget: %d evaluations' % self.n_evals()
-        if O.gen >= int(B.get('generations') or 1e9):
-            return 'budget: %d generations' % O.gen
         el = meta.get('searched_before', 0.0) + time.time() - getattr(self, 't_ready', self.t0)
         if el >= 60 * float(B.get('minutes') or 1e9):
             return 'budget: %.0f minutes' % (el / 60)
-        b = self.best()
+        if n > 1:
+            if self.n_evals() >= int(B.get('evals') or 1e9) * i / n:
+                return 'budget: share: %d evaluations (start %d of %d)' % (self.n_evals(), i, n)
+            if el >= 60 * float(B.get('minutes') or 1e9) * i / n:
+                return 'budget: share: %.0f minutes (start %d of %d)' % (el / 60, i, n)
+        if O.gen >= int(B.get('generations') or 1e9) / n:
+            return ('budget: share: %d generations' if n > 1 else 'budget: %d generations') % O.gen
+        b = self.best(start=P.starts[i - 1][0] if n > 1 else None)
         if S.get('target') is not None and b and b.get('feasible') and b['f'] <= float(S['target']):
             return 'target reached: best f %s <= %s' % (b['f'], S['target'])
         # stalled: the best improved by less than tolfun over `stall` generations, with the search narrowed (its spread
@@ -2124,10 +2185,13 @@ def synthetic(decl):
 
 class AccfitPlace:
     """the clips' placement as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_place'): args
-    {build, spec, start (a JSON with `specs`, else the spec's clips)}; the knobs are paths KIND.at.0..2,
-    KIND.facing.0..1, KIND.tilt and KIND.lsize (the size's log factor on the start's: accfit.fit_place's knobs) ->
-    checks: accfit_loss (accfit.Scene.measure's loss: its own objective) and per clip and view its iou, visible, pos,
-    size, angle, with seat and back px (INFO). One accfit.Scene per worker (the hair and the scene drawn once)."""
+    {build, spec, start (a JSON with `specs`, else the spec's clips), shapes {kind: shape knobs over the start's},
+    relate {w_rel, angle_near}: accfit.W_REL and ANGLE_NEAR (tool/accessories6: the crab against the star in the
+    loss, the absolute angle only near the drawn spot)}; the knobs are paths KIND.at.0..2, KIND.facing.0..1,
+    KIND.tilt and KIND.lsize (the size's log factor on the start's: accfit.fit_place's knobs) -> checks: accfit_loss
+    (accfit.Scene.measure's loss: its own objective), per clip and view its iou, pos, size, angle (INFO) and visible
+    (graded as the QA's declaration grades it), piece_pin_KIND (the IoUs per view: the guard reads it), the seat
+    (graded), back px, and the pair checks (the crab against the star, graded). One accfit.Scene per worker."""
 
     def __init__(self, decl):
         from . import accfit
@@ -2137,6 +2201,13 @@ class AccfitPlace:
         self.specs = [x for x in spec.get('accessories') or [] if x['kind'] in accfit.KINDS]
         if a.get('start'):
             self.specs = json.load(open(sw._abs(a['start'], ROOT)))['specs']
+        if a.get('shapes'):                             # (each clip's shape from a template fit's best_override)
+            for x in self.specs:
+                if x['kind'] in a['shapes']:
+                    x['shape'] = dict(x.get('shape') or {}, **a['shapes'][x['kind']])
+        rel = a.get('relate') or {}                     # (tool/accessories6: the crab against the star; the absolute
+        accfit.W_REL = float(rel.get('w_rel', accfit.W_REL))                    # angle only near the drawn spot)
+        accfit.ANGLE_NEAR = rel.get('angle_near', accfit.ANGLE_NEAR)
         self.accfit = accfit
 
     def place(self, over):
@@ -2160,22 +2231,87 @@ class AccfitPlace:
         return out
 
     def evaluate(self, over):
+        from . import accqa, declared
         r = self.S.measure(self.place(over))
         C = {'accfit_loss': dict(value=r['loss'], status='INFO', part='accfit')}
+        vis = {d['check'].format(view='X').split('_')[1]: d for d in accqa.DECLARED_CHECKS if d['family'] == 'visible'}
         for kind in self.accfit.KINDS:
             if kind not in r:
                 continue
+            ious = {}
             for view, x in r[kind]['views'].items():
                 for f in ('iou', 'visible', 'pos', 'size', 'angle'):
                     if x.get(f) is not None:
                         C['acc_%s_%s_%s' % (kind, view, f)] = dict(value=x[f], status='INFO', part='accfit')
-            C['acc_%s_seat' % kind] = dict(value=r[kind]['seat'], status='INFO', part='accfit')
+                if x.get('visible') is not None and kind in vis:        # (graded as the QA grades it)
+                    C['acc_%s_%s_visible' % (kind, view)]['status'] = declared.grade(
+                        x['visible'], declared.limits_of(vis[kind]), 'higher')
+                if x.get('iou') is not None:
+                    ious[view] = x['iou']
+            C['piece_' + accqa.PIECE[kind]] = dict(value=round(float(np.mean(list(ious.values()))), 4) if ious else None,
+                                                   views=ious, status='INFO', part='sheet_pieces')
+            g = r[kind]['seat']
+            C['acc_%s_seat' % kind] = dict(value=g, status='FAIL' if g is None else accqa._grade('seat', g),
+                                           part='accfit')
             C['acc_%s_back_px' % kind] = dict(value=r[kind]['back'], status='INFO', part='accfit')
+        for k, c in (r.get('pair') or {}).items():
+            C[k] = dict(c, part='accessories')
         return C
 
 
 def accfit_place(decl):
     return AccfitPlace(decl)
+
+
+class AccfitShape:
+    """a clip template's fit as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_shape';
+    tool/accessories6): args {kind, spec, start (a JSON with `shape` and `poses` over the template's defaults), w_alone,
+    w_side, w_parts}; the knobs are the shape's keys (accfit.SHAPE_KNOBS: 'claw_at.0' an item of a list) and pose.VIEW.0
+    / pose.VIEW.1 (that view's turn about the clip's up axis and spin in its plane, degrees: the turnaround draws the clip
+    nearly face-on in every view, each in its own pose) -> checks: accfit.shape_checks' (per view acc_KIND_VIEW_iou as
+    the drawing shows it, piece_pin_KIND with those views: the guard reads it, acc_KIND_alone and acc_KIND_side against
+    the clips-alone sheet, the declared FACE checks: the crab's legs, pincers and stalks) and shape_loss (accfit's one
+    number, INFO)."""
+
+    def __init__(self, decl):
+        from . import accfit, accessories as acc
+        a = decl.get('args') or {}
+        spec = accfit._spec(a.get('spec') or 'charkit/spec/clawd.json')
+        self.kind = a.get('kind', 'crab')
+        self.D = accfit.design(spec)
+        self.shape = copy.deepcopy(acc.CRAB if self.kind == 'crab' else acc.STAR)
+        self.poses = {v: [0.0, 0.0] for v in accfit.VIEWS}
+        if a.get('start'):
+            st = json.load(open(sw._abs(a['start'], ROOT)))
+            self.shape.update(st.get('shape') or {})
+            self.poses.update({v: list(p) for v, p in (st.get('poses') or {}).items()})
+        else:
+            self.shape.update(next((x.get('shape') or {} for x in spec.get('accessories') or []
+                                    if x['kind'] == self.kind), {}))
+        self.w = dict(w_alone=float(a.get('w_alone', 0.5)), w_side=float(a.get('w_side', accfit.W_SIDE)),
+                      w_parts=float(a.get('w_parts', accfit.W_PARTS)), pull=bool(a.get('pull', False)))
+        self.accfit = accfit
+
+    def apply(self, over):
+        """the overrides on the start -> (shape, poses)."""
+        shape, poses = copy.deepcopy(self.shape), {v: list(p) for v, p in self.poses.items()}
+        for k, v in over.items():
+            if k.startswith('pose.'):
+                _, view, i = k.split('.')
+                poses.setdefault(view, [0.0, 0.0])[int(i)] = float(v)
+            else:
+                self.accfit.put(shape, k, v if isinstance(v, int) and not isinstance(v, bool) else float(v))
+        return shape, {v: tuple(p) for v, p in poses.items()}
+
+    def evaluate(self, over):
+        shape, poses = self.apply(over)
+        C = self.accfit.shape_checks(self.kind, shape, poses, self.D)
+        C['shape_loss'] = dict(value=self.accfit.shape_loss(C, self.kind, **self.w), status='INFO', part='accfit')
+        return C
+
+
+def accfit_shape(decl):
+    return AccfitShape(decl)
 
 
 # ------------------------------------------------------------------------------------------------------------- CLI
@@ -2241,8 +2377,9 @@ def _box(args):
     if not os.path.exists(env):
         raise SystemExit('optimize: no box %r (infra/gcp/%s.env)' % (name, name))
     d = json.load(open(sw._abs(decl)))
-    base = d.get('base')
-    if base and d.get('stage') != 'python':
+    # the base build (a python stage's args.build: accfit's scene) pushed to a box whose copy lacks it
+    base = d.get('base') if d.get('stage') != 'python' else (d.get('args') or {}).get('build')
+    if base:
         brel = os.path.relpath(sw._abs(base, ROOT), ROOT)
         remote.BOX['env'], remote.BOX['chosen'] = env, True
         remote.up()

@@ -3,7 +3,7 @@
  "part": "accessories",
  "adapter": "Clips",
  "module": "charkit.calib.clips",
- "at": "2026-10-01T13:30:15",
+ "at": "2026-10-01T20:20:52",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -77,15 +77,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.018,
+  "value": 0.007,
   "status": "PASS",
-  "margin": 0.653
+  "margin": 0.744
  },
  "verdict": "guard",
  "why": "no known-bad (no stored build has the compass star; the floor is the clips-alone sheet's); the design passes and the floor does not",
- "build": "charkit/out/acc5/after2",
+ "build": "charkit/out/acc6/after2",
  "generators": {
   "compass": "the clips-alone sheet's star (side arms 0.48 of its height) as ours face-on"
  },
- "seconds": 35.7
+ "seconds": 23.8
 }
