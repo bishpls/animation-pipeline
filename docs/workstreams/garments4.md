@@ -445,3 +445,293 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   pleat folds (band_rows `stair` knots at the folds' azimuths: 18 pleats -> folds every 20 deg from the front), treads
   along the hem's local slope, pleat count and phase fitted jointly to the drawn fold spacing per view; the merged
   crease checks (skirt_panel_*_creases/_edges/_shape, bow_*_creases) stay PASS.
+
+## Relaunch 3 (2026-10-01, lean agent 3): the queue
+Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments4-stairs` from pipeline-3d 31689611;
+(2) the body's neck-chest join, branch `tool/garments4-neck` from pipeline-3d; (3) a new isolated reference; (4) the V;
+(5) flat lapels. Gate each. Not ours: the shoulders/back collar (Michael's two calls; E2/A3 superseded by item 5); hair.
+- **Item 2 adds (coordinator 2026-10-01):** (a) a manifest caution on `garment_breakdown`: its flat-lay's bodice V shows
+  the inside of the back panel (orange), not the bodice front; the turnaround's V is skin; nothing reads the flat-lay's V
+  as the blouse front. (b) Reference generation (Michael's general approval; one call, n=2, tools/gptimage.py, ledger):
+  the blouse as worn WITHOUT the bow, front / three-quarter / side / back, one scale, orthographic, `--ref` the
+  turnaround: the sailor collar flat over the shoulders and chest, the stripe along its edges, a low band at the back
+  of the neck, the V opening showing skin down to where the bow sits. Refcheck against the turnaround (bodice and collar
+  silhouettes, the V's shape); register only if it passes, as the shape authority for the lapels, the V and the bodice
+  front (shape vs placement split, as the bow's close-up). (c) The lapels are wide flat panels whose inner edges form
+  the V down to the knot (ours bunch into lumps beside the neck): after the V opens, a lapel template lying flat along
+  the V's edges, scored per view on lapel shape and width along its length; re-judge art_outline_collar after it.
+
+## Milestone 1: the staircase (branch tool/garments4-stairs from pipeline-3d 31689611)
+- **Measured** (declared family `stair` in charkit/declared.py; checks in charkit/stairqa.py; tools
+  charkit/out/garments4/tools/stairdbg.py (overlays) / stairseg.py (segments) / stairchk.py (the checks on builds)):
+  the face/band boundary traced as a sub-pixel outline (skimage find_contours) where the band lies along its outward
+  normal within 0.03 L, RDP'd into risers and treads; corners = 90 less the acute angle between consecutive segments'
+  principal axes (the middle 70% of each one's points); folds = drawn ink (design) or our lines + our geometry's folds
+  (declared.our_folds: face normals z-buffered, smoothed 1.5 px, a turn of >= 15 deg across +-4 px, thinned) reaching
+  within 0.08 L of the band; a fold meeting a tread > 0.02 L inside its ends = crossed.
+- Design: corners square (median 4.4 skirt front, 6.0 skirt 3q, flaps 6.4 / 9.2), no tread crossed. The turnaround
+  draws its first wide pleat face with 3 steps (2 risers mid-face) and one fold line per side in front; the closeup
+  (skirt_closeup.png) draws one step per pleat, risers on the folds (rule 2: the closeup is the pleat-structure authority).
+- g4_cuffs2 (= known-bad g4_stairs0, stored): crossed front 5 / 3q 3; corners skirt 13.3 / 11.9, flaps 17.8 / 28.0;
+  our fold spacing at the band 0.16 / 0.13 L vs the drawn steps' 0.15 / 0.14 (spacing already right: one face = one step).
+- Cause: band_rows' stair knots [0, 14, 28] deg from the panel edge (27 deg unwarped) vs the zig's folds every 10 deg
+  (ridges at 0, +-20, +-40.., valleys at +-10, +-30..: the texture's fold lines are the valleys); the skirt's treads
+  run level (3D-square to the folds, sheared in the ortho views where the folds lean with the flare); the flaps' treads
+  run along the hem while their columns hang slanted (3D-sheared).
+- Knobs (default unchanged): skirt `panel_snap` (the panel edge on the nearest fold: 27 -> 30 deg, with
+  panel_shape.scale 1.1 -> 0.99 to keep the drawn panel), band `stair_unit: 'fold'` (knots count folds out from the
+  edge: one face per step), band `lean` (L/deg: treads rising outward, per-column band rows), flap `square` (0..1:
+  treads turned perpendicular to the columns' hang).
+- Sweep st1 (tools/garments4/st1.json, box; out charkit/out/garments4/sweeps/st1): snap, fold, fold + lean 2/4/6e-3,
+  flap square 0.5/1, fold_l4 + square 1.
+- Coordinator (2026-10-01): tool/layerrefs merged into pipeline-3d: the garment_breakdown flat-lay caution is already in
+  the manifest (don't duplicate); new references: the base body inside the costume (for the neck-chest join; its
+  profile cautioned only at the back thigh) and the hair without its clips. The bow-less bodice + flat collar sheet is
+  still ours to generate (milestone 2). Merge pipeline-3d before the next gate.
+
+## Next, milestone 2 (for the lean relaunch; coordinator: neck join, then reference, then the V, then flat lapels; gate each)
+1. **Neck-chest join** (branch tool/garments4-neck from pipeline-3d after layerrefs, 393539e7+): measure first. The
+   check is faceregion.neck_crease (per column round the neck, the skin outline's bend over the join window CUT -0.52 L,
+   -0.10/+0.08 L; masked skin) and neck_crease_all (whole skin, INFO: 44.7 on every build). Reference: the new base-body
+   reference (tool/layerrefs: the body inside the costume; profile cautioned at the back thigh only): measure our body's
+   neck-to-chest front and profile silhouettes against it (declared shape/width-profile family on the skin in the window
+   z -0.45..-0.75, front and profile). Fix the shape, not the reach (body.neck_join 0.18/0.24 made it no better and
+   moved the shoulders: tool/garments4-shoulders f6e33039): ease the head's neck slope into the chest over 0.04-0.06 L
+   above the cut in code_base.neck_curve / blend_neck (the monotone cubic turns vertical -> chest flare within ~0.02 L
+   under the cut, NECK_BASE 0.12 L loft). Guard: skin, neck and torso IoUs per view; face/jaw checks (faceregion,
+   jaw_*) hold. Gate the join alone.
+2. **Reference**: one gptimage call, n=2, tools/gptimage.py, ledger: the blouse as worn WITHOUT the bow, front / 3q /
+   side / back, one scale, orthographic, --ref the turnaround (sailor collar flat over shoulders and chest, the stripe
+   along its edges, a low band at the back of the neck, the V showing skin down to where the bow sits). Refcheck with
+   charkit/layerref.py against the turnaround (bodice and collar silhouettes, the V's shape); register only if it
+   passes, as the shape authority for the lapels, the V and the bodice front (the garment_breakdown caution is already
+   in the manifest).
+3. **The V**: nv2's opening rows (tools/garments4/nv2.json on tool/garments4-shoulders) gave neck_v_front_skin 0.476
+   -> 0.765 and art_outline_neck W -> P; blocked by neck_crease 26.9 -> 55.3 until (1) lands. Declare
+   neck_v_front_skin (class_iou family from fed2ef44; draft charkit/out/garments4/drafts/neckv.json), calibrate, gate.
+4. **Flat lapels**: a lapel template lying flat along the V's edges, scored per view on lapel shape and width along its
+   length (declared width-profile family against the new reference); then re-judge art_outline_collar (its FAILs
+   likely the stand-up lumps). Supersedes the shoulders branch's E2/A3 question.
+- **Sweeps st1-st5** (tools/garments4/st*.json; outs charkit/out/garments4/sweeps/st1, st4; local rebuilds
+  tools stairrow.py / rowqa.py): anchoring the pleats on the panel's edge (a valley on it) + the stair on those folds
+  fixed crossing and corners but broke skirt_panel_three_quarter_creases (W -> F: the cream's edge face changed) and
+  art_band_lower (W -> F, 2.09: the flag) and moved skirt_pleats P -> W; keeping the panel's own pleats (outer-only
+  anchoring) still broke the 3q creases; leaning treads (per-level rows) helped corners but rounded under the
+  subdivision. **The fix that holds**: the original pleats, the knots in degrees on the existing folds (40/50/60 deg:
+  13/23/33 out from the panel's edge at 27) with a fourth step 0.10 L, and the flaps' treads squared to their hang
+  (flap `square` 2.0: 1.0 is perpendicular to the columns in 3D, 2.0 reads square in front; a dial). deg4_sq2 (local,
+  vs g4_cuffs2): crossed 0 / 0 (2 F / 1 F), skirt corners 2.9 P / 0.5 P (8.9 F / 6.0 F), flaps 4.0 W / 0.0 P (11.4 F /
+  22.2 F), art_band_lower 1.623 W (1.693 W), skirt_panel_* and skirt_pleats* unchanged, piece_overskirt_panel_L/R
+  0.697 / 0.821 (0.691 / 0.812). The anchoring/lean code was removed (7a6d6af5); calibrate's draft-check filter fixed.
+- Merged pipeline-3d 393539e7 (92cfd7f5). Box build g4_stairs1 (the default spec) next; then calibrate 'stair_*' on it,
+  pregate, gate.
+- Coordinator (2026-10-01): Michael says yes to the base body reference's profile for the torso: use
+  base_body_turnaround (pipeline-3d 393539e) for the neck-chest join (milestone 2, step 1). skirt_layers take 1 is
+  being registered as the structure authority for the panel and pleats without the flaps; its flaps-alone row is the
+  shape authority for the staircase's edges. The staircase milestone converged on the turnaround before it landed:
+  follow-up (after this gate) = re-measure the stair family against skirt_layers (the pleat widths at the sides: the
+  flat band beyond the stair still crosses the side pleats, 2 front / 1 3q, reported not counted) and the flaps-alone
+  row (the flap square dial 2.0).
+
+## Stop point (2026-10-01, lean agent 3, wrap-up: weekly capacity 95%; box SSH dropping)
+- **Branch tool/garments4-stairs** (head = this notes commit; code at d29f54c4 + notes): pipeline-3d 393539e7 merged.
+  Carries: declared family `stair` + `our_folds` (charkit/declared.py), charkit/stairqa.py (stair_{front,three_quarter}
+  _crossed [0, 0], stair_skirt_{view}_corner and stair_flaps_{view}_corner [3, 5], known-bad g4_stairs0 stored in
+  this worktree's calib store), calibrate's draft-check fix, the flap `square` knob, the spec (skirt stair knots
+  [[0,.35],[13,.25],[23,.15],[33,.10]], overskirt_panel_L square 2.0), test_declared's stair test, CODEMAP.
+- **Running when stopped**: box build g4_stairs1 of the default spec, job `build-garments4-1001-065031-2168`
+  (out charkit/out/g4_stairs1, log charkit/out/garments4/build_stairs1.log). If the local follow died: `python -m
+  charkit remote attach build-garments4-1001-065031-2168` to collect it (or rebuild: `remote build
+  charkit/spec/clawd.json --out charkit/out/g4_stairs1 --boards '' --no-blend`).
+- **Exact next steps, the staircase** (no gate run yet):
+  1. On g4_stairs1: `python -m charkit calibrate 'stair_*' --build charkit/out/g4_stairs1` (a dry run on g4_cuffs2
+     before the crossing fix: corners CALIBRATED (skirt and flaps, front and 3q); crossed was MISCALIBRATED by the
+     panel-edge folds, fixed since (margin 0.035 L, steps only) and must be re-run; the spacing measure was dropped
+     from the declarations: the turnaround draws only some folds). Commit charkit/calib/records/stair_*.json and
+     charkit/calib/known_bad/g4_stairs0.json (committed).
+  2. Expected on g4_stairs1 (local rebuild deg4_sq2 against g4_cuffs2): crossed 0 / 0, skirt corners 2.9 / 0.5 P,
+     flaps 4.0 W / 0.0 P; art_band_lower 1.62 W (control 1.69 W); skirt_panel_*, skirt_pleats*, bow creases unchanged;
+     piece_overskirt_panel_L/R 0.697 / 0.821 (0.691 / 0.812). Check the guard and flap_profile_sweep_L (0.075 -> 0.08,
+     its PASS limit).
+  3. `python -m charkit pregate` locally, then `python -m charkit remote gate tool/garments4-stairs --into pipeline-3d`.
+  4. Review page (charkit/out/garments4/review/stairs.json -> `charkit review page ... --open`): design | before
+     (g4_cuffs2) | after (g4_stairs1) front and 3q crops, the stair overlays (tools/stairdbg.py), the numbers above.
+     Ask Michael: (a) the flap square dial 2.0 (1.0 is perpendicular in 3D; 2.0 reads square in front) yes/no;
+     (b) the flat band beyond the fourth step still crosses the side pleats (2 front / 1 3q, reported, not counted):
+     leave it, or step every side pleat (crenellation tried: read as pixel stairs) or widen the side pleats per
+     skirt_layers; (c) lean treads (squarer in front, rounded by the subdivision) declined.
+  5. Follow-up with the new references: skirt_layers take 1 (panel/pleat structure) and its flaps-alone row (the
+     staircase edges' shape authority): re-measure the stair family against them.
+- **Neck join, bodice reference, V, flat lapels**: the exact steps are in "Next, milestone 2" above; use
+  base_body_turnaround (Michael: yes to its profile for the torso) for the join.
+
+## Relaunch 4 (2026-10-01, lean agent 4): the staircase's gate, then milestone 2
+- pipeline-3d 00494dec merged (c197e2fd: refs and docs only). g4_stairs1 collected (`remote attach`; 874 CPU s):
+  stair_{front,three_quarter}_crossed 0 / 0 P, skirt corners 2.9 / 0.5 P, flaps 4.0 W / 0.0 P; art_band_lower 1.185 ->
+  1.111 P; flap_profile_sweep_R W -> P; piece_overskirt_panel_L/R front 0.902/0.923 -> 0.925/0.947, back 0.977/0.958 ->
+  0.984/0.965; nothing worse against g4_cuffs2 (tools/kcmp.py). (motion SKIPPED "skirt: not a grid" since the creases
+  milestone: the ink strokes ride on the skirt object; pre-existing on pipeline-3d, a follow-up.)
+- Calibrated on g4_stairs1 (log charkit/out/garments4/calib_stairs1.log, records 30610f7a): all six CALIBRATED (design
+  0-2.6 every move; known-bad g4_stairs0 crossed 2 / 1, skirt corners 8.9 / 6.0, flaps 11.4 / 18.8 FAIL; the voronoi
+  floor passes crossed and skirt_front_corner: a defect detector's floor).
+- Pregate (30610f7a into 00494dec): PASS, 36 moved, 0 blocking.
+- **Stairs gate 1: FAIL under K, one blocker: test_spec_alias** (clawd_body_pieces.json must equal clawd.json; the stair
+  knots and the flap square reached clawd.json only): fixed (the alias copied). Otherwise: no new FAIL, no flag
+  regression (art_band_lower 1.185 -> 1.111 P, art_mirror_waist 0.715 -> 0.72 P); report
+  charkit/out/gate/gate_tool-garments4-stairs_7134ff6d_into_00494dec.md. Gate 2 running.
+- **Stairs gate** running: job gate-garments4-1001-074750-2f1e (log charkit/out/garments4/gate_stairs.log), branch
+  tool/garments4-stairs 7134ff6d into pipeline-3d 00494dec.
+
+## Milestone 2, step 1: the neck join (branch tool/garments4-neck from pipeline-3d 00494dec)
+- **neck_crease's FAILs are its sampling, not a crease** (tools charkit/out/garments4/tools/creasecol.py: the old
+  measure's rows printed; creasex.py: the skin's exact cut per column). The old measure took the largest vertex radius
+  within 6 degrees and 0.006 L of each height every 0.01 L, interpolating gaps: (1) on the steep flare under the cut the
+  torso's subdivided rows are ~0.019 L apart, so two heights catch one row (flat), then a jump (-75 deg): 44.7 on the
+  whole skin, at the window's bottom row, every column; (2) a garment mask's edge crossing the 12-degree sector (the V
+  opened, column -25: r 0.196 -> 0.183 -> 0.190 over 0.02 L) reads a 55.3 bend; (3) the window's clamped ends. The exact
+  cut (each column's half-plane crossed with the triangles) bends 12.6 (masked) / 14.4 (whole) on g4_stairs1, 12.7 /
+  14.4 on g4_nv2 (the V opened), 9.5 / 11.6 on g4_nv2j18; ckpt_full (Michael's "major issues with the neck", the old
+  ring join) 12.5 / 12.3: its join is a smooth cone in this window too.
+- **Remeasure** (958bfcd2): faceregion.crease_of on the exact cut (section_outline), bends read on unbroken runs only
+  (CREASE_RUN 4 steps); tests (test_faceregion: steep flare at 0.004 / 0.019 L rows reads 14.8 / 13.3 PASS, a V cut out
+  of the front PASS, a 0.02 L ring 58 FAIL, the old flat join worse than the cubic). Step registered (steps/faceregion.py
+  'neck_crease*', 958bfcd2). Calibration adapter charkit/calib/neck.py (NeckJoin, computed stand-ins as calib/motion's:
+  design = our join one subdivision level finer, window moved 1-2 px and columns 2.5-5 deg; known-bad 'neck_ring' = a
+  0.02 L ring at the cut, charkit/calib/known_bad/neck_ring.json; floor 'jitter_skin' sd 0.003 L): **CALIBRATED** on
+  g4_stairs1 (design 9.9-10.4, known-bad 49.6 FAIL, floor 35.5-36.8 FAIL, current 12.6 PASS, margin 0.91; no piece
+  shape check covers the skin: shape [] as the jaw entries). Record 4c6272a7. CODEMAP regenerated (pipeline-3d's was
+  stale). Pregate (4c6272a7 into 00494dec): PASS, 0 moved (the evaluator has no face_region).
+- **The join against the base body reference** (tools neckm.py; review/neck_m0.png): only the profile compares (the
+  front's and three-quarter's neck sides are under the drawn hair, our skin is cut at the shoulders). Profile front edge:
+  the turnaround's visible throat and the base body agree at x 0.16-0.17 (z -0.37..-0.50); ours sits 0.035 L behind
+  from the chin to the cut (the head sheet's neck), then 0.03-0.05 L ahead at z -0.62..-0.75 (the torso's top under the
+  collar), behind below -0.78; rms 0.062 L (z -0.36..-0.95), 0.045 in the join window. Not changed this step (the head's
+  neck is the face workstream's, the torso's top the body fit's): reported for the V and the lapels.
+- Next: box gate tool/garments4-neck (after the stairs gate finishes); then step 2 (the reference).
+- **Neck gate** running: job via charkit/out/garments4/gate_neck.log (tool/garments4-neck 6598251b into 00494dec).
+
+## Milestone 2, steps 2-3 (branch tool/garments4-v from tool/garments4-neck 6598251b)
+- Coordinator 2026-10-01 ~08:10: the laptop's memory is critical: no new local heavy jobs; fits, sweeps, builds, labs,
+  calibrations and pregates on the boxes (`remote run|build`, `sweep --box`); local work = reading results, small
+  scripts. charkit/out isn't synced to the box: box-run tools go under tools/garments4/ (untracked).
+- **Step 2, the reference: registered** (71d7dbe4). layerref's new `bodice` kind (the turnaround redrawn in its layout
+  without the bow: kept parts' IoU; the bodice/collar layer against the outfit truth's collar, top and bodice_panel with
+  the bow and its tails free; the V's skin against the turnaround's visible skin), tolerances declared before measuring,
+  calibrated on the turnaround (itself moved 2 px PASS every view, iou_dc 0.995-0.999; torso band widened 6% FAIL every
+  view, outside 0.10-0.14; tool charkit/out/garments4/tools/bodicecal.py). One call, n=2 (prompt `bodice_layers`,
+  ledger): take 1 PASS every view (kept 0.987-0.990; layer iou_dc 0.974 / 0.996 / 0.924 / 0.995; V recall 0.99 / 0.998,
+  outside 0.098 / 0.047), take 2 FAIL (profile outside 0.045). Registered as charkit/refs/clawd/gen/bodice_layers.png:
+  shape authority for what the bow hides (the lapels flat along the V, wide at the shoulders narrowing to the point; the
+  V's point at z -0.88 under the knot, -0.72..-0.83; the bodice front), placement the turnaround's; cautions: its V
+  0.005-0.015 L wider each side than the turnaround's visible V, cleavage lines not ours. (.env: a gitignored symlink to
+  the main checkout's, read only.)
+- **Step 3, the V:** cherry-picked the declared families top_line + `ref` 'silhouette' (be1a47f9 = ca32ff7a) and
+  class_iou (88e572f9 = fed2ef44). Spec: top.opening carries nv2's V rows (z -0.70..-0.50, half 0.052..0.128 L: the
+  drawn V's x0.85; nv1's x1.0 regressed art_outline_collar 1.44 -> 2.17 WARN, a flag) in clawd.json and the alias
+  (tools/garments4/setspec.py). charkit/necklineqa.py declares neck_v_front_skin (x -0.2..0.2) and
+  neck_v_three_quarter_skin (x -0.1..0.35: the drawn 3q V lies right of the eyes' middle), z -0.45..-0.75, limits
+  [0.8, 0.6], Michael's item-4 flag, known-bad g4_cuffs2. Box build g4_v1 running (log
+  charkit/out/garments4/build_v1.log). Next: compare with g4_cuffs2 / g4_stairs1 (kcmp), calibrate neck_v_* on the box,
+  gate.
+- **Stairs gate 2: PASS under K** (tool/garments4-stairs 0425973b into pipeline-3d 00494dec;
+  charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md): nothing blocks; CPU 1.04x; 6 new checks
+  calibrated; art_band_lower (flag) 1.185 -> 1.111; flap_profile_sweep_R W -> P; guard: piece_overskirt_panel_L/R front
+  +3%, back +1%, piece_skirt unchanged. Mergeable at 0425973b (+ notes).
+- **Neck gate: PASS under K** (tool/garments4-neck 6598251b into 00494dec;
+  charkit/out/gate/gate_tool-garments4-neck_6598251b_into_00494dec.md): remeasured neck_crease 26.9 W -> 12.6 P,
+  neck_crease_all 44.7 -> 14.4 INFO, record calibrated; geometry unchanged (no 2x2); CPU 1.07x. Mergeable at 6598251b.
+- **g4_v1** (the V opened, box): neck_v_front_skin 0.765 W, neck_v_three_quarter_skin 0.566 F; neck_crease 12.7 P;
+  art_outline_neck 1.684 W -> 1.472 P; art_outline_collar 1.442 P (unchanged); piece_top front 0.583 -> 0.749, 3q 0.688
+  -> 0.800 (profile, back unchanged); piece_collar, piece_bow, piece_bodice_panel unchanged. Nothing worse under K.
+  neck_v_* CALIBRATED (box; design 0.90-0.97 every move, known-bad g4_v0 0.476 / 0.358 FAIL, voronoi floor 1.0: it
+  relabels pieces, not classes). Records via tools/garments4/box_records (the box's synced files are read-only:
+  `calibrate store` on the box linked the build but couldn't rewrite the JSON; --json needs an existing synced dir).
+- **The V's gate order:** gated into pipeline-3d before the neck remeasure lands, the 2x2 scores neck_crease's old
+  measure on the V geometry (26.9 W -> 55.3 F) and blocks; gate the V into tool/garments4-neck (its parent), carry
+  after the coordinator merges neck.
+- Lapels (step 4) branch tool/garments4-lapels (from tool/garments4-v): declared family band_rows (a1f16db1, 3b4886c3:
+  a two-sided band row by row, width / inner (the V) / outer edge vs the drawn silhouette, occluders' rows left out per
+  side incl. hair); drafts tools/garments4/drafts/lapels.json (collar_{front,three_quarter}_lapel_width / _v), being
+  calibrated on the box with neck_v_*.
+- Review page JSONs (built on the box: `remote run --fetch DIR review page JSON --out DIR`): tools/garments4/review/
+  stairs.json, neck.json, v1.json (figures copied under tools/garments4/review/).
+- **Stairs gate 3: PASS under K** (b4670264, the merge of pipeline-3d ff41ca2, into ff41ca20;
+  charkit/out/gate/gate_tool-garments4-stairs_b4670264_into_ff41ca20.md): CPU 1.00x. Mergeable at b4670264. (The carry
+  was refused: the build reads faceregion.py, which the neck merge changed.)
+- Review pages (built on the box): stairs charkit/out/garments4/review/stairs/index.html, neck
+  charkit/out/garments4/review/neck_page/index.html (sources tools/garments4/review/*.json).
+- V gate running (tool/garments4-v a6e0e465+records into ff41ca2; log charkit/out/garments4/gate_v.log).
+- **Lapels, step 4 (tool/garments4-lapels):** the front band measure didn't calibrate (a 1-2 px vertical move reads
+  0.035-0.06 L; the hair occluder takes every design row in front): declared three-quarter only (charkit/lapelqa.py,
+  limits [0.015, 0.03] from the draft's design worst 0.0083 / 0.0104 and known-bad 0.061 / 0.063); the front graded by
+  piece_collar front, neck_v_front_skin, art_outline_collar. Sweep l1 (flat_front alone, conform off in front): worse
+  (collar front IoU 0.657 -> 0.506 at 60 deg, 0.19 at 120; art_outline_neck 1.47 -> 3.94): the conform was the
+  shape. New template: collar 'lapel' {a, point, soft} (a Coons patch per lapel in the front view: V edge straight
+  from the collar's V top to the point, the neckline row, the column at a, the outer edge; laid on the body from the
+  front; garments.front_hits) with flat_front over the same azimuths; the jacket's opening must reach under the lapels
+  (x1.0-1.1 of the drawn V; nv2's x0.85 leaves orange inside a drawn-width V). Sweep l2 running (tools/garments4/l2.json:
+  a 60/75, opening x0.85/1.0/1.1, v_half 40/48).
+- **Stairs gate 2: PASS under K** (0425973b into 00494dec; charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md):
+  nothing blocks, CPU 1.04x, 6 new checks calibrated, art_band_lower 1.185 -> 1.111, guard flat or up. pipeline-3d
+  ff41ca2 (the neck merged) merged in afterwards (notes and CODEMAP conflicts resolved, CODEMAP regenerated).
+- **V gate 2: PASS under K** (tool/garments4-v a3bb4a8b, pipeline-3d 0d53cb8 merged in (declared families unioned),
+  into 0d53cb84; charkit/out/gate/gate_tool-garments4-v_a3bb4a8b_into_0d53cb84.md): CPU 1.01x; the one new FAIL is the
+  branch's own neck_v_three_quarter_skin 0.566 (reported). Mergeable at a3bb4a8b. Review page
+  charkit/out/garments4/review/v_page/index.html.
+- Lapels: sweeps l2 (the Coons patch) and l3 (the walk cut at the drawn outer edge) both worse than the hull collar
+  (collar front IoU 0.657 -> 0.41-0.54, 3q 0.468 -> 0.24-0.37, lap3q width 0.061 -> 0.095-0.128): the walk crumples over
+  the neck's flare. l4 running: mode 'project' (straight front-view columns laid on the torso). tool/garments4-v merged
+  into lapels (a3bb4a8b; declared families unioned: top_line, class_iou, stair, band_rows).
+
+## The motion QA fix (branch tool/garments4-motionfix from pipeline-3d ad081524; coordinator's priority)
+- Cause (confirmed from the builds' qa.json): motion read SKIPPED "skirt: not a grid" since the creases milestone
+  (g4_creases 5108 vertices, g4_cuffs2 5110, g4_stairs1 5398 at stride 144), not the staircase: garments.with_ink
+  appends the crease strokes to the skirt object (their faces on 'skirt_ink', their 70 vertices after the grid's); the
+  stairs' fourth step added 2 grid rows. The gates reported motion SKIPPED, not blocking.
+- Fix at the cloth's grid reader (charkit/sim): drape.ink_slots / grid_polys (the cloth's own faces), grid_of reads the
+  grid from them; cage.of_piece builds on the grid and carries the strokes (Cage.attach: the nearest template vertex's
+  block and weights, their own residual); piece_cloth pins them inert; motion's stretch edges and penetration surface
+  leave the strokes out (with them in, the stroke edges set the stretch p99: kick 0.36, squat 0.93). Test test_sim
+  (a grid with strokes: grid_of, carried exactly at rest and with a rigid move).
+- Readings: the calibration build hands_b4 (pre-creases): kick inside 0.0024, kick stretch 0.063, squat stretch 0.104
+  (all PASS). Being re-measured on the box: g4_stairs1 (ink + stairs) and g4_part1 (no ink) with the fix.
+- **Motion readings with the fix (box QA):** g4_part1 (no ink) kick inside 0.00244 P, kick stretch 0.06346 P, squat
+  stretch 0.10404 P: the calibration build's exactly (the fix is neutral without ink); g4_cuffs2 (creases + cuffs, no
+  stairs) 0.00235 P / 0.0790 P / 0.1272 P; g4_stairs1 (pipeline-3d's skirt: + the staircase) 0.0071 **WARN** / 0.0796 P /
+  0.1338 P (squat inside 0.0171 INFO). **The staircase raised the kick's penetration 0.0024 -> 0.0071** (WARN; hidden while
+  motion read SKIPPED during the stairs gates): a follow-up (the fourth step's rows at the hem).
+- **Motion gate: PASS under K** (tool/garments4-motionfix 4da79555 into pipeline-3d ad081524;
+  charkit/out/gate/gate_tool-garments4-motionfix_4da79555_into_ad081524.md): CPU 1.04x; the four motion checks back
+  (records calibrated); motion's measurement steps registered after the gate (charkit/steps/motionqa.py), carried.
+
+## Lapels (step 4), stop point: not gated; what the sweeps showed and the exact next steps
+- Branch tool/garments4-lapels (pipeline-3d merged in after the V). Carries: declared band_rows (+ hair occluder),
+  charkit/lapelqa.py (collar_three_quarter_lapel_width / _v, limits [0.015, 0.03]; front not calibrated: a 1-2 px vertical
+  move reads 0.035-0.06 L; the drafts' records not written: calibrate the module on the chosen build), calibrate's
+  draft-check fix, garments: collar_hull flat_front {a, fade} (conform off in front), collar front_length table, collar
+  'lapel' {mode 'project' (straight front-view columns laid on the torso, garments.front_hits) or the walk cut at the
+  drawn outer edge; a, point, shoulder, spread, off, top, blend}. All off by default; bodysens NOT_KNOBS lists them.
+- Sweeps on g4_v1 (box; tools/garments4/l1..l7.json, outs charkit/out/garments4/sweeps/l1..l7, table
+  charkit/out/garments4/tools/ltab.py): control collar F/3q 0.657/0.468, V 0.765/0.566, lap3q width 0.061, ao_collar 1.45,
+  ao_neck 2.09 (numpy drawing). l1 conform off alone: worse (collar F 0.19-0.51). l2 Coons patch / l3 walk cut at the
+  outer edge: worse (0.41-0.54 / 0.24-0.37), the walk crumples over the neck's flare. l4/l5 projected: l5 Q2 (a 85, v_half
+  55, opening x1.1, spread 0.7, off 0.06) collar 0.765/0.428, V 0.80 P / 0.627, ao_collar 0.69, but ao_neck 5.7 and
+  fragments 9.2, lap3q width 0.079; l7 showed Q2's front gain came from rows that missed the torso collapsing onto the
+  neckline point (degenerate faces at the neck); with them filled by the walk (S0) 0.452/0.309. Neckline drops 0.02-0.06
+  (l7) give V 0.78-0.80 / 0.68-0.70 but collar 0.48-0.59 / 0.35-0.43.
+- **Why it doesn't converge:** the drawn lapels' top runs along a level shoulder line where our body dips 0.07-0.09 L
+  (milestone 3's measurement: shoulder_*_dip); in front view there's no body under the lapel's top (x 0.15-0.40 at
+  z -0.47..-0.52), so a lapel laid on the body has nothing to lie on there: the hull conform supplied it (as lumps).
+  The flat lapels need the shoulders first (body.shoulder template or the jacket's shoulder pad, tool/garments4-shoulders;
+  parked on Michael's two calls).
+- **Next steps:** (1) with Michael's shoulders answer: body.shoulder {z -0.525, x 0.47, join} (or the pad) on this branch;
+  (2) then the projected lapels laid on the jacket's surface (not the body's), all rows (no collapsed rows), lap_T
+  including the shoulder tops; sweep a/v_half/opening/off against collar F/3q (guard), neck_v_*, lap3q width/v, ao_collar,
+  ao_neck, af_collar; (3) calibrate lapelqa on the chosen build (`calibrate 'collar_three_quarter_lapel_*' --build`,
+  known-bad g4_v0), box build, merge pipeline-3d, gate; (4) re-judge art_outline_collar on it (today 1.442 PASS on the
+  default with the V: its FAILs were tool/collar4's stand-up template collars E2/A3/H1, 3.4-5.6).
+- Review pages: stairs charkit/out/garments4/review/stairs/index.html, neck .../review/neck_page/index.html, the V
+  .../review/v_page/index.html, lapels (informational) .../review/lapels_page/index.html (sources tools/garments4/review).
+- Heads (2026-10-01 end of this run): stairs b4670264 (merged, pipeline-3d 0d53cb8), neck 6598251b (merged, ff41ca2),
+  the V a3bb4a8b (gate PASS into 0d53cb84; merged, 9f6379e8), motion fix 880202e9 (carried PASS into ad081524; not yet
+  merged), lapels this commit (not gated).

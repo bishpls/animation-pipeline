@@ -1,0 +1,10 @@
+{
+ "name": "g4_v0",
+ "why": "the V between the neck and the bow orange: the jacket's open front starts under the bow's knot (z -0.72 L), so the drawn V's skin between the collar's lapels shows the jacket (neck_v_front_skin 0.476; pipeline-3d after the cuffs milestone, g4_cuffs2)",
+ "flag": "the neck-to-bow V: skin, not orange (Michael, 2026-09-30, item 4)",
+ "commit": null,
+ "source": "~/animation-pipeline-garments4/charkit/out/g4_cuffs2",
+ "stored": "2026-10-01",
+ "bundle": "d88d7cdb9e483f15",
+ "qa_checks": 631
+}

@@ -367,7 +367,7 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        the input masks: the outfit field's votes are 0.77–0.85 IoU per view, and where two views' masks disagree about
        one surface, one of them loses. Improving those masks, for instance by making the hull the outfit's field in
        place of TRELLIS, is the lever.
-     - The review page is `~/animation-pipeline-hull/charkit/out/hull/clawd/index.html`. It shows the held-out label
+     - The review page is `charkit/out/archive/hull/clawd/index.html (archived)`. It shows the held-out label
        maps next to the drawn ones, per-piece IoUs, the surface coloured by piece, and the limb maps.
    - **Checkpoint review page built (2026-09-28), `charkit/out/checkpoint/index.html`.** It compares before, reviewed,
      baseline, tune and now, with the decisions in `charkit/out/checkpoint/decisions.md`.
@@ -726,6 +726,62 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Wrap-up (2026-10-01 morning, account at 95% of weekly capacity): START HERE
+
+Every workstream stopped at a checkpoint; nothing is running. pipeline-3d f0975ad has everything merged through the
+night (the evening run below, then: hairshell r1-r2 opt-in, garments4 Part 1 (the bow's geometry with its neighbours),
+the skirt's creases, the cuffs, the layer references (base body, hair without clips, skirt layers, clips alone)). The
+final review page: `charkit/out/final/20261001/index.html`, a preview with tool/hairstrokes merged on tmp/final-1001
+(the staircase branch conflicts in charkit/declared.py and CODEMAP.md with it, so it's left out; resolve when merging).
+QA 1580f95 -> now: 289/46/54 -> 370/74/43 (PASS/WARN/FAIL; about 100 more checks now).
+
+**Unmerged branches, each with exact next steps in its notes:**
+- `tool/hands2` c6aceaa1 (`docs/workstreams/hands.md`). Why the default hand looks off-model, measured:
+  - a comb of four fanned fingers (fingertip gaps 0.11-0.18 of the hand's width against 0-0.01 drawn);
+  - square fingertips (taper 0.59-0.67 against 0.40-0.51);
+  - no thumb (the notch sits at 0.72-0.76 against 0.56-0.64);
+  - a block palm.
+
+  New checks are in, not yet calibrated. Next: rebuild the hand, then the range-of-motion measurement (Michael's
+  order).
+- `tool/garments4-stairs` 54e063ed. The staircase is squared to the pleats, with every riser on a fold:
+  - steps crossing a fold 2/1 -> 0/0;
+  - skirt corners 8.9/6.0 -> 2.9/0.5 deg past the design.
+
+  Validated locally only. Box build job `build-garments4-1001-065031-2168` is uncollected. Next: calibrate the stair
+  checks, gate, review page. Then milestone 2 in `docs/workstreams/garments4.md`:
+  1. the body's neck-chest join, on the base body reference;
+  2. the bow-less bodice and flat-collar reference;
+  3. the V to skin;
+  4. flat lapels framing the V;
+  5. re-judge art_outline_collar.
+
+  `tool/garments4-shoulders` waits for that plan.
+- `tool/hairstrokes` afc6b13 (`docs/workstreams/hairstrokes.md`). The traced hair strokes and bun lines: density FAIL
+  -> WARN, direction and bun lines PASS. Gate 1 blocked on the spec alias (fixed) plus three calibration records to
+  refresh (hair_back_lines, hair_lock_lines_*). Then the review page, the line-weight check, and the tones milestone
+  (custom shading normals, underside tone, highlight band).
+- `tool/hairshell3` da1c9ed (`docs/workstreams/hairshell.md`).
+  - Lock fits are bit-identical across machines (17/17).
+  - Still open: the back view's terminator (the hem flicks), and hair_noise. The design's own hair reads 0.216 FAIL,
+    so the measure needs redefining; recommended as a speckle measure. Its branch is `tool/hairshell3-noise`
+    aa7b3e6.
+  - The exploded lock-breakdown reference failed; the canonical rule's step 3 applies.
+  - Default switch: no for now. The whole-head extension comes after the back view.
+
+**Waiting on Michael** (decided items are already in the sections below):
+- hair strokes: accept WARN density as the cost of one 3D stroke set (recommended yes); strokes drawing lock lines on
+  the hull shell until the shells cover the head (recommended yes, per region);
+- the hand checks report-only in edge-on views;
+- garments stairs: the flap-squaring dial 2.0, the plain band crossing the side pleats, dropping the sloped treads;
+- hair_noise: redefine.
+
+**Queued, not started:** the range-of-motion measurement (after the hand); the face base-shape round (approved:
+3q-mouth default plus a per-shot override, lower-face width, forehead, profile eye); the accessories round (remake and
+place the clips from the separated references under the non-occlusion rule); the Sonnet-vs-Opus paired test (a first
+data point: a Sonnet research task was fine); softras r5; the infra gate fixes; the calibration follow-ups. The full
+gap list is "Known gaps before motion testing" under "Known issues and work items".
+
 ## Evening run (2026-09-30, 19:30-24:00 EDT, Michael reviewing): start here, then the day run below
 
 **Merged tonight** (pipeline-3d 1580f95 -> b30a7e0):
@@ -809,9 +865,11 @@ scores well below what single views reach (under about 80%). In order:
 1. **Is it ours?** Refit with the relevant freedom opened (for example the hair's envelope depth). If one 3D shape then
    fits every view, fix our geometry or constraints.
 2. **Is the reference adequate for this piece?** It isn't when the piece is small or occluded in the turnaround, drawn
-   view-dependently (clips face-on in every view), or has internal structure the turnaround can't resolve (a knot,
-   creases, locks). Get a better isolated reference (a breakdown or close-up drawing the piece in several views
-   together) and sub-cut the piece.
+   view-dependently (clips face-on in every view), has internal structure the turnaround can't resolve (a knot,
+   creases, locks), or is layered with no separated reference: it covers or is covered by another piece, and there's
+   no drawing of the cover alone and of the layer underneath without it (Michael, 2026-10-01: the bodice without the
+   bow). Get a better isolated reference (a breakdown or close-up drawing the piece in several views together, or
+   the separated layer pair) and sub-cut the piece.
 3. **Only then compromise:** the base model takes the best fit across views and reports per-view costs; checks built on
    one view's inconsistent feature are re-measured against their intent; view-exact matching is a per-shot override.
 Placement rules (pieces don't occlude each other) outrank the reference's exact placement.
@@ -1040,7 +1098,7 @@ decisions already made:
   bumps_legs, mirror_waist. Hold points_sleeves/bumps_sleeves at WARN until garments2's template sleeves merge (the
   current hull sleeves would FAIL), and band_lower until tool/skirt's band lands. Not measurable by these detectors: the
   rear tuck (tool/skirt), jacket over band (garments2), the neck nick (tool/face's jaw_line_bend). Review page:
-  ~/animation-pipeline-artifacts/charkit/out/artifacts_review/flags/index.html.
+  charkit/out/archive/artifacts_review/flags/index.html (archived).
 - **tool/infra2**: detached box jobs, box load logging, click-to-flag (`charkit preview serve`), the hook fix.
 - **tool/toonrender2**: the QA drawing on charkit.render behind a setting.
 - **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
@@ -1162,6 +1220,18 @@ Drawn from the session's recurring failure patterns:
    - rename `i3d` (it's the generated-GLB loader and aligner) and the checks' 'trellis' reference labels;
    - retire tools/imageto3d/trellis_remote.sh;
    - give the perceptual metric its own environment on the render box.
+9. **Separated layer references (Michael, 2026-10-01).** Wherever one piece covers another (accessories, drapery,
+   independent layers), work from a reference of the cover alone and of the covered layer WITHOUT it, as worn, in
+   several views (front, three-quarter, side, back, one scale, orthographic, the turnaround as the edit's reference).
+   A layered piece with neither is an inadequate reference (the view rule's step 2, its fourth trigger): say so and
+   generate the pair; never guess what's underneath. Why: with no bodice drawn without the bow, agents' guesses
+   compounded (a closed orange V, lapels bunched beside the neck, failed collar checks), and the flat-lay suggested
+   the orange V because a flat-lay shows a garment's inside through its openings; don't read that as the front.
+   Each registered pair carries the shape/placement split (its shape from the separated sheet, its placement and
+   silhouette in context from the turnaround) and passes a refcheck against the turnaround first: the visible
+   parts' silhouettes, the scale, and the covered layer inside the cover's silhouette (`python -m charkit.layerref`).
+   The audit and Clawd's sheets: docs/workstreams/layerrefs.md; every new character gets the per-layer sheets up front
+   (docs/ROADMAP.md, the character-description layer's reference-production checklist).
 
 ### When a check and Michael's eye disagree
 
@@ -1219,7 +1289,7 @@ gating on the build box (below). The integrator (the main session) reviews and m
   - Never seed charkit/out with hard links except `i3d`, which builds only read.
 - **Cross-machine hulls:** same code, different CPU gives different hull labels (see `tool/hull-det`). Each box is
   deterministic run to run. Compare only builds from one machine until hull-det lands.
-- **New worktrees** need `infra/gcp/build.env` and `render.env` copied in (gitignored).
+- **New worktrees** need `infra/gcp/build.env`, `render.env` and `render2.env` copied in (gitignored: every `infra/gcp/*.env`).
 
 **Render box facts (2026-09-29).**
 - A Clawd board frame (540x900, EEVEE, 64 samples) takes 2.4 s on the L4, 2.2 s on a T4 and 2.0 s on the M2 Pro
@@ -1288,7 +1358,59 @@ How the gate gets its code:
 The box runs 8 build slots, shared by every worktree's builds there. **The laptop runs 1** (`charkit slots 1`): other
 sessions share its 16 GB.
 
+**The second render box (2026-10-01, Michael's go-ahead): `remote --box render2`.** 32 vCPU, 128 GB and one L4
+(g2-standard-32; an L4 stockout falls back to n1-standard-32 with a T4), made from the first render box's snapshot in
+the same zone, network and service-account setup, gitignored `infra/gcp/render2.env`. New board builds go there;
+the first render box (`--box render`, 8 vCPU, 3 slots) is stopped once its jobs drain, not deleted.
+A cold Clawd board build there (`--boards views,body,design --no-blend`) took 18.2 min: 1.55 cores on average
+(p90 2.3, peak 5.2), 4.6 GB of RAM and 1.6 GB of VRAM at peak, and 22 boards in 62 s (2.2 s a frame). It runs **10
+slots** (CPU and VRAM each allow about 14, RAM 26); tune from `python -m charkit remote load --box render2`.
+
 ## Known issues and work items
+
+### Known gaps before motion testing (Michael's requirements sweep, 2026-10-01): read before planning
+
+Order agreed with Michael: the default hand first, then the range-of-motion measurement; hair and garments run
+alongside throughout.
+
+1. **The default hand** (merged de2fa87 as the mitten's replacement) is still clearly off-model to Michael's eye, while
+   its checks pass on shape IoU (0.50-0.77). A check-versus-eye disagreement: measure what's off (proportions, finger
+   form, palm, thumb, thickness; the generated hand sheet's hands are 16-19% longer than the turnaround's), calibrate,
+   fix. The hand-pose library stays deferred to a dedicated session.
+2. **Rig deformation: the skeleton is the easy part, deformation isn't.** The VRM skeleton, humanoid mapping and skin
+   weights exist (body, transferred garments, hands); how the model deforms across a range of motion has never been
+   measured. Known or likely trouble:
+   - the shoulders: open skinning issue, where the puff sleeves, collar and shoulders work meet;
+   - elbows and knees under linear blend skinning: volume loss, twisting;
+   - hips and the skirt: cloth is parked, squat-inside is ungraded;
+   - neck and head bone orientation: open (keep near upright, or ship `charkit_rig.calibrate`);
+   - no pose-space correctives yet.
+   Next: a range-of-motion pose suite (arms up/forward/across, elbows and knees bent, spine twist, squat, head turns),
+   scored on joint volume, interpenetration (arm-torso, sleeve-body, skirt-legs, hair-shoulders), garment stretch and
+   outline artefacts; then weights and correctives where it fails. The cloth's kick/squat motion checks are the seed.
+3. **Secondary motion:** hair locks (one chain or weights per lock once the shells cover the head), the bow's tails and
+   the flaps need spring chains or baked cloth. Parked with the cloth (our own solver; Michael, 2026-09-30).
+4. **Toon-look artefacts on garments:** several art checks still FAIL as INFO: art_bumps_collar, art_fragments_bow and
+   _skirt, art_terminator_bow and _collar (torn shadow patches). Look polish, more visible in motion.
+5. **Eyes, face and expressions:** detail, not blocking motion. The 12 presets, eye and brow variants, visemes and the
+   hand-pose library wait for a dedicated session. Base-shape items approved by Michael (2026-10-01): keep the rigid
+   three-quarter mouth by default with the drawn placement as a per-shot override; a head-fit round widening the lower
+   face at mouth height (3q far contour 0.515 vs the design's 0.656 of the front half-width); a head-fit round
+   rounding the forehead at brow height (profile brow 0.097 vs 0.136 L deep); an eye-shape round on the profile eye
+   (its far corner sits below the opening's middle). Also the jaw's three honest WARNs (chin_angle 1.5, chin_v 0.09,
+   jaw_taper_shape 0.0157).
+6. **Hair** (running): per-lock shells across the head; the strokes and tones layers; the buns' orientation ambiguity
+   (`docs/workstreams/bunorient.md`).
+7. **Garments** (running): the staircase (crease-aligned, right angles), the body's neck-chest join, the bow-less bodice
+   and flat collar reference, the V to skin, flat lapels.
+8. **Accessories:** remake and place the clips from the separated references (hair without clips, clips alone) under the
+   non-occlusion rule.
+9. **Calibration and gate follow-ups:** promote art_mirror_self_boots (approved); the guard's visibility floor;
+   art_speckle_neck's sub-pixel sensitivity; gate fixes (acceptances covering a batch's branches, no-op remeasure
+   detection, the CPU rule warm against warm, motion QA reading the skin from the bundle, gate latency); the sweep's
+   look-check fidelity.
+
+### Older items
 
 - **Tune triage (73 items):** 45 need body-fitter knobs; 9 need a capability (hair noise, framing/cull, fold-free
   expression shapes, poke-through, eye-highlight side); 9 are trade-offs; 2 have a knob at its bound (the nose tip is
@@ -1360,8 +1482,8 @@ start gate R1–R6.
   - The Mac has 16 GB, shared with other sessions. One Clawd build peaks at 2.2 GB of Blender. Build on the build box
     (`charkit remote ...`, above) and keep the laptop at `charkit slots 1`.
   - Agents: the old cap (about 3 at once) was about laptop memory, not agents. Blender and heavy Python ran the 16 GB
-    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the GPU render box, `remote
-    --box render`: 3), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
+    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the render box, `remote
+    --box render2`: 10), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
     build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29). Box capacity isn't a
     hard limit either: slots are a setting (tune them from measured load); more boxes, bigger machines or GPUs are
     provisioning changes that need Michael's approval first.

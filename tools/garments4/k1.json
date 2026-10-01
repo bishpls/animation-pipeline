@@ -1,0 +1,362 @@
+{
+ "base": "charkit/out/g4_ink1",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "skirt"
+ ],
+ "checks": [
+  "skirt_*",
+  "piece_skirt*",
+  "bow_*_creases"
+ ],
+ "variants": {
+  "c_panel": {
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t05": {
+   "garments.skirt.panel_shape": {
+    "top": 0.05,
+    "power": 1.0,
+    "scale": 1.0
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t15": {
+   "garments.skirt.panel_shape": {
+    "top": 0.15,
+    "power": 1.0,
+    "scale": 1.0
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t30": {
+   "garments.skirt.panel_shape": {
+    "top": 0.3,
+    "power": 1.0,
+    "scale": 1.0
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t15p07": {
+   "garments.skirt.panel_shape": {
+    "top": 0.15,
+    "power": 0.7,
+    "scale": 1.0
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t15p14": {
+   "garments.skirt.panel_shape": {
+    "top": 0.15,
+    "power": 1.4,
+    "scale": 1.0
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t15s09": {
+   "garments.skirt.panel_shape": {
+    "top": 0.15,
+    "power": 1.0,
+    "scale": 0.9
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t15s11": {
+   "garments.skirt.panel_shape": {
+    "top": 0.15,
+    "power": 1.0,
+    "scale": 1.1
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ]
+    ]
+   }
+  },
+  "t15e": {
+   "garments.skirt.panel_shape": {
+    "top": 0.15,
+    "power": 1.0,
+    "scale": 1.0
+   },
+   "garments.skirt.creases": {
+    "space": "panel",
+    "width": 0.005,
+    "lift": 0.003,
+    "taper": 0.3,
+    "tip": 0.2,
+    "strokes": [
+     [
+      [
+       -0.5,
+       0.05
+      ],
+      [
+       -0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.5,
+       0.05
+      ],
+      [
+       0.5,
+       0.995
+      ]
+     ],
+     [
+      [
+       -0.97,
+       0.0
+      ],
+      [
+       -0.97,
+       0.995
+      ]
+     ],
+     [
+      [
+       0.97,
+       0.0
+      ],
+      [
+       0.97,
+       0.995
+      ]
+     ]
+    ]
+   }
+  }
+ },
+ "boards": {
+  "az": [
+   0,
+   35
+  ],
+  "crop": "skirt",
+  "pad": 0.05
+ }
+}

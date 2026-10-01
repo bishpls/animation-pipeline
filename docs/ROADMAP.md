@@ -52,6 +52,11 @@ Our gap is vocabulary: a builder, or a generic fallback, for every piece type.
 
 ## Missing from a production rig
 
+**Before motion testing** (Michael's requirements sweep, 2026-10-01): the full list of known gaps, with the agreed order
+(the default hand, then a range-of-motion measurement), is in `docs/CHARKIT_HANDOFF.md`, "Known issues and work items",
+"Known gaps before motion testing". The headline: the skeleton is the easy part, deformation across a range of motion
+has never been measured.
+
 **In place:**
 - skeleton and weights by construction;
 - the VRM humanoid and VRMC_springBone export (through the VRM Add-on for Blender, MIT);
@@ -103,6 +108,27 @@ Our gap is vocabulary: a builder, or a generic fallback, for every piece type.
    - Builders dispatch on piece type, and everything character-specific (palette, piece lists, check names) comes
      from the graph.
    - It removes the hand-written garment lists, the palette-tuned detection and the Clawd-named checks.
+   - **Reference production, up front for every character** (Michael, 2026-10-01). The graph's layering decides
+     which sheets exist before any builder runs, so no agent guesses what a cover hides:
+     1. the full-body turnaround (front, three-quarter, side, back; one scale, one ground and eye line, orthographic)
+        and the head turnaround: the placement and silhouette authority;
+     2. a base body sheet: the turnaround redrawn in the same layout and pose with the costume replaced by a plain
+        fitted bodysuit (neck, collarbones, shoulders and arms bare), the head and boots kept as anchors: the body
+        under every garment (neck-to-chest join, shoulder line, torso under loose layers);
+     3. a hair-free head (construction): the skull, ears and neck under the hair;
+     4. per layer group in the graph (each piece that covers another: accessories, drapery, independent layers), one
+        separated sheet: the cover alone and the covered layer WITHOUT it, as worn, front / three-quarter / side /
+        back, one scale, the turnaround as the edit's reference (Clawd's: bodice without the bow, the collar alone,
+        the skirt's layers, the clips). Generation lessons from Clawd's: show garments on legless tailor's dress
+        forms (a lower-body mannequin, a lower-body close-up as input, or "the shorts alone" were refused by the image
+        model's moderation); give a small accessory drawn alone an enlarged crop of it as input (from the turnaround
+        alone the crab and star came back generic);
+     5. close-ups for pieces with internal structure (knots, creases, locks, construction) and pose sheets (hands);
+     6. every sheet refchecked against the turnaround before registering (the visible parts' silhouettes, the scale,
+        the covered layer inside its cover's silhouette: `python -m charkit.layerref`), registered with a
+        shape/placement split and its cautions. Flat-lays give piece lists and counts only: their openings show the
+        garment's inside, not its front.
+     A layered piece with no separated sheet is an inadequate reference (the view rule's step 2).
 2. **Detection that doesn't use colour.**
    - Views come from the sheet's layout.
    - The palette comes from its palette strip.

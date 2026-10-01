@@ -196,7 +196,7 @@
    },
    "path": "charkit/refs/clawd/gen/garment_breakdown.png",
    "role": "the outfit as a labelled flat-lay of its pieces: bodice front and back, puff sleeves, sailor collar, bow with tails, outer skirt, cream front panel, stepped back panels L/R, shorts, wrist cuffs, boots front and back",
-   "cautions": ["flat-lay scale is not body scale: use it for piece shapes, counts (pleats, hem steps) and the piece list, not for sizes on the body", "its pieces' boxes ('pieces', px) and views are what charkit.isoqa reads; flattened (a flat-lay), so only rigid pieces compare directly (the bow, cuffs, collar, boots), draped ones wait for sewing patterns"],
+   "cautions": ["flat-lay scale is not body scale: use it for piece shapes, counts (pleats, hem steps) and the piece list, not for sizes on the body", "its pieces' boxes ('pieces', px) and views are what charkit.isoqa reads; flattened (a flat-lay), so only rigid pieces compare directly (the bow, cuffs, collar, boots), draped ones wait for sewing patterns", "a flat-lay's openings show the garment's inside: the bodice's V (orange) is the inside of its back panel seen through the neck opening, not the bodice front; the turnaround's V is skin (Michael, 2026-10-01). Read no covered layer from it: the separated layer sheets hold those (docs/workstreams/layerrefs.md)", "its shorts (belt loops, pockets, turn-ups) and its full-circle cream skirt panel are the model's flat-lay reading, not drawn on the turnaround; skirt_layers draws the skirt's layers apart as worn (structure only; sizes from body_turnaround)"],
    "sha256": "8128ddf1b4a49b54e0d8ff68224eda5aeefc9fb0f3eca8caed8dc8c7784a8830",
    "pieces": {
     "bow": {
@@ -534,6 +534,466 @@
     "the cuff is drawn larger and plainer than the turnaround's; the scale is taken from it all the same (the cuff is the one shared, measurable object)"
    ],
    "sha256_note": "the file's sha256 is in provenance.sha256, not top-level: a top-level sha256 enters every produced reference's stamp (manifest.stamp: the hull, the outfit masks, the hair layers), and none of them reads this sheet; promote it when a restamp is due anyway"
+  },
+  "base_body_turnaround": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-10-01",
+    "size": "2560x1440",
+    "quality": "high",
+    "n": 2,
+    "chosen": "take 1 of 2 by charkit.layerref (take 2: outside 0.007-0.016, the profile most 0.049 L)",
+    "inputs": [
+     "body_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "base_body_turnaround",
+    "ledger": "tools/ledger.jsonl",
+    "approved": "Michael, 2026-10-01 (general approval for reference generation; docs/workstreams/layerrefs.md)",
+    "sha256": "704e6236a2e8200d42e1b7a7196903b1699bee4dc57d523166412797763f2fcf"
+   },
+   "path": "charkit/refs/clawd/gen/base_body_turnaround.png",
+   "role": "the body under the costume, a separated layer reference (Michael, 2026-10-01): body_turnaround redrawn in its own layout, A-pose and scale (front, three-quarter, profile, back) with every fabric layer replaced by a plain fitted charcoal bodysuit (sleeveless, a low round neck, to mid-thigh); the head, hair, clips, hands and boots kept as drawn. What the costume hides: the neck and its join to the chest and shoulders, the bare shoulder line under the collar and the puffs, the upper arms under the sleeves, the torso under the bodice and the bow, the waist, hips and seat under the skirt",
+   "authority_split": {
+    "shape": "the body where the costume hides it (the neck-to-chest join, the shoulder line, the torso, the hips): this sheet",
+    "placement": "body_turnaround: the silhouettes, the visible skin and every piece in context",
+    "map": "not in the top-level authority map: the resolved spec's ref (with the map) enters the produced references' stamps, so a new key rebuilds the hull, the outfit masks and the hair layers; promote it when a restamp is due anyway"
+   },
+   "refcheck": {
+    "command": "python -m charkit.layerref charkit/spec/clawd.json charkit/refs/clawd/gen/base_body_turnaround.png --kind body",
+    "tolerances": "charkit.layerref.TOL (declared before measuring; calibrated: the turnaround against itself PASS, outside 0; the sheet widened 6% FAILs every view, outside 0.036-0.048)",
+    "scale": 1.0011,
+    "eye_spacing_ratio": 0.9862,
+    "views": {
+     "front": {
+      "kept_iou": {
+       "head": 0.9892,
+       "legs": 0.9838
+      },
+      "outside": 0.0041,
+      "protrude_L": 0.0133,
+      "recall": 0.987,
+      "eye_over_sole_dL": 0.0001,
+      "hidden": 0.7203,
+      "pass": true
+     },
+     "three_quarter": {
+      "kept_iou": {
+       "head": 0.9871,
+       "legs": 0.9769
+      },
+      "outside": 0.0057,
+      "protrude_L": 0.0298,
+      "recall": 0.9893,
+      "eye_over_sole_dL": -0.0066,
+      "hidden": 0.7115,
+      "pass": true
+     },
+     "profile": {
+      "kept_iou": {
+       "head": 0.9715,
+       "legs": 0.9273
+      },
+      "outside": 0.0159,
+      "protrude_L": 0.0426,
+      "recall": 0.9899,
+      "eye_over_sole_dL": 0.0109,
+      "hidden": 0.7079,
+      "pass": false
+     },
+     "back": {
+      "kept_iou": {
+       "head": 0.9884,
+       "legs": 0.9812
+      },
+      "outside": 0.0088,
+      "protrude_L": 0.0194,
+      "recall": 0.9783,
+      "eye_over_sole_dL": -0.0047,
+      "hidden": 0.7333,
+      "pass": true
+     }
+    }
+   },
+   "cautions": [
+    "the profile fails the most-outside tolerance (0.04 L) by 0.003 L: the back of the thigh below the shorts (z -2.64..-3.20 L, 0.043 L behind the turnaround's drawn thigh) is visible skin, where body_turnaround is the authority; inside the costume's covered band its most is 0.038 L (the bust's front, z -0.95..-1.08); Michael, 2026-10-01: use its profile for the torso all the same",
+    "a generated reading of the body under the costume: checked for consistency only (inside the costume in every view, the head, hands, legs and boots matching, eye line and soles within 0.011 L); nothing draws the body under the costume to grade its shape against",
+    "the bodysuit's edges (the neckline, the straps, mid-thigh) are the prompt's, not the design's: no garment line comes from it",
+    "its eyes are drawn 1.4% closer together than the turnaround's: register by the figures' heights (scale 1.0011), not the eyes"
+   ]
+  },
+  "hair_clips_layers": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-10-01",
+    "size": "2560x1440",
+    "quality": "high",
+    "n": 2,
+    "chosen": "take 1 of 2 by charkit.layerref (take 2: head IoU 0.930-0.942)",
+    "inputs": [
+     "head_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "hair_clips_layers",
+    "ledger": "tools/ledger.jsonl",
+    "approved": "Michael, 2026-10-01 (general approval for reference generation; docs/workstreams/layerrefs.md)",
+    "sha256": "1c9cd6f736305ac3700bbedfbc9ff30c727a074556004dcb87bb3c6b3f3d9fd7"
+   },
+   "path": "charkit/refs/clawd/gen/hair_clips_layers.png",
+   "role": "the hair under the clips, a separated layer reference (Michael, 2026-10-01): its top row (above y 808 px) is head_turnaround's front, three-quarter and profile heads WITHOUT the star and crab clips, the locks the clips cover drawn complete (the side lock under the star, the bangs' strip by it). its bottom row (below that) each clip alone, straight on and edge-on: the crab's whole body (both claws, the legs, the eyes on stalks, including what the star hides) and the star's eight points and bevel. Both rows registered (Michael, 2026-10-01)",
+   "authority_split": {
+    "shape": "the hair locks under the clips (the top row); the clips' structure (the bottom row): the crab's claws and legs, the star's point count and shape, their thickness edge-on",
+    "placement": "head_turnaround and body_turnaround: the hair's silhouette, the clips' places and their proportions where the bottom row disagrees",
+    "map": "not in the top-level authority map (see base_body_turnaround's)"
+   },
+   "refcheck": {
+    "command": "python -m charkit.layerref charkit/spec/clawd.json charkit/refs/clawd/gen/hair_clips_layers.png --kind clips",
+    "scale": 0.9844,
+    "heads": {
+     "front": {
+      "head_iou": 0.9798,
+      "clips_found_px": 0,
+      "hair_fill": 0.9831,
+      "clip_px": 6729,
+      "pass": true
+     },
+     "three_quarter": {
+      "head_iou": 0.9772,
+      "clips_found_px": 0,
+      "hair_fill": 1.0,
+      "clip_px": 6739,
+      "pass": true
+     },
+     "profile": {
+      "head_iou": 0.9764,
+      "clips_found_px": 0,
+      "hair_fill": 1.0,
+      "clip_px": 8042,
+      "pass": true
+     }
+    },
+    "clips_alone": {
+     "crab_shape_iou": {
+      "front": 0.4934,
+      "three_quarter": 0.5113,
+      "profile": 0.5163
+     },
+     "star_shape_iou": {
+      "front": 0.6537,
+      "three_quarter": 0.6805,
+      "profile": 0.7441
+     },
+     "star_arms": {
+      "up": 0.508,
+      "down": 0.492,
+      "side": 0.481,
+      "minor": 0.242,
+      "height_px": 495.5
+     },
+     "star_arms_turnaround_front": {
+      "up": 0.495,
+      "down": 0.505,
+      "side": 0.306,
+      "minor": 0.248,
+      "height_px": 144.5
+     },
+     "crab_w_over_star_h": {
+      "sheet": 1.201,
+      "turnaround": 0.454,
+      "note": "the turnaround's crab is partly under the star"
+     },
+     "registered": "structure only (Michael, 2026-10-01)",
+     "star_arms_turnaround_by_side": {
+      "front": {
+       "right": 0.353,
+       "left": 0.26
+      },
+      "three_quarter": {
+       "right": 0.411,
+       "left": 0.291
+      },
+      "profile": {
+       "right": 0.411,
+       "left": 0.333
+      },
+      "note": "head_turnaround at 401 px/L; the left arm is shortened where the crab overlaps it"
+     }
+    }
+   },
+   "cautions": [
+    "the bottom row is the clips' STRUCTURE authority only; their proportions stay head_turnaround's where it disagrees: the star is drawn wider (side arms 0.48 of its height against head_turnaround's unoccluded right arm 0.35-0.41; its left arm, 0.26-0.33, is shortened by the crab over it), and the crab's shape IoU against head_turnaround's is 0.49-0.52 (that crab partly under the star); the crab's width against the star's height 1.20 here, 0.45 there. Refchecked against head_turnaround (401 px/L), not the body turnaround's small clips",
+    "a generated continuation of the locks under the clips: checked for consistency (head IoU 0.976-0.980 against head_turnaround, no clip pixels found by accqa's finder, the turnaround's clip region drawn as hair 0.98-1.00); the locks' run under the clips is the model's reading",
+    "no back view (the back hides the clips); its heads are drawn 1.6% larger than head_turnaround's"
+   ]
+  },
+  "skirt_layers": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-10-01",
+    "size": "2560x1440",
+    "quality": "high",
+    "n": 2,
+    "chosen": "take 1 of 2 (Michael, 2026-10-01, by eye; charkit.layerref: take 2 outside 0.026-0.073 on the skirt row, flaps iou_dc 0.50-0.69)",
+    "inputs": [
+     "body_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "skirt_layers",
+    "attempts": "the prompts skirt_layers_v1_blocked and _v2_blocked were refused by the image API's moderation (no image)",
+    "ledger": "tools/ledger.jsonl",
+    "approved": "Michael, 2026-10-01 (registered with a shape/placement split)",
+    "sha256": "34dcaf2be4229f83f33b7f1f4fbeb725dedf639758beba49ac861a1448b754f2"
+   },
+   "path": "charkit/refs/clawd/gen/skirt_layers.png",
+   "role": "the skirt's layers apart, a separated layer reference (Michael, 2026-10-01), each on a legless dress form, front / three-quarter / profile / back at one scale: top row the skirt WITHOUT the stepped flaps (the waistband, the knife pleats, the cream front panel and the dark stair-stepped hem band, its whole hem including the back the flaps hide); bottom row the two stepped flaps alone hanging from the waistband",
+   "authority_split": {
+    "shape": "top row: the skirt's structure without the flaps (the cream panel and the pleats, the hidden back hem's level: level, 1.26 L under the waistband's top against the turnaround's visible 1.25); bottom row: the flaps' own shape only (the stepped staircase edges and their right angles, the outline's form)",
+    "placement": "body_turnaround: every size, width, length and position (the skirt's and the flaps'); nothing sized or placed from this sheet",
+    "map": "not in the top-level authority map (see base_body_turnaround's)"
+   },
+   "refcheck": {
+    "command": "python -m charkit.layerref charkit/spec/clawd.json charkit/refs/clawd/gen/skirt_layers.png --kind skirt",
+    "scale_common": 1.0207,
+    "scale_spread": 0.08,
+    "skirt": {
+     "front": {
+      "iou_dc": 0.9191,
+      "recall": 0.9923,
+      "outside": 0.0724,
+      "hidden": 0.027,
+      "scale": 1.0002,
+      "hem_below_top_L": {
+       "middle": 1.308,
+       "lowest": 1.323
+      },
+      "pass": false
+     },
+     "three_quarter": {
+      "iou_dc": 0.9551,
+      "recall": 0.9833,
+      "outside": 0.0258,
+      "hidden": 0.1179,
+      "scale": 1.0207,
+      "hem_below_top_L": {
+       "middle": 1.28,
+       "lowest": 1.313
+      },
+      "pass": true
+     },
+     "profile": {
+      "iou_dc": 0.8776,
+      "recall": 0.9596,
+      "outside": 0.0574,
+      "hidden": 0.3532,
+      "scale": 1.0002,
+      "hem_below_top_L": {
+       "middle": 1.228,
+       "lowest": 1.247
+      },
+      "pass": false
+     },
+     "back": {
+      "iou_dc": 0.8272,
+      "recall": 0.9921,
+      "outside": 0.0897,
+      "hidden": 0.4638,
+      "scale": 1.0207,
+      "hem_below_top_L": {
+       "middle": 1.261,
+       "lowest": 1.261
+      },
+      "pass": false
+     }
+    },
+    "flaps": {
+     "front": {
+      "iou_dc": 0.6795,
+      "recall": 0.9615,
+      "outside": 0.1199,
+      "hidden": 0.6024,
+      "scale": 1.0207,
+      "hem_below_top_L": {
+       "middle": 0.198,
+       "lowest": 1.85
+      },
+      "pass": false
+     },
+     "three_quarter": {
+      "iou_dc": 0.6708,
+      "recall": 0.7938,
+      "outside": 0.0572,
+      "hidden": 0.695,
+      "scale": 1.0819,
+      "hem_below_top_L": {
+       "middle": 0.221,
+       "lowest": 1.746
+      },
+      "pass": false
+     },
+     "profile": {
+      "iou_dc": 0.5639,
+      "recall": 0.7369,
+      "outside": 0.1255,
+      "hidden": 0.5731,
+      "scale": 1.0411,
+      "hem_below_top_L": {
+       "middle": 1.054,
+       "lowest": 1.577
+      },
+      "pass": false
+     },
+     "back": {
+      "iou_dc": 0.6809,
+      "recall": 0.9446,
+      "outside": 0.2787,
+      "hidden": 0.0412,
+      "scale": 1.0411,
+      "hem_below_top_L": {
+       "middle": 0.32,
+       "lowest": 1.793
+      },
+      "pass": false
+     }
+    },
+    "verdict": "FAIL against charkit.layerref.TOL (the skirt row's outside 0.026-0.090, the flaps' iou_dc 0.56-0.68); registered by Michael's call for structure only"
+   },
+   "cautions": [
+    "the skirt row is drawn 3-9% fuller at the sides than the turnaround's skirt (outside 0.072 / 0.026 / 0.057 / 0.090 per view): take its widths and flare from body_turnaround",
+    "the flaps row is drawn wider than the turnaround's flaps (past the skirt's sides in front, over the skirt's visible back sides in the back: iou_dc 0.56-0.68): drapery drawn without its underlying layer spreads. Its staircase edges and right angles and the outline's form only; no sizes or positions",
+    "dress forms, not her body: no hip, waist or leg measure comes from them; the shorts are not drawn (the image model refused the shorts alone)"
+   ]
+  },
+  "bodice_layers": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-10-01",
+    "size": "2560x1440",
+    "quality": "high",
+    "n": 2,
+    "chosen": "take 1 of 2 by charkit.layerref --kind bodice (take 2: profile outside 0.045, iou_dc 0.871: FAIL)",
+    "inputs": [
+     "body_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "bodice_layers",
+    "ledger": "tools/ledger.jsonl",
+    "approved": "Michael, 2026-10-01 (general approval for reference generation; the coordinator's brief for tool/garments4 milestone 2: one call, n=2, registered only if the refcheck passes)",
+    "sha256": "80403e0759ab8956447e39abd11547bd7b65818b9e540f6c3b53ea54d1f9a78e"
+   },
+   "path": "charkit/refs/clawd/gen/bodice_layers.png",
+   "role": "the bodice WITHOUT the bow, a separated layer reference (Michael, 2026-10-01: the bodice without the bow): body_turnaround redrawn in its own layout, A-pose and scale (front, three-quarter, profile, back) with the bow, its knot and its tails removed and what they hide drawn as worn: the sailor collar's two front lapels lying flat on the chest (no stand), wide at the shoulders and narrowing down, their inner edges the V neckline meeting in a point at the chest's centre where the knot sat, the collar's dark stripe along their edges; the V's bare skin down to that point; the cream bodice front between the open jacket fronts below it; the collar flat over the shoulders and back, joined round the back of the neck by a low band. Everything else kept as drawn",
+   "authority_split": {
+    "shape": "what the bow hides: the lapels' shape on the chest (flat, along the V, their width along their length and their stripe), the V's lower part under the bow (its sides and its point) and the bodice front under the bow",
+    "placement": "body_turnaround: the collar, the V and the bodice wherever the turnaround shows them (the V's width above the bow), and every piece in context",
+    "map": "not in the top-level authority map (see base_body_turnaround's)"
+   },
+   "refcheck": {
+    "command": "python -m charkit.layerref charkit/spec/clawd.json charkit/refs/clawd/gen/bodice_layers.png --kind bodice",
+    "tolerances": "charkit.layerref.TOL (declared before the sheet was measured; calibrated: the turnaround against itself moved 2 px PASS every view, iou_dc 0.995-0.999; its torso band widened 6% FAIL every view, outside 0.10-0.14)",
+    "scale": 1.0007,
+    "views": {
+     "front": {
+      "shift": [
+       1,
+       1
+      ],
+      "kept_iou": {
+       "head": 0.9875,
+       "lower": 0.9875
+      },
+      "iou_dc": 0.974,
+      "recall": 0.9763,
+      "outside": 0.0013,
+      "hidden": 0.4919,
+      "v": {
+       "recall": 0.9907,
+       "outside": 0.0979,
+       "under_bow": 0.1359,
+       "px": [
+        4158,
+        3216
+       ],
+       "lowest_z": [
+        -0.881,
+        -0.712
+       ]
+      },
+      "pass": true
+     },
+     "three_quarter": {
+      "shift": [
+       3,
+       1
+      ],
+      "kept_iou": {
+       "head": 0.9894,
+       "lower": 0.9898
+      },
+      "iou_dc": 0.9961,
+      "recall": 0.9968,
+      "outside": 0.0004,
+      "hidden": 0.4513,
+      "v": {
+       "recall": 0.9979,
+       "outside": 0.0466,
+       "under_bow": 0.1053,
+       "px": [
+        2831,
+        2405
+       ],
+       "lowest_z": [
+        -0.844,
+        -0.731
+       ]
+      },
+      "pass": true
+     },
+     "profile": {
+      "shift": [
+       -3,
+       0
+      ],
+      "kept_iou": {
+       "head": 0.9894,
+       "lower": 0.9882
+      },
+      "iou_dc": 0.924,
+      "recall": 0.948,
+      "outside": 0.0155,
+      "hidden": 0.4179,
+      "pass": true
+     },
+     "back": {
+      "shift": [
+       1,
+       0
+      ],
+      "kept_iou": {
+       "head": 0.988,
+       "lower": 0.9871
+      },
+      "iou_dc": 0.9947,
+      "recall": 0.9956,
+      "outside": 0.0009,
+      "hidden": 0.0,
+      "pass": true
+     }
+    }
+   },
+   "cautions": [
+    "its V is drawn 1-3 px (0.005-0.015 L) wider each side than the turnaround's visible V above the bow (V outside 0.098 in front against the 0.10 tolerance, 0.047 in three-quarter): the V's width above the bow is the turnaround's",
+    "the V's point is drawn at z -0.88 L in front (-0.84 in three-quarter), 0.05 L under the knot's lower edge on the turnaround (-0.72..-0.83 at the midline): the knot hides it there; how far the V reaches under the knot is this sheet's reading only",
+    "a generated reading of what the bow hides: checked for consistency only (the kept parts' IoU 0.987-0.990; the bodice and collar layer against the outfit truth where the turnaround shows it, iou_dc 0.92-0.996, outside under 0.016); nothing draws the lapels under the bow to grade them against",
+    "its skin in the V carries cleavage lines the turnaround's visible V doesn't draw: no line inside the V comes from it"
+   ]
   },
   "hull": {
    "kind": "generated_mesh",
