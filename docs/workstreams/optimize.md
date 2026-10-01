@@ -97,6 +97,12 @@ get a slot; budget ~15-25 generations (population 16: 240-400 rows) for 5-10 kno
   **Running (render2):** NM job `accfit-optim-1001-111439-7440` (25 min, out `charkit/out/optimize/clips_nm`), CMA
   (4 workers, 560 evaluations, out `charkit/out/optimize/clips_cma`, log `charkit/out/optimize/clips_cma.log`).
 
+- **Laptop environment (2026-10-01 ~11:16):** the system python3 (3.11 framework) that build.sh runs bucketsync with
+  links its CA bundle (etc/openssl/cert.pem) to a user-site certifi that no longer exists; homebrew's CA files changed
+  at 11:16. Every sync that uploads a new blob fails (SSL CERTIFICATE_VERIFY_FAILED). Workaround in my shells:
+  `export SSL_CERT_FILE=/opt/homebrew/etc/openssl@3/cert.pem` (reported to the coordinator; nothing changed on the
+  system). The staircase follow was started before: collect it again with the variable set.
+
 ## Next steps
 1. Read the staircase run (OUT/review, opt.json, confirm.json); compare with the hand loop (st1-st5: 5 sweeps, ~42
    rows, 4 harness scripts, 05:38-06:22 local on 2026-10-01 plus code changes later removed).
