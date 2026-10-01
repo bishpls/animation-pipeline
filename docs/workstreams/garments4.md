@@ -389,3 +389,23 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   degrees all round on the whole skin (neck_crease_all 44.7 on every build): the neck turns into the chest within
   ~0.02 L under the cut (NECK_BASE 0.12 L loft). New knob body.neck_join (code_base; default unchanged): builds
   g4_nv2j18 / g4_nv2j24 (neck_join 0.18 / 0.24) running.
+
+## The staircase hem (coordinator, Michael 2026-10-01: square steps, risers on the creases, crease spacing): measured
+- Tool `charkit/out/garments4/tools/stairm.py BUILD` (the band's top edge per piece and view from skirtqa's machinery,
+  RDP-simplified into risers and treads; tilt of risers from vertical and treads from horizontal; creases = lines
+  reaching within 0.06 L over the band's top; treads crossed by a crease; riser-to-crease distance; crease spacing).
+- The design (front skirt): risers 21-24 deg off vertical, treads 13-16 deg off horizontal: the steps are square (the
+  corner ~90 deg) but the whole stair follows the pleat folds' fan and the hem's slope; every riser sits on a drawn
+  fold (riser-crease 0.026-0.035 L next to the panel), no tread crossed. 3q likewise (risers 14-27, 0 crossed). The
+  flaps: risers ~2 deg, treads 22-29 deg (along the flap's slanted hem), risers 0.002-0.007 L from a crease.
+- Ours (g4_cuffs2): skirt risers 16-22 deg but treads 2-11 deg (level): the corners sheared by 10-20 deg; risers
+  0.2-0.4 L from any crease, 2 treads crossed (front); the flaps' treads level (2-5 deg, drawn 22-29). Our pleat folds
+  aren't lines (the skirt's knife pleats are geometry plus a faint texture line), so our_lines sees only the panel's
+  edges near the hem: the crease measure on ours needs the folds' azimuths (geometry) or inked folds.
+- The cause: band_rows' stair is per column at azimuth knots [0, 14, 28] deg out from the panel's edge while the 18
+  knife pleats fold every 20 deg (outer folds at 0, +-20, +-40 deg, inner at +-10, +-30...): risers mid-pleat, treads
+  across folds; the treads at constant v (a share of each column's length), not along the hem's local slope.
+- Plan (not started): a declared/calibrated check on the corner angle (riser vs tread, |90 - angle| beyond the
+  design's) and riser-on-fold / tread-crossing counts per view (front, 3q; skirt and flaps), the crease spacing (pleat
+  widths) against the drawn folds' spacing; then the stair knots on the pleat folds (risers on folds), the treads along
+  the hem, the pleat count/phase fitted jointly to the drawn fold spacing; the merged crease checks must stay PASS.
