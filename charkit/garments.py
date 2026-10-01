@@ -3601,6 +3601,11 @@ def collar(A, spec, normals=None, neckline=None):
             k0 = np.floor(u).astype(int)
             f = (u - k0)[:, None]
             rows_.append((1 - f) * grid[j, k0 % na] + f * grid[j, (k0 + 1) % na])
+        if spec.get('lapel'):
+            phis = [min(v_half * (1 - j / nr), math.radians(60)) + (2 * math.pi - 2 * min(v_half * (1 - j / nr),
+                    math.radians(60))) * np.arange(m + 1) / m for j in range(nr + 1)]
+            rows_ = lapel_patch(rows_, phis, nr, lambda t: min(v_half * (1 - t), math.radians(60)), A, V, F, spec,
+                                spec.get('lapel', {}).get('off', spec.get('offset', 0.03)) * L)
         verts = np.concatenate(rows_)
         uvs = [(i / m, j / nr) for j in range(nr + 1) for i in range(m + 1)]
         for j in range(nr):
@@ -3624,6 +3629,101 @@ def collar(A, spec, normals=None, neckline=None):
     nn = nearest(verts, V)
     W = {b: w[nn] for b, w in A['weights'].items() if w[nn].max() > 1e-4}
     return dict(verts=verts, faces=faces, weights=W, uv=uvs, edge=edge)
+
+
+def front_hits(P2, V, T, chunk=256):
+    """the body seen from the front (-y), orthographic: for each point (x, z) the frontmost triangle under it -> (y,
+    normal toward the front), NaN where none (the flat lapels laid on the chest)."""
+    P2 = np.asarray(P2, float)
+    A_, B_, C_ = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
+    nrm = np.cross(B_ - A_, C_ - A_)
+    nrm = nrm / np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-12)
+    nrm = np.where(nrm[:, 1:2] > 0, -nrm, nrm)
+    ax, az = A_[:, 0], A_[:, 2]
+    e1x, e1z, e2x, e2z = B_[:, 0] - ax, B_[:, 2] - az, C_[:, 0] - ax, C_[:, 2] - az
+    det = e1x * e2z - e2x * e1z
+    ok = np.abs(det) > 1e-14
+    ys = np.full(len(P2), np.nan)
+    ns = np.full((len(P2), 3), np.nan)
+    for i in range(0, len(P2), chunk):
+        q = P2[i:i + chunk]
+        dx, dz = q[:, 0:1] - ax[None], q[:, 1:2] - az[None]
+        u = np.where(ok, (dx * e2z - e2x * dz) / np.where(ok, det, 1), -1)
+        v = np.where(ok, (e1x * dz - dx * e1z) / np.where(ok, det, 1), -1)
+        inside = (u >= 0) & (v >= 0) & (u + v <= 1)
+        y = np.where(inside, A_[:, 1][None] + u * (B_[:, 1] - A_[:, 1])[None] + v * (C_[:, 1] - A_[:, 1])[None], np.inf)
+        k = np.argmin(y, 1)
+        hit = np.isfinite(y[np.arange(len(q)), k])
+        ys[i:i + chunk][hit] = y[np.arange(len(q)), k][hit]
+        ns[i:i + chunk][hit] = nrm[k[hit]]
+    return ys, ns
+
+
+def lapel_patch(rows_, phi_rows, nr, av_of, A, V, F, spec, off):
+    """the collar's front as two flat lapels (spec `lapel` {a (degrees round the neck: where a lapel meets the collar's
+    shoulder part), point [x, z] (L from the midline and the eye line: the V's point, where the lapels meet), soft (L:
+    the band along the shared seams where the patch eases back to the collar's own surface)}): each lapel a Coons
+    patch in the front view between the V's edge (straight from the collar's own V top at the neckline to the point),
+    the collar's neckline row, its column at `a` and the outer edge (straight from the point to that column's last
+    row), laid on the body from the front `off` out along its normal; the rows near the outer edge carry the stripe as
+    before. rows_: per row the resampled vertices round from her left V edge to her right; phi_rows: their azimuths.
+    -> rows_ with the lapels' vertices moved (the seams' vertices kept)."""
+    L = A['head']['L']
+    lap = spec['lapel']
+    amax = math.radians(float(lap.get('a', 70)))
+    ez = _eye_z(A)
+    nb, _ = bone_seg(A, 'neck')
+    px, pz = lap.get('point', [0.0, -0.84])
+    P = np.array([nb[0] + px * L, ez + pz * L])
+    soft = float(lap.get('soft', 0.04)) * L
+    tri = np.array([(f[0], f[k], f[k + 1]) for f in F for k in range(1, len(f) - 1)])
+    zc = V[tri, 2].mean(1)
+    yc = V[tri, 1].mean(1)
+    keep = (zc < ez - 0.2 * L) & (zc > ez - 1.3 * L) & (yc < nb[1] + 0.05 * L)
+    T = tri[keep]
+    rows = [np.array(r, float, copy=True) for r in rows_]
+    for side in (1, -1):
+        # the patch's boundary in 3D and the front view, from the collar's rows (side +1: her left, phi small)
+        def at(j, a):
+            ph = phi_rows[j] if side > 0 else 2 * math.pi - phi_rows[j][::-1]
+            R = rows_[j] if side > 0 else rows_[j][::-1]
+            k = np.clip(np.searchsorted(ph, a), 1, len(ph) - 1)
+            f = (a - ph[k - 1]) / max(ph[k] - ph[k - 1], 1e-12)
+            return (1 - f) * R[k - 1] + f * R[k]
+        N3 = at(0, av_of(0))
+        S3 = at(0, amax)
+        S3b = at(nr, amax)
+        Pq = np.array([side * abs(P[0] - nb[0]) + nb[0], P[1]])
+        for j in range(nr + 1):
+            t = j / nr
+            ph = phi_rows[j]
+            idx = np.nonzero(ph <= amax)[0] if side > 0 else np.nonzero((2 * math.pi - ph) <= amax)[0]
+            if not len(idx):
+                continue
+            a = ph[idx] if side > 0 else 2 * math.pi - ph[idx]
+            av = av_of(t)
+            al = np.clip((a - av) / max(amax - av, 1e-9), 0, 1)
+            # the boundary curves in the front view (x, z)
+            Vt = np.array([N3[0] + t * (Pq[0] - N3[0]), N3[2] + t * (Pq[1] - N3[2])])         # the V's edge
+            Sd = at(j, amax)[[0, 2]]                                                            # the collar's column
+            top = np.stack([at(0, av_of(0) + x * (amax - av_of(0)))[[0, 2]] for x in al])    # its neckline row
+            bot = np.stack([Pq + x * (S3b[[0, 2]] - Pq) for x in al])                          # the outer edge
+            c00, c10, c01, c11 = N3[[0, 2]], S3[[0, 2]], Pq, S3b[[0, 2]]
+            Q = ((1 - al)[:, None] * Vt[None] + al[:, None] * Sd[None] + (1 - t) * top + t * bot
+                 - ((1 - al) * (1 - t))[:, None] * c00[None] - (al * (1 - t))[:, None] * c10[None]
+                 - ((1 - al) * t)[:, None] * c01[None] - (al * t)[:, None] * c11[None])
+            ys, ns = front_hits(Q, V, T)
+            hit = np.isfinite(ys)
+            new = rows[j][idx].copy()
+            laid = np.c_[Q[:, 0], ys, Q[:, 1]] + ns * off
+            # eased back to the collar's own surface near the seams it shares (the neckline row, the column at a)
+            d_seam = np.minimum(np.abs(a - amax) * np.linalg.norm(S3 - N3) / max(amax - av_of(0), 1e-9),
+                                t * np.linalg.norm(S3b - S3))         # (L: to the column at a, to the neckline row)
+            w = np.clip(d_seam / max(soft, 1e-9), 0, 1)
+            w = w * w * (3 - 2 * w)
+            new[hit] = (1 - w[hit, None]) * rows_[j][idx][hit] + w[hit, None] * laid[hit]
+            rows[j][idx] = new
+    return rows
 
 
 def collar_hull(A, spec, normals, hull):
