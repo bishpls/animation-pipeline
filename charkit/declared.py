@@ -1185,7 +1185,9 @@ def _line_images(B, ppl, az3, views):
         for v in views:
             fr = _Grid(bodyqa.origin(v, az[v], iw, As['centre']), float(As['L']), ppl)
             aux = {}
-            qa3d.draw(B, surfs, az[v], fr, ss=1, aux=aux)
+            # (the buffers alone: the picture qa3d.draw also made, 4 x 4 supersampled on the renderer, was thrown away:
+            # 35 s of the part's 136 on the build box; aux is the same buffer either way)
+            qa3d.draw_lit(B, qa3d.draw_view(B, surfs, az[v], fr), None, ss=1, aux=aux, picture=False)
             mesh = aux['mesh']
             out[v] = hull[np.where(mesh >= 0, mesh, len(surfs))]
         return out
