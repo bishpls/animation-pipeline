@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T19:58:32",
+ "at": "2026-09-30T20:39:42",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -89,5 +89,5 @@
  "generators": {
   "smooth_hem": "the back view's hair with its lower edge smoothed over 0.15 L (a bob's hem)"
  },
- "seconds": 60.8
+ "seconds": 143.5
 }

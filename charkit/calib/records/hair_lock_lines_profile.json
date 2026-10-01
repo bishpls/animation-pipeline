@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T19:58:32",
+ "at": "2026-09-30T20:39:42",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -15,56 +15,56 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.9959,
+    0.9965,
     "PASS"
    ],
    "+0,+2": [
-    0.974,
+    0.9827,
     "PASS"
    ],
    "+1,+0": [
-    0.9986,
+    0.9993,
     "PASS"
    ],
    "+2,+0": [
-    0.9866,
+    0.9913,
     "PASS"
    ],
    "+0,-1": [
-    0.9952,
+    0.9965,
     "PASS"
    ],
    "+0,-2": [
-    0.9574,
+    0.9834,
     "PASS"
    ],
    "-1,+0": [
-    0.9953,
+    0.9993,
     "PASS"
    ],
    "-2,+0": [
-    0.9685,
+    0.9905,
     "PASS"
    ]
   },
-  "min": 0.9574,
-  "max": 0.9986,
-  "spread": 0.0412,
-  "median": 0.9909
+  "min": 0.9827,
+  "max": 0.9993,
+  "spread": 0.0166,
+  "median": 0.9939
  },
  "known_bad": {
   "name": "hair5_1580f95",
-  "value": 0.2081,
+  "value": 0.1638,
   "status": "FAIL"
  },
  "floor": {
   "voronoi_lines": {
    "values": [
-    0.061,
-    0.1274,
-    0.0367,
-    0.173,
-    0.0344
+    0.0613,
+    0.128,
+    0.037,
+    0.1737,
+    0.0346
    ],
    "statuses": [
     "FAIL",
@@ -73,7 +73,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 0.061,
+   "median": 0.0613,
    "status": "FAIL",
    "passing": 0
   },
@@ -99,18 +99,18 @@
  },
  "probes": {
   "stripes": {
-   "value": 0.5624,
+   "value": 0.5619,
    "status": "WARN"
   }
  },
  "blind_to": [],
  "current": {
-  "value": 0.2112,
+  "value": 0.162,
   "status": "FAIL",
-  "margin": 0.188
+  "margin": 0.136
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.0412), hair5_1580f95 reads 0.2081 FAIL, the floor voronoi_lines FAIL, solid FAIL",
+ "why": "the design passes every move (spread 0.0166), hair5_1580f95 reads 0.1638 FAIL, the floor voronoi_lines FAIL, solid FAIL",
  "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
  "build": "charkit/out/h5_base",
  "generators": {
@@ -118,5 +118,5 @@
   "solid": "no ink inside the mass (a solid orange mass)",
   "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
  },
- "seconds": 60.8
+ "seconds": 143.5
 }

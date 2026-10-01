@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T19:58:32",
+ "at": "2026-09-30T20:39:42",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -15,54 +15,54 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.9971,
+    0.9983,
     "PASS"
    ],
    "+0,+2": [
-    0.9845,
+    0.9882,
     "PASS"
    ],
    "+1,+0": [
-    0.9963,
+    0.9983,
     "PASS"
    ],
    "+2,+0": [
-    0.9832,
+    0.9917,
     "PASS"
    ],
    "+0,-1": [
-    0.9967,
+    0.9979,
     "PASS"
    ],
    "+0,-2": [
-    0.972,
+    0.9878,
     "PASS"
    ],
    "-1,+0": [
-    0.9968,
+    0.9987,
     "PASS"
    ],
    "-2,+0": [
-    0.9802,
+    0.9908,
     "PASS"
    ]
   },
-  "min": 0.972,
-  "max": 0.9971,
-  "spread": 0.0251,
-  "median": 0.9904
+  "min": 0.9878,
+  "max": 0.9987,
+  "spread": 0.0109,
+  "median": 0.9948
  },
  "known_bad": {
   "name": "hair5_1580f95",
-  "value": 0.1847,
+  "value": 0.2022,
   "status": "FAIL"
  },
  "floor": {
   "voronoi_lines": {
    "values": [
-    0.0687,
-    0.1463,
-    0.0734,
+    0.0698,
+    0.1388,
+    0.0738,
     0.0616,
     0.1308
    ],
@@ -73,7 +73,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 0.0734,
+   "median": 0.0738,
    "status": "FAIL",
    "passing": 0
   },
@@ -99,18 +99,18 @@
  },
  "probes": {
   "stripes": {
-   "value": 0.6762,
+   "value": 0.6719,
    "status": "WARN"
   }
  },
  "blind_to": [],
  "current": {
-  "value": 0.1874,
+  "value": 0.205,
   "status": "FAIL",
-  "margin": 0.158
+  "margin": 0.175
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.0251), hair5_1580f95 reads 0.1847 FAIL, the floor voronoi_lines FAIL, solid FAIL",
+ "why": "the design passes every move (spread 0.0109), hair5_1580f95 reads 0.2022 FAIL, the floor voronoi_lines FAIL, solid FAIL",
  "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
  "build": "charkit/out/h5_base",
  "generators": {
@@ -118,5 +118,5 @@
   "solid": "no ink inside the mass (a solid orange mass)",
   "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
  },
- "seconds": 60.8
+ "seconds": 143.5
 }

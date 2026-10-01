@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T19:58:32",
+ "at": "2026-09-30T20:39:42",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -133,5 +133,5 @@
   "blob_ahoge": "the drawn ahoge replaced by an ellipse of its area along its root-to-tip axis (a clump)",
   "wiggle_ahoge": "the drawn ahoge bent sideways along its length by a 1.5-wave of 0.012 L"
  },
- "seconds": 60.8
+ "seconds": 143.5
 }

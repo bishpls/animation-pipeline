@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T19:58:32",
+ "at": "2026-09-30T20:39:42",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -51,12 +51,12 @@
   "median": 0.0,
   "views": {
    "back": [
-    -0.0,
-    -0.0
+    0.0,
+    0.0
    ],
    "front": [
-    -0.0,
-    -0.0
+    0.0,
+    0.0
    ],
    "profile": [
     -0.0,
@@ -70,48 +70,48 @@
  },
  "known_bad": {
   "name": "hair5_1580f95",
-  "value": 107.2,
+  "value": 108.1,
   "status": "FAIL"
  },
  "floor": {
   "rotate_ahoge": {
    "values": [
-    206.3,
-    38.3,
-    101.0,
-    11.0,
-    32.1
+    170.3,
+    249.9,
+    48.2,
+    20.7,
+    0.0
    ],
    "statuses": [
     "FAIL",
-    "WARN",
     "FAIL",
+    "WARN",
     "PASS",
-    "WARN"
+    "PASS"
    ],
-   "median": 38.3,
+   "median": 48.2,
    "status": "WARN",
-   "passing": 1
+   "passing": 2
   }
  },
  "probes": {
   "wiggle_ahoge": {
-   "value": 77.9,
+   "value": 105.7,
    "status": "FAIL"
   }
  },
  "blind_to": [],
  "current": {
-  "value": 107.2,
+  "value": 108.1,
   "status": "FAIL",
-  "margin": -1.799
+  "margin": -1.243
  },
  "verdict": "calibrated",
- "why": "a defect detector: the design passes every move (spread 0.0), hair5_1580f95 reads 107.2 FAIL; a random stand-in fails it; shape guarded by hair_piece_ahoge, hair_ahoge_shape",
+ "why": "a defect detector: the design passes every move (spread 0.0), hair5_1580f95 reads 108.1 FAIL; a random stand-in fails it; shape guarded by hair_piece_ahoge, hair_ahoge_shape",
  "build": "charkit/out/h5_base",
  "generators": {
   "rotate_ahoge": "the drawn ahoge turned about its root by 25-45 degrees either way",
   "wiggle_ahoge": "the drawn ahoge bent sideways along its length by a 1.5-wave of 0.012 L"
  },
- "seconds": 60.8
+ "seconds": 143.5
 }

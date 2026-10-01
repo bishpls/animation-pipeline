@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T19:58:32",
+ "at": "2026-09-30T20:39:42",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -17,69 +17,69 @@
     "PASS"
    ],
    "+0,+2": [
-    0.043,
+    -0.022,
     "PASS"
    ],
    "+1,+0": [
-    -0.066,
+    -0.022,
     "PASS"
    ],
    "+2,+0": [
-    -0.044,
+    -0.022,
     "PASS"
    ],
    "+0,-1": [
-    0.003,
+    -0.022,
     "PASS"
    ],
    "+0,-2": [
-    0.106,
+    -0.022,
     "PASS"
    ],
    "-1,+0": [
-    0.084,
+    -0.022,
     "PASS"
    ],
    "-2,+0": [
-    0.263,
+    -0.022,
     "PASS"
    ]
   },
-  "min": -0.066,
-  "max": 0.263,
-  "spread": 0.329,
-  "median": 0.023,
+  "min": -0.022,
+  "max": -0.022,
+  "spread": 0.0,
+  "median": -0.022,
   "views": {
    "back": [
-    -0.066,
-    0.263
+    -0.022,
+    -0.022
    ],
    "front": [
-    -0.102,
-    0.463
+    -0.023,
+    -0.023
    ],
    "profile": [
-    -0.144,
-    0.499
+    -0.024,
+    -0.024
    ],
    "three_quarter": [
-    -0.165,
-    0.6
+    -0.152,
+    -0.152
    ]
   }
  },
  "known_bad": {
   "name": "hair5_1580f95",
-  "value": 4.561,
+  "value": 3.761,
   "status": "FAIL"
  },
  "floor": {
   "voronoi_lines": {
    "values": [
     -0.634,
-    -0.572,
-    -0.345,
-    -0.118,
+    -0.571,
+    -0.344,
+    -0.117,
     -0.392
    ],
    "statuses": [
@@ -96,22 +96,22 @@
  },
  "probes": {
   "stripes": {
-   "value": 8.322,
+   "value": 8.304,
    "status": "FAIL"
   }
  },
  "blind_to": [],
  "current": {
-  "value": 4.567,
+  "value": 3.766,
   "status": "FAIL",
-  "margin": 11.949
+  "margin": 11.238
  },
  "verdict": "calibrated",
- "why": "a defect detector: the design passes every move (spread 0.329), hair5_1580f95 reads 4.561 FAIL; a random stand-in passes it (voronoi_lines); shape guarded by hair_piece_upper_back, hair_piece_lower_back",
+ "why": "a defect detector: the design passes every move (spread 0.0), hair5_1580f95 reads 3.761 FAIL; a random stand-in passes it (voronoi_lines); shape guarded by hair_piece_upper_back, hair_piece_lower_back",
  "build": "charkit/out/h5_base",
  "generators": {
   "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
   "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
  },
- "seconds": 60.8
+ "seconds": 143.5
 }
