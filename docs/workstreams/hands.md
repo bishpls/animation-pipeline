@@ -481,3 +481,21 @@ hands2 | hands3, per pose and view; 3q rest close-ups), calibrate, pregate --box
   base takes the best fit across both: **JointFit** (`charkit handsheet joint`: structure shared, the sheet's open
   angles 'open.*' and the rest angles separate, costs summed, the comb's floors kept). **joint1** running (build box,
   charkit/out/hands3/joint1, log joint1.log).
+- **joint1 killed** (86 min, 16 of 30 generations, no gain over its start: a saturated box). The joint cost scanned over
+  palm_w alone (charkit/out/hands3/palm_scan.json) lands at the sheet's own palm (1.52 at 0.281; 1.60-1.88 at
+  0.245-0.275): no distinct compromise.
+- **Palm-width page for Michael** (coordinator, 2026-10-01): charkit/out/hands3/palmpage/page/index.html (`charkit
+  handsheet palm`: the drawings at one reach past the cuff, the palm across the knuckle line (0.494 of the reach)
+  measured on each, ours outlined at each palm with its IoU; panels charkit/out/hands3/palm/). Drawn palm (share of
+  the reach): the sheet's relaxed back 0.437, the turnaround's profile 0.472 (both broad-on: they agree), its front
+  0.310/0.313 and back 0.328/0.316 (narrow). Options (rest2's angles): A sheet palm_w 0.281: sheet IoU 0.860, palm
+  0.435; turnaround front 0.748/0.762, back 0.754/0.749, profile 0.584. B 0.245: 0.806, 0.376; 0.795/0.812,
+  0.798/0.793, 0.537. C 0.26 (the widest palm keeping front/back at or above the comb's): 0.834, 0.402; 0.776/0.795,
+  0.780/0.774, 0.556. A yaw scan (62 -> 45 at A's palm) doesn't narrow front/back (0.75-0.78), profile 0.58 -> 0.70,
+  far hand 3q 0.71 -> 0.58. **Waiting on Michael: A, B or C.**
+- **Next (after the palm call):** write the chosen palm_w and rest2's angles into the spec (setknobs.py), check back L
+  cleftpos (keep it within WARN: a cleft at 0.56-0.62), then QA-only builds on the build box for the seam gap
+  (tip_gap None / 0.003 / 0.006: fingerlines_* and the gaps), the chosen one on render2 with boards; `charkit handposes
+  fit` on the final rest (poses per row); the review page (sheet | comb | hands2 | hands3 per pose and view, 3q rest
+  close-ups); calibrate fingerlines_* (5 records) on the after-build; pregate --box auto; gate. The hands-only ink colour
+  (a per-vertex outline ink: Blender line material, export attribute, our renderer, look.js) stays in what's left.
