@@ -58,3 +58,23 @@ B+hullA), next.
   normals per loop; shrink = outline thickness -0.0014 x the normal; raw/V) and run the artifacts part (termlab's
   measure); validate by reproducing the build's own reading.
 - Base build for the capture: `charkit/out/bo_base` (box build of a26f4c2 = pipeline-3d 3f7b730, running).
+
+**Which input moves the side locks** (the coordinator's question, 2026-09-30 night; hairswap.py on the box from the face
+copy, A = base `bo_base` + its hull, B = face5 `f5m` (aac435e) + its hull; `~/animation-pipeline-face/charkit/out/f5swap/
+swap.json`): B's own inputs reproduce B's pieces exactly. With A's **hull**: the bangs are A's (5.4e-5 L) and the lower
+back A's (8.9e-5 L); side_lock_R takes A's vertex count (0.009 L from A's); side_lock_L matches neither. With A's
+**head**: side_lock_L 0.010 L and side_lock_R 0.0089 L from B's, B's counts, the bangs 0.0063 L. So the hull carries
+it (face5's jaw changes the carve between the cheek and the locks: the hull's labels front 6527 -> 6539, and the lock
+partition, tips 38 / 58 / 74 -> 34 / 58 / 82), with the skin's clearance from the new jaw adding about 0.01 L (trim
+pulled 91 -> 88 cells, push 0.040 -> 0.034 L). Neither alone gives the base's side locks. It is the hair answering the
+new jaw through the lock partition: no clean local fix in tool/face5 (a fix is in the lock partition's stability,
+tool/hair5's ground). Stopped there as the coordinator asked; for Michael as a named acceptance.
+
+## Checkpoint (2026-09-30 ~20:40, context budget)
+- head: this branch a26f4c2 + commits (the start= option, notes, pairmove.py); pipeline-3d 3f7b730 merged.
+- outputs: `charkit/out/bo_base` (box build of a26f4c2: art_terminator_hair 1.804 PASS, hair_piece_buns 0.862,
+  hair_bun_outline 0.459), `charkit/out/bo/base_inputs.pkl` (bunstab capture on bo_base: both fit_block calls'
+  arguments; rebuilt buns 0 L from the build's; the box copy has it too).
+- next: write tools/bunorient/orient.py (plan above), measure the base fit's multistart spread and the 10 um jumps on
+  base_inputs.pkl, then try three_quarter in bun_views (needs bun_targets' masks: extend the capture), then the slimmed
+  test, then calibrate / pregate / gate.
