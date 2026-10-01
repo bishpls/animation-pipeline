@@ -629,3 +629,25 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   [0.8, 0.6], Michael's item-4 flag, known-bad g4_cuffs2. Box build g4_v1 running (log
   charkit/out/garments4/build_v1.log). Next: compare with g4_cuffs2 / g4_stairs1 (kcmp), calibrate neck_v_* on the box,
   gate.
+- **Stairs gate 2: PASS under K** (tool/garments4-stairs 0425973b into pipeline-3d 00494dec;
+  charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md): nothing blocks; CPU 1.04x; 6 new checks
+  calibrated; art_band_lower (flag) 1.185 -> 1.111; flap_profile_sweep_R W -> P; guard: piece_overskirt_panel_L/R front
+  +3%, back +1%, piece_skirt unchanged. Mergeable at 0425973b (+ notes).
+- **Neck gate: PASS under K** (tool/garments4-neck 6598251b into 00494dec;
+  charkit/out/gate/gate_tool-garments4-neck_6598251b_into_00494dec.md): remeasured neck_crease 26.9 W -> 12.6 P,
+  neck_crease_all 44.7 -> 14.4 INFO, record calibrated; geometry unchanged (no 2x2); CPU 1.07x. Mergeable at 6598251b.
+- **g4_v1** (the V opened, box): neck_v_front_skin 0.765 W, neck_v_three_quarter_skin 0.566 F; neck_crease 12.7 P;
+  art_outline_neck 1.684 W -> 1.472 P; art_outline_collar 1.442 P (unchanged); piece_top front 0.583 -> 0.749, 3q 0.688
+  -> 0.800 (profile, back unchanged); piece_collar, piece_bow, piece_bodice_panel unchanged. Nothing worse under K.
+  neck_v_* CALIBRATED (box; design 0.90-0.97 every move, known-bad g4_v0 0.476 / 0.358 FAIL, voronoi floor 1.0: it
+  relabels pieces, not classes). Records via tools/garments4/box_records (the box's synced files are read-only:
+  `calibrate store` on the box linked the build but couldn't rewrite the JSON; --json needs an existing synced dir).
+- **The V's gate order:** gated into pipeline-3d before the neck remeasure lands, the 2x2 scores neck_crease's old
+  measure on the V geometry (26.9 W -> 55.3 F) and blocks; gate the V into tool/garments4-neck (its parent), carry
+  after the coordinator merges neck.
+- Lapels (step 4) branch tool/garments4-lapels (from tool/garments4-v): declared family band_rows (a1f16db1, 3b4886c3:
+  a two-sided band row by row, width / inner (the V) / outer edge vs the drawn silhouette, occluders' rows left out per
+  side incl. hair); drafts tools/garments4/drafts/lapels.json (collar_{front,three_quarter}_lapel_width / _v), being
+  calibrated on the box with neck_v_*.
+- Review page JSONs (built on the box: `remote run --fetch DIR review page JSON --out DIR`): tools/garments4/review/
+  stairs.json, neck.json, v1.json (figures copied under tools/garments4/review/).
