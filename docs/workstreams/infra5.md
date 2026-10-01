@@ -129,10 +129,11 @@ and the build stages are theirs; tool/build2 owns remote.py's pick_box/box_slots
 
 ## State (read first when resuming)
 
-Commits: 204d1f7d (the stopped agent's calibrate writes by replace: kept), cae5b57b (task 5, cow), a22ad464 (task 7,
-stall alarm), d91f159e (task 8, gates before sweeps). The stopped agent's uncommitted boxjob/remote edits are in
+Commits: 204d1f7d (the stopped agent's calibrate writes by replace: reverted in 7ffb725c, see below), cae5b57b (task 5,
+cow), a22ad464 + 17442974 (task 7, stall alarm), d91f159e (task 8, gates before sweeps), 5f43ab11 (merge of
+pipeline-3d 59c93f38: tool/build2). The stopped agent's uncommitted boxjob/remote edits are in
 `git stash list` ("infra5-s: stopped agent wip (boxjob, remote)"): reviewed, its flags/limits design reused in a22ad464;
-the stash can be dropped. Next: the box demos (cow reproduction, planted silent job), full suite, pregate, gate.
+the stash can be dropped. Box demos done (below). Next: see "Next steps" at the end.
 
 ## 5. The calibrate PermissionError
 
@@ -181,8 +182,7 @@ nothing until their end.
 - The follow (`remote attach`, every remote command) prints the alarm once per silence.
 - The load sampler (boxjob VERSION 4) records `quiet`: each running job's log bytes and seconds since its last write,
   each minute. Installed on a box by the next job sent from this branch (JOBS/bin/boxjob.py; a VERSION 3 job doesn't
-  downgrade it). Note for the merge: build2's boxjob.py stays VERSION 3; the merged file should be VERSION 5 so every
-  box takes the merged sampler.
+  downgrade it).
 - Sharded sweeps pass their shards' lines on as they're written (`  [shard i] ...`), so the alarm reads real progress.
 - Tests (test_boxjob): planted silent / overrun / finished jobs (9 cases, both alarms, own limit), quiet and silences
   per kind, the follow's alarm once.
@@ -212,6 +212,44 @@ the optimize pool moving a yielded row to the other worker, results equal to in-
 unchanged: test_optimize before test_procs (CHARKIT_SLOT_HELD from test_optimize's import; tool/build2 fixes
 test_procs' isolation); test_slotprio restores the environment it found.
 
-## Box demos
+## Box demos (build box, 2026-10-01 16:08; driver charkit/out/infra5s/box_demos.py, log box_demos.log)
 
-(pending: the planted silent job, the cow reproduction on the box)
+**Task 5, the PermissionError reproduced and fixed in this worktree's box copy** (job cowdemo-infra5s-1001-160844-4712):
+`charkit/calib/known_bad/face7_before.json` mode 444, 14 links (its blob in the cache among them). calibrate store's
+failing line (`json.dump(rec, open(.../known_bad/NAME.json, 'w'), indent=1)`): with CHARKIT_COW=0 rc 1 `PermissionError:
+[Errno 13] Permission denied: 'charkit/calib/known_bad/face7_before.json'`; with `import charkit` (the hook on) rc 0. After:
+the file mode 664, 1 link, the new content; the blob's sha256 still its name, 13 links (the other copies untouched).
+
+**Task 7, the planted silent job** (job stalltest-infra5s-1001-160848-c4fd: prints one line, then sleeps 380 s;
+declared `--stall 2 --expect 1`): its follow printed `remote: job ... has written nothing for 2 min (its limit 2): not
+stopped` at 2 min; `remote jobs --box build` at 3.5 min:
+```
+build box: 4 running, 11 finished in 0.02 day(s), 1 FLAGGED (silent past its limit, or past 2x its expected time)
+  stalltest-infra5s-1001-160848-c4fd  running  10-01 16:08  3.5 min quiet 4  planted silent job  planted: silent from here
+      ^ SILENT: no output for 4 min (its limit 2); not stopped: read its log (`remote attach ...`), `remote kill ...` if it hangs
+      ^ OVERRUN: running 4 min, past 2x the 1 min it expected; not stopped
+```
+It then ran to its end (rc 0): nothing killed it. The jobs started from this branch installed the VERSION 4 sampler on
+the build box (JOBS/bin/boxjob.py): from 16:08 the build box's samples carry `quiet`, so `remote jobs --silences` has
+data from then on (render2 gets it with this branch's first job there).
+
+## Merge of pipeline-3d (tool/build2), 5f43ab11
+
+One conflict (boxjob's usage lines: both kept). boxjob.py stays VERSION 4 with build2's `reading()`; the sampler code
+is the same as what the demos installed. remote jobs --silences uses build2's per-box gcloud config (_genv). Related
+tests pass on the merge, each file alone (boxjob, boxpick, procs, slotprio, sweep, optimize, cow, remote_auth,
+pregate, calibrate). docs/CODEMAP.md not regenerated here (charkit/cow.py is new): regenerate on integration.
+
+## 204d1f7d reverted (7ffb725c)
+
+The stopped agent's per-writer fix (store, accept by replace) is redundant with cow.py and changed calibrate.store,
+which charkit.codediff counts in four QA parts' measuring code (accessories, declared, motion, piece_details): the gate
+would have listed them as unregistered measure changes. After the revert, codediff.measure_changes(60c0f1a4, HEAD): 0
+parts. Its message's "22" counts every failed calibrate job; 9 were this error.
+
+## Next steps
+
+1. Full suite (file by file, as the gate runs it): 97 files, 0 failed before the merge (318 s); rerun on the merge.
+2. `python -m charkit pregate --box auto`, then `python -m charkit remote gate tool/infra5-s --into pipeline-3d`
+   (`--box render2` if the build box is busy). Expected under K: no check moves (no QA code changed: codediff 0 parts;
+   no geometry change), CPU ~1.0x (the cow hook isn't installed in a gate's clone; procs' wait-file scan is per poll).
