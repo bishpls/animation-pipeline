@@ -542,7 +542,7 @@ class FaceStage(QAStage):
         VK = A['mouth'].get('view_keys') or {}
         got = {self.SKIN: dict(V=np.asarray(V1, float), F=np.asarray(quads), kind='skin', render=render,
                                cage=np.asarray(A['verts'], float), meta=bl.assembly_meta(A, S), step=step,
-                               keys={n: P['skin'] for n, P in VK.items()})}
+                               keys={n: P['skin'] for n, P in VK.items()}, spec=S)}
         for o in Bf.objects(visible=False):
             if not o.has('eval'):
                 continue
@@ -627,6 +627,10 @@ class FaceStage(QAStage):
         if sk is not None:
             B._meta['assembly'] = dict(B._meta.get('assembly') or {}, **{k: v for k, v in sk['meta'].items()
                                                                           if k in ('eyes', 'mouth', 'eye_z', 'mouth_z')})
+            # the row's own face settings in the bundle's spec (what the QA reads of them: the per-shot mouth keys')
+            B._meta['spec'] = dict(B._meta.get('spec') or {}, **{k: sk['spec'][k] for k in ('eyes', 'mouth', 'brows',
+                                                                                             'iris', 'nose')
+                                                                  if k in sk['spec']})
         return B
 
 
@@ -726,6 +730,10 @@ def _changed(a, b):
     if a['V'].shape != b['V'].shape or a['F'].shape != b['F'].shape or not np.array_equal(a['F'], b['F']):
         return True
     if np.abs(a['V'] - b['V']).max() > MOVED:
+        return True
+    ka, kb = a.get('keys') or {}, b.get('keys') or {}         # (shape keys a row adds: the face stage's per-shot keys)
+    if set(ka) != set(kb) or any(np.shape(ka[n]) != np.shape(kb[n]) or
+                                 np.abs(np.asarray(ka[n]) - np.asarray(kb[n])).max() > MOVED for n in ka):
         return True
     for k in ('vn', 'ow'):
         x, y = a.get(k), b.get(k)
