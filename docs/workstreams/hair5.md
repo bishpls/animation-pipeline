@@ -108,7 +108,42 @@ charkit/out/hair5/bN` (variants files must be tracked: charkit/out isn't synced)
 (b1 ran at 57a1c83: the ink measure before the thin ink, so its lines aren't comparable with b2's), b2/lab.json (at
 31e6654). Per variant: NAME.npz (label images), NAME.pieces.npz (the rebuilt pieces).
 
-(RESULTS TABLE: filled below at the checkpoint)
+Results (from the batch logs; b1's lines are the pre-thin ink, b2's the thin ink, so compare lines within a batch;
+h5_base reads 3.77 back ink with the thin ink, 1.85 with b1's):
+
+| variant | ahoge F | bend | attached L | back ink | hem (tips; drawn 8) | lines 3q | lines profile | upper | lower | side | bangs | buns | ahoge IoU | flyaways IoU | bun outline |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| b1 base | 0.371 | 108 | 0.029 | 1.85 | 5 (3) | 0.183 | 0.146 | 0.768 | 0.62 | 0.53 | 0.771 | 0.862 | 0.322 | 0.196 | 0.459 |
+| b1 A ahoge fit + flyaway root | **0.516** | **6.6** | **0** | 1.79 | 5 (3) | 0.146 | 0.138 | 0.771 | 0.62 | 0.529 | 0.77 | 0.862 | **0.529** | **0.163** | 0.461 |
+| b1 B A + upper back lock_min 40 | 0.516 | 6.6 | 0 | 0.88 | 5 | 0.148 | **0.081** | 0.77 | 0.62 | 0.529 | 0.77 | 0.863 | 0.529 | 0.163 | 0.461 |
+| b1 C A + upper back one lock | 0.516 | 6.6 | 0 | 0.09 | 5 | 0.148 | **0.071** | 0.769 | 0.62 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+| b1 D A + hem (fine tips, notch 6) | 0.516 | 6.6 | 0 | 1.92 | **3 (5)** | 0.158 | 0.150 | 0.771 | 0.62 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+| b1 E A + hem notch 10 | 0.516 | 6.6 | 0 | 1.90 | 3 (5) | 0.157 | 0.150 | 0.771 | 0.621 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+| b1 F A + hem notch 8, lower lock_min 5 | 0.516 | 6.6 | 0 | 2.03 | 3 (5) | 0.156 | 0.143 | 0.771 | 0.62 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+| b2 G A + ink_fade upper 0 | 0.516 | 6.6 | 0 | 3.14 | 5 | 0.178 | 0.149 | 0.771 | 0.62 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+| b2 H A + ink_fade upper 0.3, lower 0.6 | 0.516 | 6.6 | 0 | 3.29 | 5 | 0.178 | 0.151 | 0.771 | 0.62 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+| b2 I H + hem notch 6 | 0.516 | 6.6 | 0 | 3.39 | 3 (5) | 0.189 | 0.159 | 0.771 | 0.62 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+| b2 J H + upper lock_min 40 | 0.516 | 6.6 | 0 | 1.52 | 5 | 0.182 | **0.091** | 0.77 | 0.62 | 0.529 | 0.77 | 0.863 | 0.529 | 0.163 | 0.461 |
+| b2 K H + side locks 0.6 | 0.516 | 6.6 | 0 | 3.29 | 5 | 0.178 | 0.151 | 0.771 | 0.62 | 0.529 | 0.77 | 0.862 | 0.529 | 0.163 | 0.461 |
+
+Readings:
+- **The ahoge fit and the flyaway root fix flags 1 and 2's checks**: bend 108 -> 6.6 PASS, attached 0.029 -> 0 PASS,
+  ahoge F 0.37 -> 0.52 (still under the 0.55 WARN line: the fit is thinner and less curled than the drawn crescent in
+  front and back; lab3.json's single-view fits say whether the views disagree), hair_piece_ahoge 0.32 -> 0.53.
+- **But the anti-gaming guard would block A as it is: hair_piece_flyaways 0.196 -> 0.163 (-17%)** while hair_attached
+  improves. The root's carry (flyaway_reach 0.02 L into the drawn hair, at the bun's depth) shows in front of the bun
+  or mass in some view. Next: read the flyaways' per-view IoU (A's views) and the label image (b1/A_fit_fly.npz,
+  tools/hair5/pic.py), then a shorter reach (0.005-0.01 L) or the carry placed behind the surface it joins (its depth
+  past the bun's / mass's front), until the IoU holds within 15% in every view.
+- **ink_fade barely moves the back's ink** (thin ink 3.77 -> 3.14-3.29): the seams' outline weights reach only the side
+  columns (k = 0, 1), so the hull two columns in, the relief's grooves or the lock tops' edges still draw. Look at
+  b2/H_ink.npz's ink (the measure's picture: render hairflagqa.picture with our_ink for the rebuilt pieces) before
+  widening it; also check the lower back's horizontal top edge (the dark band's line).
+- **Fewer upper-back locks clear the back's ink but cost the profile's lines** (0.146 -> 0.071-0.091): the profile
+  draws lines the back doesn't. The view-dependent answer is the outline width (ink_fade), not fewer locks.
+- **The hem**: fine tips + notch on the lower back give 5 tips (drawn 8): hair_back_hem FAIL -> WARN (3), the back's
+  ink slightly up; notch 6 = 10. More tips need the lower back's lock count from the drawn hem (8 flicks: the
+  extended lock truth's lower-back flicks, or drawn_notches on the back view).
 
 ### Coordinator's item for the layering (2026-09-30)
 
