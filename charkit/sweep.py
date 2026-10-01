@@ -289,13 +289,41 @@ class _Arrays:
         return iter(self.files)
 
 
-def spliced(B0, rep, drop=()):
-    """B0 with arrays replaced (rep) and dropped: a Bundle in memory (no path: drawn with numpy; no content hash)."""
+def spliced(B0, rep, drop=(), mats=None):
+    """B0 with arrays replaced (rep) and dropped: a Bundle in memory (no path: drawn with numpy; no content hash).
+    mats {object: material names}: those objects' material lists replaced (ink_slots: a slot the splice adds), each new
+    material's definition copied from the hair's strand ink, or the outline's ink."""
     from charkit import bundle as bl
     meta = dict(B0._meta)
     meta.pop('content', None)
     meta.pop('hashes', None)
+    if mats:
+        M = dict(meta.get('materials') or {})
+        base = M.get('hair_ink') or M.get('line_ink') or next(iter(M.values()), {})
+        for names in mats.values():
+            for m in names:
+                M.setdefault(m, copy.deepcopy(base))
+        meta['materials'] = M
+        meta['objects'] = [dict(o, materials=list(mats[o['name']])) if o.get('name') in mats else o
+                           for o in meta['objects']]
     return bl.Bundle(meta, _Arrays(B0._arrays, rep, drop), path=None)
+
+
+def ink_slots(B0, name, ink):
+    """an object's material names with the ink slots its rebuilt faces need (kind 1 the strands' 'hair_ink', 2 the lock
+    lines' hairink.LOCK_MATERIAL) appended where the base lacks them, or None when it has them all."""
+    from charkit.qa3d import is_ink
+    from charkit.geom.hairink import LOCK_MATERIAL
+    if ink is None or not np.any(ink):
+        return None
+    mats = list(B0.obj(name).materials or [])
+    ink = np.asarray(ink, np.uint8)
+    add = []
+    if (ink == 1).any() and not any(is_ink(m) and m != LOCK_MATERIAL for m in mats):
+        add.append('hair_ink')
+    if (ink == 2).any() and LOCK_MATERIAL not in mats:
+        add.append(LOCK_MATERIAL)
+    return mats + add if add else None
 
 
 def garment_arrays(B0, name, V, F, pmat=None):
@@ -332,20 +360,35 @@ def garment_arrays(B0, name, V, F, pmat=None):
     return rep, [p + 'lnor']
 
 
-def hair_arrays(B0, name, V, T, vn=None, ow=None):
+def hair_arrays(B0, name, V, T, vn=None, ow=None, ink=None, mats=None):
     """a rebuilt hair piece's arrays in place of a bundle object's eval variant (tools/hair5/labart.py's splice): V, the
     triangles, slot 0, the loop normals from the piece's shading normals (the build sets them exactly), the outline's
     inward move along the angle-weighted vertex normal by |thickness| (1 + offset) / 2, times the piece's outline_w per
     vertex when it has one (the Blender build's outline_w vertex group: without it the splice drew full-width lines
     where the build fades them, e.g. tool/hairshell2: art_terminator_hair 2.207 against the build's 2.318 on the same
-    geometry) -> (rep, drop)."""
+    geometry). ink (per triangle): the hair's ink strokes (charkit.geom.hairink) on the base object's ink slots (kind 1
+    the strands', 2 the lock lines'), mats the object's material names when the splice adds slots (ink_slots) ->
+    (rep, drop)."""
     from charkit.geom.mesh import vertex_normals
     a = B0._arrays
     files = set(a.files if hasattr(a, 'files') else a)
     p = 'o/%s/eval/' % name
     V, T = np.asarray(V, float), np.asarray(T, np.int64)
+    pmat = np.zeros(len(T), np.int32)
+    if ink is not None and np.any(ink):
+        from charkit.qa3d import is_ink
+        from charkit.geom.hairink import LOCK_MATERIAL
+        mats = mats if mats is not None else (B0.obj(name).materials or [])
+        slot = next((k for k, m in enumerate(mats) if is_ink(m) and m != LOCK_MATERIAL), None)
+        lslot = next((k for k, m in enumerate(mats) if m == LOCK_MATERIAL), slot)
+        slot = lslot if slot is None else slot
+        if slot is None:
+            raise ValueError('%s: strokes need a base built with them (no ink slot on its hair objects)' % name)
+        ink = np.asarray(ink, np.uint8)
+        pmat[ink == 1] = slot                      # (the strands; the lock lines on the base's lock slot when it has
+        pmat[ink == 2] = lslot                     # one, else the strands': the line checks read both alike)
     rep = {p + 'V': V.astype(np.float32), p + 'loopv': T.ravel().astype(np.int32),
-           p + 'counts': np.full(len(T), 3, np.int32), p + 'pmat': np.zeros(len(T), np.int32)}
+           p + 'counts': np.full(len(T), 3, np.int32), p + 'pmat': pmat}
     drop = []
     if vn is not None:
         rep[p + 'lnor'] = np.asarray(vn, float)[T.ravel()].astype(np.float32)
@@ -433,19 +476,24 @@ class HairStage(QAStage):
             m = load_npz(os.path.join(pdir, p['file']))
             with np.load(os.path.join(pdir, p['file'])) as z:
                 ow = np.asarray(z['outline_w'], float) if 'outline_w' in z.files else None
+                ink = np.asarray(z['ink'], np.uint8) if 'ink' in z.files else None
             got['hair_' + p['name']] = dict(V=np.asarray(m.V, float), F=np.asarray(m.F, np.int64),
-                                            vn=None if m.vn is None else np.asarray(m.vn, float), kind='hair', ow=ow)
+                                            vn=None if m.vn is None else np.asarray(m.vn, float), kind='hair', ow=ow,
+                                            ink=ink)
         return got
 
     def bundle(self, objs):
-        rep, drop = {}, []
+        rep, drop, mats = {}, [], {}
         for n, o in objs.items():
             if not self.B0.has('o/%s/eval/V' % n):
                 continue
-            r, d = hair_arrays(self.B0, n, o['V'], o['F'], o.get('vn'), o.get('ow'))
+            m = ink_slots(self.B0, n, o.get('ink'))      # (an ink slot the base's object lacks: added to its list)
+            if m is not None:
+                mats[n] = m
+            r, d = hair_arrays(self.B0, n, o['V'], o['F'], o.get('vn'), o.get('ow'), o.get('ink'), m)
             rep.update(r)
             drop += d
-        return spliced(self.B0, rep, drop)
+        return spliced(self.B0, rep, drop, mats)
 
 
 @contextlib.contextmanager

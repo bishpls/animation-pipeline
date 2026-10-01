@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-09-30T20:39:42",
+ "at": "2026-10-01T07:43:44",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -105,18 +105,18 @@
  },
  "blind_to": [],
  "current": {
-  "value": 0.162,
+  "value": 0.1668,
   "status": "FAIL",
-  "margin": 0.136
+  "margin": 0.141
  },
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0.0166), hair5_1580f95 reads 0.1638 FAIL, the floor voronoi_lines FAIL, solid FAIL",
  "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
- "build": "charkit/out/h5_base",
+ "build": "charkit/out/hst_s1",
  "generators": {
   "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
   "solid": "no ink inside the mass (a solid orange mass)",
   "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
  },
- "seconds": 143.5
+ "seconds": 39.3
 }

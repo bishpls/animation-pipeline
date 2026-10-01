@@ -1,0 +1,95 @@
+{
+ "check": "hair_strokes_profile_dir",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T06:05:55",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_bangs",
+  "hair_piece_side_locks",
+  "hair_piece_upper_back",
+  "hair_piece_lower_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    4.3,
+    "PASS"
+   ],
+   "+0,+2": [
+    4.5,
+    "PASS"
+   ],
+   "+1,+0": [
+    4.3,
+    "PASS"
+   ],
+   "+2,+0": [
+    4.7,
+    "PASS"
+   ],
+   "+0,-1": [
+    4.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    3.6,
+    "PASS"
+   ],
+   "-1,+0": [
+    4.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    3.7,
+    "PASS"
+   ]
+  },
+  "min": 3.6,
+  "max": 4.7,
+  "spread": 1.1,
+  "median": 4.15
+ },
+ "known_bad": {
+  "name": "hst_base",
+  "value": null,
+  "status": "FAIL"
+ },
+ "floor": {
+  "turned_strokes": {
+   "values": [
+    61.4,
+    40.9,
+    68.6,
+    43.0,
+    39.8
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 43.0,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 14.4,
+  "status": "PASS",
+  "margin": 0.736
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 1.1), hst_base reads None FAIL, the floor turned_strokes FAIL",
+ "build": "charkit/out/hst_s1",
+ "generators": {
+  "turned_strokes": "the drawn strands inside the hair's mass each turned 30-90 degrees about its middle (in their places, across the hair's flow)"
+ },
+ "seconds": 251.7
+}
