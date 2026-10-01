@@ -422,7 +422,7 @@ def measure_labels(ours, pieces, D, ppl, lines=None, views=VIEWS):
             continue
         lab = ours[v]
         other = our_mask(lab, pieces, ('bun_L', 'bun_R', 'ahoge')) | (lab == OTHER)
-        keep_o = mass_interior(lab >= PART0, other, ppl) if lines is None or v not in lines else D['keep'][v]
+        keep_o = mass_interior(lab >= PART0, other, ppl)
         lo = skeleton(part_lines(lab) if lines is None or v not in lines else lines[v]) & keep_o
         lo_len = float(lo.sum()) / ppl
         ld_len = float((skeleton(D['lines'][v]) & D['keep'][v]).sum()) / ppl
@@ -497,9 +497,69 @@ def our_labels(B, design, hair=None):
     return {v: np.maximum(l[1], 0).astype(np.int32) for v, l in lab.items()}, pieces
 
 
-def our_lines(B, design, ours):
-    """our ink inside the hair per view, or None (measure_labels takes our part boundaries): the calibration's patch."""
-    return None
+INK = 2                     # our ink's label in our_ink's z-buffer (an outline hull's visible face)
+LINE_W = 0.0014             # m: the hair's outline width (scene.hair_pieces_objects' shade.outline), for rebuilt pieces
+
+
+def our_ink(B, design, hair=None, weights=None):
+    """our hair's ink as the render draws it, on the design's grids: each hair object's surface pulled in by its
+    outline (the bundle's per-vertex shrink: the outline's SOLIDIFY with its vertex-group widths) and its hull on the
+    original surface, flipped and back-face culled per view (qa3d.render_surfaces), z-buffered among the QA's other
+    surfaces; the pixels where a hull shows. hair {piece: (V, T)}: rebuilt pieces (a lab's), their shrink made from the
+    angle-weighted normals and LINE_W, times weights {piece: per-vertex 0..1} (the outline_w vertex group) where given.
+    -> {view: bool image}."""
+    from . import bodyqa, qa3d
+    from .geom.mesh import vertex_normals
+    sc = design.sheet_context()
+    As = B.assembly
+    others = []
+    V, T = B.skin().mesh('masked')[:2]
+    others.append((V, T, np.full(len(T), OTHER)))
+    for o in B.objects(groups=('eye', 'mouth', 'accessory', 'garment')):
+        if o.has('eval'):
+            V, T = o.mesh('eval')[:2]
+            others.append((V, T, np.full(len(T), OTHER)))
+    surf, hulls = [], []
+    if hair is None:
+        for o in B.objects(groups=('hair',)):
+            if not (o.name.startswith('hair_') and o.name[5:] in FAMILY and o.has('eval')):
+                continue
+            V, T = o.mesh('eval')[:2]
+            sh = o.a('eval', 'shrink')
+            surf.append((V + sh if sh is not None else V, np.asarray(T)))
+            if sh is not None:
+                hulls.append((np.asarray(V, float), np.asarray(T)[:, ::-1]))
+    else:
+        for pc, (V, T) in hair.items():
+            if pc not in FAMILY:
+                continue
+            V, T = np.asarray(V, float), np.asarray(T)
+            w = LINE_W * (np.asarray(weights[pc], float) if weights and pc in weights else 1.0)
+            n = vertex_normals(V, T)
+            surf.append((V - n * np.reshape(w, (-1, 1)) if np.ndim(w) else V - n * w, T))
+            hulls.append((V, T[:, ::-1]))
+    dv = design.design_views()
+    out = {}
+    az = bodyqa.azimuths(sc['az3'])
+    iw = np.array(qa3d.iris_centres(B))
+    for v in VIEWS:
+        if v not in dv:
+            continue
+        a = np.radians(az[v])
+        view_d = np.array([-np.sin(a), np.cos(a), 0.0])
+        meshes = list(others) + [(V, T, np.full(len(T), PART0)) for V, T in surf]
+        for V, T in hulls:
+            fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+            keep = fn @ view_d <= 0
+            meshes.append((V, T[keep], np.full(int(keep.sum()), INK)))
+        lab = bodyqa.zbuffer_views(meshes, sc['az3'], iw, As['centre'], As['L'], sc['ppl'], [v])[v][1]
+        out[v] = lab == INK
+    return out
+
+
+def our_lines(B, design, ours, hair=None, weights=None):
+    """our ink inside the hair per view (our_ink; the calibration patches this with its stand-ins)."""
+    return our_ink(B, design, hair, weights)
 
 
 def truth_path(B):
@@ -590,14 +650,14 @@ LAB_KEYS = ('hair_ahoge_shape', 'hair_ahoge_bend', 'hair_attached', 'hair_back_l
             'hair_penetration')
 
 
-def lab_measure(B, design, hair):
+def lab_measure(B, design, hair, weights=None):
     """the hair flags and the hair pieces' checks (every family's IoU per view: the anti-gaming guard's shapes) for
     hair {piece: (V, T)} over a bundle (charkit.hairlab's rebuilt pieces) -> (checks, ours, pieces)."""
     from . import qa3d
     _, Cq = qa3d.hair_pieces_measure(B, design, {n: (vt, vt) for n, vt in hair.items()})
     D, ppl = design_inputs(B, design)
     ours, pieces = our_labels(B, design, hair)
-    _, Cf = measure_labels(ours, pieces, D, ppl)
+    _, Cf = measure_labels(ours, pieces, D, ppl, lines=our_lines(B, design, ours, hair, weights))
     keep = ('value', 'status', 'views', 'tips', 'worst', 'p', 'r', 'ours', 'design', 'wave_L', 'detached', 'drawn')
     out = {k: {a: b for a, b in c.items() if a in keep} for k, c in list(Cf.items()) + list(Cq.items())
            if k in LAB_KEYS}
