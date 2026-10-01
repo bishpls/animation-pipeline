@@ -380,6 +380,7 @@ Harness scripts and outputs: `charkit/out/xpbd/r3/`.
   direction on the hips (as the cloth does: pins on the skin, hold toward the hips-carried shape), i.e. a helper root
   bone whose head rides the skin and whose rotation stays the hips'; above stiffness 8 the skirt gains 0.001 L, so 8 is
   enough. Spring settings stay out of the outfit graph (decision 2).
+- Pregate PASS at 78bc572 (0 moved). Gate launched at 6dee774 (`python -m charkit remote gate tool/xpbd --into pipeline-3d`, log charkit/out/xpbd/r3/gate.log).
 - **Review page** `charkit/out/xpbd/r3/review/index.html` (review.page3, made by `charkit/out/xpbd/r3/page.py`): the
   summary box, the waistband (numbers and pictures), the calibration, the CPU, the chains, the bake and its replay.
 - **Chains, roots riding the skin with the hips' rest direction** (`--root skin_pos`, tune_skinpos/, stiffness 1..32): skirt
