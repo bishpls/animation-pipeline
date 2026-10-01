@@ -21,6 +21,7 @@ don't hide each other), the star shown from behind past BACK_PX (+2 + px / 40), 
     python -m charkit accfit shape star|crab SPEC [--minutes M] [--out DIR] [--w-alone W]
     python -m charkit accfit place BUILD SPEC [--minutes M] [--out DIR] [--start JSON]
     python -m charkit accfit measure BUILD SPEC [--out DIR]        # the spec's clips placed and measured, a picture
+    python -m charkit accfit measure BUILD SPEC --starts A.json,B.json   # several placements, the QA's and the plain measure
 """
 import json, math, os, sys, time
 
@@ -481,6 +482,26 @@ def main(args):
         r = fit_shape(kind, D, s0, float(opt('--minutes', 10)), float(opt('--w-alone', 0.25)))
         json.dump(r, open(os.path.join(out, 'shape_%s.json' % kind), 'w'), indent=1)
         print(os.path.join(out, 'shape_%s.json' % kind))
+    elif cmd == 'measure' and opt('--starts'):
+        # several placements measured on one scene, each under the QA's measure and the plain one (as_drawn off: the
+        # old measure, the gate's 2x2) -> OUT/measure_NAME.{json,png}
+        from . import accqa
+        build, spec = args[1], _spec(args[2])
+        S = Scene(build, design(spec))
+        plain = lambda mo, md, occ, lw=2, it=10: (mo, 0.0)
+        for path in opt('--starts').split(','):
+            name = os.path.splitext(os.path.basename(path))[0]
+            specs = json.load(open(path))['specs']
+            r = S.measure(specs)
+            keep, accqa.as_drawn = accqa.as_drawn, plain
+            try:
+                r0 = S.measure(specs)
+            finally:
+                accqa.as_drawn = keep
+            json.dump(dict(specs=specs, result=clean(r), plain=clean(r0)),
+                      open(os.path.join(out, 'measure_%s.json' % name), 'w'), indent=1)
+            _save(os.path.join(out, 'measure_%s.png' % name), picture(S, specs))
+            print(name, r['loss'], _brief(r), 'plain', _brief(r0))
     elif cmd in ('place', 'measure'):
         build, spec = args[1], _spec(args[2])
         D = design(spec)
