@@ -616,3 +616,23 @@ where the drawing has upper back (hull 5%). Swaps (piecemix): without the flick 
 side locks 0.606 (+0.018). In profile flicks 9 and 10 show as long blades, 58% / 64% over the drawn upper back (they
 are fitted in the back view only; containment holds only the centreline). The side shells, narrower than the hull's
 side lock in profile (side locks P 0.469 -> 0.604), uncover the lower back's top.
+
+## (2b) tool/hairstrokes' ellipsoid normals tested (coordinator's request; scratch worktree)
+Scratch branch `scratch/hairshell3-ell` (worktree `~/animation-pipeline-hairshell-ell`, not for merge): tool/hairstrokes'
+769465a4 (hairpieces.shade_normals' shade_ellipsoid / shade_squash: the mass's normals, and the shells' proxy normals,
+blended toward an ellipsoid round the hair's mass) cherry-picked onto tool/hairshell3 08bf224, turned on through style
+profiles anime_ell50 / anime_ell100 (the anime profile with the blend; the build reads hair_pieces style by name).
+Real builds on the build box (boards views), six placements each (tools/hairshell3/term6p.py on the box):
+
+| build | art_terminator_hair place / mean +- std | per view mean F / 3q / P / B |
+|---|---|---|
+| hull (r4_hull) | 2.002 / 2.006 +- 0.081 | 7.51 / 8.12 / 3.81 / **1.87** |
+| hull + ellipsoid 1.0 (ell_hull100) | 2.100 / 2.119 +- 0.168 | 7.51 / 9.11 / 5.70 / 1.77 |
+| pilot shells (r4_pilot) | 1.844 / 1.990 +- 0.199 | 5.45 / 4.09 / 1.60 / **2.67** |
+| pilot + ellipsoid 0.5 (ell_pilot50) | 1.686 / 1.687 +- 0.210 | 5.07 / 3.12 / 3.16 / 2.24 |
+| pilot + ellipsoid 1.0 (ell_pilot100) | 1.533 / 1.593 +- 0.119 | 4.37 / 3.20 / 5.12 / 2.13 |
+
+Reading: the ellipsoid blend narrows the back view's gap (2.67 -> 2.13 at 1.0) but doesn't close it (the hull 1.87;
+the hull with the blend 1.77); it costs the profile view (1.6 -> 5.1; the check takes the worst view's ratio, so the
+overall still improves). The remaining gap is the flicks' geometry (they hang off the curling hem: (2) above). The
+other checks don't move with the blend (peeks 17, back lines 0.433, hem 2, folds 9, the pieces' IoU: normals only).
