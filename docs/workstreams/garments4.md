@@ -1239,3 +1239,20 @@ the targets (g7_base, pipeline-3d's default before the switch; builds g7_base / 
   under K.
 - **Checks waiting**: tools/garments7/drafts/lapelqa.py (collar_three_quarter_lapel_width / _v, from the lapels round:
   calibrate on the chosen build before moving it into charkit/).
+- **Gate 2** (be6aae1a into 27a4b6c3, build2; report charkit/out/gate/gate_tool-garments4-shoulders_be6aae1a_into_27a4b6c3.md):
+  FAIL, 22 blockers: the 15 expected (art_outline_neck 1.468 P -> 10.307 W, art_outline_collar 1.442 P -> 3.47 W; new
+  FAILs bow_front_bleed 0 -> 0.1475, collar_back/front/profile_torn 0.0101/0.0261/0.0197, sleeve_profile_profile_L
+  0.0307 W -> 0.1139, sleeve_three_quarter_profile_L 0.016 -> 0.0618; the guard on piece_top (front -32%, 3q -16%) and
+  piece_sleeve_L (profile -18%) under neck_v_front/three_quarter_skin and shoulder_back_dip/back_top/front_dip/
+  front_tilt/front_top improving) + 7 unexpected: the motion part's measuring code read as changed (its closure reaches
+  code_body/code_base/bodyeval: the rig it rebuilds) with no registered step (motion_kick/squat_skirt_inside/stretch;
+  their values identical on both geometries) and 3 calibration records to refresh.
+- Done: the 15 accepted by name (charkit/accepted/, Michael's why, the gate's readings; 1d948d0f); motion_* registered
+  as a remeasure (charkit/steps/code_body.py, commit 0f23cacb: the rig rebuilt with the joined shoulder; the measure
+  unchanged), records refreshed on g7_c7: kick_stretch and squat_stretch CALIBRATED. **Open: motion_kick_skirt_inside
+  MISCALIBRATED on today's skirt** (its design stand-in reads WARN in 7 of 8 moves; pipeline-3d's own build reads 0.0071
+  WARN, against 0.00244 PASS when calibrated on hands_b4): upstream drift, not this branch's; its record left as it was.
+- Infra slip (no harm): a `git stash` / `stash pop` here (the tree was clean) popped infra5-s's stash (the stash list is
+  shared across worktrees); it conflicted, so git kept the entry; my two files were restored from HEAD; stash@{0}
+  ("infra5-s: stopped agent wip (boxjob, remote)") is intact.
+- Gate 3 running (with the acceptances and --accept naming the 15; log charkit/out/garments7/gate3.log).
