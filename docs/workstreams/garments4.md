@@ -1119,3 +1119,15 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   dome is a small ring (x 0.4-0.6, y 0..0.2) while the jacket over the bridge spans y -0.1..0.27 at x 0.4-0.45: the
   jacket stands out of the dome in front and behind. The dome must hold the bridge's top (clear_body.from_t toward
   -0.38: gen 0's best probe); the sleeves' spikes and the profile's flat top are that growth's cost.
+- **art_outline_neck is a one-corner check in front**: the design reads 0.847 corners/L, the limit ratio 1.5, the
+  outline ~0.8-1.1 L long: g7_base passes with exactly 1 corner (1.266/L, ratio 1.47). tools/garments7/neckcorners.py
+  locates them: c4 has 12 (x -0.10 z -0.52 x4, x +0.09 z -0.53 x2, x +0.14 z -0.47 x2: the neck's base meeting the
+  lapel tips; x 0.21..0.33 z -0.50 x2: a thin skin line on the right shoulder (a fragment); the V x2). Every joined-
+  shoulder build had 11-20 (g6_c0: the bare bridge skin on both shoulder tops, since fixed).
+- Sweep s2 (render2, OAT on g7_c4: collar conform_smooth / reach / lift / neck_drop / neck_smooth / conform_k /
+  side_depth; table: tools/garments7/stab.py charkit/out/garments7/sweeps/s2/sweep.json): art_outline_neck 10.2-15.9 on
+  every row: the collar's crumple knobs don't reach it. (side_depth 0.455: piece_top front 0.46 but collar front 0.72.)
+- The shoulder line (stripwhy on c4): the skin 0.009 L in front of the collar there (the collar's shoulder lies just
+  under the raised shoulder), not under its mask (rim 1). Full builds on render2 (the mask is the build's):
+  g7_c5a = c4 + hide_under rim 0; g7_c5b = c4 without the neck flare; g7_c5c = both (specs charkit/out/garments7/specs,
+  script build_c5.sh: builds then neckcorners).
