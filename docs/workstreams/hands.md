@@ -268,3 +268,10 @@ flap_front_width_R PASS -> WARN; the 4 new hand FAILs (hand_shape_L 0.492, hand_
    rotations() on the boards, the export, exprqa's renders), fist QA on the built rig (interpenetration, knuckle area),
    then the `hands` expression component (relaxed, fist, open, point; per finger curl, spread, thumb opposition; per
    hand, blendable) on charkit/expressions.py, graded per pose against hand_breakdown (handref.sheet_hands).
+
+## Round 4: on-model pass (tool/hands2 from pipeline-3d 71a2f0e, 2026-10-01)
+Michael (2026-10-01): the default hand (de2fa87) "looks very bad to a visual inspection ... clearly extremely
+off-model" while its checks pass on shape IoU (13 PASS / 7 WARN / 1 FAIL). A check-versus-eye disagreement: calibrate
+the measure, truth-check the asset, check granularity, then fix the builder (code_hand.py). Rest orientation A stays;
+the pose library stays deferred. Harness and outputs: `charkit/out/hands2/`.
+- Box build `charkit/out/hands2_base` (render box, boards body,design): pipeline-3d 71a2f0e as is (the before).
