@@ -1204,7 +1204,7 @@ def _table(reads, shapes):
 from .registry import qa_part  # noqa: E402
 
 
-@qa_part('face_flags', order=850, table='face_flags')
+@qa_part('face_flags', order=850, table='face_flags', checks=44)
 def part(B, design=None, out=None):
     """Michael's face flags (2026-09-30) measured against head_turnaround and head_construction per view (this module):
     the iris against the opening, the lashes' detail, the brows, the default smile, the mouth's place in three-quarter

@@ -377,7 +377,7 @@ def face_folds(A):
     return dict(rest=rest, keys=keys, total=rest + sum(keys.values()))
 
 
-@qa_part('face_folds', order=500)
+@qa_part('face_folds', order=500, checks=1)
 def folds(B, design=None, out=None):
     """the face_folds check on a bundle -> ({}, checks)."""
     from .character import base_of
@@ -1000,7 +1000,7 @@ def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE, az=0.0):
     return np.concatenate([np.where(a > 1e-6, img[..., :3] / np.maximum(a, 1e-6), 0), a], -1)
 
 
-@qa_part('eyes', order=700, prefix='eye_', table='eyes', skip_key='eye')
+@qa_part('eyes', order=700, prefix='eye_', table='eyes', skip_key='eye', checks=8)
 def eyes(B, design, out=None, ss=EYE_SS):
     """our eyes against the eye design (the generated head sheet's front eyes, or the design rig's eye layers;
     charkit.eyeqa), measured the same way at its scale -> (table, checks)."""
@@ -1048,7 +1048,7 @@ def sheet_measure(B, design, covers=True):
     return O, D, ppl, az3, C
 
 
-@qa_part('sheet', order=900, prefix='sheet_', table='sheet')
+@qa_part('sheet', order=900, prefix='sheet_', table='sheet', checks=12)
 def sheet(B, design, out=None, covers=True):
     """our face against the design's model sheet (charkit.sheetqa): the sheet measured at its scale (from the rig's
     front figure), ours z-buffered in class labels at the same scale and angles. -> (table, checks)."""
@@ -1065,7 +1065,7 @@ def sheet(B, design, out=None, covers=True):
     return table, C
 
 
-@qa_part('sheet_expr', order=1200, table='sheet_expr')
+@qa_part('sheet_expr', order=1200, table='sheet_expr', checks=12)
 def sheet_expressions(B, design, out=None):
     """the sheet's expression heads against the kit's expression library (charkit.exprqa) -> (table, checks)."""
     from . import exprqa
@@ -1083,7 +1083,7 @@ def sheet_expressions(B, design, out=None):
     return table, C
 
 
-@qa_part('sheet_body', order=1100, prefix='body_', table='sheet_body')
+@qa_part('sheet_body', order=1100, prefix='body_', table='sheet_body', checks=78)
 def sheet_body(B, design, out=None):
     """the whole character against the design's full figures (charkit.bodyqa): front, three-quarter, profile, back, each
     z-buffered at the sheet's scale from the same azimuth with a class per triangle, aligned on the eyes. -> (table,
@@ -1243,7 +1243,7 @@ def hair_tips(mask, ppl, prom=None):
     return int(((tip[1:] & ~tip[:-1]).sum()) + int(tip[0]))       # a flat tip's columns count once
 
 
-@qa_part('hair_pieces', order=1400, table='hair_pieces')
+@qa_part('hair_pieces', order=1400, table='hair_pieces', checks=15)
 def hair_pieces(B, design, out=None):
     """the hair's pieces (hair.shape.mode 'pieces': objects hair_NAME, charkit.geom.hairpieces) against the design's
     families: every visible surface z-buffered on the design's grids with each hair object labelled by its family,
@@ -1413,7 +1413,7 @@ PIECE_PASS, PIECE_WARN = 0.75, 0.5     # a piece's overlap (bodymeasure.iou_tol)
                                        # own figures, so a PASS asks for what they can show
 
 
-@qa_part('sheet_pieces', order=1500, prefix='piece_', table='sheet_pieces')
+@qa_part('sheet_pieces', order=1500, prefix='piece_', table='sheet_pieces', checks=32)
 def sheet_pieces(B, design, out=None):
     """the outfit piece by piece against the design's (the outfit's per-view piece masks, cut from the body sheet):
     every object z-buffered on the design's grids with its own index, so a piece shows only where nothing of ours is in
@@ -1517,7 +1517,7 @@ def drawn_low(graph, pid, share=0.25):
 PIECE3D_PASS, PIECE3D_WARN = 0.04, 0.08     # L: a piece's median reach to the design's in 3D (bodymeasure.piece_depths)
 
 
-@qa_part('pieces_3d', order=1600, prefix='piece3d_', table='pieces_3d')
+@qa_part('pieces_3d', order=1600, prefix='piece3d_', table='pieces_3d', checks=19)
 def pieces_3d(B, design, out=None):
     """the outfit piece by piece against the visual hull's pieces in 3D (the target's per-vertex pieces, carried in the
     bundle: bodymeasure.piece_depths): checks <piece id> valued by its median reach (L), with the 90th percentile, the
@@ -1604,7 +1604,7 @@ def pieces_picture(labels, names, masks, graph, spec, dv):
     return np.concatenate([np.pad(c, ((0, H - c.shape[0]), (0, 8), (0, 0)), constant_values=1.0) for c in cols], 1)
 
 
-@qa_part('sheet_palette', order=1300, prefix='palette_', table='sheet_palette')
+@qa_part('sheet_palette', order=1300, prefix='palette_', table='sheet_palette', checks=13)
 def sheet_palette(B, design, out=None):
     """the design's colours per class (the sheet's own pixels, charkit.paletteqa) against the flat tones our materials
     render unlit -> (table, checks)."""
@@ -1622,7 +1622,7 @@ def sheet_palette(B, design, out=None):
     return table, paletteqa.compare(O, D)
 
 
-@qa_part('sheet_figures', order=1000, prefix='figures_', table='sheet_figures')
+@qa_part('sheet_figures', order=1000, prefix='figures_', table='sheet_figures', checks=1)
 def sheet_figures(B, design, out=None):
     """what figure detection found on the sheet (charkit.sheetqa.detect_figures) against the spec's hand-typed head boxes
     -> (table, checks); overlay qa_sheet_figures.png."""
@@ -1646,7 +1646,7 @@ def sheet_figures(B, design, out=None):
 
 
 # --------------------------------------------------------------------------------------------------- face shape
-@qa_part('face_shape', order=1800, prefix='face_shape_', table='face_shape', keep='face_shape')
+@qa_part('face_shape', order=1800, prefix='face_shape_', table='face_shape', keep='face_shape', checks=8)
 def face_shape(B, design, out=None, covers=True, tcache=None):
     """our face against the generated character's (charkit.faceqa), from the bundle's meshes. -> (result, checks)."""
     from . import faceqa
@@ -1714,7 +1714,7 @@ def coverage(fr, items, az, ss=FIG_SS, sigma=FIG_FILTER):
     return _blur_down(m[..., None], ss, sigma)[..., 0] > 0.5
 
 
-@qa_part('shape', order=100, table='views', ref_image=True)
+@qa_part('shape', order=100, table='views', ref_image=True, checks=6)
 def shape(B, design, out=None, ref_image=None):
     """silhouette IoU against the generated shape per azimuth and height band, and the front against the reference
     image -> (views, checks)."""
@@ -2087,7 +2087,7 @@ def tone_edges(lum, grp, min_px=50):
     return e, n
 
 
-@qa_part('hair_noise', order=400)
+@qa_part('hair_noise', order=400, checks=1)
 def hair_noise(B, design=None, out=None):
     """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
     drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
@@ -2127,7 +2127,7 @@ def hair_noise(B, design=None, out=None):
     return per, C
 
 
-@qa_part('scalp', order=200)
+@qa_part('scalp', order=200, checks=1)
 def scalp(B, design=None, out=None):
     """pixels of scalp showing through the hair: the skin's base polygons over the upper cranium and the back of the head
     drawn pure green (its outline off, as before), everything else as it renders, from 0, 90, 180 and 270 degrees; a
@@ -2171,7 +2171,7 @@ def scalp(B, design=None, out=None):
     return per, {'scalp_px': {'value': worst, 'per_view': per, 'status': _grade('scalp_px', worst, False)}}
 
 
-@qa_part('poke', order=300)
+@qa_part('poke', order=300, checks=1)
 def poke(B, design=None, out=None):
     """body vertices (the unmasked ones) lying just outside a garment's surface, where the garment is close: the body
     showing through it (3D, so legs seen below a skirt or an arm in front of it don't count). A short ray inward from
@@ -2220,7 +2220,7 @@ def poke(B, design=None, out=None):
     return None, {'poke_share': {'value': round(share, 4), 'per_garment': per_g, 'status': _grade('poke_share', share, False)}}
 
 
-@qa_part('mesh', order=600)
+@qa_part('mesh', order=600, checks=2)
 def mesh_info(B, design=None, out=None):
     """open edges and loose parts per hair and garment object's own mesh (information)."""
     mh = {}
@@ -2292,7 +2292,7 @@ def face_presets(B, ppl=200.0, data=None):
     return out
 
 
-@qa_part('face', order=1900, prefix='face_', table='face')
+@qa_part('face', order=1900, prefix='face_', table='face', checks=19)
 def face_part(B, design=None, out=None):
     """the face's expressions and mouth shapes (face()) as a part, with the open mouths' cover (mouth_cover) and the
     combined expressions against the template's targets (face_presets: face_preset_<name>, value the furthest feature
@@ -2317,7 +2317,7 @@ def face_part(B, design=None, out=None):
     return table, C
 
 
-@qa_part('eye_views', order=800, prefix='eye_', table='eye_views')
+@qa_part('eye_views', order=800, prefix='eye_', table='eye_views', checks=18)
 def eye_views(B, design=None, out=None):
     """each eye the head sheet draws, ours from the same azimuth (front, three-quarter, profile; charkit.eyeqa.views):
     where the iris sits in the opening, the front's pupil, the profile's edge and lash flick."""
@@ -2325,7 +2325,7 @@ def eye_views(B, design=None, out=None):
     return eyeqa.views(B, design, out)
 
 
-@qa_part('face_region', order=2000, table='face_region')
+@qa_part('face_region', order=2000, table='face_region', checks=26)
 def face_region(B, design=None, out=None):
     """the face's region on the assembled figure (charkit.faceregion): the eye's hollow, bowl and the cheek's lead, the
     eye's width in three-quarter and profile against the design's, the profile's edge from the chin to the chest and the
@@ -2334,7 +2334,7 @@ def face_region(B, design=None, out=None):
     return faceregion.measure(B)
 
 
-@qa_part('details', order=1700, table='details')
+@qa_part('details', order=1700, table='details', checks=35)
 def details(B, design=None, out=None):
     """the midriff's and the boots' details against the design (charkit.detailqa): the torso outline's steps and the
     top's junction with the band, the cream panel's edge; the boots' ankle, folds, heel, doubled lines, soles and
@@ -2343,7 +2343,7 @@ def details(B, design=None, out=None):
     return detailqa.measure(B, design, out)
 
 
-@qa_part('look', order=2100, table='look')
+@qa_part('look', order=2100, table='look', checks=12)
 def look(B, design=None, out=None):
     """the look's measures (charkit.lookqa): the face's shading noise, its shadows against the design's, the outlines'
     widths."""
@@ -2351,7 +2351,7 @@ def look(B, design=None, out=None):
     return lookqa.measure(B, design, out)
 
 
-@qa_part('skirt', order=2300, table='skirt')
+@qa_part('skirt', order=2300, table='skirt', checks=48)
 def skirt(B, design=None, out=None):
     """the skirt and the overskirt flaps against the design (charkit.skirtqa): the flaps' shape per view (IoU, width
     down their length, attach, hang angle, the profile's sweep, the clearance behind the leg), the stepped band's steps

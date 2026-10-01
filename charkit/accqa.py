@@ -982,7 +982,7 @@ def picture(pics, ppl, pieces_of, scale=2):
 from .registry import qa_part  # noqa: E402  (the registry finds the part by its decorator; nothing else imported)
 
 
-@qa_part('accessories', order=2400, table='accessories')
+@qa_part('accessories', order=2400, table='accessories', checks=50)
 def qa_accessories(B, design=None, out=None):
     """the hair clips against the design's: each clip found in the head and body turnarounds by the outfit graph's
     piece, ours z-buffered on the same grids; per clip and view its shape (IoU aligned on position and scale), size,

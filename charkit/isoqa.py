@@ -239,7 +239,7 @@ def reference(design, key, kind='shape'):
     return rgb, auth, pc
 
 
-@qa_part('iso_pieces', order=1776, table='iso_pieces')
+@qa_part('iso_pieces', order=1776, table='iso_pieces', checks=8)
 def iso_pieces(B, design=None, out=None):
     """rigid pieces alone against their isolated shape references (Michael, 2026-09-30)."""
     return measure(B, design)

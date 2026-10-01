@@ -612,7 +612,7 @@ def design_inputs(B, design):
     return got
 
 
-@qa_part('hair_flags', order=1450, table='hair_flags')
+@qa_part('hair_flags', order=1450, table='hair_flags', checks=7)
 def measure(B, design=None, out=None):
     """Michael's hair flags (the module's docstring) -> (table, checks)."""
     from . import qa3d
