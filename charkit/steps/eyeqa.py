@@ -12,4 +12,7 @@ MEASUREMENT_STEPS = [
                                         "ended at the opening's middle row, where a flick's tip can lie: face6_a read "
                                         "its notch, 0.219 against the design's 0.556; now 0.531); the design and "
                                         "1580f95 read the same under both"),
+    ('eye_lid_span', '314025e', "the upper lid line read above the lower corner's row plus 0.15 opening heights (it was "
+                                "the opening's middle row, which cut face6_a's flick off its line: 1.096 -> 1.247 against "
+                                "the design's 1.30; the design and 1580f95 read the same under both)"),
 ]
