@@ -9,7 +9,8 @@ The design (design()): head_turnaround's clips per view (accqa.design; the grade
 The template fit (fit_shape): one shape for every view and a pose per view (a turn about its up axis and a spin in its
 plane: the turnaround draws each clip nearly face-on in every view, so a view's pose is its own), each view scored by
 the as-drawn shape IoU (the other drawn clip's cover taken out of both), plus `w_alone` times the face-on IoU against
-the clips-alone drawing (its structure where the turnaround hides it: the crab's right claw under the star).
+the clips-alone drawing (its structure where the turnaround hides it: the crab's right claw under the star), and for
+the star W_ARMS times its tips' reach off the drawn star's (accqa.arms, accqa.STAR_ARMS: an IoU barely sees a tip).
 
 The placement fit (fit_place): both clips' at / facing / tilt / size on a build's hair (its bundle: the hair they rest
 on, everything else drawn once per view as what can cover them), the shapes fixed, by Nelder-Mead. The loss per clip
@@ -17,9 +18,9 @@ and view (front, three-quarter 1, profile 0.6: Michael's balance, 2026-09-30) is
 (round 2's), plus the rules: VIS_W per unit of a clip's share hidden below VIS_MIN in a view the design draws it (pieces
 don't hide each other), the star shown from behind (+2 + px / 40), the seat beyond 0.004 L (x 20).
 
-    python -m charkit.accfit shape star|crab SPEC [--minutes M] [--out DIR] [--w-alone W]
-    python -m charkit.accfit place BUILD SPEC [--minutes M] [--out DIR] [--start JSON]
-    python -m charkit.accfit measure BUILD SPEC [--out DIR]        # the spec's clips placed and measured, a picture
+    python -m charkit accfit shape star|crab SPEC [--minutes M] [--out DIR] [--w-alone W]
+    python -m charkit accfit place BUILD SPEC [--minutes M] [--out DIR] [--start JSON]
+    python -m charkit accfit measure BUILD SPEC [--out DIR]        # the spec's clips placed and measured, a picture
 """
 import json, math, os, sys, time
 
@@ -29,6 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VIEWS = ('front', 'three_quarter', 'profile')
 WEIGHT = {'front': 1.0, 'three_quarter': 1.0, 'profile': 0.6}     # Michael's balance between the front and the side
 KINDS = ('crab', 'star')
+W_ARMS = 2.0                          # the star fit's tip-reach term, per unit of arms() off the drawn star's
 VIS_MIN, VIS_W = 0.985, 20.0          # the non-occlusion term: VIS_W per unit of share hidden below VIS_MIN
 SEAT_TOL, SEAT_W = 0.004, 20.0
 # the shape knobs each template fit moves, with their starting steps (the shape's own units: fractions of the star's
@@ -110,7 +112,7 @@ def silhouette(V, F, px=240):
     return accqa.face_on(V, F, np.eye(3), ppl=px / max(ext, 1e-9))
 
 
-def score_shape(kind, shape, poses, D, w_alone=0.0, views=VIEWS):
+def score_shape(kind, shape, poses, D, w_alone=0.0, views=VIEWS, w_arms=W_ARMS):
     """a template's per-view as-drawn IoU (poses {view: (yaw, roll)}) and its face-on IoU against the clips-alone
     drawing -> dict(views {view: iou}, alone, loss)."""
     from . import accqa
@@ -127,9 +129,16 @@ def score_shape(kind, shape, poses, D, w_alone=0.0, views=VIEWS):
         out['views'][v] = round(iou, 4)
         loss += WEIGHT[v] * (1 - iou)
     al = D.get('alone', {}).get(kind)
+    face = silhouette(V, F)
     if al is not None:
-        out['alone'] = round(accqa.shape_iou(silhouette(V, F), al) or 0.0, 4)
+        out['alone'] = round(accqa.shape_iou(face, al) or 0.0, 4)
         loss += w_alone * (1 - out['alone'])
+    if kind == 'star' and w_arms:
+        # the tips' reach (accqa.arms against the drawn star's own readings, accqa.STAR_ARMS): thin tips weigh little
+        # in an IoU, so a fit to the silhouettes alone shortens them
+        a = accqa.arms(face) or {}
+        out['arms'] = {k: a.get(k) for k in ('side', 'minor')}
+        loss += w_arms * sum(abs(a.get(k, 0.0) - accqa.STAR_ARMS[k][0]) for k in ('side', 'minor'))
     out['loss'] = round(loss, 5)
     return out
 
@@ -413,6 +422,37 @@ def picture(S, specs, scale=2, pad=0.08):
         masks = {accqa.PIECE[k]: m[:H_, :W_] for k, m in S.D['views'].get(v, {}).items()}
         pics[v] = (rgb[:H_, :W_], masks, lab, [k for k, _, _, _ in clips])
     return accqa.picture(pics, S.ppl, lambda k: accqa.PIECE.get(k, k), scale)
+
+
+def shape_picture(kind, shape, poses, D, S=96):
+    """a template fit's picture: per view (and the clips-alone drawing face-on) ours aligned on the drawn clip as the
+    QA aligns it (accqa.normalised: centroid and area, the drawing's cover taken out of ours: as_drawn), grey where both
+    are, blue the drawing only, red ours only, the cover dark -> image."""
+    from . import accqa
+    V, F = template(kind, shape)
+    tiles = []
+    items = [(v, posed(V, *poses[v]), D['views'].get(v, {}).get(kind), occluder(D, v, kind)) for v in VIEWS
+             if v in poses and D['views'].get(v, {}).get(kind) is not None]
+    if D.get('alone', {}).get(kind) is not None:
+        items.append(('alone', V, D['alone'][kind], None))
+    for v, Vp, md, occ in items:
+        mo = silhouette(Vp, F)
+        mo_d, _ = accqa.as_drawn(mo, md, occ, lw=2) if occ is not None else (mo, 0.0)
+        # both on the drawn clip's normalised frame: ours scaled to its area, the cover moved alike
+        A, B_ = accqa.normalised(mo_d, S), accqa.normalised(md, S)
+        im = np.full(A.shape + (3,), 0.97)
+        if occ is not None:
+            from scipy import ndimage
+            ys, xs = np.nonzero(md)
+            k = np.sqrt(len(ys)) / S
+            N = A.shape[0]
+            yy, xx = np.mgrid[0:N, 0:N]
+            cov = ndimage.map_coordinates(occ.astype(float), [ys.mean() + (yy + 0.5 - N / 2) * k - 0.5,
+                                                               xs.mean() + (xx + 0.5 - N / 2) * k - 0.5], order=0) > 0.5
+            im[cov] = (0.35, 0.33, 0.3)
+        im[A & B_] = (0.55, 0.55, 0.6); im[B_ & ~A] = (0.3, 0.45, 0.95); im[A & ~B_] = (0.92, 0.3, 0.3)
+        tiles.append(np.pad(im, ((4, 4), (4, 4), (0, 0)), constant_values=1.0))
+    return np.concatenate(tiles, 1) if tiles else None
 
 
 # ------------------------------------------------------------------------------------------------------------ the CLI

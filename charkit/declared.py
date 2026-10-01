@@ -22,6 +22,9 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   area         the piece's pixels over the drawn piece's, |ratio - 1| (a size: the wrist cuffs 1.5-2.4x the drawn)
   ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
                recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
+  visible      the share of the piece's own silhouette (its objects each drawn alone: the inputs' `alone`, {view:
+               {object: mask}}) that shows with everything drawn (Michael's non-occlusion rule, 2026-09-30: pieces
+               don't hide each other); measured where the design draws the piece (higher is better)
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -63,6 +66,7 @@ ADAPTERS = {                          # a part -> its calibration stand-in (modu
     'piece_details': ('charkit.calib.details', 'Details'),
     'collar_flags': ('charkit.calib.labels', 'Garments'),
     'sheet_pieces': ('charkit.calib.labels', 'Pieces'),
+    'accessories': ('charkit.calib.clips', 'Clips'),
 }
 WHY_OURS = 'ours shows too little of the piece here'
 
@@ -407,9 +411,24 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
                 precision=round(prec, 3))
 
 
+def visible(Mo, Md, ctx, round_=3):
+    """the share of the piece that shows: its pixels with everything drawn (Mo) over its own silhouette, its objects
+    each drawn alone (ctx 'alone': a callable or a mask). Md, the drawn piece, only says the design shows it here."""
+    from . import pieceqa
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    A = ctx.get('alone')
+    A = A() if callable(A) else A
+    if A is None:
+        return None
+    if A.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    return dict(value=round(float((Mo & A).sum()) / float(A.sum()), round_), ours=int(Mo.sum()), alone=int(A.sum()))
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position, ink_inside=ink_inside, area=area)
-HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
+                position=position, ink_inside=ink_inside, area=area, visible=visible)
+HIGHER = ('shape_iou', 'visible')       # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
 
 
@@ -503,6 +522,16 @@ def silhouette(I, view, pid):
     return bodymeasure.member_mask(got[0], idx, I['pm'].get(pid, []))
 
 
+def alone(I, view, pid):
+    """the piece's own silhouette in a view: its objects each drawn alone (the inputs' `alone` {view: {object: mask}}),
+    their union, or None without them."""
+    got = (I.get('alone') or {}).get(view)
+    if got is None:
+        return None
+    ms = [got[n] for n, _ in I['pm'].get(pid, []) if n in got]
+    return np.any(ms, 0) if ms else None
+
+
 def fit(m, shape):
     """a mask cropped or padded to shape (the drawn masks against our label image's grid)."""
     out = np.zeros(shape, bool)
@@ -569,6 +598,7 @@ def evaluate(decls, I):
                    cls_ours=(I.get('cls_ours') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
+        ctx['alone'] = (lambda v=view, ps=pieces: alone(I, v, ps[0]))
         fam = FAMILIES[d['family']]
         if 'round' in params:
             params['round_'] = params.pop('round')
@@ -583,7 +613,7 @@ def evaluate(decls, I):
             if r.get('count_status'):
                 st = pieceqa.worst(st, r['count_status'])
             c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
-            for k in ('count', 'ratio', 'fill', 'ratio_fill'):
+            for k in ('count', 'ratio', 'fill', 'ratio_fill', 'alone'):
                 if k in r:
                     c[k] = r[k]
             if d.get('note'):

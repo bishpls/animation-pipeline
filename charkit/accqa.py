@@ -67,10 +67,10 @@ ROUND = 1.15                           # principal axes' ratio under which a sha
 MIN_PX = 40                            # a mask this small (either side) is not graded
 # the star's proportions face-on (arms(): each arm's reach from the centroid over the height tip to tip), from
 # head_turnaround where the clips-alone sheet disagrees (layerrefs.md section 6; Michael, 2026-10-01): the side arm the
-# unoccluded right arm's (front / three-quarter / profile 0.36 / 0.41 / 0.41: the left is shortened under the drawn
-# crab), the minor points the four diagonals' (0.25 / 0.29 / 0.31; the clips-alone sheet: side 0.48, minor 0.24, an
-# equal-armed compass star). (target, pass within, warn within)
-STAR_ARMS = {'side': (0.39, 0.04, 0.08), 'minor': (0.28, 0.04, 0.08)}
+# drawn star's longer (unoccluded) one, front / three-quarter / profile 0.361 / 0.393 / 0.400 (the left is under the drawn
+# crab: 0.25-0.33), the minor points the four diagonals' 0.302 / 0.316 / 0.315; the clips-alone sheet's star reads side
+# 0.482, minor 0.280 (an equal-armed compass star). (target: the views' mean, pass within, warn within)
+STAR_ARMS = {'side': (0.385, 0.03, 0.06), 'minor': (0.311, 0.03, 0.06)}
 DECLARED_CHECKS = [
     # Michael's non-occlusion rule (2026-09-30, tool/accessories5): each clip's share that shows. Calibrated as a defect
     # detector: the drawn clips standing for ours (each its drawn mask, the other drawn clips moved 1-2 px against it)
@@ -426,8 +426,9 @@ def as_drawn(mo, md, occ, lw=2, it=10):
 
 def arms(m, width=20.0):
     """a star's arms from its centroid as fractions of its height (the up and down reaches' sum), each the furthest
-    outline point within `width` degrees of its direction: up, down, the side arms' mean (left, right kept), the four
-    diagonal minor points' mean -> dict, or None for an empty mask."""
+    outline point within `width` degrees of its direction: up, down, the longer side arm (a drawn star's other one can
+    be under another clip: head_turnaround's left arm under the crab; left and right kept), the four diagonal minor
+    points' mean -> dict, or None for an empty mask."""
     from scipy import ndimage
     if m.sum() < MIN_PX:
         return None
@@ -446,7 +447,7 @@ def arms(m, width=20.0):
     if h <= 0:
         return None
     f = lambda v: round(float(v / h), 3)
-    return dict(up=f(reach['up']), down=f(reach['down']), side=f((reach['left'] + reach['right']) / 2),
+    return dict(up=f(reach['up']), down=f(reach['down']), side=f(max(reach['left'], reach['right'])),
                 left=f(reach['left']), right=f(reach['right']),
                 minor=f((reach['ur'] + reach['dr'] + reach['dl'] + reach['ul']) / 4), height_px=round(h, 1))
 
@@ -542,14 +543,31 @@ def triangulate(M, az3):
 
 
 # -------------------------------------------------------------------------------------------------------------- ours
-def our_labels(meshes, clips, az, origin, L, ppl, win=WIN):
+def our_labels(meshes, clips, az, origin, L, ppl, win=WIN, ids=False):
     """ours on a view's window grid: meshes [(V, T)] drawn as occluders, clips [(V, T)] labelled 1..n
-    -> label image (0 = anything else or nothing, k = clip k's visible pixels)."""
+    -> label image (0 = anything else or nothing, k = clip k's visible pixels); ids: the occluders labelled too,
+    OCC_ID + their index (what covers a clip: covered_by())."""
     from . import faceqa
-    ms = [(V, T, np.zeros(len(T), np.int64)) for V, T in meshes]
+    ms = [(V, T, np.full(len(T), OCC_ID + i if ids else 0, np.int64)) for i, (V, T) in enumerate(meshes)]
     ms += [(V, T, np.full(len(T), k + 1, np.int64)) for k, (V, T) in enumerate(clips)]
     _, lab = faceqa.zbuffer(ms, az, origin, L, 1.0 / ppl, win)
     return np.maximum(lab, 0)
+
+
+OCC_ID = 100000                        # our_labels(ids=True): an occluder's label, OCC_ID + its index
+
+
+def covered_by(lab_ids, alone, shown, names, kinds):
+    """what covers a clip where it doesn't show: the pixels of its own silhouette (alone) that it doesn't show, by the
+    label in front of them (another clip by its kind, an occluder by its object's name: names) -> {name: px}, most first."""
+    hid = alone & ~shown
+    out = {}
+    if hid.any():
+        ids, n = np.unique(lab_ids[hid], return_counts=True)
+        for i, c in zip(ids, n):
+            name = names[i - OCC_ID] if i >= OCC_ID else kinds[i - 1] if 1 <= i <= len(kinds) else 'nothing'
+            out[name] = out.get(name, 0) + int(c)
+    return dict(sorted(out.items(), key=lambda t: -t[1]))
 
 
 def origin(view, az, iris, centre):
@@ -738,9 +756,9 @@ def piece_of(kind, spec_acc=None):
     return (spec_acc or {}).get('piece') or PIECE.get(kind)
 
 
-def evaluate(B, designs, pieces, az3=None):
+def evaluate(B, designs, pieces, az3=None, alone=None):
     """ours against every sheet's clips -> (table, checks, pictures {sheet: {view: (design rgb, masks, ours label,
-    ids)}})."""
+    ids)}}). alone: the clips-alone drawings (alone_clips()) for the face-on structure checks."""
     from . import qa3d
     As = B.assembly
     L = float(As['L']); centre = np.asarray(As['centre'], float)
@@ -749,10 +767,15 @@ def evaluate(B, designs, pieces, az3=None):
     names = {o.name for _, o in clips}
     meshes, objn = qa3d.scene_objects(B)
     occ = [(V, T) for (V, T, _), n in zip(meshes, objn) if n not in names]
+    occ_names = [n for n in objn if n not in names]
     geo = [o.mesh('eval')[:2] for _, o in clips]
     kinds = [k for k, _ in clips]
     spec_acc = {a['kind']: a for a in (B.spec.get('accessories') or [])}
     table, C, pics = {'sheets': {}, 'seat': {}}, {}, {}
+    # the declared checks' inputs (DECLARED_CHECKS, part 'accessories'): the graded sheet's labels per view (clip k + 1),
+    # the drawn clips, each clip's own silhouette drawn alone
+    I = dict(O={}, names=['-'] + [o.name for _, o in clips], masks={}, alone={}, dv={},
+             pm={piece_of(k, spec_acc.get(k)): [(o.name, None)] for k, o in clips})
     for sname, D in designs.items():
         ppl = D['ppl']
         a3 = D['az3']
@@ -760,12 +783,20 @@ def evaluate(B, designs, pieces, az3=None):
         T_ = table['sheets'].setdefault(sname, {'ppl': round(ppl, 2), 'az3': a3, 'views': {}})
         pics[sname] = {}
         Mo_all, Md_all = {}, {}
+        if D['graded']:
+            I['ppl'] = ppl
         for v, dv in D['views'].items():
             org = origin(v, azs[v], iris, centre)
-            lab = our_labels(occ, geo, azs[v], org, L, ppl)
-            H_, W_ = min(lab.shape[0], dv['rgb'].shape[0]), min(lab.shape[1], dv['rgb'].shape[1])
-            lab = lab[:H_, :W_]
+            lab_ids = our_labels(occ, geo, azs[v], org, L, ppl, ids=True)
+            H_, W_ = min(lab_ids.shape[0], dv['rgb'].shape[0]), min(lab_ids.shape[1], dv['rgb'].shape[1])
+            lab_ids = lab_ids[:H_, :W_]
+            lab = np.where(lab_ids < OCC_ID, lab_ids, 0)
+            solo = [our_labels([], [g], azs[v], org, L, ppl)[:H_, :W_] == 1 for g in geo]   # each clip drawn alone
             pics[sname][v] = (dv['rgb'][:H_, :W_], {p: m[:H_, :W_] for p, m in dv['masks'].items()}, lab, kinds)
+            if D['graded']:
+                I['O'][v] = {'lab': lab}
+                I['alone'][v] = {o.name: a for (_, o), a in zip(clips, solo)}
+                I['dv'][v] = {}
             for k, kind in enumerate(kinds):
                 pid = piece_of(kind, spec_acc.get(kind))
                 md = dv['masks'].get(pid)
@@ -773,11 +804,23 @@ def evaluate(B, designs, pieces, az3=None):
                     continue
                 md = md[:H_, :W_]
                 mo = lab == k + 1
-                Ck, O, Dm = compare(mo, md, ppl, kind, v)
-                T_['views'].setdefault(v, {})[kind] = {'ours': O, 'design': Dm}
+                cover = [m[:H_, :W_] for p, m in dv['masks'].items() if p != pid and m is not None and m.any()]
+                Ck, O, Dm = compare(mo, md, ppl, kind, v, occ=np.any(cover, 0) if cover else None)
+                vis = dict(share=round(float(mo.sum()) / max(1, int(solo[k].sum())), 4), alone=int(solo[k].sum()),
+                           covered_by=covered_by(lab_ids, solo[k], mo, occ_names, kinds))
+                T_['views'].setdefault(v, {})[kind] = {'ours': O, 'design': Dm, 'visible': vis}
                 Mo_all.setdefault(kind, {})[v] = O; Md_all.setdefault(kind, {})[v] = Dm
                 if D['graded']:
                     C.update(Ck)
+                    I['masks']['%s__%s' % (v, pid)] = md
+        if D['graded']:
+            # each clip's shape IoU per view in one check (the anti-gaming guard's measure for the clips' own checks)
+            for kind in kinds:
+                vs = {v: C['acc_%s_%s_iou' % (kind, v)]['value'] for v in VIEWS if 'acc_%s_%s_iou' % (kind, v) in C}
+                if vs:
+                    C['acc_%s_shape' % kind] = {'value': round(float(np.mean(list(vs.values()))), 3), 'views': vs,
+                                                'status': 'INFO', 'note': "the clip's shape IoU per view as the drawing "
+                                                                          "shows it (acc_KIND_VIEW_iou): the guard's"}
         # the clip's 3D place: each side triangulated from its views' centroids
         for kind in Mo_all:
             to, td = triangulate(Mo_all[kind], a3), triangulate(Md_all[kind], a3)
@@ -824,7 +867,46 @@ def evaluate(B, designs, pieces, az3=None):
             C['acc_%s_colour' % kind] = {'value': round(float(dE), 2), 'ours': _hex(rec['lit']), 'design': _hex(T['lit']),
                                         'status': 'PASS' if dE <= 5 else 'WARN' if dE <= 10 else 'FAIL',
                                         'note': "our material's lit tone against the drawn clip's (dE00)"}
+    # the declared checks (DECLARED_CHECKS: each clip's visible share, Michael's non-occlusion rule), what covers it
+    if I.get('ppl') is not None and I['O']:
+        from . import declared
+        _, Cd = declared.evaluate_part('accessories', I)
+        for name, c in Cd.items():
+            for sname, D in designs.items():
+                if D['graded']:
+                    for v, per in table['sheets'][sname]['views'].items():
+                        for kind, rec in per.items():
+                            if name == 'acc_%s_%s_visible' % (kind, v) and rec.get('visible'):
+                                c['covered_by'] = rec['visible']['covered_by']
+        C.update(Cd)
+    C.update(structure(clips, geo, centre, alone))
     return table, C, pics
+
+
+def structure(clips, geo, centre, alone=None):
+    """each clip face-on (its own facing: clip_axes): the star's arms against head_turnaround's proportions (STAR_ARMS:
+    acc_star_arms, acc_star_minor), and every clip against the clips-alone drawing (acc_KIND_alone, INFO: the structure
+    authority, its proportions the sheet's own) -> checks."""
+    C = {}
+    for (kind, o), (V, F) in zip(clips, geo):
+        m = face_on(V, F, clip_axes(V, centre))
+        if kind == 'star':
+            a = arms(m)
+            if a is not None:
+                for key, name in (('side', 'arms'), ('minor', 'minor')):
+                    t, p, w = STAR_ARMS[key]
+                    d = a[key] - t
+                    C['acc_star_%s' % name] = {
+                        'value': round(d, 3), 'ours': a[key], 'design': t, 'arms': a,
+                        'status': 'PASS' if abs(d) <= p else 'WARN' if abs(d) <= w else 'FAIL',
+                        'note': "the star face-on: its %s over its height, against head_turnaround's unoccluded "
+                                "reading (the clips-alone sheet's structure, the turnaround's proportions)" % (
+                                    'side arms' if key == 'side' else 'four minor points')}
+        if alone and alone.get(kind) is not None:
+            C['acc_%s_alone' % kind] = {'value': round(shape_iou(m, alone[kind]) or 0.0, 3), 'status': 'INFO',
+                                        'note': 'our clip face-on against the clips-alone drawing (shape IoU: its '
+                                                'structure; the proportions are head_turnaround\'s)'}
+    return C
 
 
 def _inner(m):
@@ -901,7 +983,11 @@ def qa_accessories(B, design=None, out=None):
     if not got:
         return None, {'acc': {'status': 'SKIPPED', 'why': "no clip pieces in the outfit graph, or no turnarounds"}}
     D, P = got
-    table, C, pics = evaluate(B, D, P)
+    al = design.memo(alone_clips, B.spec) if design is not None else None
+    if al:
+        for p in al[1]:
+            design._rec(p)
+    table, C, pics = evaluate(B, D, P, alone=al[0] if al else None)
     if out:
         for name, pv in pics.items():
             im = picture(pv, D[name]['ppl'], lambda k: PIECE.get(k, k), 2 if D[name]['ppl'] > 300 else 3)
