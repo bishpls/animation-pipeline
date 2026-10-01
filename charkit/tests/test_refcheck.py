@@ -66,3 +66,33 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_at_scale_takes_its_closest_attempt_when_the_eyes_read_unevenly():
+    """small dark eyes read their spacing to a pixel or so, not linearly in the factor: at_scale never landed within
+    0.3 px and raised (a second character's head sheet, 2026-10-01). Its closest attempt within AT_SCALE_NEAR is taken;
+    a sheet that converges returns as before; one off by more still raises."""
+    real = refcheck.detect_heads
+    rgb = np.zeros((40, 60, 3))
+
+    def jittery(native, jit):
+        def fake(img, eye_x, facing=-1):
+            f = img.shape[1] / 60.0
+            k = int(round(f * 1000))
+            return dict(ppl=(native * f + (jit if k % 2 else -jit)) / (2 * eye_x), heads={})
+        return fake
+    try:
+        refcheck.detect_heads = jittery(100.0, 1.0)              # +-1 px however the factor is tuned
+        small, f, H = refcheck.at_scale(rgb, 0.168, 120.0, guess=1.0)
+        assert abs(H['ppl'] * 2 * 0.168 - 120.0) <= refcheck.AT_SCALE_NEAR * 120.0
+        refcheck.detect_heads = jittery(100.0, 0.0)              # converges: within 0.3 px
+        small, f, H = refcheck.at_scale(rgb, 0.168, 120.0, guess=1.0)
+        assert abs(H['ppl'] * 2 * 0.168 - 120.0) <= 0.3
+        refcheck.detect_heads = jittery(100.0, 10.0)             # never within 1%: raises
+        try:
+            refcheck.at_scale(rgb, 0.168, 120.0, guess=1.0)
+            assert False, 'expected RuntimeError'
+        except RuntimeError:
+            pass
+    finally:
+        refcheck.detect_heads = real

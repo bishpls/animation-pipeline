@@ -141,6 +141,16 @@ Fixes in progress (uncommitted until measured; all inert for Clawd):
       plus the bare torso (fix 20):                0.875 / 0.813 / 0.942 / 0.863 (torso 0.887 / 0.852 / 0.956 / 0.883)
     A foot coverage rule (FOOT_COVER) was tried and reverted: on the true hull it moved the feet by 0.001.
     Tests: test_code_body +2, test_manifest +2 (each fails on the old code); the set of 7 files 40 passed.
+21. faceflags read its design sheets from charkit/refs/clawd/gen/ whatever the character (b1's QA: face_flags
+    raised in at_scale on Clawd's drawings under the second character's palette): sheet_path() resolves them through
+    the build's manifest (part() sets it from the bundle's spec); a manifest without one raises.
+22. refcheck.at_scale: small dark eyes read their spacing to a pixel, not linearly in the factor, so the 0.3 px target
+    never converged (face_flags and hairweight raised on his own sheet): the closest attempt within 1%
+    (AT_SCALE_NEAR) is taken when none lands within 0.3 px; converging sheets return as before.
+23. preview.design_refs / reviewpage: the review page's design pictures were Clawd's turnarounds for any build; they
+    are the build's own manifest's (PAGE.json 'manifest', else the first build's), read with its palette and window.
+    Tests: test_refcheck +1, test_faceflags +1, test_reviewpage +1 (the first two fail on the old code); the four
+    files 21 passed.
 Preflight (charkit/private/c3/out/preflight/): the draft (7 garments, 2 accessories) and every drafted garment through
 the numpy builder (bodyeval.garment_piece) build without error; the sandals inherit the foot's bad width.
 

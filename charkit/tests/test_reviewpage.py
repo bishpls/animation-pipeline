@@ -63,3 +63,14 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_the_pages_design_is_the_builds_own_character():
+    """the design's pictures were always Clawd's (preview.design_refs read her manifest): the page takes PAGE.json's
+    'manifest', else its first build's (its resolved NAME.spec.json's ref.manifest)."""
+    import json, tempfile
+    from charkit import reviewpage
+    d = tempfile.mkdtemp(prefix='charkit-rp-')
+    json.dump({'name': 'x', 'ref': {'manifest': 'somewhere/manifest.json'}}, open(os.path.join(d, 'x.spec.json'), 'w'))
+    assert reviewpage.manifest_of(d) == 'somewhere/manifest.json'
+    assert reviewpage.manifest_of(tempfile.mkdtemp(prefix='charkit-rp-')) is None

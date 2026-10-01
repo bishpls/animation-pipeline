@@ -172,9 +172,20 @@ def _resample(rgb, f):
     return np.asarray(im.resize((max(1, round(im.width * f)), max(1, round(im.height * f))), Image.LANCZOS)).astype(float) / 255
 
 
+AT_SCALE_NEAR = 0.01        # at_scale's closest attempt is taken when none lands within 0.3 px, if within this share
+                            # of the spacing: small dark eyes read their spacing to a pixel or so, not linearly in the
+                            # factor (a second character's: factor 1.03 read 131.7 px for 134.5), so it never converged
+
+
 def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
     """a head sheet resampled so its front head's eyes are `spacing` px apart (the model sheet's)
-    -> (rgb at that scale, the factor, detect_heads' result there)."""
+    -> (rgb at that scale, the factor, detect_heads' result there). Within 0.3 px, else the closest attempt within
+    AT_SCALE_NEAR of the spacing, else RuntimeError."""
+    best = [None]
+
+    def near(small, f, H, cur):
+        if best[0] is None or abs(cur - spacing) < best[0][0]:
+            best[0] = (abs(cur - spacing), small, f, H)
     f = guess
     for _ in range(6):
         small = _resample(rgb, f)
@@ -186,14 +197,15 @@ def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
         cur = H['ppl'] * 2 * eye_x
         if abs(cur - spacing) <= 0.3:
             return small, f, H
+        near(small, f, H, cur)
         f *= spacing / cur
     # (a sheet whose heads the guess's scale loses, small dark eyes: start from its own scale instead)
     try:
         H = detect_heads(rgb, eye_x, facing)
     except RuntimeError:
-        raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
-    f = spacing / (H['ppl'] * 2 * eye_x)
-    for _ in range(6):
+        H = None
+    f = spacing / (H['ppl'] * 2 * eye_x) if H else None
+    for _ in range(6 if H else 0):
         small = _resample(rgb, f) if abs(f - 1) > 1e-9 else rgb
         try:
             H = detect_heads(small, eye_x, facing)
@@ -202,7 +214,10 @@ def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
         cur = H['ppl'] * 2 * eye_x
         if abs(cur - spacing) <= 0.3:
             return small, f, H
+        near(small, f, H, cur)
         f *= spacing / cur
+    if best[0] is not None and best[0][0] <= AT_SCALE_NEAR * spacing:
+        return best[0][1:]
     raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
 
 
