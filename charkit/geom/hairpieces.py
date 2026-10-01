@@ -1464,8 +1464,9 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
     if keep is not None:
         for k in range(nu + 1):
             d = min(k, nu - k)
-            if d >= 2:
-                continue
+            if d >= 2 or abs(wrap(phs[k])) < opts.get('ink_phi', 0.0):
+                continue                    # (ink_phi: the seams nearer the front than this keep their line: the
+                                            # profile draws the side mass's locks, the back view none)
             s_ = (colth[k] - top[k]) / max(1e-9, tip[k] - top[k])
             x = np.clip((s_ - (1.0 - keep - 0.1)) / 0.1, 0, 1)
             w = x * x * (3 - 2 * x)
