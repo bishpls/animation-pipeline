@@ -889,3 +889,15 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
      records; motion_* step if the rig moves the motion values; pregate on the box; gate.
   7. Then the flat lapels (tool/garments4-lapels) on it, and re-judge art_outline_collar.
 - tool/optimize (`charkit sweep --optimize`) was in testing on the boxes, not landed: use it for steps 1-4 once it is.
+
+## Round 6 (2026-10-01, lean agent 6): the garments refit to the joined shoulder
+- Coordinator: Michael confirmed the three answers as recommended: (1) keep the joint 0.18 L up at the deltoid's
+  centre; (2) A: flare the head's neck above the cut (ours end to end, minimal and local in the head's neck code; face7
+  doesn't touch the neck; do it last); (3) refit the garments to the new body (puffs contain the deltoid, the collar
+  walked on the new shoulder, the jacket bedded under the collar's back flap). Acceptance: gate PASS under K with the
+  joined shoulder ON by default (clawd.json + clawd_body_pieces.json); no garment piece's shape IoU below the old body's
+  by more than the guard in any view; the 90 deg raises clean with the garments on; review page (design | old body |
+  refit per view, plus the raised poses) with the summary box. Then the flat lapels; re-judge art_outline_collar.
+- pipeline-3d 07f305e8 (the clips) merged in: 1425a80c (declared.py: both families side_line + visible kept).
+- Fresh candidate base: charkit/out/garments6/specs/c0.json (clawd.json + tools/garments5/v/candidate_shoulder.json),
+  box build g6_c0 on render2 (log charkit/out/garments6/build_c0.log).
