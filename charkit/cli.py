@@ -495,7 +495,7 @@ def code_body(spec, resolved, out, mode='on'):
     gdir = os.path.join(out, 'geom')
     os.makedirs(gdir, exist_ok=True)
     path = os.path.join(gdir, 'body_code.npz')
-    hull = manifest.produced(spec, 'hull')
+    hull = manifest.produced(spec, manifest.body_hull(spec))
     masks = manifest.produced(spec, 'outfit_masks')
     ins = [hull, os.path.join(os.path.dirname(hull), 'hull.ply'), os.path.join(os.path.dirname(hull), 'hull_pieces.npy'),
            os.path.join(os.path.dirname(masks), 'outfit_graph.json')]

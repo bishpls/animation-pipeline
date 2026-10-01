@@ -434,7 +434,7 @@ def main(args):
     D = qa3d.Design(B)
     spec_path = opt('--write') or opt('--spec') or os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')
     spec = json.load(open(spec_path))
-    hull = manifest.produced(B.spec, 'hull')
+    hull = manifest.produced(B.spec, manifest.body_hull(B.spec))
     masks = manifest.produced(B.spec, 'outfit_masks')
     F = Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json'))
     P, c, per = F.run(rounds=int(opt('--rounds', 3)))

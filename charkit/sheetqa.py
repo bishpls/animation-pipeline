@@ -43,7 +43,11 @@ LIMITS = {'width': (0.08, 0.15), 'profile': (0.02, 0.04), 'reach': (0.02, 0.04),
 
 
 def classes(rgb):
-    """-> label image: 0 other, 1 skin, 2 hair, 3 iris, 4 line, 5 shaded skin (a drawn neck under the chin)."""
+    """-> label image: 0 other, 1 skin, 2 hair, 3 iris, 4 line, 5 shaded skin (a drawn neck under the chin). From the
+    character's palette when one is active (charkit.palette: the manifest's), else the constants below (Clawd's)."""
+    from . import palette
+    if palette.active() is not None:
+        return palette.sheet_classes(np.asarray(rgb, float)[..., :3], palette.active())
     from .target3d import hsv
     H, W, _ = rgb.shape
     h, s, v = (a.reshape(H, W) for a in hsv(rgb.reshape(-1, 3)))
@@ -75,34 +79,47 @@ def _components(m):
     return sorted(out, key=lambda t: -t[0])
 
 
-def find_eyes(lab, box, n=2, facing=-1, max_tilt=None):
+def find_eyes(lab, box, n=2, facing=-1, max_tilt=None, soft=False):
     """the iris blobs inside a head box (x0, y0, x1, y1) of a label image -> list of (x, y) pixel centroids, left to right
     (the two largest, grown a little so a pupil doesn't split one; blobs under a tenth of the largest are left out).
     max_tilt: a pair must lie within this slope (dy / dx) of level (a hair ornament beside one eye is not a pair)."""
     x0, y0, x1, y1 = box
     y1 = y0 + int(0.62 * (y1 - y0))                          # eyes sit in the head box's upper part (not the collar)
-    m = lab[y0:y1, x0:x1] == 3
+    from . import palette
+    if palette.active() is not None:                         # a character's palette: dark eyes read by shape too
+        m = palette.eye_mask(lab[y0:y1, x0:x1], palette.active(), soft)
+    else:
+        m = lab[y0:y1, x0:x1] == 3
     grow = max(2, int(0.015 * (x1 - x0)))                    # bridge the pupil that splits an iris in two
     for _ in range(grow):
         m = m | np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1)
     comps = [c for c in _components(m) if c[0] >= 12]
     if not comps:
         return []
-    cents = [(float(c[2].mean() + x0), float(c[1].mean() + y0), c[0]) for c in comps[:8]]
+    cents = [(float(c[2].mean() + x0), float(c[1].mean() + y0), c[0], float(np.ptp(c[2]) + 1)) for c in comps[:8]]
     if n == 1:                                               # profile: the blob nearest the face's front
         return [min(cents, key=lambda e: e[0] * -facing)[:2]]
     # a pair: level with each other, a plausible distance apart, similar in size (a hair clip is none of these)
     bw = x1 - x0
-    best, score = None, np.inf
-    for i in range(len(cents)):
-        for j in range(i + 1, len(cents)):
-            a, b = cents[i], cents[j]
-            dx, dy = abs(a[0] - b[0]), abs(a[1] - b[1])
-            if not (0.1 * bw <= dx <= 0.6 * bw) or (max_tilt is not None and dy > max_tilt * dx):
-                continue
-            sc = dy / dx + abs(np.log(a[2] / b[2]))
-            if sc < score:
-                best, score = (a, b), sc
+
+    def pair(lower):
+        best, score = None, np.inf
+        for i in range(len(cents)):
+            for j in range(i + 1, len(cents)):
+                a, b = cents[i], cents[j]
+                dx, dy = abs(a[0] - b[0]), abs(a[1] - b[1])
+                if not (lower(a, b) <= dx <= 0.6 * bw) or (max_tilt is not None and dy > max_tilt * dx):
+                    continue
+                sc = dy / dx + abs(np.log(a[2] / b[2]))
+                if sc < score:
+                    best, score = (a, b), sc
+        return best
+    best = pair(lambda a, b: 0.1 * bw)
+    if best is None:
+        # a small head on a wide band (a full figure several heads tall with its arms out: eyes 55 px apart on a
+        # 680 px band, 2026-10-01): a level pair at least 1.5 eye widths apart (a three-quarter foreshortens it). Only where the band's rule finds none,
+        # so every sheet it read reads the same
+        best = pair(lambda a, b: max(0.04 * bw, 1.5 * (max(a[3], b[3]) - 2 * grow)))   # (the width before growing)
     return sorted([e[:2] for e in best]) if best else []
 
 
@@ -496,6 +513,8 @@ def foreground(rgb, bg=None, thr=0.12, paper=0.012):
 # centre round the eye line from the back
 HEAD_BOX = dict(size=1.74, above=0.77, back=0.04, axis=0.27, band=0.2)
 FIGURE_MIN = 0.002                  # blobs under this share of the sheet are specks (a boot's shadow, a sweat drop)
+TURN_ORDER = ('front', 'three_quarter', 'profile', 'back')   # a generated turnaround's views, left to right
+EYE_LINE_L = 0.25                   # L: an eye this far off the front's eye line, on a turnaround, is no eye
 MIN_FIGURE_L = 1.0                  # an eye-spacing scale making the tallest figure shorter than one head length is a misread
                                     # pair of eyes (a second character's merged sheet read 0.37 L at 3719 px/L, and the QA's
                                     # body grids at that scale ran to 68 GB on the build box, 2026-09-30)
@@ -598,6 +617,30 @@ def detect_figures(rgb, ppl=None, eye_x=0.168, facing=None):
             skipped.append(dict(box=f['box'], why='a full figure with no eyes and little hair on top'))
             continue
         named.append((view, f))
+    # the kit's turnaround convention, where the eyes can't name the views (a small dark-eyed head: the three-quarter's
+    # far eye too small to find, a stray dark blob for the profile's eye, a white-haired back under its hair share):
+    # four full figures, the leftmost the front, are front, three-quarter, profile, back (the generated turnarounds'
+    # prompts draw them so). Eyes off the front's eye line by more than EYE_LINE_L go (the views share one eye height).
+    # Only where the eyes' names aren't already that order, so a sheet they named reads the same
+    by_x = sorted(figs, key=lambda f: f['box'][0])
+    if (front is not None and len(by_x) == len(TURN_ORDER) and by_x[0] is front
+            and [v for v, f in sorted(named, key=lambda t: t[1]['box'][0])] != list(TURN_ORDER)):
+        ey = float(np.mean([e[1] for e in front['eyes']]))
+        keep = dict(front=2, three_quarter=2, profile=1, back=0)
+        named = []
+        for v, f in zip(TURN_ORDER, by_x):
+            if v != 'front':
+                f['eyes'] = [e for e in f['eyes'] if abs(e[1] - ey) <= EYE_LINE_L * ppl][:keep[v]]
+                if 0 < keep[v] > len(f['eyes']):        # look again on the eye line itself, for slivers
+                    top = int(ey - EYE_LINE_L * ppl)
+                    band = (f['box'][0], top, f['box'][2], top + int(2 * EYE_LINE_L * ppl / 0.62))
+                    e = find_eyes(lab, band, keep[v], facing=-1 if facing is None else facing, max_tilt=0.25, soft=True)
+                    if len(e) > len(f['eyes']):
+                        f['eyes'] = e
+            named.append((v, f))
+        named_boxes = [f['box'] for f in by_x]
+        skipped[:] = [k for k in skipped if k['box'] not in named_boxes]
+        out['named_by'] = 'turnaround order'
     fy = front and float(np.mean([e[1] for e in front['eyes']])) - front['box'][1]    # the eye line under the figure's top
     side = [f for v, f in named if v in ('profile', 'three_quarter')]
     if facing is None:                                                  # the side views' eyes lie toward their face

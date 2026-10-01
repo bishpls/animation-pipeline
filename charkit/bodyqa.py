@@ -35,7 +35,20 @@ CLASS = {'none': 0, 'skin': 1, 'hair': 2, 'iris': 3, 'line': 4, 'orange': 6, 'cr
 GARMENT = (6, 7, 8, 9)
 FABRIC = (6, 7)                    # the skirt's cloth (its dark trim is a family of its own)
 HAIR_SPLIT = -0.8                  # L from the eye line: an orange region centred above it is hair (the shoulders)
-WIN = dict(x=2.3, top=1.3, bottom=-6.2)   # the full-body window, L round the eyes
+WIN = dict(x=2.3, top=1.3, bottom=-6.2)   # the full-body window, L round the eyes (Clawd's: 5.9 heads; a character's
+DEFAULT_WIN = dict(WIN)                   # manifest may declare its own, use_window)
+
+
+def use_window(w=None):
+    """the full-body window for the character being read: DEFAULT_WIN, extended by a manifest's `window` (its sheet's
+    figure measured: a figure 8 heads tall stands to -7.1 L, below Clawd's -6.2, and was cut at the shins). Updated in
+    place: every module's alias of WIN (pieceqa, skirtqa, detailqa, the hull) reads it. -> the window."""
+    WIN.clear()
+    WIN.update(DEFAULT_WIN)
+    for k, v in (w or {}).items():
+        if k in WIN:
+            WIN[k] = float(v)
+    return WIN
 BANDS = dict(skirt=(-1.4, -3.5), sleeves=(-0.55, -1.35), torso=(-0.95, -1.3))
 LIMITS = {                          # (pass within, warn within); else fail
     'iou': (0.85, 0.70),            # silhouette IoU (higher is better)
@@ -61,7 +74,11 @@ def _hsv(rgb):
 
 def family(rgb):
     """class ids of colours by their family (any shape (..., 3), sRGB 0..1): skin, orange, cream, dark, white, yellow
-    (iris; a star clip too), else other."""
+    (iris; a star clip too), else other. From the character's palette when one is active (charkit.palette.family_classes:
+    hair in the orange slot, every other garment in the white one), else the constants below (Clawd's)."""
+    from . import palette
+    if palette.active() is not None:
+        return palette.family_classes(np.asarray(rgb, float)[..., :3], palette.active())
     h, s, v = _hsv(rgb)
     out = np.full(h.shape, CLASS['other'])
     out[(v < 0.45) & (s < 0.6)] = CLASS['dark']

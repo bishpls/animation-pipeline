@@ -1421,15 +1421,18 @@ def build(spec, out, h=0.01, style=None, faces=None, validate_views=True, page=T
     from charkit import eyes as eyelib, manifest, refcheck, styles
     from . import io, remesh, repair
     t0 = time.time()
-    bs = spec['ref'].get('face_sheet' if sheet == 'head' else 'body_sheet')
+    bs = spec['ref'].get({'head': 'face_sheet', 'base_body': 'base_body_sheet'}.get(sheet, 'body_sheet'))
     if not bs:
         raise ValueError("hull: the spec has no generated %s sheet (the manifest's sheets.%s)" % (
-            sheet, 'face' if sheet == 'head' else 'body'))
+            sheet, {'head': 'face'}.get(sheet, sheet)))
     style = style or spec.get('style', 'anime')
     prior = styles.load(style)['hull']
     ex = eyelib._knobs(spec.get('eyes'))['x']
     if sheet == 'head':
         views, info = views_from_heads(refcheck._load(bs['image']), ex, bs.get('facing', -1))
+        pieces = False
+    elif sheet == 'base_body':          # the body under the costume (the manifest's sheets.base_body): no garments to
+        views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))   # carve or label
         pieces = False
     else:
         views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))
@@ -1762,7 +1765,8 @@ def save_stages(stages, d, out=None):
 
 
 def main(args):
-    """python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
+    """python -m charkit.geom hull SPEC [--head | --sheet base_body] [--out DIR] [--h 0.01] [--style anime] [--faces N]
+    [--fast] [--no-open]
     [--stages DIR] (each stage's intermediates and sha256s, save_stages)"""
     import subprocess
     from charkit import bodyeval, refcheck
@@ -1773,7 +1777,7 @@ def main(args):
     stages = [] if '--stages' in args else None
     rep = build(spec, out, float(opt('--h', 0.005 if head else 0.01)), opt('--style'),
                 int(opt('--faces')) if opt('--faces') else (150000 if head else None),
-                validate_views='--fast' not in args, sheet='head' if head else 'body', stages=stages)
+                validate_views='--fast' not in args, sheet='head' if head else opt('--sheet', 'body'), stages=stages)
     if stages is not None:
         save_stages(stages, refcheck._p(opt('--stages')), out)
     loo, nol = rep.get('leave_one_out'), rep.get('leave_one_out_no_limbs')

@@ -78,6 +78,20 @@ def resolve(spec):
         if key not in ref and rid in R:
             ref[key] = dict(id=rid, image=R[rid]['path'], layout=R[rid].get('layout'), facing=-1)
     ref['authority'] = M.get('authority', {})
+    # the character's palette (charkit.palette): carried in the resolved spec for every process that loads it, and
+    # made this process's active one (a manifest without one: the readers' constants)
+    if M.get('palette'):
+        ref['palette'] = M['palette']
+    if M.get('window'):                     # its full-body measuring window (bodyqa.use_window)
+        ref['window'] = M['window']
+    from . import palette
+    palette.activate_spec(spec)
+    # the design's own colours where the spec gives none (else the code's defaults, which are Clawd's): skin, hair,
+    # iris, brows and lashes from the palette's roles (palette.spec_colours)
+    if palette.active() is not None:
+        for k, v in palette.spec_colours(palette.active()).items():
+            if k not in spec:
+                spec[k] = v
 
     def sub(x):
         if isinstance(x, str) and x.startswith('ref:'):
@@ -91,6 +105,15 @@ def resolve(spec):
         if k != 'ref':
             spec[k] = sub(spec[k])
     return spec
+
+
+def body_hull(spec):
+    """the produced reference the authored body is fitted to: 'body_hull' (the base body sheet's hull, where the
+    manifest declares one: the body under the costume, not the costume's volume), else 'hull'."""
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    if ref.get('manifest') and 'body_hull' in load(ref['manifest'])['references']:
+        return 'body_hull'
+    return 'hull'
 
 
 def produce(spec):

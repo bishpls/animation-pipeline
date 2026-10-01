@@ -126,6 +126,22 @@ def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
         if abs(cur - spacing) <= 0.3:
             return small, f, H
         f *= spacing / cur
+    # (a sheet whose heads the guess's scale loses, small dark eyes: start from its own scale instead)
+    try:
+        H = detect_heads(rgb, eye_x, facing)
+    except RuntimeError:
+        raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
+    f = spacing / (H['ppl'] * 2 * eye_x)
+    for _ in range(6):
+        small = _resample(rgb, f) if abs(f - 1) > 1e-9 else rgb
+        try:
+            H = detect_heads(small, eye_x, facing)
+        except RuntimeError:
+            break
+        cur = H['ppl'] * 2 * eye_x
+        if abs(cur - spacing) <= 0.3:
+            return small, f, H
+        f *= spacing / cur
     raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
 
 
@@ -198,6 +214,12 @@ def figures_at_scale(rgb, eye_x, spacing, facing=-1, guess=0.5):
     raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
 
 
+def common(S):
+    """the scale every sheet is measured at (px per L): the source design's (S.ppl), or, for a character with no source
+    sheet and rig, S.common: its face sheet's own (main() sets it)."""
+    return getattr(S, 'common', None) or S.ppl
+
+
 def measure_ref(ref, S, log=print):
     """one head sheet (layout 'heads') or full-body sheet (layout 'figures') measured at the common scale
     -> dict(ref, path, layout, factor, scale_vs_sheet, guides, chin (the profile's drawn chin), O {view: measures},
@@ -205,18 +227,19 @@ def measure_ref(ref, S, log=print):
     from PIL import Image
     facing = S.spec_sheet.get('facing', -1)
     rgb0 = np.asarray(Image.open(_p(ref['path'])).convert('RGB')).astype(float) / 255
-    spacing = S.ppl_eyes * 2 * S.eye_x
+    cp = common(S)
+    spacing = (S.ppl_eyes if cp == S.ppl else cp) * 2 * S.eye_x
     figs = None
     if ref.get('layout') == 'figures':
         guides = []
         rgb, f, H = figures_at_scale(rgb0, S.eye_x, spacing, facing)
-        figs = {v: {'eye_y': round(g['eye_y'] / S.ppl, 4), 'ground': round(g['box'][3] / S.ppl, 4),
-                    'top': round(g['box'][1] / S.ppl, 4), 'height': round((g['box'][3] - g['box'][1]) / S.ppl, 4)}
+        figs = {v: {'eye_y': round(g['eye_y'] / cp, 4), 'ground': round(g['box'][3] / cp, 4),
+                    'top': round(g['box'][1] / cp, 4), 'height': round((g['box'][3] - g['box'][1]) / cp, 4)}
                 for v, g in H['figures'].items()}
     else:
         rgb0, guides = without_guides(rgb0)
         rgb, f, H = at_scale(rgb0, S.eye_x, spacing, facing)
-    O, chin = measure_heads(rgb, H['heads'], S.ppl, facing)
+    O, chin = measure_heads(rgb, H['heads'], cp, facing)
     log('%s: x%.3f (%.2fx the model sheet), heads %s, %d guide lines out, profile chin %s' % (
         ref['id'], f, 1 / f, ', '.join(H['heads']), len(guides), None if chin is None else round(chin, 3)))
     return dict(ref=ref['id'], path=ref['path'], layout=ref.get('layout'), factor=round(f, 4),
@@ -320,7 +343,7 @@ def eye(R, S):
         return None, None
     f = R['factor']
     ex, ey = min(h['eyes'])                                             # the viewer's left eye, at the common scale
-    cx, cy, ppl = ex / f, ey / f, S.ppl / f                             # at the sheet's own resolution
+    cx, cy, ppl = ex / f, ey / f, common(S) / f                         # at the sheet's own resolution
     hw, hh = EYE_BOX[0] * ppl, EYE_BOX[1] * ppl
     rgb = R['_rgb0'][int(cy - hh):int(cy + hh), int(cx - hw):int(cx + hw)]
     rgba = np.concatenate([rgb, np.ones(rgb.shape[:2] + (1,))], -1)
@@ -332,7 +355,8 @@ def eye(R, S):
 def run(spec, refs, S, log=print):
     """-> dict(sheets [measure_ref], pairs [dict(a, b, views)], within {ref: checks}, design {ref: views}): the pairs and
     each sheet's own views are the verdict; design (each sheet against the model sheet) is information."""
-    D = sheetqa.measure_sheet(S.rgb, {k: tuple(v) for k, v in S.spec_sheet['heads'].items()}, S.eye_x, ppl=S.ppl)
+    heads = S.spec_sheet.get('heads') or {v: f['head'] for v, f in S.D['figures'].items() if v in VIEWS}  # (found, when
+    D = sheetqa.measure_sheet(S.rgb, {k: tuple(v) for k, v in heads.items()}, S.eye_x, ppl=S.ppl)          # none typed)
     sheets = [measure_ref(r, S, log) for r in refs]
     pairs = [dict(a=A['ref'], b=B['ref'], views=compare_views(A['O'], B['O']))
              for i, A in enumerate(sheets) for B in sheets[i + 1:]]
@@ -478,9 +502,16 @@ def main(args):
     # otherwise fill the design's role
     import copy
     src = copy.deepcopy(spec)
-    for k in [k for k in src['ref'] if k.endswith('_sheet')]:
-        src['ref'].pop(k)
+    if src['ref'].get('sheet') and src['ref'].get('rig'):
+        for k in [k for k in src['ref'] if k.endswith('_sheet')]:
+            src['ref'].pop(k)
+    # (a character with no source sheet and 2D rig, as any but the first: the departures are its body turnaround's, the
+    # generated sheet that fills the design's role, and the common scale its face sheet's own, where its heads are big)
     S = bodymeasure.Sheet(src)
+    if not (src['ref'].get('sheet') and src['ref'].get('rig')) and spec['ref'].get('face_sheet'):
+        from PIL import Image
+        face = np.asarray(Image.open(_p(spec['ref']['face_sheet']['image'])).convert('RGB')).astype(float) / 255
+        S.common = detect_heads(without_guides(face)[0], S.eye_x, S.spec_sheet.get('facing', -1))['ppl']
     res = run(spec, [next(r for r in refs if r['id'] == rid) for rid in want], S)
     plain = lambda x: {k: v for k, v in x.items() if not k.startswith('_')}
     json.dump({'spec': args[0], 'sheet_ppl': S.ppl, 'status': res['status'],
