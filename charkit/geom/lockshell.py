@@ -20,9 +20,11 @@ locks, the back for the hem's flicks), then its shell is projected into the othe
 covers most (the splitter's own cross-view ids are weak: lock-level precision 0.40), and is fitted again with every
 claimed view. Where the views disagree the fit is the least-squares compromise and each view's cost is reported.
 
-Opt-in: hair.shape.pieces_opts.lock_shells (charkit.geom.hairpieces.build), e.g.
-    {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175]}]}
-The default spec doesn't set it, so nothing changes there.
+Set by hair.shape.pieces_opts.lock_shells (charkit.geom.hairpieces.build). The default spec (charkit/spec/clawd.json,
+Michael's yes 2026-10-01, round 4) sets the pilot: the side locks, and the back's left hem flicks laid over the mass,
+on the curling hem with free tips (with hair.shape.style shade_ellipsoid 1.0):
+    {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175],
+     "replace": false, "opts": {"prior_depth": 10.0, "contain": 5.0, "hug_free": 0.3}}]}
 """
 import json, math, os
 

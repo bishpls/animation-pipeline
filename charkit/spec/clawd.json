@@ -319,8 +319,10 @@
    "min_part": 20,
    "pieces_opts": {
     "bun": "ribbon",
-    "eye_anchor": "iris"
+    "eye_anchor": "iris",
+    "lock_shells": {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175], "replace": false, "opts": {"prior_depth": 10.0, "contain": 5.0, "hug_free": 0.3}}]}
    },
+   "style": {"shade_ellipsoid": 1.0},
    "strokes": {
     "set": "strand",
     "width": 0.0035,
