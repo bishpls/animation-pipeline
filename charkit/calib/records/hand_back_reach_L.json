@@ -1,0 +1,93 @@
+{
+ "check": "hand_back_reach_L",
+ "part": "hands",
+ "adapter": "Hands",
+ "module": "charkit.calib.hands",
+ "at": "2026-09-30T21:43:54",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hand_shape_L",
+  "hand_shape_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.0064,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.0064,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.0064,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.0064,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.0064,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.0064,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.0064,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.0064,
+    "PASS"
+   ]
+  },
+  "min": -0.0064,
+  "max": -0.0064,
+  "spread": 0.0,
+  "median": -0.0064
+ },
+ "known_bad": {
+  "name": "mitten",
+  "value": -0.3701,
+  "status": "FAIL"
+ },
+ "floor": {
+  "stub_hands": {
+   "values": [
+    -0.3343,
+    -0.3932,
+    -0.3136,
+    -0.3878,
+    -0.2819
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.3343,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": -0.0465,
+  "status": "WARN",
+  "margin": 0.878
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), mitten reads -0.3701 FAIL, the floor stub_hands FAIL",
+ "build": "charkit/out/calib/cur_hands",
+ "generators": {
+  "stub_hands": "each drawn hand cut off at 35-60% of its reach past the cuff"
+ },
+ "seconds": 76.0
+}

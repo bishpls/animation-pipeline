@@ -195,8 +195,14 @@ Against b2 (qa.json; CPU 1028 s):
   0.834 | 0.828 | 0.836 (e4 0.812), back 0.829 | 0.808 | 0.829 (0.847), 3q 0.751 | 0.742 | 0.750 (0.767); and
   **piece_overskirt_panel_L_front_top and _R_front_top FAIL in all three** (-0.249, -0.217: new FAILs; also at elbow
   5.1). So the shoulder stays: the per-view costs of the remaining 2 deg are back/3q skin IoU and the panel's top edge.
-- Merged pipeline-3d 640ca7c (e94407e). Calibration of hand_* on b3: `charkit/out/calib/cur_hands` (hard links),
-  log charkit/out/hands/calib_r3.log.
+- Merged pipeline-3d 640ca7c (e94407e). **Calibration: all 22 hand_* CALIBRATED** against b3
+  (`charkit/out/calib/cur_hands`, hard links; records charkit/calib/records/hand_*.json; log calib_r3.log): the design
+  passes every 1-2 px move (spread 0: the measures are relative to the cuff and laid on centroids), the mitten FAILs
+  every one, the floors (stub_hands, blob_hands) FAIL, b3 beats them (hand_shape_L margin 0.174, _R 0.283; the probe
+  blob_hands still PASSes hand_shape at 0.80-0.81: shape can't see digits, the digits check does).
+- **Review page: charkit/out/hands/review_r3/index.html** (page3.py; tiles review3.py: design | mitten | b2 | b3 per view,
+  hand window and arm window round each build's cuff; the arm angle table and per-view angle diagrams; the evaluator
+  A/B; guard IoUs; weights and fist; calibration).
 
 ## Next steps (exact)
 1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
