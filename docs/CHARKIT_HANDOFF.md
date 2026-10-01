@@ -367,7 +367,7 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        the input masks: the outfit field's votes are 0.77–0.85 IoU per view, and where two views' masks disagree about
        one surface, one of them loses. Improving those masks, for instance by making the hull the outfit's field in
        place of TRELLIS, is the lever.
-     - The review page is `~/animation-pipeline-hull/charkit/out/hull/clawd/index.html`. It shows the held-out label
+     - The review page is `charkit/out/archive/hull/clawd/index.html (archived)`. It shows the held-out label
        maps next to the drawn ones, per-piece IoUs, the surface coloured by piece, and the limb maps.
    - **Checkpoint review page built (2026-09-28), `charkit/out/checkpoint/index.html`.** It compares before, reviewed,
      baseline, tune and now, with the decisions in `charkit/out/checkpoint/decisions.md`.
@@ -1098,7 +1098,7 @@ decisions already made:
   bumps_legs, mirror_waist. Hold points_sleeves/bumps_sleeves at WARN until garments2's template sleeves merge (the
   current hull sleeves would FAIL), and band_lower until tool/skirt's band lands. Not measurable by these detectors: the
   rear tuck (tool/skirt), jacket over band (garments2), the neck nick (tool/face's jaw_line_bend). Review page:
-  ~/animation-pipeline-artifacts/charkit/out/artifacts_review/flags/index.html.
+  charkit/out/archive/artifacts_review/flags/index.html (archived).
 - **tool/infra2**: detached box jobs, box load logging, click-to-flag (`charkit preview serve`), the hook fix.
 - **tool/toonrender2**: the QA drawing on charkit.render behind a setting.
 - **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
