@@ -48,6 +48,40 @@ IoU per view beside every check moved.
   - brows fitted to the close-up's front brows (`charkit/out/face6/browfit.py`, centred-mask IoU + thickness + arch):
     IoU 0.46 -> 0.84/0.82, thick 0.0167 (design 0.0178), arch 0.100 (0.096), length 0.154 (0.151).
 
+## Round 2 (relaunched lean, 2026-09-30 night)
+
+Scope (coordinator, Michael): the default/rest expression only (iris, lashes, brows, rest mouth, nose). Presets, eye and
+brow variants and visemes are paused: keep every preset check measured, don't tune them; a preset the rest change breaks
+is reported for a named acceptance ("expressions paused (Michael, 2026-09-30)").
+
+Merged pipeline-3d 3f7b730 (clean). tool/face5 not merged yet (expect code_base.py).
+
+**Labs (charkit/out/face6r2/):** `assemble.py` builds the face in the venv from a build's resolved spec (geom/ paths
+rebased): `assemble.bundle(build, over)` is faceeval's in-memory bundle (no hair, garments or target) in ~25 s, and
+face_flags on it in ~15 s; it reproduces face6_a's eye, lash and brow reads exactly (the mouth's profile marks and the
+nose differ: no neck variant; compare deltas there). `eyerun.py BUILD JSON...` (eye, lash, brow checks, pieces' IoU,
+eye_*, eye_view_*), `tips.py` (counted lash tips), `eyelab.py`, `lashlab.py`, `browlab.py`, `far3q2.py`, `farfit.py`,
+`flicklab.py`, `eyeseg.py`, `ffrun.py BUILD [OUT.json]` (face_flags on a build).
+
+**Done:**
+- face_preset_effort FAIL (mouth_width_rel 0.905 < 1.1): the clench (1.45 widths = 0.189 L) against the wider rest
+  (0.208 L). Made relative to the rest it would be 2.32 widths = 0.30 L, wider than the laugh (the mouth block's
+  extreme: the head's cage would move). Not tuned (expressions paused): reported for a named acceptance.
+- eye_view_profile_flick_out: remeasured (eyeqa.FLICK_BELOW: the window reaches 0.15 opening heights under the far
+  corner's row; it ended at the opening's middle row, where face6_a's flick tip lies). face6_a 0.219 -> 0.531 (design
+  0.556); the design and 1580f95 unchanged. Step d6c5ee7, record (guard: no stored build has a wrong flick).
+- eye_lid_span PASS -> WARN (1.022 -> 0.843): the same window cut the flick off the front lid line (the iris inscribed
+  moved the opening's bottom up 3 px, its middle row with it). Remeasured the same way: 1.096 -> 1.247 (design 1.30).
+  Step 314025e, record (guard).
+- eye_aspect PASS -> WARN (0.954 -> 0.872): the old iris overflowed past the lower lid and segment()'s opening took its
+  ellipse (2 px taller: swapping the old iris back reads 0.849); the thinner lash uncovered 3 px of white at the outer
+  corner (open_w 0.1753 -> 0.1828).
+- The eye textures' span (eyetex.SPAN 1 -> 1.25, TEX_N 640, plate UVs / SPAN): the inscribed iris reached 0.53 eye
+  widths up, past the texture's edge, which cut its top flat; the sclera past +-0.5 widths was clipped black at the
+  corners. Lab: eye_aspect 0.872 -> 0.944 PASS, iris front 1.009 -> 0.998, 3/4 1.383 -> 1.342, face_piece_iris profile
+  0.698 -> 0.782; eye_lid_gap 0.0036 -> 0.0042 (WARN by 0.0002); the profile flick 0.531 -> 0.40 (the far corner's
+  white now reads to the corner: 3 px further out): lengthen the flick.
+
 ## Checkpoint (2026-09-30 night, context limit): state for the next agent
 
 Branch `tool/face6` head: see `git log -1` (2bdfc58 = the fixes; later commits notes only). Nothing gated, nothing

@@ -548,7 +548,8 @@ def outline_polygon(K, L, n=24):
 
 def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias=0.0):
     """the eye plate behind the opening: a patch shaped like the outline (rings out to `reach` times it), recessed and bending
-    back at its rim so it never shows through the skin; UV in eye units (u = x / W + 0.5, outward; v = z / W + 0.5).
+    back at its rim so it never shows through the skin; UV in eye units (u = x / (SPAN W) + 0.5, outward; v = z / (SPAN W)
+    + 0.5; charkit.eyetex.SPAN).
     shift: move it in the eye plane (gaze). -> (verts, faces, uvs per vertex)."""
     W = K['width'] * L
     poly = outline_polygon(K, L)
@@ -574,7 +575,8 @@ def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias
     depth = D0 + 0.004 * L * np.clip((rho_of - 0.92) / (reach - 0.92), 0, 1) ** 2
     pts = _world(F, ex, ez, side, loc[:, 0] + shift[0], loc[:, 1] + shift[1], surf=surface(F, K, L, side, eye_c))
     pts[:, 1] += depth
-    uvs = [(x / W + 0.5, z / W + 0.5) for x, z in loc]
+    from .eyetex import SPAN
+    uvs = [(x / (SPAN * W) + 0.5, z / (SPAN * W) + 0.5) for x, z in loc]
     faces = []
     for k in range(na):                                         # the centre fan
         f = (0, 1 + k, 1 + (k + 1) % na)
@@ -868,10 +870,11 @@ IRIS_SCALE = {'shock': 0.33}
 
 
 def iris_scale(verts, uvs, cz, s):
-    """offsets (N, 3) scaling an iris plate by s about the iris's centre (uv (0.5, 0.5 + cz)): the plate's point there,
-    interpolated from its nearest vertices in uv."""
+    """offsets (N, 3) scaling an iris plate by s about the iris's centre (uv (0.5, 0.5 + cz / SPAN)): the plate's point
+    there, interpolated from its nearest vertices in uv."""
+    from .eyetex import SPAN
     V, U = np.asarray(verts, float), np.asarray(uvs, float)
-    d = np.linalg.norm(U - np.array([0.5, 0.5 + cz]), axis=1)
+    d = np.linalg.norm(U - np.array([0.5, 0.5 + cz / SPAN]), axis=1)
     k = np.argsort(d)[:4]
     w = 1 / np.maximum(d[k], 1e-6)
     c = (V[k] * w[:, None]).sum(0) / w.sum()

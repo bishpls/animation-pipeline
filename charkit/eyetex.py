@@ -1,9 +1,15 @@
 """Eye textures drawn in numpy (resolution-independent knobs; exported as images so VRM/three.js get the same eyes): the sclera
 (with the upper lid's shadow), the iris (a HoYo-style layered iris: dark top, lit bottom, limbal ring, striations, pupil, the
-bottom glow) and the shine (fixed highlights). Texture space = the eye plate's UV: u = x / W + 0.5 (x outward), v = z / W + 0.5.
+bottom glow) and the shine (fixed highlights). Texture space = the eye plate's UV: u = x / (SPAN W) + 0.5 (x outward),
+v = z / (SPAN W) + 0.5.
 """
 import math
 import numpy as np
+
+SPAN = 1.25          # eye widths a texture's side covers (UV 0..1). It was 1: an iris raised to sit inscribed in the
+                     # opening (tool/face6: centre +0.105, half-height 0.425) reached 0.53 eye widths up, past the
+                     # texture's edge, which cut its top flat (and the three-quarter far eye's iris read 1.45 tall)
+TEX_N = 640          # texels a side (512 at SPAN 1: the same texels per eye width)
 
 DEFAULT_IRIS = {
     'top': (0.10, 0.16, 0.42),     # sRGB: the iris's shadowed top
@@ -47,7 +53,7 @@ def _srgb_to_lin(c):
 def _grid(n):
     u = (np.arange(n) + 0.5) / n
     U, Vv = np.meshgrid(u, u[::-1])          # row 0 = top (v = 1)
-    return U - 0.5, Vv - 0.5                 # eye widths from the eye centre
+    return (U - 0.5) * SPAN, (Vv - 0.5) * SPAN       # eye widths from the eye centre
 
 
 def _ss(e0, e1, x):
@@ -59,7 +65,7 @@ def _mix(a, b, t):
     return a + (b - a) * t[..., None]
 
 
-def sclera(K=None, n=512, upper=0.20, soft=0.10):
+def sclera(K=None, n=TEX_N, upper=0.20, soft=0.10):
     """RGBA: white with a cool shadow under the upper lid (a band from `upper` - soft up)."""
     K = _knobs(K)
     x, z = _grid(n)
@@ -70,7 +76,7 @@ def sclera(K=None, n=512, upper=0.20, soft=0.10):
     return np.concatenate([rgb, np.ones(x.shape + (1,))], -1)
 
 
-def iris(K=None, n=512):
+def iris(K=None, n=TEX_N):
     """RGBA (alpha = the iris), centred at (0, cz) in eye widths."""
     K = _knobs(K)
     x, z = _grid(n)
@@ -99,7 +105,7 @@ def iris(K=None, n=512):
     return np.concatenate([np.clip(rgb, 0, 1), a[..., None]], -1)
 
 
-def shine(K=None, n=512, side=1):
+def shine(K=None, n=TEX_N, side=1):
     """RGBA: the highlights (white, alpha), placed from the iris centre. side: the eye (1 her left, -1 her right): with
     K['shine_mirror'] off, the right eye's shine is flipped across the iris, so both eyes' sit on the same side of the
     face (one light), as a drawing lights them."""
