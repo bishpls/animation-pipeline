@@ -22,6 +22,10 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   area         the piece's pixels over the drawn piece's, |ratio - 1| (a size: the wrist cuffs 1.5-2.4x the drawn)
   ink_inside   the lines drawn inside a piece (its creases, folds, pleats), or along a region's outline (edge): 1 -
                recall of the drawn skeleton by ours within tol; relative: within the region's own span (remap_rows)
+  strokes      the hair's strand strokes inside its mass against ours: density, presence, place, direction (strokes())
+  line_weight  the hair's strand strokes' weight over its outline's, and how gradually they end, at the head sheet's
+               scale (charkit.hairweight: the head sheet against our head drawn at 400 px per L)
+  tones        the hair's cel tones against the drawn ones (charkit.hairtones): the shadow's IoU, the highlight marks' F1
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -561,10 +565,69 @@ def strokes(Mo, Md, ctx, measure='density', strokes='strand', ours='ink', wall=0
     raise KeyError(measure)
 
 
+def line_weight(Mo, Md, ctx, measure='weight', round_=3):
+    """the hair's strand strokes' line weight at the head sheet's scale (charkit.hairweight; tool/hairstrokes scope (a),
+    Michael 2026-10-01: strokes lighter than the silhouette's outline, tapering at their ends), ours against the design's
+    in the same detector:
+      weight   |log2(ours / design)| of the strands' median weight over the outline's (a line's weight: its coverage of
+               the picture's outline ink integrated across it, width and darkness at once)
+      taper    ours over the design's taper length: the px over which a strand's weight falls from 0.75 to 0.25 of its
+               middle's past its free ends (higher is better: as gradual as the drawn)
+    None where the head sheet doesn't draw the view; ours without strokes there reads FAIL."""
+    from . import hairweight
+    H = ctx.get('head')
+    view = ctx['view']
+    if not H or view not in (H.get('D') or {}):
+        return None
+    memo = H.setdefault('_m', {})
+    if ('D', view) not in memo:
+        d = H['D'][view]
+        memo[('D', view)] = hairweight.measure(d['rgb'], d['hair'], None, d.get('clips'))
+    if ('O', view) not in memo:
+        o = (H.get('O') or {}).get(view)
+        memo[('O', view)] = None if o is None else hairweight.measure(o['rgb'], o['hair'], o['strands'], o.get('clips'))
+    rd, ro = memo[('D', view)], memo[('O', view)]
+    if not rd or rd.get(measure) is None:
+        return None
+    if not ro or ro.get(measure) is None:
+        return dict(value=None, design=rd.get(measure), why='no strokes of ours in the hair here' if measure == 'weight'
+                    else "too few of our strokes' ends to read")
+    rec = dict(ours=ro[measure], design=rd[measure], w_out=[ro['w_out'], rd['w_out']],
+               w_strand=[ro['w_strand'], rd['w_strand']])
+    if measure == 'weight':
+        return dict(rec, value=round(abs(float(np.log2(ro['weight'] / rd['weight']))), round_))
+    if measure == 'taper':
+        return dict(rec, value=round(ro['taper'] / rd['taper'], round_))
+    raise KeyError(measure)
+
+
+def tones(Mo, Md, ctx, measure='shadow', round_=3):
+    """the hair's cel tones against the design's in a view (charkit.hairtones; the tones milestone, Michael 2026-10-01:
+    the drawn shadow and highlight shapes per lock), inside the hair where both draw it, off both drawings' lines:
+      shadow     the IoU of the design's shade tone and ours (the QA's cel tone buffer: shade or deep)
+      highlight  F1 of the design's highlight marks and ours within hairtones.HL_TOL L
+    Ours: ctx['tones'] (hairtones.our_tones on the design's grid)."""
+    from . import hairtones
+    o = ctx.get('tones')
+    if o is None or ctx.get('dv') is None:
+        return None
+    T = hairtones.design_tones(ctx['dv'], Md)
+    if T is None:
+        return None
+    r = hairtones.compare(T, hairtones.ours_classes(o, Md.shape), ctx['ppl'], measure)
+    if r is None:
+        return None
+    r['value'] = round(r['value'], round_)
+    return r
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position, ink_inside=ink_inside, area=area, strokes=strokes)
-HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
+                position=position, ink_inside=ink_inside, area=area, strokes=strokes, line_weight=line_weight,
+                tones=tones)
+HIGHER = ('shape_iou', 'tones')        # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside', 'strokes')     # families that read our drawn lines (inputs' lines)
+HEAD_FAMILIES = ('line_weight',)        # families that read the head pictures (inputs' head: charkit.hairweight)
+TONE_FAMILIES = ('tones',)              # families that read our cel tones on the design grids (inputs' tones)
 HAIR = 'hair'                           # the hair as a piece: our hair_* objects, the drawing's hair class (no graph piece)
 HAIR_OTHER = ('hair_bun', 'hair_ahoge')  # our hair objects that aren't the mass (with the clips: hairflagqa's `other`)
 
@@ -577,12 +640,14 @@ def grade(v, limits, better='lower'):
 
 
 # ------------------------------------------------------------------------------------------------------------ measuring
-def inputs(B, design, views=VIEWS, lines=False, classes=False, hair=False):
+def inputs(B, design, views=VIEWS, lines=False, classes=False, hair=False, head=False, tones=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines); with hair, the hair as a piece (HAIR: our hair_* objects against the drawing's
-    hair class, VIEW__hair) and hairflagqa's design side (hair_D: the mass's inside, its drawn lines) -> dict, or None
-    when the design or the outfit masks are missing."""
+    hair class, VIEW__hair) and hairflagqa's design side (hair_D: the mass's inside, its drawn lines); with head, the
+    head sheet's pictures and ours drawn at its scale (head: charkit.hairweight's design_head and our_head); with
+    tones, our cel tones on the design grids (tones: charkit.hairtones.our_tones) -> dict, or None when the design or
+    the outfit masks are missing."""
     from . import bodymeasure, pieceqa
     ctx = design.sheet_context()
     if 'why' in ctx:
@@ -605,6 +670,15 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, hair=False):
             out['ink'] = our_ink(B, ctx['ppl'], ctx['az3'], tuple(O))
     if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
         out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
+    if head:                                      # (the head sheet's pictures and ours at its scale: line_weight)
+        from . import hairweight
+        Dh = hairweight.design_head(B, design)
+        hv = tuple(v for v in (head if isinstance(head, (tuple, list)) else views) if v in Dh)
+        out['head'] = dict(D=Dh, O=hairweight.our_head(B, next(iter(Dh.values()))['az3'], hv) if hv else {})
+    if tones:                                     # (our cel tones on the design grids: the tones family)
+        from . import hairtones
+        tv = tuple(v for v in (tones if isinstance(tones, (tuple, list)) else views) if v in O)
+        out['tones'] = hairtones.our_tones(B, ctx['ppl'], ctx['az3'], tv) if tv else {}
     return out
 
 
@@ -652,10 +726,13 @@ def our_ink(B, ppl, az3, views=VIEWS):
     """our ink strokes' pixels per view on the design's grids (a piece's ink slot, qa3d.is_ink: the creases, the
     hair's strokes), drawn at least a pixel wide where nothing of ours is nearer (a stroke thinner than a pixel still
     shows, as the drawing's faint strokes do: geom.raster's thin labels), without the outlines -> {view: bool image}.
-    The stand-in patches it as it does our_lines."""
+    The hair's lock lines (geom.hairink.LOCK_MATERIAL: lines drawn as ink where the lock shells aren't) are lines, not
+    strokes: they occlude here and aren't ink (our_lines draws them as it draws an outline). The stand-in patches it
+    as it does our_lines."""
     def make():
         from . import bodyqa, qa3d
         from .geom import raster
+        from .geom.hairink import LOCK_MATERIAL
         As = B.assembly
         iw = np.array(qa3d.iris_centres(B))
         az = bodyqa.azimuths(az3)
@@ -665,12 +742,18 @@ def our_ink(B, ppl, az3, views=VIEWS):
             if not o.has(variant):
                 continue
             for s_ in qa3d.surfaces(B, o, variant):
-                k = len(items)
                 is_ink = bool(s_['hull']) and len(s_['slots']) > 0 and \
                     all(qa3d.is_ink(o.materials[int(t)]) for t in np.unique(s_['slots']))
-                items.append((s_['V'], s_['T'], k, s_['cull']))
-                if is_ink:
-                    ink.append(k)
+                lock = np.array([o.materials[int(t)] == LOCK_MATERIAL for t in s_['slots']], bool) if is_ink \
+                    else np.zeros(len(s_['T']), bool)
+                cull = s_['cull']
+                for part, sel in ((True, ~lock), (False, lock)):
+                    if not sel.any():
+                        continue
+                    k = len(items)
+                    items.append((s_['V'], s_['T'][sel], k, cull if not np.ndim(cull) else np.asarray(cull)[sel]))
+                    if is_ink and part:
+                        ink.append(k)
         out = {}
         for v in views:
             if not ink:
@@ -797,6 +880,8 @@ def evaluate(decls, I):
             ctx['hair_D'] = I.get('hair_D')
             ctx['ink'] = (I.get('ink') or {}).get(view)
             ctx['hair_other'] = member_mask(lab, {n: i for i, n in enumerate(names)}, I.get('hair_other_members') or [])
+            ctx['head'] = I.get('head')
+            ctx['tones'] = (I.get('tones') or {}).get(view)
         fam = FAMILIES[d['family']]
         if 'round' in params:
             params['round_'] = params.pop('round')
@@ -839,7 +924,11 @@ def declared(B, design=None, out=None):
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
     I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
                classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) for d in ds),
-               hair=any(HAIR in (d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]) for d in ds))
+               hair=any(HAIR in (d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]) for d in ds),
+               head=tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds
+                                                  if d['family'] in HEAD_FAMILIES)),
+               tones=tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds
+                                                   if d['family'] in TONE_FAMILIES)))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}
@@ -859,6 +948,17 @@ STROKE_FLOORS = {
     'turned_strokes': "the drawn strands inside the hair's mass each turned 30-90 degrees about its middle (in their "
                       "places, across the hair's flow)",
 }
+TONE_FLOORS = {            # (the tones family's: the drawn tones moved about the hair)
+    'scattered_shadow': "the drawn shadow's patches (the shade tone's connected pieces inside the hair) each put anywhere "
+                        "in the hair at random (their shapes and the share kept: the shadow in the wrong places)",
+    'scattered_highlights': "the drawn highlight marks each put anywhere in the hair at random",
+}
+WEIGHT_FLOORS = {          # (the line_weight family's: the head sheet's strands repainted, charkit.hairweight.redraw)
+    'heavy_strokes': "the head sheet's strands repainted in the outline's ink at the outline's weight (inner strokes as "
+                     "heavy as the silhouette's line)",
+    'blunt_strokes': "the head sheet's strands repainted at their own colour and middle weight with square ends (no "
+                     "taper)",
+}
 
 
 class Declared(_calib_base()):
@@ -868,14 +968,91 @@ class Declared(_calib_base()):
     with the labels for the design, none for a floor (a random stand-in has no line between its pieces). Our ink strokes
     (our_ink: the hair's line layer) are the drawing's strands (the strokes family's 'strand' set: its lines inside the
     hair's mass off the splitter's lock lines), moved with the labels; the stroke floors (STROKE_FLOORS) keep the
-    design's labels and lines in place and move, scatter or turn the strands."""
+    design's labels and lines in place and move, scatter or turn the strands. Our head drawn at the head sheet's scale
+    (hairweight.our_head: the line_weight family) is the head sheet's own pictures, its strands (its faint lines) as
+    our ink, moved as the labels are; the weight floors (WEIGHT_FLOORS) repaint its strands (hairweight.redraw); any
+    other floor has no strokes there."""
     part = 'declared'
-    generators = dict(_calib_base().generators, **STROKE_FLOORS)
+    generators = dict(_calib_base().generators, **STROKE_FLOORS, **WEIGHT_FLOORS, **TONE_FLOORS)
 
     def labels(self, kind, arg):
-        if kind in STROKE_FLOORS:
+        if kind in STROKE_FLOORS or kind in WEIGHT_FLOORS or kind in TONE_FLOORS:
             return super().labels('design', (0, 0))
         return super().labels(kind, arg)
+
+    def tones(self, kind, arg, views):
+        """our cel tones for a stand-in (hairtones.our_tones' form): the design's own (its shade as tone 1, its marks as
+        value over its lit), moved arg px (design), with its shade's pieces or its marks scattered in the hair (a tone
+        floor, arg the seed), or one flat lit tone (any other) -> {view: dict(tone, value, hair)}."""
+        from scipy import ndimage
+        from . import hairflagqa, hairtones
+        from .calib.labels import _shift
+        out = {}
+        for v in views:
+            d = self.dv.get(v)
+            if d is None:
+                continue
+            hair = hairflagqa.drawn_hair(d)
+            T = hairtones.design_tones(d, hair)
+            if T is None:
+                continue
+            shade, mark = T['shade'].copy(), T['mark'].copy()
+            if kind == 'scattered_shadow':
+                shade = self._scatter(shade, T['inside'], arg, v)
+            elif kind == 'scattered_highlights':
+                mark = self._scatter(mark, T['inside'], arg, v)
+            elif kind != 'design':
+                shade, mark = np.zeros_like(shade), np.zeros_like(mark)
+            tone = np.where(T['inside'], np.where(shade, 1.0, 0.0), np.nan)
+            value = np.where(mark, T['lit'] + 2 * hairtones.HL_OVER, T['lit'])
+            dy, dx = arg if kind == 'design' else (0, 0)
+            out[v] = dict(tone=_shift(tone, dy, dx, np.nan), value=_shift(value, dy, dx, 0.0),
+                          hair=_shift(hair, dy, dx, False))
+        return out
+
+    def _scatter(self, m, inside, seed, v):
+        """m's connected pieces each moved to a random place inside (kept wholly inside where it can be)."""
+        from scipy import ndimage
+        rng = np.random.default_rng(6000 + 97 * int(seed) + VIEWS.index(v))
+        out = np.zeros(m.shape, bool)
+        ky, kx = np.nonzero(inside)
+        lab, n = ndimage.label(m, structure=np.ones((3, 3)))
+        for k in range(1, n + 1):
+            rr, cc = np.nonzero(lab == k)
+            c = np.array([rr.mean(), cc.mean()])
+            for _ in range(50):
+                j = rng.integers(len(ky))
+                P = np.round(np.c_[rr, cc] - c + np.array([ky[j], kx[j]])).astype(int)
+                ok = (P[:, 0] >= 0) & (P[:, 0] < m.shape[0]) & (P[:, 1] >= 0) & (P[:, 1] < m.shape[1])
+                if ok.all() and inside[P[:, 0], P[:, 1]].mean() > 0.9:
+                    out[P[:, 0], P[:, 1]] = True
+                    break
+        return out & inside
+
+    def head(self, kind, arg, views):
+        """the head pictures as ours for a stand-in: the design's, moved arg px (design), its strands repainted (a
+        weight floor, arg the seed), or without strokes (any other) -> {view: dict(rgb, hair, strands, clips)}."""
+        from . import hairweight
+        from .calib.labels import _shift
+        Dh = hairweight.design_head(self.B, self.design)
+        out = {}
+        for v in views:
+            d = Dh.get(v)
+            if d is None:
+                continue
+            if kind in WEIGHT_FLOORS:
+                rgb, st = hairweight.redraw(d['rgb'], d['hair'], d['clips'], kind, arg)
+                out[v] = dict(rgb=rgb, hair=d['hair'], strands=st, clips=d['clips'])
+                continue
+            S = hairweight.strands_of(d['rgb'], d['hair'], None, d['clips'])
+            st = np.zeros(d['hair'].shape, bool)
+            if kind == 'design' and S is not None:
+                st[S['rr'], S['cc']] = True
+            dy, dx = arg if kind == 'design' else (0, 0)
+            sh = lambda a, fill=False: _shift(a, dy, dx, fill) if a.ndim == 2 else \
+                np.stack([_shift(a[..., j], dy, dx, 0.75) for j in range(a.shape[-1])], -1)
+            out[v] = dict(rgb=sh(d['rgb']), hair=sh(d['hair']), strands=sh(st), clips=sh(d['clips']))
+        return out
 
     def _drawn(self, v):
         """the drawing's lines as it draws them: its ink, and its fainter strokes (a crease drawn in a shade:
@@ -966,5 +1143,16 @@ class Declared(_calib_base()):
             if kind in STROKE_FLOORS:
                 return {v: self.stroke_floor(v, kind, arg) for v in views if v in self.cls}
             return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
+        from . import hairweight
+
+        from . import hairtones
+
+        def our_head(B, az3, views=hairweight.VIEWS, ss=hairweight.SS):
+            return self.head(kind, arg, views)
+
+        def our_tones(B, ppl, az3, views):
+            return self.tones(kind, arg, views)
         return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines),
-                                                (sys.modules[__name__], 'our_ink', ink)]
+                                                (sys.modules[__name__], 'our_ink', ink),
+                                                (hairweight, 'our_head', our_head),
+                                                (hairtones, 'our_tones', our_tones)]

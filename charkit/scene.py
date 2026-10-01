@@ -358,7 +358,7 @@ def hair_pieces_objects(S, shape, hc):
                               inner=hl.get('lock_shade', 0.0)) if under else m
     envelope = index.get('normals', 'envelope') == 'envelope'
     obs = []
-    m_ink = None
+    m_ink = m_lock_ink = None
     for p in index['pieces']:
         path = os.path.join(pdir, p['file'])
         ob, meta = load_part(path, 'hair_' + p['name'], material=m_under if p['family'] in under else m,
@@ -367,11 +367,18 @@ def hair_pieces_objects(S, shape, hc):
         Zp = np.load(path)
         if 'ink' in Zp.files:
             # (tool/hairstrokes: the design's strokes on the piece, charkit.geom.hairink: their faces on an ink slot,
-            # drawn flat in the hair's line colour; their vertices' outline_w is 0, so no hull)
-            ink = np.asarray(Zp['ink'], bool)
-            ob.data.materials.append(m_ink or _hair_ink(S, C))
-            m_ink = ob.data.materials[-1]
-            mi = np.where(ink, len(ob.data.materials) - 1, 0).astype(np.int32)
+            # drawn flat in the hair's line colour; their vertices' outline_w is 0, so no hull. Kind 1 the strands,
+            # 2 the lock lines on their own slot, hairink.LOCK_MATERIAL: lines, which the strand checks leave out)
+            ink = np.asarray(Zp['ink'], np.uint8)
+            mi = np.zeros(len(ink), np.int32)
+            if (ink == 1).any():
+                ob.data.materials.append(m_ink or _hair_ink(S, C))
+                m_ink = ob.data.materials[-1]
+                mi[ink == 1] = len(ob.data.materials) - 1
+            if (ink == 2).any():
+                ob.data.materials.append(m_lock_ink or _hair_ink(S, C, lock=True))
+                m_lock_ink = ob.data.materials[-1]
+                mi[ink == 2] = len(ob.data.materials) - 1
             ob.data.polygons.foreach_set('material_index', mi)
         ow = Zp['outline_w'] if 'outline_w' in Zp.files else None
         if ow is not None:
@@ -393,15 +400,20 @@ def hair_pieces_objects(S, shape, hc):
     return obs
 
 
-def _hair_ink(S, C):
+def _hair_ink(S, C, lock=False):
     """the hair's ink strokes' material (charkit.geom.hairink; its name ends '_ink': charkit.qa3d.is_ink reads it as a
     line): flat, in the colour the hair's outline takes (the look's ink where its lines are 'ink' for the hair, else
-    the hair's line colour), not culled."""
+    the hair's line colour), not culled. lock: the lock lines' (hairink.LOCK_MATERIAL), in the outline's colour."""
     from . import shade
     ln = shade.look_of(S.spec).get('lines') or {}
     regions = ln.get('ink_regions')
     col = ln.get('ink', (0.06, 0.024, 0.024)) if ln.get('color') == 'ink' and (regions is None or 'hair' in regions) \
         else C['line']
+    if lock:
+        from .geom.hairink import LOCK_MATERIAL
+        m = shade.flat(LOCK_MATERIAL, tuple(col))
+        m.use_backface_culling = False
+        return m
     col = ((S.spec.get('hair') or {}).get('shape') or {}).get('strokes', {}).get('color', col)
     m = shade.flat('hair_ink', tuple(col))
     m.use_backface_culling = False

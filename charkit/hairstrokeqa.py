@@ -20,6 +20,17 @@ exact placement reported as each view's cost). The checks are the intent, in eve
                                line inside the mass, at 0.03 L) where that flow is clear (degrees): the design 4-6, the
                                strands turned 30-90 degrees 51-63
 
+  hair_strokes_{view}_weight   line weight (scope (a): strokes lighter than the silhouette's outline), at the head
+                               sheet's scale (charkit.hairweight: the head sheet against our head drawn at 400 px per
+                               L, one detector): the strands' median weight (coverage of the outline's ink integrated
+                               across the line: width and darkness at once) over the outline's, |log2(ours /
+                               design)|. The design 0.25-0.27 (brown strokes, a quarter of the black outline's weight),
+                               its strands repainted at the outline's weight 0.97-1.01 (|log2| 1.9-2.0)
+  hair_strokes_{view}_taper    taper (scope (a): strokes taper at their ends): the px over which a strand's weight
+                               falls from 0.75 to 0.25 of its middle's past each free end (followed on past the
+                               skeleton's threshold), ours over the design's (higher is better). The design 5.5-6 px,
+                               its strands repainted with square ends 1-1.5 (0.18-0.27 of it)
+
   bun_{L,R}_{view}_lines       the buns' drawn lines (where a bun's front block meets the one behind, its tiers'
                                steps: charkit.geom.hairink's bun set) our lines and strokes lack (declared.ink_inside
                                inside the drawn bun, our ink at least a pixel wide): 1 - recall within 0.015 L
@@ -62,4 +73,20 @@ DECLARED_CHECKS = [
          note="the lines drawn inside the right bun (where its front block meets the one behind, its tiers' steps) our "
               "lines and strokes lack: 1 - recall of their skeleton within 0.015 L",
          calibrate=dict(known_bad='hst_base', baseline=['voronoi_pieces'], shape=['hair_piece_buns'])),
+    dict(check='hair_strokes_{view}_weight', family='line_weight', piece='hair',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='weight'), limits=[0.5, 1.0],
+         flag="the hair lacks detail in the bulk of the mass: the ink strokes inside the locks (Michael, 2026-10-01)",
+         note="the strands' line weight over the outline's at the head sheet's scale (charkit.hairweight), ours against "
+              "the design's: |log2(ours / design)|",
+         calibrate=dict(known_bad='hst_base', baseline=['heavy_strokes'],
+                        shape=['hair_piece_bangs', 'hair_piece_side_locks', 'hair_piece_upper_back',
+                               'hair_piece_lower_back'])),
+    dict(check='hair_strokes_{view}_taper', family='line_weight', piece='hair',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='taper'), limits=[0.6, 0.4], better='higher',
+         flag="the hair lacks detail in the bulk of the mass: the ink strokes inside the locks (Michael, 2026-10-01)",
+         note="how gradually the strands end at the head sheet's scale (the px over which a strand's weight falls from "
+              "0.75 to 0.25 of its middle's past its free ends), ours over the design's",
+         calibrate=dict(known_bad='hst_base', baseline=['blunt_strokes'],
+                        shape=['hair_piece_bangs', 'hair_piece_side_locks', 'hair_piece_upper_back',
+                               'hair_piece_lower_back'])),
 ]

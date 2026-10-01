@@ -25,8 +25,16 @@ surface they land on, so the geometry track's shells and this layer stay indepen
            it moves with the piece; its vertices carry the piece's lock under them (per-lock rigging to come), no
            outline (outline_w 0) and the surface's shading normal
 
+  locks    (lock_lines) the splitter's lock lines too (the drawn lines within `wall` L of a boundary between two of
+           its locks: the strand set's complement inside the mass), placed as the strands are, at the outline's weight
+           (lock_width: the head boards' screen line, 0.0022 of a 900 px page at 400 px per L), on the hull shell's
+           locks only: a point landing on a lock shell (charkit.geom.lockshell: a piece's `shell` vertices) isn't
+           inked, as the shells draw their own outlines (the coordinator's default, 2026-10-01: a per-region setting,
+           off wherever the lock shells are on). Their faces take ink kind 2 (LOCK_MATERIAL: lines, not strands; the
+           strand checks leave them out, the line checks read them)
+
 Templates first: the strokes are the design's; what the spec holds is how they are drawn (hair.shape.strokes: set,
-width, taper, tip, lift, margin, views). Measured per view by the declared checks charkit.hairstrokeqa (presence and
+width, taper, tip, lift, margin, views, lock_lines and their lock_width, lock_tip, lock_taper). Measured per view by the declared checks charkit.hairstrokeqa (presence and
 place, direction, extra strokes).
 
     S, near = trace(spec, opts)                      # {view: [(n, 2) (u, z) L round the view's origin]}, the veto's
@@ -40,6 +48,8 @@ import numpy as np
 
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
 MASS = ('bangs', 'side_locks', 'upper_back', 'lower_back')      # the families strokes land on (hairpieces' MASS)
+STRAND, LOCK = 1, 2      # a face's ink kind (the part's per-face `ink`): a strand stroke, a lock line
+LOCK_MATERIAL = 'hair_lock_ink'     # the lock lines' material (the scene's; ends '_ink': qa3d.is_ink reads it as a line)
 OPTS = dict(
     set='strand',       # 'strand': the lock lines left out (the shells draw them); 'all': every interior line
     wall=0.012,         # L: a drawn line this close to a boundary between two of the splitter's locks is a lock line
@@ -72,6 +82,10 @@ OPTS = dict(
     bun_veto=VIEWS,     # the views that veto a bun's line
     bun_veto_face=0.9,  # their facing threshold (a bun line from one view lands off the others: our bun block isn't
                         # the drawn one exactly; only a view facing the bun face head-on vetoes it)
+    lock_lines=False,   # the splitter's lock lines as ink on the hull shell's locks (off on the lock shells)
+    lock_width=0.005,   # L: their width (the head boards' outline: 0.0022 x 900 px / 400 px per L)
+    lock_tip=0.3,       # their width at their ends, a share of lock_width
+    lock_taper=0.4,     # the share of their length over which they narrow
 )
 
 
@@ -98,16 +112,20 @@ def view_dir(az):
 def drawn_strokes(lines, keep, ppl, lock=None, set_='strand', wall=OPTS['wall'], min_len=OPTS['min_len']):
     """the strokes drawn inside the hair's mass on a design grid: the lines (hairflagqa's drawn lines) skeletonized
     inside keep (the mass's inside); set 'strand': those within `wall` L of a boundary between two locks of `lock` (the
-    splitter's lock image) left out; skeleton pieces (8-connected) shorter than `min_len` L dropped (specks: a
+    splitter's lock image) left out; 'lock': only those (the lock lines); skeleton pieces (8-connected) shorter than
+    `min_len` L dropped (specks: a
     highlight's or a tone's edge read as a faint stroke). The measure (charkit.declared's strokes family) and the tracer
     read the same strokes. -> bool image."""
     from scipy import ndimage
     from skimage.morphology import skeletonize
     sk = skeletonize(lines) & keep
-    if set_ == 'strand' and lock is not None:
+    if set_ in ('strand', 'lock') and lock is not None:
         b = lock_boundaries(lock)
         if b.shape == sk.shape and b.any():
-            sk &= ndimage.distance_transform_edt(~b) > wall * ppl
+            near = ndimage.distance_transform_edt(~b) <= wall * ppl
+            sk &= ~near if set_ == 'strand' else near
+        elif set_ == 'lock':
+            sk &= False
     if min_len > 0 and sk.any():
         lab, n = ndimage.label(sk, structure=np.ones((3, 3)))
         size = np.bincount(lab.ravel())
@@ -140,7 +158,7 @@ def design_lines(spec, set_='strand', wall=OPTS['wall'], views=VIEWS, min_len=OP
     R = manifest.load(spec['ref']['manifest'])['references']
     truth = hairlayers.load_truth(hairlayers._p(R['hair_truth']['path']))
     D = hairflagqa.design_side(truth, dv, ppl, views=tuple(v for v in VIEWS if v in dv))
-    locks = split_locks(spec) if set_ == 'strand' else {}
+    locks = split_locks(spec) if set_ in ('strand', 'lock') else {}
     out, near = {}, {}
     for v in VIEWS:
         if v not in D['keep']:
@@ -151,14 +169,15 @@ def design_lines(spec, set_='strand', wall=OPTS['wall'], views=VIEWS, min_len=OP
     return out, ppl, near
 
 
-def trace(spec, opts=None):
-    """the design's interior strokes per view, traced into polylines on the design grids, each point (u, z) in L round
-    the view's origin (the QA's: bodyqa.WIN round the drawn eyes, pixel centres) -> ({view: [(n, 2) array]}, {view:
-    distance image (L) to the view's nearest drawn line, on its design grid}: the veto's)."""
+def trace(spec, opts=None, set_=None):
+    """the design's interior strokes per view (set_: the opts' set, or 'lock' for the lock lines), traced into
+    polylines on the design grids, each point (u, z) in L round the view's origin (the QA's: bodyqa.WIN round the drawn
+    eyes, pixel centres) -> ({view: [(n, 2) array]}, {view: distance image (L) to the view's nearest drawn line, on its
+    design grid}: the veto's)."""
     from charkit import inkfit
     from charkit.bodyqa import WIN
     o = dict(OPTS, **(opts or {}))
-    S, ppl, near = design_lines(spec, o['set'], o['wall'], tuple(o['views']))
+    S, ppl, near = design_lines(spec, set_ or o['set'], o['wall'], tuple(o['views']))
     out = {}
     for v, sk in S.items():
         polys = inkfit.join(inkfit.trace(sk, ppl, o['min_len'], o['tol']))
@@ -331,11 +350,12 @@ class _Veto:
         return True
 
 
-def place(pieces, strokes, frames_, L, opts=None, skin=None, log=None, near=None, families=MASS):
+def place(pieces, strokes, frames_, L, opts=None, skin=None, log=None, near=None, families=MASS, skip_shell=False):
     """the traced strokes (trace()) placed on the pieces: projected along their views, kept where their view faces the
     surface (within `margin` of the best view's facing, at least `min_face`) and where every other view that sees them
-    squarely draws a line near them (near: trace()'s distance images; None: no veto), as ribbons -> ({piece name:
-    dict(verts, faces, vn, strand, lock)}, a report)."""
+    squarely draws a line near them (near: trace()'s distance images; None: no veto), and with skip_shell off a lock
+    shell (a piece's `shell` vertices: the shells draw their own outlines), as ribbons -> ({piece name: dict(verts,
+    faces, vn, strand, lock)}, a report)."""
     o = dict(OPTS, **(opts or {}))
     names = [n for n, p in pieces.items() if p.get('family') in families]
     occ = [n for n, p in pieces.items() if p.get('family') in MASS + ('buns',) and n not in names]
@@ -359,6 +379,9 @@ def place(pieces, strokes, frames_, L, opts=None, skin=None, log=None, near=None
                     N /= max(np.linalg.norm(N), 1e-12)
                     face = {k: float(-dk @ N) for k, dk in dirs.items()}
                     ok = face[v] >= o['min_face'] and face[v] >= max(face.values()) - o['margin']
+                    if ok and skip_shell and p.get('shell') is not None and \
+                            np.asarray(p['shell'], bool)[np.asarray(p['T'])[t]].any():
+                        ok = False                               # (a lock shell: its own outline draws the line)
                     if ok and veto is not None and not veto.ok(X, N, v):
                         ok = False
                         vetoed += 1
@@ -438,10 +461,10 @@ def ribbons(runs, L, o):
 
 
 # ------------------------------------------------------------------------------------------------------------ apply
-def apply(R, K):
+def apply(R, K, kind=STRAND):
     """the ribbons K (place()'s) appended to R's pieces (hairpieces.build's) in place: their vertices after the piece's
     with its shading normals, strand and lock arrays extended, outline_w 0 on them (the piece's own kept or 1), shell
-    False, and a per-face `ink` mask (the build's ink slot)."""
+    False, and a per-face `ink` kind (0 the surface, STRAND, LOCK: the build's ink slots)."""
     for n, k in K.items():
         p = R['pieces'][n]
         nv, nt = len(p['V']), len(p['T'])
@@ -458,8 +481,8 @@ def apply(R, K):
             p['shell'] = np.r_[np.asarray(p['shell'], bool), np.zeros(m, bool)]
         if p.get('outer') is not None:
             p['outer'] = np.r_[np.asarray(p['outer'], bool), np.zeros(m, bool)]
-        ink = np.asarray(p['ink'], bool) if p.get('ink') is not None else np.zeros(nt, bool)
-        p['ink'] = np.r_[ink, np.ones(len(k['faces']), bool)]
+        ink = np.asarray(p['ink'], np.uint8) if p.get('ink') is not None else np.zeros(nt, np.uint8)
+        p['ink'] = np.r_[ink, np.full(len(k['faces']), kind, np.uint8)]
     return R
 
 
@@ -477,4 +500,10 @@ def build(R, spec, iris, centre, L, opts=None, skin=None, log=print):
         Kb, rb = place(R['pieces'], trace_buns(spec, o), F, L, ob, skin=skin, log=log, near=near, families=('buns',))
         apply(R, Kb)
         rep['buns'] = rb
+    if o.get('lock_lines'):
+        ol = dict(o, width=o['lock_width'], tip=o['lock_tip'], taper=o['lock_taper'])
+        Sl, _ = trace(spec, o, 'lock')
+        Kl, rl = place(R['pieces'], Sl, F, L, ol, skin=skin, log=log, near=near, skip_shell=True)
+        apply(R, Kl, LOCK)
+        rep['locks'] = rl
     return rep

@@ -137,8 +137,28 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
 - Records refreshed (3b1fe35; calib_flags.log): hair_back_lines, hair_lock_lines_{three_quarter,profile} CALIBRATED;
   design and known-bad read as before (-0.022 / 3.761; 0.98-1.00 / 0.164; 0.99-1.00 / 0.202), current 0.928 W /
   0.167 F / 0.281 F. Pregate 3b1fe35 into 00494de: PASS, 2 moved, 0 blocking.
-- (a) line weight: tools/weight.py (the same detector on the head sheet and our head drawn at 400 px/L: darkness
-  against the local fill as coverage of the image's outline ink, integrated across each line at its skeleton).
+- (a) line weight: charkit/hairweight.py (the same detector on the head sheet and our head drawn at 400 px/L, the
+  lines at the head boards' screen width: darkness under a grey closing (9 px) as coverage of the picture's outline
+  ink, integrated across each line at its skeleton = its weight, width and darkness at once). The design's strands are
+  its faint lines (peak < 0.7 of the outline ink: brown), its lock lines and clips black. Readings (hst_s1, F/3q/P):
+  weight (strand / outline) design 0.256/0.253/0.265, ours 0.276/0.247/0.305; heavy floor 1.00/1.01/0.97, blunt 0.26-0.28.
+  Taper = px over which a strand's weight falls 0.75 -> 0.25 of its middle's, followed past each free end (the design's
+  faint ends fall under the skeleton's threshold: an end/middle ratio read it 0.8-0.9, untapered): design 5.5/6.0/5.5,
+  ours 4.0, blunt floor 1.0-1.5. Declared family `line_weight` (declared.py; inputs' `head`), checks
+  hair_strokes_{view}_weight |log2(ours/design)| [0.5, 1.0] and _taper ours/design [0.6, 0.4] higher (hairstrokeqa.py),
+  floors heavy_strokes / blunt_strokes (declared.WEIGHT_FLOORS, hairweight.redraw), known-bad hst_base (no strokes:
+  FAIL). Declared part on hst_s1: weight 0.109/0.035/0.203 PASS, taper 0.727/0.667/0.727 PASS; hst_base all FAIL.
+  Calibration needs the checks in the build's qa.json: hst_s1's QA re-run (`charkit qa`), then calibrate
+  (calib_weight.log).
+- Observation for Michael: our hair outline reads 1.84-1.87 px at 400 px/L against the drawn 2.47-2.58 (the look's
+  screen lines, 0.0022 of the page); the strokes are world-wide ribbons, so their weight against the outline changes
+  with the framing (heavier in close-ups, thinner in full-body shots).
+- Coordinator default (lock lines as ink on the hull shell, per region, off where the lock shells are on): built.
+  hairink `lock_lines` (spec strokes.lock_lines true in clawd.json and its alias): the splitter's lock lines (the
+  drawn lines within `wall` of its lock boundaries) traced and placed as the strands are (same veto), at lock_width
+  0.005 L (the head boards' outline), skipping points that land on a lock shell's vertices; ink kind 2 on their own
+  material `hair_lock_ink` (scene.py), which declared.our_ink and hairweight leave out of the strands (lines, not
+  strokes; hairflagqa reads them as lines). Sweep lock_lines on over hst_s1: charkit/out/hairstrokes/sw_locklines.
 
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store

@@ -325,7 +325,8 @@
     "width": 0.0035,
     "taper": 0.6,
     "tip": 0.15,
-    "buns": true
+    "buns": true,
+    "lock_lines": true
    }
   },
   "silhouette": {
