@@ -655,3 +655,28 @@ Reading: pulling the flicks onto the curling mass (prior_depth) lowers the back 
 back_lines to WARN (the flicks' inked tips now lie inside the mass); holding them in the lower back's drawn region in
 every view (contain 5) mends the lower back's profile (0.579 -> 0.642, the hull 0.665) but steps the back terminator
 (2.90). Neither closes the back view alone (hull 1.87).
+
+## (2d) Flick geometry with and without tool/hairstrokes' ellipsoid normals (six-placement back-view means)
+r4sw1 (render box, single placements only: rows not on the build box), r4sw3 (build box, r4b_pilot; term6 on the box),
+ell_sw1 (scratch branch, base ell_pilot100 = the pilot with shade_ellipsoid 1.0). Group opts on the pilot's flicks:
+
+| row | no ellipsoid: term mean (back) | back_lines | ellipsoid 1.0: term mean (back) | back_lines | lower back P | hem |
+|---|---|---|---|---|---|---|
+| control | 1.989 (2.67) | 0.433 P | 1.593 (2.13) | 0.433 P | 0.579 | 2 |
+| prior_depth 1 | 1.968 (2.55) | 0.475 P | | | 0.599 | 2 |
+| view_depth 3 | 1.761 (2.24) | 0.493 P | | | 0.595 | 3 |
+| pd 3 + vd 3 | 1.694 (2.15) | 0.504 W | | | 0.595 | 3 |
+| pd 3 + vd 3 + over_ink 0.2 | 1.880 (2.49) | 0.410 P | | | 0.595 | 3 |
+| pd 3 + vd 3 + contain 2 | 2.064 (2.77) | 0.548 W | | | 0.590 | 3 |
+| prior_depth 10 | 1.760 (2.34) | 0.613 W | 1.594 (2.13) | 0.613 W | 0.604 | 3 |
+| contain 5 | 2.167 (2.90) | 0.484 P | 1.540 (2.06) | 0.484 P | 0.642 | 3 |
+| pd 3 + smooth 0.1 | 1.828 (2.36) | 0.569 W | 1.575 (2.11) | 0.569 W | 0.582 | 2 |
+| pd 3 + smooth 0.1 + contain 5 | | | 1.471 (1.96) | 0.537 W | 0.635 | 4 |
+| **pd 10 + contain 5** | | | **1.369 (1.78)** | 0.531 W | **0.639** | 3 |
+| hull (r4_hull; hull + ellipsoid) | 2.006 (1.87) | 0.894 W | 2.119 (1.77) | 0.894 W | 0.665 | 3 |
+
+**Answer to the coordinator's question:** tool/hairstrokes' ellipsoid normals alone take the pilot's back view 2.67 ->
+2.13; the flick geometry alone (pulled onto the curling hem) 2.67 -> 2.15; together (ellipsoid 1.0, flicks prior_depth
+10 + contain 5) 1.78, under the hull's 1.87 (the hull with the ellipsoid 1.77: a tie), with the lower back's profile
+0.639 (hull 0.665, -3.9%), back_lines 0.531 W (hull 0.894 W), hem 3 (= hull), peeks 18 / 17.7 (hull 17 / 17.5). So the
+merge order strokes first, then the shells with their flicks pulled onto the hem, closes the back view; neither alone.
