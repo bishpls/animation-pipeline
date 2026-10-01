@@ -554,7 +554,7 @@ def _fit_for(build, spec_path, over=None):
     spec = json.load(open(spec_path))
     if over:
         spec.setdefault('body', {}).setdefault('hand', {}).update(over)
-    hull = manifest.produced(B.spec, 'hull')
+    hull = manifest.produced(B.spec, manifest.body_hull(B.spec))
     masks = manifest.produced(B.spec, 'outfit_masks')
     F = Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json'))
     F.src = (build, spec_path, over)

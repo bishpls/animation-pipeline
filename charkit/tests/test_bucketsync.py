@@ -273,3 +273,54 @@ def test_check_finds_what_a_copy_gets_wrong(env, capsys):
     assert bs.box_check(msha, str(d)) == 1
     out = capsys.readouterr().out
     assert 'missing 1' in out and 'extra 1' in out and 'content 0' in out
+
+
+def private_repo(root):
+    """repo() plus a gitignored private character (charkit/private/: references, spec, manifest) and its outputs."""
+    repo(root)
+    write(os.path.join(root, '.gitignore'), 'charkit/out/\n__pycache__/\nprojects/*/out/\ncharkit/private/\n')
+    write(os.path.join(root, 'charkit', 'private', 'cx', 'spec.json'), '{"name": "cx"}\n')
+    write(os.path.join(root, 'charkit', 'private', 'cx', 'refs', 'gen', 'sheet.png'), 'png\n')
+    write(os.path.join(root, 'charkit', 'private', 'cx', 'out', 'b1', 'body.glb'), 'private output\n')
+    write(os.path.join(root, 'charkit', 'private', 'cx', '__pycache__', 'g.pyc'), 'pyc\n')
+
+
+def test_private_inputs_are_synced_and_their_outputs_are_not(tmp_path):
+    """charkit/private/ is gitignored (a private character stays out of the public repo) but the box needs its inputs:
+    they are synced; its outputs (charkit/private/<name>/out) are not, as charkit/out's aren't."""
+    root = str(tmp_path / 'wt')
+    private_repo(root)
+    rels, keep = bs.sync_paths(root)
+    assert 'charkit/private/cx/spec.json' in rels and 'charkit/private/cx/refs/gen/sheet.png' in rels
+    assert not any(r.startswith('charkit/private/cx/out') or '__pycache__' in r for r in rels)
+    assert not any(k.startswith('charkit/private') for k in keep)        # synced, so not an ignored path to keep
+    assert 'projects/p/out/' in keep                                       # other ignored paths still stay home
+    assert bs.private_out('charkit/private/cx/out') and bs.private_out('charkit/private/cx/out/b1/body.glb')
+    assert not bs.private_out('charkit/private/cx/spec.json') and not bs.private_out('charkit/out/x')
+
+
+def test_private_inputs_reach_the_box_and_its_private_outputs_stay(env):
+    bucket, work, tmp = env
+    root = str(tmp / 'wt')
+    private_repo(root)
+    assert sync(root, work) == 0
+    d = work / 'wt'
+    assert (d / 'charkit' / 'private' / 'cx' / 'spec.json').read_text() == '{"name": "cx"}\n'
+    assert not (d / 'charkit' / 'private' / 'cx' / 'out').exists()
+    # a box build's private outputs stay; a private input the worktree dropped goes
+    write(str(d / 'charkit' / 'private' / 'cx' / 'out' / 'b2' / 'qa.json'), 'box output\n')
+    os.remove(os.path.join(root, 'charkit', 'private', 'cx', 'refs', 'gen', 'sheet.png'))
+    assert sync(root, work) == 0
+    assert (d / 'charkit' / 'private' / 'cx' / 'out' / 'b2' / 'qa.json').exists()
+    assert not (d / 'charkit' / 'private' / 'cx' / 'refs' / 'gen' / 'sheet.png').exists()
+    assert (d / 'charkit' / 'private' / 'cx' / 'spec.json').exists()
+
+
+def test_managed_private():
+    kf, kd = set(), {'projects/p/out'}
+    assert bs.managed('charkit/private/cx/spec.json', kf, kd)
+    assert not bs.managed('charkit/private/cx/out', kf, kd) and not bs.managed('charkit/private/cx/out/b/x.glb', kf, kd)
+
+
+if __name__ == '__main__':          # the gate runs each test file as a script: without this it ran nothing
+    sys.exit(pytest.main([__file__, '-q']))

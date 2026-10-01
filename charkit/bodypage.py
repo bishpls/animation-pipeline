@@ -9,7 +9,7 @@ import json, os
 
 import numpy as np
 
-from .code_body import (CUT, TIGHT, TORSO_SKIN_X, Hull, arm_mask, body, section_r, skeleton)
+from .code_body import (CUT, TIGHT, Hull, arm_mask, body, section_r, skeleton, torso_skin)
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,7 +28,7 @@ def save_body(spec, path, log=print):
     """venv-side (the fit needs scipy): the authored body's rings in the hull's frame, per part, with what the build
     needs to rig it -> path (.npz), which build_body_data reads in Blender."""
     from . import manifest
-    hull_path = manifest.produced(spec, 'hull', log)
+    hull_path = manifest.produced(spec, manifest.body_hull(spec), log)
     masks = manifest.produced(spec, 'outfit_masks', log)
     H = Hull(os.path.dirname(hull_path))
     graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
@@ -110,7 +110,7 @@ def measure(H, T, sk):
     for name, dt in TIGHT.items():
         Q = H.points(name)
         if name == 'skin':
-            Q = Q[(np.abs(Q[:, 0]) < TORSO_SKIN_X) & (Q[:, 2] <= CUT + 0.02) & (Q[:, 2] > -1.0)]
+            Q = torso_skin(H, Q)
         if not len(Q):
             continue
         Q = Q[~arm_mask(Q, sk)]
@@ -219,7 +219,7 @@ def main(args):
     from . import manifest
     spec = manifest.resolve(json.load(open(args[0])))
     out = args[args.index('--out') + 1] if '--out' in args else os.path.join(ROOT, 'charkit', 'out', 'body', spec['name'])
-    hull_path = manifest.produced(spec, 'hull')
+    hull_path = manifest.produced(spec, manifest.body_hull(spec))
     masks = manifest.produced(spec, 'outfit_masks')
     H = Hull(os.path.dirname(hull_path))
     graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))

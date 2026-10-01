@@ -197,12 +197,17 @@ def figure_crop(rgb, box=None, bg=None, pad=0.02, want_map=False):
     return out
 
 
-def design_refs(eye_x=0.168):
+DEFAULT_MANIFEST = 'charkit/refs/clawd/manifest.json'    # the kit's default spec's (charkit/spec/clawd.json)
+
+
+def design_refs(eye_x=0.168, manifest_path=None):
     """the design's pictures for the page: head_turnaround's four heads (each view's eye line and px per L: the kit's
     convention, its front eyes 2 eye_x L apart; charkit.refcheck) and body_turnaround's four figures (their boxes;
-    charkit.sheetqa.detect_figures). -> dict, with the files' paths."""
+    charkit.sheetqa.detect_figures), from manifest_path's references (the character's; default the default spec's).
+    -> dict, with the files' paths."""
     from . import refcheck, sheetqa
-    man = json.load(open(os.path.join(ROOT, 'charkit', 'refs', 'clawd', 'manifest.json')))['references']
+    mp = manifest_path or DEFAULT_MANIFEST
+    man = json.load(open(mp if os.path.isabs(mp) else os.path.join(ROOT, mp)))['references']
     hp = os.path.join(ROOT, man['head_turnaround']['path'])
     bp = os.path.join(ROOT, man['body_turnaround']['path'])
     rgb = _load(hp)
