@@ -129,6 +129,17 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   peeks 17 -> 18, back lines 0.894 -> 0.928), 0 guard findings, build CPU 1.22x, the 13 new checks calibrated. The
   2x2: the hair flags read the same on the old geometry under the new measure (0.894, 0.1044, 0.1764).
 
+## Round 2 (2026-10-01, relaunch)
+- Merged pipeline-3d 00494de (clean). The known-bad store hair5_1580f95 (its laptop source, the hair4 worktree, is gone):
+  restored from the render box's autopreview copy of the 1580f95 preview (/srv/work/animation-pipeline-autopreview/
+  charkit/out/previews/1580f95: bundle b37ed795a314d2b9, the record's own) via my box copy and `build.sh fetch`, then
+  calibrate.store (the tracked known_bad record kept as it was).
+- Records refreshed (3b1fe35; calib_flags.log): hair_back_lines, hair_lock_lines_{three_quarter,profile} CALIBRATED;
+  design and known-bad read as before (-0.022 / 3.761; 0.98-1.00 / 0.164; 0.99-1.00 / 0.202), current 0.928 W /
+  0.167 F / 0.281 F. Pregate 3b1fe35 into 00494de: PASS, 2 moved, 0 blocking.
+- (a) line weight: tools/weight.py (the same detector on the head sheet and our head drawn at 400 px/L: darkness
+  against the local fill as coverage of the image's outline ink, integrated across each line at its skeleton).
+
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store
    `~/animation-pipeline-hair4/charkit/out/calib/builds/hair5_1580f95` into this worktree's
