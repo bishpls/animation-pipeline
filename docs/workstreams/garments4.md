@@ -851,3 +851,10 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   -0.595)). The sheet's shoulder line at |x| 0.3-0.4 sits at our cut's height (-0.50..-0.53): its trapezius flare is
   above the cut, in the head's neck (the face workstream's). T2-T4 (reach 0.10/0.12) pending in
   charkit/out/garments5/bodyj5.
+- j5 complete: T0 (candidate) score 0.029 crease(whole, cage) 88; T1 (join reach 0.08 at the sides, rim top -0.61) 0.103
+  / 21; T2 (0.10, -0.63) 0.109 / 24; T3 (0.12, -0.65) 0.127 / 21; T4 (x 0.42, round 0.08, 0.10, -0.63) 0.110 / 24. The
+  old body (j6): score 0.184, crease (whole, cage) 24.5. So the crease comes back to the old body's with a deeper join,
+  but the variants tried lose the shoulder's top (the join's loft pulls the template's top rows in); a better try: the
+  template wider (x ~0.55-0.6) under the join's reach so the torso's rows make the shoulder cap, the rim below them.
+  Decision asked of Michael (review page): A flare the head's neck above the cut (face workstream), B a lower shoulder
+  top, C re-measure neck_crease.
