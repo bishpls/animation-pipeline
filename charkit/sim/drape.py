@@ -27,11 +27,23 @@ class Build:
     """a build's products for the pilots: the bundle, the garments' recording (coarse and final), L."""
 
     def __init__(self, build):
+        """build: a build's folder, or its Bundle (a QA part's: the recording found by its spec's garments_geom, and
+        read into the bundle's open recordings so a cached part is keyed on it)."""
         from .. import bundle as bl, geomstage
-        self.path = build
-        self.B = bl.load(os.path.join(build, 'bundle'))
+        if isinstance(build, str):
+            self.path = build
+            self.B = bl.load(os.path.join(build, 'bundle'))
+            gp = os.path.join(build, 'geom', 'garments.npz')
+        else:
+            self.B = build
+            self.path = os.path.dirname(os.path.abspath(build.path))
+            gp = os.path.join(self.path, 'geom', 'garments.npz')
+            if not os.path.exists(gp):
+                gp = build.spec.get('garments_geom')
+            for r in build._reads:
+                r.files.add(os.path.abspath(gp))
         self.L = float(self.B.meta('assembly')['L'])
-        self.P = geomstage.load(os.path.join(build, 'geom', 'garments.npz'))
+        self.P = geomstage.load(gp)
         self.coarse = {o['name']: o for o in geomstage.pieces(self.P, coarse=True)[0]}
 
     def mesh(self, name, variant='eval'):

@@ -94,6 +94,40 @@ def _dihedral(x0, x1, x2, x3):
     return th, g, True
 
 
+@nb.njit(**_OPT)
+def _dihedral_into(p, a, b, c, d, g):
+    """_dihedral of hinge (p[a], p[b], p[c], p[d]) without allocating: the gradients written into g (4, 3); the same
+    arithmetic in the same order (bit-identical: test_sim.test_the_scalar_kernels_are_bit_identical). -> (th, ok)."""
+    e0 = p[b, 0] - p[a, 0]; e1 = p[b, 1] - p[a, 1]; e2 = p[b, 2] - p[a, 2]
+    le = math.sqrt(e0 * e0 + e1 * e1 + e2 * e2)
+    u0 = p[c, 0] - p[a, 0]; u1 = p[c, 1] - p[a, 1]; u2 = p[c, 2] - p[a, 2]
+    v0 = p[d, 0] - p[a, 0]; v1 = p[d, 1] - p[a, 1]; v2 = p[d, 2] - p[a, 2]
+    n10 = e1 * u2 - e2 * u1; n11 = e2 * u0 - e0 * u2; n12 = e0 * u1 - e1 * u0          # cross(e, x2 - x0)
+    n20 = v1 * e2 - v2 * e1; n21 = v2 * e0 - v0 * e2; n22 = v0 * e1 - v1 * e0          # cross(x3 - x0, e)
+    q1 = n10 * n10 + n11 * n11 + n12 * n12
+    q2 = n20 * n20 + n21 * n21 + n22 * n22
+    if le < 1e-12 or q1 < 1e-24 or q2 < 1e-24:
+        return 0.0, False
+    r1 = math.sqrt(q1); r2 = math.sqrt(q2)
+    m10 = n10 / r1; m11 = n11 / r1; m12 = n12 / r1
+    m20 = n20 / r2; m21 = n21 / r2; m22 = n22 / r2
+    c0 = m11 * m22 - m12 * m21; c1 = m12 * m20 - m10 * m22; c2 = m10 * m21 - m11 * m20
+    s = (c0 * e0 + c1 * e1 + c2 * e2) / le
+    co = m10 * m20 + m11 * m21 + m12 * m22
+    th = math.atan2(s, co)
+    f2 = -le / q1
+    f3 = -le / q2
+    ee = le * le
+    t2 = (u0 * e0 + u1 * e1 + u2 * e2) / ee
+    t3 = (v0 * e0 + v1 * e1 + v2 * e2) / ee
+    g[2, 0] = f2 * n10; g[2, 1] = f2 * n11; g[2, 2] = f2 * n12
+    g[3, 0] = f3 * n20; g[3, 1] = f3 * n21; g[3, 2] = f3 * n22
+    for j in range(3):
+        g[0, j] = -((1.0 - t2) * g[2, j] + (1.0 - t3) * g[3, j])
+        g[1, j] = -(t2 * g[2, j] + t3 * g[3, j])
+    return th, True
+
+
 def dihedral(x0, x1, x2, x3):
     th, g, ok = _dihedral(*(np.asarray(v, np.float64) for v in (x0, x1, x2, x3)))
     return th, g
@@ -193,11 +227,12 @@ def _distance(p, w, E, rest, alpha, lam):
 
 @nb.njit(**_OPT)
 def _bending(p, w, H, rest, alpha, lam):
+    g = np.empty((4, 3))
     for k in range(H.shape[0]):
         a, b, c, d = H[k, 0], H[k, 1], H[k, 2], H[k, 3]
         if w[a] + w[b] + w[c] + w[d] == 0.0 or alpha[k] < 0.0:
             continue
-        th, g, ok = _dihedral(p[a], p[b], p[c], p[d])
+        th, ok = _dihedral_into(p, a, b, c, d, g)          # (no allocation per hinge: round 3, 5.6 -> see notes)
         if not ok:
             continue
         C = th - rest[k]
@@ -205,16 +240,20 @@ def _bending(p, w, H, rest, alpha, lam):
             C -= 2 * math.pi
         elif C < -math.pi:
             C += 2 * math.pi
-        den = (w[a] * (g[0] ** 2).sum() + w[b] * (g[1] ** 2).sum() + w[c] * (g[2] ** 2).sum()
-               + w[d] * (g[3] ** 2).sum())
+        den = (w[a] * (g[0, 0] * g[0, 0] + g[0, 1] * g[0, 1] + g[0, 2] * g[0, 2])
+               + w[b] * (g[1, 0] * g[1, 0] + g[1, 1] * g[1, 1] + g[1, 2] * g[1, 2])
+               + w[c] * (g[2, 0] * g[2, 0] + g[2, 1] * g[2, 1] + g[2, 2] * g[2, 2])
+               + w[d] * (g[3, 0] * g[3, 0] + g[3, 1] * g[3, 1] + g[3, 2] * g[3, 2]))
         if den < 1e-24:
             continue
         dl = (-C - alpha[k] * lam[k]) / (den + alpha[k])
         lam[k] += dl
-        p[a] += w[a] * dl * g[0]
-        p[b] += w[b] * dl * g[1]
-        p[c] += w[c] * dl * g[2]
-        p[d] += w[d] * dl * g[3]
+        sa, sb, sc, sd = w[a] * dl, w[b] * dl, w[c] * dl, w[d] * dl
+        for j in range(3):
+            p[a, j] += sa * g[0, j]
+            p[b, j] += sb * g[1, j]
+            p[c, j] += sc * g[2, j]
+            p[d, j] += sd * g[3, j]
 
 
 @nb.njit(**_OPT)
@@ -318,29 +357,32 @@ def _friction(p, x, i, n, depth, surf_disp, mu_s, mu_k):
 def _collide_capsules(p, x, w, rad, C0, C1, a, mu_s, mu_k, hit):
     """tapered capsules (ax ay az bx by bz ra rb) at the substep's start C0 and end C1; a in [0, 1] the substep's end
     within the frame is already applied to C1. Vertex radius rad (the cloth's half thickness plus clearance)."""
+    n = np.empty(3)
+    sd = np.empty(3)
     for i in range(p.shape[0]):
         if w[i] == 0.0:
             continue
-        for k in range(C1.shape[0]):
-            A = C1[k, 0:3]; B = C1[k, 3:6]
-            ab = B - A
-            L2 = (ab * ab).sum()
+        for k in range(C1.shape[0]):                  # (scalar: no allocation unless in contact; bit-identical)
+            A0_, A1_, A2_ = C1[k, 0], C1[k, 1], C1[k, 2]
+            ab0 = C1[k, 3] - A0_; ab1 = C1[k, 4] - A1_; ab2 = C1[k, 5] - A2_
+            L2 = ab0 * ab0 + ab1 * ab1 + ab2 * ab2
             t = 0.0
             if L2 > 1e-24:
-                t = ((p[i] - A) * ab).sum() / L2
+                t = ((p[i, 0] - A0_) * ab0 + (p[i, 1] - A1_) * ab1 + (p[i, 2] - A2_) * ab2) / L2
                 t = min(1.0, max(0.0, t))
-            c = A + t * ab
+            c0 = A0_ + t * ab0; c1 = A1_ + t * ab1; c2 = A2_ + t * ab2
             r = C1[k, 6] + t * (C1[k, 7] - C1[k, 6])
-            d = p[i] - c
-            ld = math.sqrt((d * d).sum())
+            d0 = p[i, 0] - c0; d1 = p[i, 1] - c1; d2 = p[i, 2] - c2
+            ld = math.sqrt(d0 * d0 + d1 * d1 + d2 * d2)
             pen = r + rad[i] - ld
             if pen <= 0.0 or ld < 1e-15:
                 continue
-            n = d / ld
-            p[i] += pen * n
+            n[0] = d0 / ld; n[1] = d1 / ld; n[2] = d2 / ld
+            p[i, 0] += pen * n[0]; p[i, 1] += pen * n[1]; p[i, 2] += pen * n[2]
             # the surface point's own move this substep (the capsule's at the same t)
-            A0 = C0[k, 0:3]; B0 = C0[k, 3:6]
-            sd = (c - (A0 + t * (B0 - A0)))
+            sd[0] = c0 - (C0[k, 0] + t * (C0[k, 3] - C0[k, 0]))
+            sd[1] = c1 - (C0[k, 1] + t * (C0[k, 4] - C0[k, 1]))
+            sd[2] = c2 - (C0[k, 2] + t * (C0[k, 5] - C0[k, 2]))
             _friction(p, x, i, n, pen, sd, mu_s, mu_k)
             hit[i] += 1
 
