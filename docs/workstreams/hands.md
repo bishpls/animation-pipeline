@@ -161,7 +161,16 @@ Against b1 (same tree otherwise):
   test_code_body: identity, lengths kept, angle grows by the knob, mirrored. Knob fit (armfit.py, symmetric, the posed
   chain's projections vs the drawn line and skin axes, all views): elbow_out 5.1 / fwd 0.9 (the chain alone, rms 0.74
   deg from 4.62) or 3.9 / 0.7 (b2's rendered offset kept, rms 0.60 from 3.51).
-- A/B on the local evaluator (charkit/out/hands/ab/run_r3.sh: r3_cur, r3_e4, r3_e5; log ab/r3.log).
+- A/B on the local evaluator (charkit/out/hands/ab/run_r3.sh: r3_cur, r3_e4, r3_e5; ab/r3_*.json), cur | 3.9/0.7 |
+  5.1/0.9: **body_three_quarter_skirt_aline -0.313 FAIL | -0.017 PASS | -0.017 PASS**; body_front_skirt_width 0.866 W |
+  0.984 P | 0.984 P; iou_skin front 0.738 | 0.812 | 0.828, back 0.766 | 0.847 | 0.845, 3q 0.740 | 0.767 | 0.763, profile
+  0.732 | 0.733 | 0.731; body_front_arms -2.0 | +1.6 | +2.5 (back -1.5 | 1.5 | 2.4; INFO); shape_iou_skirt 0.871 | 0.880 |
+  0.881; ref_iou 0.717 | 0.753 | 0.762; cuff edges mostly closer (front_L_left -0.127 W -> -0.090 P), but
+  piece_cuff_R_three_quarter_bottom -0.099 P -> -0.108 W (both); **5.1 makes piece_overskirt_panel_L_front_top FAIL
+  (0.090 -> -0.249)**, 3.9 keeps it PASS (0.043). Sleeves and sleeve cuffs unchanged. **Chosen: elbow_out 3.9,
+  elbow_fwd 0.7** (spec: body.arm, both specs).
+- **Box build b3** (render box, boards body,design): `charkit/out/hands_b3`, log charkit/out/hands/b3.log; if the
+  command died, `python -m charkit remote attach JID` (the id is in the log's start).
 
 ## Next steps (exact)
 1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
