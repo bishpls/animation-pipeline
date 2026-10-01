@@ -32,7 +32,8 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                                                              'lower_back': ('back', 'front', 'profile')},
                share=0.5, min_px=60, bins=14, samples=40, depth_ratio=0.35, inset=0.010, root_in=0.03, gap=0.006,
                prior_depth=0.15, prior_smooth=0.02, prior_twist=0.5, assoc=0.35, assoc_cover=0.3, tip_w=0.12,
-               w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'))
+               w_max=2.5, n_ring=10, refit=True, views=('front', 'three_quarter', 'profile', 'back'), facing=0.2,
+               assoc_L=0.1, assoc_overlap=0.5, twist_max=0.8, view_cost_max=4.0)
 VIEWS_AZ = None
 
 
@@ -309,9 +310,11 @@ class Lock:
         R0 = G.sample(self.F['R'], ph0, th0)
         dr = float(np.median(R0 - r0))                 # how far under the envelope the start lies
         self.target_r = lambda ph, th: G.sample(self.F['R'], ph, th) - dr
-        x0 = np.r_[self.Q.ravel(), self.twist]
+        tw = self.o['twist_max']
+        x0 = np.r_[self.Q.ravel(), np.clip(self.twist, -0.99 * tw, 0.99 * tw)]
         scale = np.r_[np.full(18, 0.01 * self.L), 0.3]
-        sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=300)
+        sol = least_squares(self.residuals, x0, x_scale=scale, max_nfev=300,
+                            bounds=(np.r_[np.full(18, -np.inf), -tw], np.r_[np.full(18, np.inf), tw]))
         self.Q = sol.x[:18].reshape(6, 3)
         self.twist = float(sol.x[18])
         P = self.curve()
@@ -323,29 +326,47 @@ class Lock:
 
     def shell(self):
         """the lock's tube (a hairpieces part), its root carried on into the hair."""
+        from scipy.ndimage import gaussian_filter1d
         P = self.curve()
         Wt = self.widths(P, self.twist)
-        from scipy.ndimage import gaussian_filter1d
         s_ = self.hull_frame[0]
         ppl = self.views[self.primary].ppl
         Wd = np.max([d['W'].max() for d in self.drawn.values()]) / ppl * s_
         W = np.clip(gaussian_filter1d(Wt, 1.5, mode='nearest'), 0.2 * Wd / self.o['w_max'], self.o['w_max'] * Wd)
         u = np.linspace(0, 1, len(P))
         W = W * np.clip((1 - u) / 0.2, self.o['tip_w'], 1.0) ** 0.6
+        # no fold where the lock bends across its broad side: half its width within 0.8 of the bend's radius
+        t, a, b = frames(P, self.F['chart'], self.twist)
+        ds = np.linalg.norm(np.gradient(P, axis=0), axis=1) + 1e-12
+        kb = np.abs(np.einsum('ij,ij->i', np.gradient(t, axis=0) / ds[:, None], b))
+        W = np.minimum(W, 1.6 / np.maximum(gaussian_filter1d(kb, 1.0, mode='nearest'), 1e-9))
         Tk = self.o['depth_ratio'] * W
-        # the root carried on into the hair
-        d0 = P[0] - P[1]
-        d0 /= np.linalg.norm(d0) + 1e-12
-        k = 3
-        ext = P[0] + d0 * (self.o['root_in'] * self.L) * np.linspace(1, 1.0 / k, k)[:, None]
+        # the root on the scalp: carried from the lock's start in to the skin's clearance under it (or root_in L on
+        # along its own direction where no skin is under it: hair hanging below the chin)
+        ch, G = self.F['chart'], self.F['grid']
+        ph, th, r = ch.coords(P[:1])
+        Sk = float(G.sample(self.F['S'], ph, th)[0])
+        k = 4
+        if np.isfinite(Sk) and Sk + self.o['gap'] * self.L < r[0]:
+            q = ch.point(ph, th, np.array([Sk + self.o['gap'] * self.L + Tk[0] / 2]))[0]
+            d0 = P[0] - P[1]
+            d0 /= np.linalg.norm(d0) + 1e-12
+            q = 0.5 * (q + P[0] + d0 * self.o['root_in'] * self.L)
+            ext = P[0] + (q - P[0]) * np.linspace(1, 1.0 / k, k)[:, None]
+        else:
+            d0 = P[0] - P[1]
+            d0 /= np.linalg.norm(d0) + 1e-12
+            ext = P[0] + d0 * (self.o['root_in'] * self.L) * np.linspace(1, 1.0 / k, k)[:, None]
         line = np.r_[ext, P]
         Wl = np.r_[np.full(k, W[0]), W]
         Tl = np.r_[np.full(k, Tk[0]), Tk]
         part = tube(line, Wl, Tl, self.F['chart'], self.twist, self.o['n_ring'])
+        from .hairpieces import folds
+        nf = folds(part['V'], part['T'], part['outer'], part['vn_env'])
         part['fit'] = dict(views=sorted(self.drawn), cost_px=self.cost, twist_deg=round(math.degrees(self.twist), 1),
                            width_L=round(float(W.max()) / self.L, 4), length_L=round(float(
                                np.linalg.norm(np.diff(P, axis=0), axis=1).sum()) / self.L, 4),
-                           locks={vn: int(d['lock']) for vn, d in self.drawn.items()})
+                           locks={vn: int(d['lock']) for vn, d in self.drawn.items()}, folds=int(nf))
         return part
 
 
@@ -369,60 +390,116 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
         r = [x.get('layer') or 0.0 for x in lk.values()]
         return (min(r), max(r)) if r else (0.0, 0.0)
 
+    def targets(vn, fam):
+        """the view's drawn targets for a family: each lock's part in the family's mask (a lock the splitter ran on
+        across two families gives each its part), components of min_px or more; a view without family masks (the
+        three-quarter): its locks whole."""
+        from scipy import ndimage
+        V = S['views'][vn]
+        fm = masks.get('%s__%s' % (vn, fam))
+        out_ = []
+        for lid, x in V['locks'].items():
+            m = V['img'] == lid
+            if fm is not None and fm.shape == m.shape:
+                m = m & fm
+            elif any(k.startswith(vn + '__') for k in masks):
+                continue
+            if m.sum() < o['min_px']:
+                continue
+            lab, n = ndimage.label(m)
+            for j in range(1, n + 1):
+                mj = lab == j
+                if mj.sum() < o['min_px']:
+                    continue
+                rr, cc = np.nonzero(mj)
+                r0, c0 = full_rc(vn, x['root_rc'])
+                q = int(np.argmin(np.hypot(rr - r0, cc - c0)))
+                base = np.zeros(mj.shape, bool)
+                base[max(0, rr[q] - 3):rr[q] + 4, max(0, cc[q] - 3):cc[q] + 4] = True
+                from .hairpieces import strand_centreline
+                cl = strand_centreline(mj, base, o['bins'])
+                out_.append(dict(id=(int(lid), j), lock=int(lid), mask=mj, root=(float(rr[q]), float(cc[q])), info=x,
+                                 area=int(mj.sum()), D=None if cl is None else cl[0]))
+        return sorted(out_, key=lambda t_: -t_['area'])
+
     jobs = [(f, None) for f in o['families']] + [(g['family'], g) for g in o['groups']]
     for fam, grp in jobs:
         key = fam if grp is None else grp.get('name', '%s_%s' % (fam, grp.get('view', '')))
         parts = []
         prim = [grp['view']] if grp else list(o['primary'].get(fam, ('front',)))
+        tg = {vn: targets(vn, fam) for vn in S['views'] if vn in views}
         for pv in prim:
             if pv not in S['views'] or pv not in views:
                 continue
             V = S['views'][pv]
             lo, hi = ranks(pv)
-            for lid, x in sorted(V['locks'].items(), key=lambda kv: -kv[1]['area_px']):
-                f_, share = fam_of[pv].get(lid, (None, 0.0))
-                if f_ != fam or share < o['share'] or lid in claimed[pv] or x['area_px'] < o['min_px']:
+            for T_ in tg[pv]:
+                x, lid = T_['info'], T_['lock']
+                if T_['id'] in claimed[pv]:
                     continue
                 if grp and grp.get('phi'):
                     p_ = x.get('tip_phi')
                     if p_ is None or not (grp['phi'][0] <= p_ <= grp['phi'][1]):
                         continue
-                mask = V['img'] == lid
-                lk = Lock('%s:%s%d' % (key, pv[0], lid), fam, pv, F, views, hull_frame, L, o)
+                lk = Lock('%s:%s%d.%d' % (key, pv[0], lid, T_['id'][1]), fam, pv, F, views, hull_frame, L, o)
                 lay = x.get('layer') or 0.0
                 lk.offset = o['inset'] * L * ((hi - lay) / max(1e-6, hi - lo) if hi > lo else 0.0)
-                if not lk.add_view(pv, V['az'], mask, full_rc(pv, x['root_rc']), lid, lay):
+                if not lk.add_view(pv, V['az'], T_['mask'], T_['root'], lid, lay):
                     continue
-                claimed[pv].add(lid)
+                claimed[pv].add(T_['id'])
                 lk.init()
                 lk.fit()
                 # the other views: the drawn lock this shell covers most claims it
                 if o['refit']:
                     part = lk.shell()
+                    Pc = lk.curve()
+                    rad = (Pc - F['chart'].c)[:, :2].mean(0)
+                    rad /= np.linalg.norm(rad) + 1e-12
                     for vn in o['views']:
                         if vn == pv or vn not in S['views'] or vn not in views:
                             continue
                         W_ = S['views'][vn]
-                        sil = silhouette(part['V'], part['T'], views[vn], W_['az'], hull_frame, W_['img'].shape)
-                        if sil.sum() < o['min_px']:
-                            continue
+                        a_ = math.radians(W_['az'])
+                        if rad @ np.array([math.sin(a_), -math.cos(a_)]) < o['facing']:
+                            continue                   # the lock faces away from this view: hidden behind the mass
+                        # the drawn lock in this view whose centreline runs nearest the shell's projected one over
+                        # the heights both span (the depth is the envelope's guess until this view joins the fit)
+                        from .hairpieces import view_px, _seg_dist
+                        cc_, rr_ = view_px(Pc, views[vn], W_['az'], False, hull_frame)
+                        Pp = np.c_[cc_, rr_]
+                        tol = o['assoc_L'] * views[vn].ppl
                         best = None
-                        for l2 in np.unique(W_['img'][sil & (W_['img'] > 0)]):
-                            if l2 in claimed[vn]:
+                        for T2 in tg[vn]:
+                            if T2['id'] in claimed[vn] or T2['D'] is None:
                                 continue
-                            m2 = W_['img'] == l2
-                            inter = float((m2 & sil).sum())
-                            cover, prec = inter / m2.sum(), inter / sil.sum()
-                            sc = min(cover, prec)
-                            if prec >= o['assoc'] and cover >= o['assoc_cover'] and (best is None or sc > best[0]):
-                                best = (sc, int(l2), m2)
+                            D2 = T2['D']
+                            lo_, hi_ = max(Pp[:, 1].min(), D2[:, 1].min()), min(Pp[:, 1].max(), D2[:, 1].max())
+                            span = min(np.ptp(Pp[:, 1]), np.ptp(D2[:, 1])) + 1e-9
+                            if hi_ - lo_ < o['assoc_overlap'] * span:
+                                continue
+                            sel = (D2[:, 1] >= lo_) & (D2[:, 1] <= hi_)
+                            if sel.sum() < 2:
+                                continue
+                            dist = float(np.mean(_seg_dist(D2[sel], Pp)))
+                            if dist <= tol and (best is None or dist < best[0]):
+                                best = (dist, T2)
                         if best is None:
                             continue
-                        x2 = W_['locks'][best[1]]
-                        if lk.add_view(vn, W_['az'], best[2], full_rc(vn, x2['root_rc']), best[1], x2.get('layer')):
-                            claimed[vn].add(best[1])
+                        T2 = best[1]
+                        if lk.add_view(vn, W_['az'], T2['mask'], T2['root'], T2['lock'], T2['info'].get('layer')):
+                            claimed[vn].add(T2['id'])
                     if len(lk.drawn) > 1:
                         lk.fit()
+                        # a view the joint fit can't follow (its drawn lock wasn't this one): out, fitted again
+                        bad = [vn for vn, c in lk.cost.items() if vn != pv and c > o['view_cost_max']]
+                        if bad:
+                            for vn in bad:
+                                d = lk.drawn.pop(vn)
+                                claimed[vn] = {q for q in claimed[vn] if q[0] != d['lock'] or q not in
+                                               [T2['id'] for T2 in tg[vn] if T2['mask'] is d['mask']]}
+                                lk.cost.pop(vn, None)
+                            lk.init()
+                            lk.fit()
                 part = lk.shell()
                 # each view's IoU of the shell's silhouette with its drawn lock
                 ious = {}
@@ -431,6 +508,7 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                     ious[vn] = round(float((sil & d['mask']).sum() / max(1, (sil | d['mask']).sum())), 3)
                 part['fit']['iou'] = ious
                 part['fit']['name'] = lk.name
+                part['_drawn'] = {vn: d['mask'] for vn, d in lk.drawn.items()}
                 part['fit']['side'] = 'L' if (part['V'][:, 0].mean() - F['chart'].c[0]) > 0 else 'R'
                 parts.append(part)
                 report['locks'].append(part['fit'])
@@ -439,3 +517,173 @@ def build_shells(F, masks, views, hull_frame, L, ls, log=print):
                         lk.name, sorted(lk.drawn), lk.cost, ious, math.degrees(lk.twist), part['fit']['width_L']))
         out[key] = parts
     return dict(parts=out, report=report, opts={k: v for k, v in o.items() if k != 'split'})
+
+
+# ------------------------------------------------------------------------------------------------ measuring a fit
+
+def _rebase(x):
+    """a spec's absolute paths from another machine's copy (a box build's /srv/work/...) pointed into this tree."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if isinstance(x, dict):
+        return {k: _rebase(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_rebase(v) for v in x]
+    if isinstance(x, str) and x.startswith('/') and not os.path.exists(x) and '/charkit/' in x:
+        q = os.path.join(root, 'charkit', x.split('/charkit/', 1)[1])
+        return q if os.path.exists(q) else x
+    return x
+
+
+def context(build, cache=None, log=print):
+    """what the hair pieces step has when it shapes the pieces (charkit.cli.pieces_hair's run on a build's own cut spec,
+    geom/pieces.spec.json): the case, the views, the hair layers, the hull frame and the crown chart's fields (hairpieces
+    .build with fields_only) -> dict. Pickled to `cache` when given (the fields take about a minute)."""
+    import pickle
+    if cache and os.path.exists(cache):
+        return pickle.load(open(cache, 'rb'))
+    from PIL import Image
+    from charkit import manifest, styles
+    from . import hairpieces as hp, hull, io as gio, parts
+    cut = os.path.join(build, 'geom', 'pieces.spec.json')
+    spec = _rebase(json.load(open(cut)))
+    cut = os.path.join(build, 'geom', 'pieces.spec.local.json')
+    json.dump(spec, open(cut, 'w'), indent=1)
+    C = parts.Case.load(cut, fit=False)
+    glb = C.align['glb']
+    side = json.load(open(glb + '.json'))
+    Vh = gio.load(glb)
+    lab = np.load(os.path.join(os.path.dirname(glb), side['labels']))
+    pcs = np.load(os.path.join(os.path.dirname(glb), side['pieces']))
+    M = manifest.load(spec['ref']['manifest'])
+    rgb = np.asarray(Image.open(manifest._p(M['references']['body_turnaround']['path'])).convert('RGB')).astype(float) / 255
+    views, info = hull.views_from_sheet(rgb, (spec.get('eyes') or {}).get('x', 0.168), -1)
+    Z = np.load(manifest.produced(spec, 'hair_layers'))
+    masks = {k: Z[k] for k in Z.files}
+    fam, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views, masks, info['ppl'])
+    style = styles.load(spec.get('style', 'anime'))['hair_pieces']
+    popts = dict((spec['hair']['shape'].get('pieces_opts') or {}), fields_only=True)
+    popts.pop('lock_shells', None)
+    hf = (C.align['scale'], np.asarray(C.align['translate']))
+    R = hp.build(C, fam, masks, style, views=views, hull_frame=hf, opts=popts)
+    # the scene the shells show among (the pictures' z-buffer): our skin and the build's other hair pieces
+    from .io import load_npz
+    occ = [(np.asarray(C.A['verts'], float), hp._tris(C.A['faces']))]
+    pdir = os.path.join(build, 'geom', 'hair_pieces')
+    for pc in json.load(open(os.path.join(pdir, 'pieces.json')))['pieces']:
+        if pc['family'] != 'side_locks':
+            m = load_npz(os.path.join(pdir, pc['file']))
+            occ.append((np.asarray(m.V, float), np.asarray(m.F, np.int64)))
+    ctx = dict(F=R['fields'], masks=masks, views=views, hull_frame=hf, L=C.L, spec=spec,
+               split=manifest.produced(spec, 'hair_split'), occluders=occ)
+    if cache:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        pickle.dump(ctx, open(cache, 'wb'))
+    return ctx
+
+
+def visible(parts, ctx, vn, az, shape):
+    """the shells z-buffered among the scene's occluders (our skin, the other hair pieces) on a view's design grid
+    -> label image (k + 1: parts[k] shows there; 0 an occluder; -1 nothing)."""
+    from .hairpieces import view_window
+    from .raster import window_zbuffer
+    origin, Lw, pix, win = view_window(ctx['views'][vn], az, False, ctx['hull_frame'])
+    meshes = [(V, T, 0) for V, T in ctx.get('occluders', ())]
+    meshes += [(p['V'], p['T'], k + 1) for k, p in enumerate(parts)]
+    _, lab = window_zbuffer(meshes, az, origin, Lw, pix, win)
+    if lab.shape != shape:
+        out = np.full(shape, -1, lab.dtype)
+        h, w = min(shape[0], lab.shape[0]), min(shape[1], lab.shape[1])
+        out[:h, :w] = lab[:h, :w]
+        lab = out
+    return lab
+
+
+def picture(res, ctx, path, k=2, pad=0.08):
+    """per view, the hair cropped: the drawing dimmed, each fitted lock's drawn cells outlined in its colour and its
+    shell's silhouette filled in it, the fit's IoU written by it; the views side by side -> path."""
+    from PIL import Image, ImageDraw
+    from scipy import ndimage
+    S = load_split(ctx['split'])
+    rng = np.random.RandomState(7)
+    parts = [p for ps in res['parts'].values() for p in ps]
+    cols = [tuple(int(x) for x in rng.randint(40, 230, 3)) for _ in parts]
+    tiles = []
+    for vn in ('front', 'three_quarter', 'profile', 'back'):
+        if vn not in S['views'] or vn not in ctx['views']:
+            continue
+        W_ = S['views'][vn]
+        img = W_['img']
+        hair = img > 0
+        ys, xs = np.nonzero(hair)
+        m = int(pad * W_['ppl'] if W_['ppl'] else 15)
+        r0, r1, c0, c1 = max(0, ys.min() - m), ys.max() + m, max(0, xs.min() - m), xs.max() + m
+        base = np.full(img.shape + (3,), 245, np.uint8)
+        base[hair] = 200
+        out = base.astype(float)
+        lab = visible(parts, ctx, vn, W_['az'], img.shape)
+        for k_, (p, col) in enumerate(zip(parts, cols)):
+            sil = lab == k_ + 1
+            out[sil] = 0.45 * out[sil] + 0.55 * np.array(col)
+            mk = p.get('_drawn', {}).get(vn)
+            if mk is not None:
+                e = mk & ~ndimage.binary_erosion(mk, iterations=2)
+                out[e] = np.array(col) * 0.6
+        im = Image.fromarray(out[r0:r1, c0:c1].astype(np.uint8)).resize(((c1 - c0) * k, (r1 - r0) * k), Image.NEAREST)
+        d = ImageDraw.Draw(im)
+        d.text((4, 4), vn, fill=(0, 0, 0))
+        for p, col in zip(parts, cols):
+            mk = p.get('_drawn', {}).get(vn)
+            if mk is None:
+                continue
+            rr, cc = np.nonzero(mk)
+            d.text(((cc.mean() - c0) * k, (rr.mean() - r0) * k), '%.2f' % p['fit']['iou'].get(vn, 0), fill=(0, 0, 0))
+        tiles.append(im)
+    W = sum(t.size[0] for t in tiles) + 8 * (len(tiles) - 1)
+    H = max(t.size[1] for t in tiles)
+    canvas = Image.new('RGB', (W, H), (255, 255, 255))
+    x = 0
+    for t in tiles:
+        canvas.paste(t, (x, 0)); x += t.size[0] + 8
+    canvas.save(path)
+    return path
+
+
+def main(args):
+    """python -m charkit.geom.lockshell BUILD [--out DIR] [--opts JSON] [--cache PKL]: the lock shells a spec's
+    lock_shells would build, fitted on a build's own inputs, their per-view fit (cost, IoU against the drawn lock) and
+    the picture (DIR/fit.json, DIR/fit.png)."""
+    build = args[0]
+    out = args[args.index('--out') + 1] if '--out' in args else os.path.join(build, 'lockshells')
+    opts = json.loads(args[args.index('--opts') + 1]) if '--opts' in args else {
+        'families': ['side_locks'], 'groups': [{'family': 'lower_back', 'view': 'back', 'phi': [100, 175]}]}
+    cache = args[args.index('--cache') + 1] if '--cache' in args else None
+    ctx = context(build, cache)
+    os.makedirs(out, exist_ok=True)
+    res = build_shells(ctx['F'], ctx['masks'], ctx['views'], ctx['hull_frame'], ctx['L'], dict(opts, split=ctx['split']))
+    json.dump(res['report'], open(os.path.join(out, 'fit.json'), 'w'), indent=1)
+    picture(res, ctx, os.path.join(out, 'fit.png'))
+    # each family's coverage per view: the visible shells' union against the hair layers' family mask (the guard's
+    # hair_piece_<family> in miniature: the build's own measure is the QA's)
+    S = load_split(ctx['split'])
+    cov = {}
+    for fam in opts.get('families', ()):
+        parts = res['parts'].get(fam, [])
+        for vn in ('front', 'profile', 'back'):
+            fm = ctx['masks'].get('%s__%s' % (vn, fam))
+            if fm is None or vn not in S['views']:
+                continue
+            lab = visible(parts, ctx, vn, S['views'][vn]['az'], fm.shape)
+            m = lab > 0
+            cov['%s %s' % (fam, vn)] = round(float((m & fm).sum() / max(1, (m | fm).sum())), 3)
+    res['report']['coverage'] = cov
+    json.dump(res['report'], open(os.path.join(out, 'fit.json'), 'w'), indent=1)
+    print('coverage (IoU of the visible shells with the family mask):', cov)
+    ious = [v for x in res['report']['locks'] for v in x['iou'].values()]
+    print('lock shells: %d, views fitted %d, IoU mean %.3f median %.3f' % (
+        len(res['report']['locks']), len(ious), np.mean(ious) if ious else 0, np.median(ious) if ious else 0))
+    return 0
+
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(main(sys.argv[1:]))

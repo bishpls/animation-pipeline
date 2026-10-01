@@ -2834,6 +2834,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                          None if o.get('trim_below_chin', False) else case.chin_z,
                                          o.get('trim_sides', 'drawn'), o.get('trim_tq_slack', 0.0))
     regions = piece_regions(F, o, trim)
+    if o.get('fields_only'):
+        return dict(fields=F, regions=regions)      # (charkit.geom.lockshell's context: the fields the pieces are cut on)
     refined = refine_tips(F, regions, masks, views, hull_frame) if views is not None and hull_frame is not None else {}
     pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined, 'carved_under_buns': carved}
     if 'trim' in F:
