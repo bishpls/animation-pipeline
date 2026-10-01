@@ -195,6 +195,38 @@ def test_the_stand_ins():
     assert b.any() and not np.array_equal(b, m) and abs(b.sum() / m.sum() - 1) < 0.3
 
 
+def test_store_and_accept_write_through_read_only_hard_links():
+    """a box's copy of the worktree hard-links its synced files read-only from a blob cache (charkit/bucketsync.py): storing
+    a known-bad (or accepting a check, or writing a record) over an existing file raised PermissionError and failed 22 box
+    calibrate jobs on 2026-10-01. Each write replaces the file; the shared blob is untouched."""
+    root = tempfile.mkdtemp(prefix='calib-ro-')
+    blobs = os.path.join(root, 'blobs')
+    os.makedirs(blobs)
+    src = os.path.join(root, 'out', 'b1')
+    for sub, f, body in (('bundle', 'bundle.json', {'spec': {'p': src + '/geom/x'}}), ('qa', 'qa.json', {'checks': {'a': {}}})):
+        os.makedirs(os.path.join(src, sub))
+        json.dump(body, open(os.path.join(src, sub, f), 'w'))
+    old = (calibrate.ROOT, calibrate.STORE)
+    calibrate.ROOT, calibrate.STORE = root, os.path.join(root, 'store')
+    try:
+        for target, call in (
+                (os.path.join(root, calibrate.KNOWN, 'kb.json'), lambda: calibrate.store('kb', src, why='first')),
+                (os.path.join(root, calibrate.ACCEPTED, 'chk.json'), lambda: calibrate.accept('chk', 'm', 'why', root=root))):
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            blob = os.path.join(blobs, os.path.basename(target))
+            open(blob, 'w').write('{"old": 1}')
+            os.link(blob, target)
+            os.chmod(blob, 0o444)                           # the cache's mode: a write through the link would fail
+            call()
+            assert json.load(open(blob)) == {'old': 1}, 'the shared blob was written through'
+            assert 'old' not in json.load(open(target))
+        # the stored bundle's own metadata too (store/NAME/bundle/bundle.json, a link into a previous store)
+        calibrate.store('kb', src, why='second')
+        assert json.load(open(os.path.join(root, calibrate.KNOWN, 'kb.json')))['why'] == 'second'
+    finally:
+        calibrate.ROOT, calibrate.STORE = old
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
