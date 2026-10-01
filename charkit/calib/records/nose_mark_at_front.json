@@ -1,0 +1,92 @@
+{
+ "check": "nose_mark_at_front",
+ "part": "face_flags",
+ "adapter": "FaceFlags",
+ "module": "charkit.calib.faceflags",
+ "at": "2026-09-30T20:10:34",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "face_piece_nose"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0031,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0056,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0038,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0063,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0044,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0069,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0037,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0062,
+    "PASS"
+   ]
+  },
+  "min": 0.0031,
+  "max": 0.0069,
+  "spread": 0.0038,
+  "median": 0.005
+ },
+ "known_bad": {
+  "name": "face6_before",
+  "value": null,
+  "status": "FAIL"
+ },
+ "floor": {
+  "nose_moved": {
+   "values": [
+    null,
+    0.0422,
+    0.0563,
+    null,
+    0.0468
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0468,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": null,
+  "status": "FAIL",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0038), face6_before reads None FAIL, the floor nose_moved FAIL",
+ "build": "charkit/out/calib/cur_face6_1580f95",
+ "generators": {
+  "nose_moved": "the nose's mark moved 0.03-0.06 L in a random direction, 5-20% of its ink kept"
+ },
+ "seconds": 62.9
+}

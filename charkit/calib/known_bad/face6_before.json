@@ -1,0 +1,10 @@
+{
+ "name": "face6_before",
+ "why": "Michael's 2026-09-30 evening review of the preview: the iris larger than the opening, the lashes a solid block, the brows' shape and thickness, the default smile off-model, the mouth misplaced in three-quarter and high in profile, no nose mark in front or three-quarter",
+ "flag": "face flags (Michael, 2026-09-30 evening)",
+ "commit": "1580f95",
+ "source": "~/animation-pipeline-3d/charkit/out/previews/1580f95",
+ "stored": "2026-09-30",
+ "bundle": "b37ed795a314d2b9",
+ "qa_checks": 534
+}

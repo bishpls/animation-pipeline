@@ -1,0 +1,112 @@
+{
+ "check": "iso_bow_knot_line",
+ "part": "iso_pieces",
+ "adapter": "IsoParts",
+ "module": "charkit.calib.parts",
+ "at": "2026-09-30T21:28:27",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_bow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "g3_render3",
+  "value": 0.8971,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_parts": {
+   "values": [
+    0.8493,
+    0.8034,
+    0.8182,
+    0.9216,
+    null
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.83375,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_parts": {
+   "values": [
+    0.5366,
+    null,
+    0.5667,
+    null,
+    null
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.55165,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), g3_render3 reads 0.8971 FAIL; a random stand-in fails it; shape guarded by piece_bow",
+ "build": "charkit/out/pr3",
+ "generators": {
+  "voronoi_parts": "the drawn bow's knot and lobes cut into random cells (3 per part), each a random part (weighted by the parts' drawn areas): the bow's silhouette kept, its parts gone",
+  "affine_parts": "each drawn part (knot, lobes) moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 175.5
+}
