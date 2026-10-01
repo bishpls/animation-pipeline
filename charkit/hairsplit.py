@@ -82,8 +82,19 @@ P = dict(
                            # lock (own or tips') along the flow, 'exits' the lock it flows into
     notch_lines='hem',     # a lock line traced up from each notch of the outline: 'hem' the outer outline's notches
                            # opening down only, True every notch, False none
-    tones=False,
-    stroke_min=0.0,        # L: an interior stroke shorter than this is texture: not a lock wall (0: every stroke is)            # the cel tones' edges cut the cells (and, along the flow, the locks)
+    tones=False,           # the cel tones' edges cut the cells (and, along the flow, the locks) everywhere
+    stroke_min=0.0,        # L: an interior stroke shorter than this is texture: not a lock wall (0: every stroke is)
+    hem_tone=False,        # the shadow tone as lock walls where nothing is drawn (the hem: call A, round 2): 'edges' its
+                           # edges, 'necks' its runs cut where they narrow, 'both' (hem_tone_walls)
+    neck_h=0.75,           # line widths: a neck is a dip of at least this in the shadow tone's distance to its edge
+    tone_rel=0.1,          # a pixel is in the shadow tone where it is this share darker than its local base (the lit
+                           # level round it: relative darkness, not a palette value)
+    tone_base=0.08,        # L: the local base's window
+    hem_free=0.04,         # L: the hem zone is the hair at least this far from any drawn lock line
+    hem_stroke=0.05,       # L: a drawn interior stroke this long is a lock line (shorter: a notch's tick, texture)
+    notch_own=False,       # a hem notch's lock line passes the notch's own drawn tick (it stopped on it at once)
+    notch_between=0.0,     # L: two tips at most this far apart along the outline with no notch between them get one at
+                           # the deepest point between them (0: off)
     closure_along=0.7,     # a trapped ball's closure whose direction . the flow is at least this continues a lock line
     tip_sep=0.025,         # L: tips closer than this along the outline are one
     aniso=4.0,             # the anisotropic metric: a step across the flow costs this much more than along it
@@ -298,6 +309,25 @@ class Split:
             self.dark = dark
             self.tone_edges = e & ~self.ink
         self.report.update(dark_share=round(float(self.dark.sum() / max(1, inner.sum())), 3))
+        # the shadow tone relative to its local base (call A, round 2): the lit level round each pixel (a normalised
+        # convolution of the lit pixels' value, the two-tone split as its start) and the pixels this share darker
+        self.dark_rel = np.zeros(H.shape, bool)
+        self.tone_edges_rel = np.zeros(H.shape, bool)
+        if inner.sum() > 100:
+            lit = inner & ~self.dark
+            s = max(1.0, self.P['tone_base'] * self.ppl)
+            for _ in range(2):
+                base = ndimage.gaussian_filter(np.where(lit, val, 0.0), s) / \
+                    np.maximum(1e-6, ndimage.gaussian_filter(lit.astype(float), s))
+                dk = inner & (val < (1 - self.P['tone_rel']) * base)
+                lit = inner & ~dk
+            r = max(1, int(round(lw / 2)))
+            dk = ndimage.binary_opening(dk, structure=_disk(r))
+            li = ndimage.binary_opening(inner & ~dk, structure=_disk(r))
+            e = (ndimage.binary_dilation(dk, iterations=1) & li) | (ndimage.binary_dilation(li, iterations=1) & dk)
+            self.dark_rel = dk
+            self.tone_edges_rel = e & ~self.ink
+            self.report.update(dark_rel_share=round(float(dk.sum() / max(1, inner.sum())), 3))
         self.report.update(line_width_px=round(lw, 2), fill_value=round(v_fill, 3), ink_value=round(v_ink, 3),
                            contrast=round(contrast, 3), hair_px=int(H.sum()), ink_px=int(self.ink.sum()))
 
@@ -437,6 +467,7 @@ class Split:
         ext = np.zeros(self.H.shape, bool)
         self.extensions = []
         hits = dict(ink=0, outline=0, cap=0, short=0, downstream=0)
+        self.hem_walls = self.hem_tone_walls() if P['hem_tone'] else np.zeros(self.H.shape, bool)
         # the longer strokes first; an extension stops at ink or at an extension already drawn
         for e in sorted(self.ends, key=lambda e: -e['length']):
             if e['length'] < P['ext_min_lw'] * lw:
@@ -475,7 +506,9 @@ class Split:
                 f = self.f_at(t['rc'])
                 up = -f
                 start = (t['rc'][0] + 1.5 * up[0], t['rc'][1] + 1.5 * up[1])
-                pts, how = self.trace(start, up, self.ink | ext, skip_px=P['ext_skip_lw'] * lw)
+                own = self.notch_tick(t['rc']) if P['notch_own'] else None
+                pts, how = self.trace(start, up, self.ink | ext | self.hem_walls, own=own,
+                                      skip_px=P['ext_skip_lw'] * lw)
                 if how == 'cap' and not P['ext_keep_cap']:
                     continue
                 a = np.array([t['rc']] + pts)
@@ -487,7 +520,7 @@ class Split:
                                             pts=a[::4].round(1).tolist(), length=len(pts) * P['axis_step']))
         self.ext = ext & self.H
         self.bases = self.protrusions() if P['protrusion_r'] else np.zeros(self.H.shape, bool)
-        walls = self.ink | self.ext | self.bases
+        walls = self.ink | self.ext | self.bases | self.hem_walls
         if P['tones']:
             walls = walls | self.tone_edges
         free = self.H & ~walls
@@ -513,6 +546,65 @@ class Split:
         cells = self._merge_small(cells, amin)
         self.walls, self.cells = walls, cells
         self.report.update(extensions=hits, cells=int(len(np.unique(cells[cells > 0]))), ball_px=R)
+
+    def hem_zone_mask(self):
+        """the hair where nothing is drawn (the hem's under layer): at least hem_free L from every drawn lock line (an
+        interior stroke at least hem_stroke L long; the notches' ticks and texture don't count)."""
+        from scipy import ndimage
+        P = self.P
+        sk = self.sk & (self.dout > self.lw + 1.5)
+        lab, n = ndimage.label(sk, structure=np.ones((3, 3)))
+        lines = np.zeros(self.H.shape, bool)
+        if n:
+            length = np.bincount(lab.ravel(), minlength=n + 1)
+            length[0] = 0
+            lines = np.isin(lab, np.nonzero(length >= P['hem_stroke'] * self.ppl)[0]) & (lab > 0)
+        d = ndimage.distance_transform_edt(~lines) if lines.any() else np.full(self.H.shape, np.inf)
+        zone = self.H & (d > P['hem_free'] * self.ppl)
+        self.hem_zone = zone
+        self.report.update(hem_zone_share=round(float(zone.sum() / max(1, self.H.sum())), 3))
+        return zone
+
+    def hem_tone_walls(self):
+        """the shadow tone as lock walls in the hem zone (call A): 'edges' its edges (the under layer apart from the
+        lit locks over it), 'necks' its necks (the shadow tone's runs cut where they narrow: a watershed of the distance
+        to its edge, markers its h-maxima: the hem's flick lobes apart), 'both'."""
+        from scipy import ndimage
+        from skimage import morphology, segmentation
+        P = self.P
+        zone = self.hem_zone_mask()
+        mode = P['hem_tone']
+        walls = np.zeros(self.H.shape, bool)
+        if mode in (True, 'edges', 'both'):
+            walls |= zone & self.tone_edges_rel
+        if mode in ('necks', 'both'):
+            m = self.dark_rel & zone & ~self.ink
+            if m.any():
+                d = ndimage.distance_transform_edt(m)
+                mk, n = ndimage.label(morphology.h_maxima(d, P['neck_h'] * self.lw) & m)
+                if n > 1:
+                    ws = segmentation.watershed(-d, mk, mask=m, watershed_line=True)
+                    walls |= m & (ws == 0)
+                    self.report.update(hem_necks=int(n))
+        return walls
+
+    def notch_tick(self, rc):
+        """a notch's own drawn tick: the interior strokes whose skeleton comes within a few line widths of the notch
+        (dilated a line width): a notch's lock line passes it rather than stopping on it."""
+        from scipy import ndimage
+        lw = self.lw
+        r0, c0 = rc
+        R = 3 * lw + 2
+        sk = self.sk & (self.dout > lw + 1.5)
+        lab, n = ndimage.label(sk, structure=np.ones((3, 3)))
+        own = np.zeros(self.H.shape, bool)
+        a, b = int(max(0, r0 - R - 1)), int(min(sk.shape[0], r0 + R + 2))
+        c, e = int(max(0, c0 - R - 1)), int(min(sk.shape[1], c0 + R + 2))
+        rr, cc = np.mgrid[a:b, c:e]
+        near = (np.hypot(rr - r0, cc - c0) <= R) & (lab[a:b, c:e] > 0)
+        for j in np.unique(lab[a:b, c:e][near]):
+            own |= lab == j
+        return ndimage.binary_dilation(own, iterations=int(lw) + 1) if own.any() else None
 
     def protrusions(self):
         """the hair's protrusions (an ahoge, a strand, a flick): what an opening of the hair by a disk of protrusion_r
@@ -653,6 +745,23 @@ class Split:
             for i in nk:
                 found.append(dict(rc=(float(Q[i, 0]), float(Q[i, 1])), sharp=float(best[i]), kind=-1, why='radial',
                                   out=outd[i].tolist(), scale=float(scl[i]), contour=ci, s=int(i)))
+            if P['notch_between'] and len(taken) >= 2:
+                # two tips with no notch between them along the outline: the deepest point between them is one (two
+                # flicks side by side part somewhere, however shallow the notch)
+                tk = sorted(taken)
+                pairs_ = list(zip(tk[:-1], tk[1:])) + ([(tk[-1], tk[0] + n)] if closed else [])
+                for i1, i2 in pairs_:
+                    if i2 - i1 > P['notch_between'] * ppl or i2 - i1 < 2 * sep:
+                        continue
+                    if any(i1 < j < i2 or i1 < j + n < i2 for j in nk):
+                        continue
+                    seg_ = np.arange(i1 + sep // 2, i2 - sep // 2 + 1)
+                    j = int(seg_[np.argmin(ext[seg_ % len(ext)])]) % n
+                    depth = min(dcs[i1 % n], dcs[i2 % n]) - dcs[j]
+                    if depth < self.lw + 1:
+                        continue
+                    found.append(dict(rc=(float(Q[j, 0]), float(Q[j, 1])), sharp=float(best[j]), kind=-1,
+                                      why='between', out=outd[j].tolist(), scale=float(scl[j]), contour=ci, s=j))
         # one tip per place: across outlines too (a hole's edge next to the outer edge), the sharper kept
         sepL = sep
         keep = []
