@@ -1278,3 +1278,12 @@ the targets (g7_base, pipeline-3d's default before the switch; builds g7_base / 
   other rom_* the switch regresses; re-gate cold (--args "--cache refresh") with the full --accept list
   (charkit/out/garments7/accept_list.txt). Gate 4 running (log charkit/out/garments7/gate4.log). Michael's flag: a big
   kink in the raised arm on the round-7 review page: tool/motion1's first item.
+- **Gate 4** (cold, --cache refresh; 1ffdc9a5 into 241f0547; report charkit/out/gate/gate_tool-garments4-shoulders_1ffdc9a5_into_241f0547.md):
+  FAIL under K, **1 blocker: motion_kick_skirt_inside's record says miscalibrated** (refreshed on today's skirt as
+  asked; a non-calibrated verdict blocks and acceptances don't cover calibration). Accepted by name and reported (16):
+  the 15 garment items + rom_weights_stray (0 -> 0.0082 FAIL). The motion skirt 2x2 cells accepted (--accept).
+  rom: rom_shoulder_open 0.382 F -> 0 P and rom_shoulder_torso 0.0475 F -> 0 P (improved); rom_hair_shoulders
+  0.00004 P -> 0.0012 W (reported); rom_shoulder_strain 0 -> 1.26, rom_shoulder_folded 0 -> 0.059, rom_garment_strain
+  0.62 -> 1.06, rom_top_body 0.036 -> 0.10 (INFO, report-only). Build CPU 1.01x; 107 test files, 0 failing.
+  Options for the coordinator: make motion_kick_skirt_inside ungraded as its squat sibling was in round 3
+  (charkit.sim.motionqa.UNGRADED: a registered remeasure), or a decision on the record; then `gate --carry`.
