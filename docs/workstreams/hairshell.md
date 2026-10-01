@@ -869,3 +869,6 @@ lock fit (~600 s) is 1.71x (884.7 -> 1509.6 s; the limit 1327 s). Reported: scal
 0.724 P -> 0.69 W, peeks 17 -> 19 W, back lines 0.928 -> 0.584, lock lines and strokes moved. Next cut: frames()'s
 transport on plain floats (3.5x on frames, 45% of the fit; not bit-identical per frame, BLAS's dot rounds differently, so
 the shells' identity is checked by capcheck2 on the box), det_join_nfev 150 -> 60.
+capcheck2 (build box; `charkit/out/hairshell3/capcheck2/`): the old path (numpy transport, no cap) against the new
+(plain-float transport, det_join_nfev 60): **17 of 17 shells bit-identical**, the fit's CPU 661 -> 252 s. (`remote run`
+now picks a box itself (build2 joined): name `--box build` for a build that lives there.) Re-gate 4 on render2.
