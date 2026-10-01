@@ -91,6 +91,79 @@ EDGE_ON = {
 }
 
 
+# round 6 (hands3): the lines drawn between the fingers (Michael, 2026-10-01: three-quarter shows no finger delineation,
+# reading as a blur), declared (charkit.declared's ink_inside on the hands as pieces, ours laid on the drawn hand's centroid);
+# dry calibration (charkit/out/hands3/fingerlines_dry.log): the design 0 at every move, paddle_hand 0.72-0.83 in front and
+# back and 0.58 in three-quarter (limits 0.4 / 0.5 so it FAILs there too), the floors 1
+DECLARED_CHECKS = [
+ {
+  "check": "fingerlines_{view}_L",
+  "family": "ink_inside",
+  "piece": "hand_L",
+  "views": [
+   "front",
+   "three_quarter",
+   "back"
+  ],
+  "params": {
+   "align": "centroid",
+   "band": 0.012,
+   "tol": 0.015,
+   "min_len": 0.05,
+   "faint": False
+  },
+  "limits": [
+   0.4,
+   0.5
+  ],
+  "note": "the lines drawn between the fingers inside the hand (the design's ink inside its drawn hand, its outline's band left out) against ours drawn with the build's outlines, our hand laid on the drawn hand's centroid: the share of the drawn lines' length with none of ours within tol (Michael, 2026-10-01: three-quarter shows no finger delineation)",
+  "flag": "three-quarter shows no finger delineation, reading as a blur (Michael, 2026-10-01)",
+  "calibrate": {
+   "known_bad": "paddle_hand",
+   "baseline": [
+    "voronoi_pieces",
+    "affine_pieces"
+   ],
+   "shape": [
+    "hand_shape_L"
+   ]
+  }
+ },
+ {
+  "check": "fingerlines_{view}_R",
+  "family": "ink_inside",
+  "piece": "hand_R",
+  "views": [
+   "front",
+   "back"
+  ],
+  "params": {
+   "align": "centroid",
+   "band": 0.012,
+   "tol": 0.015,
+   "min_len": 0.05,
+   "faint": False
+  },
+  "limits": [
+   0.4,
+   0.5
+  ],
+  "note": "the lines drawn between the fingers inside the hand (the design's ink inside its drawn hand, its outline's band left out) against ours drawn with the build's outlines, our hand laid on the drawn hand's centroid: the share of the drawn lines' length with none of ours within tol",
+  "flag": "three-quarter shows no finger delineation, reading as a blur (Michael, 2026-10-01)",
+  "calibrate": {
+   "known_bad": "paddle_hand",
+   "baseline": [
+    "voronoi_pieces",
+    "affine_pieces"
+   ],
+   "shape": [
+    "hand_shape_R"
+   ]
+  }
+ }
+]
+
+
 def grade(key, v, ours=None):
     p, w = LIMITS[key]
     if key == 'cleft':

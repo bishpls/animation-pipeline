@@ -36,6 +36,9 @@ DEFAULT = dict(
     taper=0.6,            # a finger's width at its tip over its knuckle's
     overlap=0.12,         # the share of a finger's width its neighbour overlaps (fingers held together: the drawn
                           # relaxed hand shows no background between them, 0-0.01 of its span at the tips)
+    tip_gap=None,         # L: the fingertips this far apart (None: overlapping as at the knuckles). A gap narrower than
+                          # the hand's line is filled by the neighbours' outline hulls: a drawn hairline between the
+                          # fingers from where they part to the tips (the design's 2-3 lines; round 6's seam gap)
     fingers=(0.93, 1.0, 0.95, 0.78),    # index, middle, ring, little: lengths over the middle's
     spread=0.0,           # degrees each finger fans out from the middle's line beyond the touching layout (- closer)
     fan_index=0.0, fan_middle=0.0, fan_ring=0.0, fan_little=0.0,   # degrees each finger turns toward the thumb's side
@@ -62,7 +65,7 @@ BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.30), wrist
               thumb_len=(0.16, 0.46), thumb_w=(0.03, 0.085), thumb_out=(0.0, 60.0), thumb_down=(0.0, 60.0),
               thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0),
               fan_index=(-10.0, 30.0), fan_middle=(-15.0, 15.0), fan_ring=(-30.0, 10.0), fan_little=(-50.0, 10.0),
-              thumb_across=(0.0, 0.6))
+              thumb_across=(0.0, 0.6), tip_gap=(-0.01, 0.01))
 FINGERS = ('index', 'middle', 'ring', 'little')
 PHALANGES = (0.45, 0.3, 0.25)         # a finger's proximal, intermediate and distal shares of its length
 THUMB_BONES = (0.36, 0.36, 0.28)      # the thumb's metacarpal, proximal and distal shares
@@ -165,7 +168,8 @@ def layout(P):
     c0 = np.r_[0.0, -np.cumsum(pitch(w0))]                       # index .. little, radial +
     c0 -=0.5 * ((c0[0] + 0.5 * w0[0]) + (c0[-1] - 0.5 * w0[-1]))  # the span centred on the hand's axis
     w1 = w0 * P['taper']
-    c1 = np.r_[0.0, -np.cumsum(pitch(w1))]
+    g = P.get('tip_gap')
+    c1 = np.r_[0.0, -np.cumsum(pitch(w1) if g is None else 0.5 * (w1[:-1] + w1[1:]) + g)]
     c1 += c0[1] - c1[1]                                          # about the middle finger's line
     return w0, c0, c1
 
