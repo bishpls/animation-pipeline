@@ -597,7 +597,8 @@ CHEEK = {'cheek_smooth': 0.08, 'cheek_lead_smooth': 0.0, 'cheek_refit': None, 'c
                                  # (kept, it pulled the rows above it back). The style's face section overrides them
 CHEEK_REFIT_EASE = 0.04          # L of rows over which the refit eases in under its top
 FOREHEAD = None                  # the style face section's `forehead` (None: off): {depth (L), z (L above the eye line),
-                                 # dz (L), peak (a share of the face's half-width)}: the forehead's front rounded back at
+                                 # dz (L), peak (a share of the face's half-width)}, or a list of them (bumps added): the
+                                 # forehead's front rounded back at
                                  # the brow's height, `depth` L at the bump's peak across the face (charkit.geom.headfit.
                                  # _cheek's shape: 0 at the midline and the outline, so the profile and the front
                                  # silhouettes stay), over a band of rows round z eased out `dz` above and below. The
@@ -914,9 +915,10 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
             if dfill is not None:
                 yy = yy.copy()
                 yy[jr] += dfill[k]; yy[jl] += dfill[k]                     # (the midline's 0 either way)
-            if fh and abs(zs[k] - fh['z']) < fh['dz']:                    # the forehead rounded at the brow's height
-                band = 0.5 * (1 + np.cos(np.pi * (zs[k] - fh['z']) / fh['dz']))
-                yy = yy + front * fh['depth'] * band * _cheek(x / max(wc_all[k], 1e-3), fh.get('peak', 0.75))
+            for b in ([fh] if isinstance(fh, dict) else (fh or ())):  # the forehead rounded at the brow's height
+                if abs(zs[k] - b['z']) < b['dz']:
+                    band = 0.5 * (1 + np.cos(np.pi * (zs[k] - b['z']) / b['dz']))
+                    yy = yy + front * b['depth'] * band * _cheek(x / max(wc_all[k], 1e-3), b.get('peak', 0.75))
             if sock > 0 and abs(zs[k]) < 4 * SOCKET[1]:
                 yy = yy + fr * sock * np.exp(-0.5 * ((np.abs(x) - F.C['eye_x']) / SOCKET[0]) ** 2 - 0.5 * (zs[k] / SOCKET[1]) ** 2)
             tn = np.arctan2(x, -(yy - cy[k])); o = np.argsort(tn)
