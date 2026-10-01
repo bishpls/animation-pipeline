@@ -178,7 +178,7 @@ def _axis_dist(A, bone, X):
     return np.hypot(X[:, 0] - h[0], X[:, 1] - h[1])
 
 
-def _by_azimuth(A, bone, v, X):
+def _azimuth_value(A, bone, v, X):
     """a value given as a number or a table [[degrees round the bone head's upright axis from the front, value], ...]
     (mirrored: 0 in front, 90 her side, 180 behind) at points X -> (n,)."""
     if not isinstance(v, (list, tuple)):
@@ -231,7 +231,7 @@ def shell(A, spec, normals=None, hull=None):
             zc = (h + (tl - h) * t)[2] + o * L
         m_ = (V[:, 2] >= zc) if side == 'above' else (V[:, 2] <= zc)
         if len(c) > 4 and c[4] is not None and bone != 'eye':
-            m_ |= _axis_dist(A, bone, V) >= _by_azimuth(A, bone, c[4], V) * L
+            m_ |= _axis_dist(A, bone, V) >= _azimuth_value(A, bone, c[4], V) * L
         ins &= m_
     if spec.get('tuck') and hull is not None:
         # the jacket ends under the puffs (Michael, 2026-10-01: the puffs contain the joined shoulder's deltoid): the
@@ -3206,6 +3206,24 @@ def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
     R = np.hypot(X, Y)
     grow = np.where(np.isfinite(need), np.maximum(0.0, need - R), 0.0)
     grow[ts > t_last] = 0.0
+    if cb.get('spread'):
+        # a smooth envelope over the cells' needs (round 6: the 3x3 max filter left the grown cells as lumps along the
+        # puff's inner front, sleeve_*_spikes): each cell takes the largest neighbour's growth falling off as a Gaussian
+        # of the distance on the puff (L: down the arm and round it at its radius), `spread` L its sigma
+        sg = float(cb['spread'])
+        Rm = np.median(R, 1)
+        dt = (ts[:, None] - ts[None, :])                                           # (rows, rows)
+        da = np.abs(np.angle(np.exp(1j * (th[:, None] - th[None, :]))))           # (cols, cols)
+        g = np.zeros_like(grow)
+        for i in range(len(ts)):
+            if not grow[i].any():
+                continue
+            arc = 0.5 * (Rm[i] + Rm)[:, None, None] * da[None]                    # (rows, cols_from, cols_to)
+            w = np.exp(-(dt[i][:, None, None] ** 2 + arc ** 2) / (2 * sg * sg))
+            g = np.maximum(g, (grow[i][None, :, None] * w).max(1))
+        grow = np.maximum(grow, g)
+        grow = np.maximum(grow, ndimage.gaussian_filter(grow, (1.0, 1.0), mode=('nearest', 'wrap')))
+        grow[ts > t_last] = 0.0
     for _ in range(int(cb.get('smooth', 2))):
         g2 = ndimage.uniform_filter(grow, size=3, mode=('nearest', 'wrap'))
         grow = np.maximum(grow, g2)

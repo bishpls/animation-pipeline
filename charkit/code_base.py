@@ -650,6 +650,9 @@ def _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L, base=NECK_BASE):
         Vb[rg, :2] = axis + np.stack([np.sin(th) * rr, -np.cos(th) * rr], 1)
     return Vb, lofts[0][1]
 
+LAST_FLARE = {}     # the latest flare_neck's numbers (per column: the head's radius at the cut, the ring's, the gap), for the harness
+
+
 def flare_neck(S, fl, Bm, ring_b, Vb, axis, Oz, L):
     """the head's neck flared above the cut into the shoulders (body.neck_flare; Michael's answer A, 2026-10-01: the
     joined shoulder's level top sits at the cut's height, where the base body sheet draws the trapezius already flaring
@@ -679,6 +682,7 @@ def flare_neck(S, fl, Bm, ring_b, Vb, axis, Oz, L):
     if base is None:
         return S
     gap = np.maximum(0.0, r_ring - base[1]) * sh
+    LAST_FLARE.update(th=S.th, r_head=base[1], r_ring=r_ring, gap=gap, ring_k=k, ring_z=zr[k], rings_z=zr[:8])
     r = S.r.copy()
     for i, z in enumerate(S.zs):
         if CUT - 1e-9 <= z <= CUT + h and np.isfinite(r[i]).all():
