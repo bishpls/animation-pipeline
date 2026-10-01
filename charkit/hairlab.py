@@ -16,6 +16,8 @@ variant. The loop behind each hair piece default (docs/workstreams/hair.md).
   --edges  torn tips and jagged edges (round 3): fragments per view and the outline's teeth, ours against the design's
            own (hair_fragments_<view>, hair_rough_<view>, hair_rough_back_lower, hair_rough_profile_front, ...)
   --built  measure the build's hair as built (its bundle's hair objects), no rebuild: any build, e.g. a flagged one
+  --batch VARIANTS.json OUTDIR   named variants ({name: {"opts": {..}, "style": {..}}} or {"built": true}) in one
+           context, each measured by the hair flags and the hair pieces' checks (tool/hair5), saved to OUTDIR
   --buns   the buns per view, the three-quarter and back too (round 4), each bun apart and both: IoU and outline against
            the hair layers' bun sides (hairlayers.bun_sides); --buns-png P the crops
 
@@ -989,6 +991,43 @@ def report_buns(ctx, hair, args):
     return bv
 
 
+def batch(ctx, variants, outdir, with_noise=False):
+    """named variants ({name: {opts, style}} in a JSON file, or {"built": true}) in one context, each measured by the
+    hair flags and the hair pieces' checks (charkit.hairflagqa.lab_measure), the builder's folds and (with_noise)
+    hair_noise; per variant the label images (NAME.npz) and the pieces (NAME.pieces.npz) into outdir, the numbers into
+    outdir/lab.json (written as each variant ends)."""
+    from . import hairflagqa as hf
+    V = json.load(open(variants))
+    os.makedirs(outdir, exist_ok=True)
+    res = {}
+    for name, var in V.items():
+        t0 = time.time()
+        R = None
+        if var.get('built'):
+            hair = {n: vt for n, (vt, _) in built_hair(ctx).items()}
+        else:
+            R, _, _, h2 = run(ctx, var.get('style'), var.get('opts'))
+            hair = {n: vt for n, (vt, _) in h2.items()}
+        wts = {n: p['outline_w'] for n, p in R['pieces'].items() if 'outline_w' in p} if R is not None else None
+        m, ours, pieces = hf.lab_measure(ctx['B'], ctx['D'], hair, wts)
+        if R is not None:
+            m['folds_builder'] = {n: r.get('folds', 0) for n, r in R['report']['pieces'].items()}
+            m['ahoge_fit'] = R['report'].get('ahoge_fit')
+            if with_noise:
+                m['hair_noise_lab'] = noise(ctx, R)[0]
+            np.savez_compressed(os.path.join(outdir, name + '.pieces.npz'), names=json.dumps(sorted(R['pieces'])),
+                                **{'%s__%s' % (n, k): np.asarray(p[k]) for n, p in R['pieces'].items()
+                                   for k in ('V', 'T', 'vn_shade', 'lock', 'outline_w') if k in p})
+        np.savez_compressed(os.path.join(outdir, name + '.npz'), names=json.dumps(pieces), pieces=json.dumps(pieces),
+                            ppl=hf.design_inputs(ctx['B'], ctx['D'])[1], **ours)
+        m['seconds'] = round(time.time() - t0, 1)
+        res[name] = m
+        json.dump(res, open(os.path.join(outdir, 'lab.json'), 'w'), indent=1, default=float)
+        print(name, json.dumps({k: (c.get('value') if isinstance(c, dict) else c) for k, c in m.items()},
+                               default=float), flush=True)
+    return 0
+
+
 def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return 0
@@ -1004,6 +1043,8 @@ def main(args):
         print('(%.0f s)' % (time.time() - t))
         return 0
     ctx = context(build, _kv(args, '--shape'))
+    if '--batch' in args:
+        return batch(ctx, args[args.index('--batch') + 1], args[args.index('--batch') + 2], '--noise' in args)
     R, Cq, fs, hair = run(ctx, _kv(args, '--style'), _kv(args, '--opts'))
     for k in KEYS:
         if k in Cq:

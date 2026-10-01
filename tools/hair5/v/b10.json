@@ -1,0 +1,22 @@
+{
+"nocuts3": {
+"opts": {
+"ahoge": "fit",
+"flyaway_root": "hair",
+"flyaway_reach": 0.01,
+"ink_fade": {
+"upper_back": 0.0,
+"lower_back": 0.25
+},
+"ink_phi": 120,
+"fine_tips": [
+"bangs",
+"lower_back"
+],
+"notch_piece": {
+"lower_back": 3
+},
+"drawn_cuts": []
+}
+}
+}

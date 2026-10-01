@@ -1,0 +1,7 @@
+{"base": {},
+ "A_fit_fly": {"opts": {"ahoge": "fit", "flyaway_root": "hair"}},
+ "B_ub40": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "lock_min_piece": {"upper_back": 40}}},
+ "C_ub360": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "lock_min_piece": {"upper_back": 360}}},
+ "D_hem6": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 6}}},
+ "E_hem10": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 10}}},
+ "F_lb5": {"opts": {"ahoge": "fit", "flyaway_root": "hair", "fine_tips": ["bangs", "lower_back"], "notch_piece": {"lower_back": 8}, "lock_min_piece": {"lower_back": 5}}}}
