@@ -46,6 +46,8 @@ LIMITS = {                                       # |ours / design - 1|: (pass wi
     'pupil_run': (0.15, 0.30), 'pupil_aspect': (0.20, 0.40), 'iris_ratio': (0.10, 0.20), 'lid_span': (0.10, 0.20),
 }
 LID_GAP = (0.004, 0.010)                         # L between the upper lid line and the opening: (pass, warn)
+FLICK_BELOW = 0.15                               # opening heights under a corner's row that the upper lid line's window
+                                                 # reaches (flick, lid_span): a flick leaves the corner near its row
 
 
 def _hsv(rgb):
@@ -185,8 +187,13 @@ def measure(rgba, ppl, iris_hue=IRIS_HUE):
         above = np.nonzero(S['line'][:top.min(), c])[0]
         gaps.append((top.min() - above.max() - 1) if len(above) else top.min())
     out['lid_gap'] = round(float(np.mean(gaps)) / ppl, 4) if gaps else None
-    # the upper lid line's span against the opening's width (a lash arc much wider than the eye floats past its corners)
-    up = _largest(S['line'] & (np.arange(S['line'].shape[0])[:, None] < (ob[2] + ob[3]) / 2))
+    # the upper lid line's span against the opening's width (a lash arc much wider than the eye floats past its corners):
+    # the largest dark component above the lower corner's row plus FLICK_BELOW opening heights (at least the middle row;
+    # until tool/face6 the middle row, which cut off a flick lying on it: face6_a read 1.096, 1.247 now, the design 1.3)
+    O = S['opening']
+    corner = max(float(np.nonzero(O[:, ob[0]])[0].mean()), float(np.nonzero(O[:, ob[1]])[0].mean()))
+    bottom = max((ob[2] + ob[3]) / 2, corner + FLICK_BELOW * (ob[3] - ob[2] + 1))
+    up = _largest(S['line'] & (np.arange(S['line'].shape[0])[:, None] < bottom))
     lb = _box(up)
     out['lid_span'] = round((lb[1] - lb[0] + 1) / (ob[1] - ob[0] + 1), 3) if lb else None
     out['iris_ratio'] = round(iw / ow, 3)
@@ -375,9 +382,6 @@ def front_edge(S, nasal=-1, mid=0.8):
     ang = float(np.degrees(np.arctan(a))) * -nasal
     return {'edge_angle': round(ang, 1), 'edge_rms': round(float(np.sqrt(np.mean(res ** 2))) / oh, 4),
             '_edge': [(float(a * rows[0] + b), float(rows[0])), (float(a * rows[-1] + b), float(rows[-1]))]}
-
-
-FLICK_BELOW = 0.15               # opening heights under the far corner's row that the flick's window reaches
 
 
 def flick(S, nasal=-1):
