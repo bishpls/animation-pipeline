@@ -91,6 +91,13 @@ default; the joined-shoulder candidate), calibrated against known-bads, wired in
   new, 9 calibration records calibrated, every guard shape +0%, build CPU 1103.5 -> 1531.3 s (1.39x: the candidate's
   --vrm export, gltf.py changed, plus the rom QA part). Report charkit/out/gate/gate_tool-rom_bd6aa536_into_27a4b6c3.md.
   Re-gated as is (notes only since).
+- **Gate 2 (969bb25e into 27a4b6c3, build2): PASS under K.** Nothing blocks; 49 items reported (the same: 6 new
+  checks at FAIL, 14 new, 9 records calibrated, guard shapes +0%), tests 105/0, build CPU 1103.5 -> 1521.5 s (1.38x;
+  steady state without the --vrm export about 1.13x). Report charkit/out/gate/gate_tool-rom_969bb25e_into_27a4b6c3.md.
+- Review page: charkit/out/rom/review/page/index.html (source charkit/out/rom/review/page.json, made by
+  make_page.py / make_figs.py / ring_fig.py there). ROM report: charkit/out/rom/compare.md (both bodies), per body
+  charkit/out/rom/base2/rom.md and rom-cand's charkit/out/rom/cand2/rom.md.
+- tool/rom-cand (worktree ~/animation-pipeline-rom-cand) is scratch for the candidate builds: never merge it.
 
 ## Box jobs
 - Boards: charkit/out/rom/box_base2/boards, rom-cand's charkit/out/rom/box_cand2/boards (112 each, toon renderer).
