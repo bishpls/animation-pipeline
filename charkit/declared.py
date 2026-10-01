@@ -27,7 +27,10 @@ nothing imported: the gate and `calibrate` read a tree's without running it; no 
   piece     the outfit graph's piece id (pieceqa.members on our labels; the drawn masks' VIEW__PIECE); ink_between: [a, b]
   views     where it is measured (default the four; a view the design doesn't draw the piece in is skipped)
   params    the family's parameters; fold: the drawn pieces we don't build folded into the piece (bodymeasure.folded:
-            the bow's drawn tails into the bow, as our bow object has them); round: the value's decimals
+            the bow's drawn tails into the bow, as our bow object has them); round: the value's decimals; drawn: the
+            drawn piece to compare against in place of `piece`'s (a region we build as part of a piece: the skirt's
+            cream panel); ours_cls: our piece's pixels of that model-sheet class only (pieceqa.our_classes: 'cream',
+            the panel's material on our skirt)
   limits    [pass, warn] (within: PASS, WARN; beyond: FAIL), or a reference to a part's own table
             ('charkit.pieceqa.LIMITS.rows'); better 'lower' (default; shape_iou 'higher') or 'higher' (at least)
   part      the QA part that reports it: 'declared' (default: this module's part) or a part that evaluates its own
@@ -277,14 +280,15 @@ def position(Mo, Md, ctx, axis='both', round_=4):
                 design=[round(float(xd), 4), round(float(zd), 4)])
 
 
-def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, round_=3):
+def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, edge=False, round_=3):
     """the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's
     ink, with its fainter strokes (faint: outfit.ridges, as partqa.design_lines reads the bow's creases), inside the drawn
     region (the piece's mask, or the drawn piece `region`'s: the skirt's cream panel; closed, holes filled, its outline's
     band `band` L left out), against ours drawn with outlines and ink strokes (ctx 'lines') inside the same region and on
     our piece; each skeletonized. The share of the drawn lines' length with none of ours within `tol` L (1 - recall:
     where the lines are, not only how much; `ours` and `design` their lengths in L, `precision` the share of ours near a
-    drawn one). A view whose drawn region holds under `min_len` L of lines is skipped."""
+    drawn one). A view whose drawn region holds under `min_len` L of lines is skipped. edge: the lines along the
+    region's outline instead (a band `band` L either side of it: the folds that bound a pleat's panel), not inside it."""
     from scipy import ndimage
     from skimage.morphology import skeletonize
     from . import bodyqa, outfit
@@ -294,7 +298,10 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     if R is None or not R.any():
         return None
     R = ndimage.binary_fill_holes(ndimage.binary_closing(R, iterations=3))
-    inner = ndimage.binary_erosion(R, iterations=max(1, int(round(band * ppl))))
+    b_ = max(1, int(round(band * ppl)))
+    inner = ndimage.binary_erosion(R, iterations=b_)
+    if edge:
+        inner = ndimage.binary_dilation(R, iterations=b_) & ~inner
     dv = ctx.get('dv') or {}
     raw = dv.get('raw')
     if raw is None:
@@ -334,7 +341,7 @@ def grade(v, limits, better='lower'):
 
 
 # ------------------------------------------------------------------------------------------------------------ measuring
-def inputs(B, design, views=VIEWS, lines=False):
+def inputs(B, design, views=VIEWS, lines=False, classes=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines) -> dict, or None when the design or the outfit masks are missing."""
@@ -354,6 +361,8 @@ def inputs(B, design, views=VIEWS, lines=False):
                graph=graph, spec=B.spec)
     if lines:
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
+    if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
+        out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
     return out
 
 
@@ -443,10 +452,18 @@ def evaluate(decls, I):
         if params.pop('fold', False) and I.get('graph') is not None:      # (the drawn pieces we don't build folded in)
             from .bodymeasure import folded
             M = folded(masks, I['graph'], pm)
-        Md = [M.get('%s__%s' % (view, p)) for p in pieces]
+        drawn = params.pop('drawn', None)                 # (a region of the piece: the drawn piece compared)
+        Md = [M.get('%s__%s' % (view, drawn or p)) for p in pieces]
         if any(m is None for m in Md):                    # (the design doesn't draw it here)
             continue
         Mo = [pieceqa.members(lab, names, pm, p) for p in pieces]
+        oc = params.pop('ours_cls', None)
+        if oc is not None:                                # (our piece's pixels of one class: its material there)
+            from . import bodyqa
+            cl = (I.get('cls_ours') or {}).get(view)
+            if cl is None:
+                continue
+            Mo = [m & (cl[:m.shape[0], :m.shape[1]] == bodyqa.CLASS[oc]) for m in Mo]
         ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=(dv.get(view) or {}).get('fg'), cls=(dv.get(view) or {}).get('cls'),
                    dv=dv.get(view),
                    lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
@@ -490,7 +507,8 @@ def declared(B, design=None, out=None):
     if not ds:
         return None, {}
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
-    I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds))
+    I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
+               classes=any('ours_cls' in (d.get('params') or {}) for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}

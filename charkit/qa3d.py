@@ -889,6 +889,13 @@ def _flat_tone(m, default=(0.5, 0.5, 0.5)):
     return np.array(m['lit'] if m and m.get('lit') is not None else default, float)
 
 
+def is_ink(name):
+    """a material slot of drawn lines, not cloth: a piece's creases (charkit.garments.with_ink's `<name>_ink`); the
+    outline's own 'line_ink' is the hull's."""
+    n = str(name or '')
+    return n.endswith('_ink') and n != 'line_ink'
+
+
 def render_surfaces(B, o, variant):
     """an object as its render draws it: the surface pulled in by its outline (V + shrink) with its own material slots,
     and the hull (flipped, back-face culled, the hull's slot) on the original surface, or for a thin shell whose inward
@@ -899,7 +906,7 @@ def render_surfaces(B, o, variant):
     cull = np.array([bool((o.material(int(s))[1] or {}).get('cull')) for s in range(max(1, len(o.materials)))])
     sh = o.a(variant, 'shrink')
     out = [((V + sh) if sh is not None else V, T, tm, cull[np.minimum(tm, len(cull) - 1)], Tl, False)]
-    ink = [k for k in range(len(o.materials)) if str(o.materials[k] or '').endswith('_ink')]
+    ink = [k for k in range(len(o.materials)) if is_ink(o.materials[k])]
     if ink and len(T):
         # a piece's creases drawn as ink (charkit.garments.with_ink: strokes on a *_ink slot): lines, as its outline
         # hull is (the line checks read them so: declared.our_lines, partqa), not cloth

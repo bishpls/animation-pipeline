@@ -403,13 +403,21 @@ def ink_strokes(G, cs, L, frame=None):
     renders: a cage's folds round off under it), its outward side by charkit.geom.wind's rule. Each sample takes the
     weights of the surface point under it. `space` 'front': the strokes' points are (x, z) in L in the QA's front frame
     (`frame` (x0, z0): the midline and the eye line, garments._eye_z), each on the frontmost surface there (charkit.inkfit
-    traces them from the design's front view). -> dict(verts, faces, weights {bone: (n,)}, uv (n, 2)) or None."""
+    traces them from the design's front view). `space` 'panel': (f, v) across a skirt's front panel (G['panel_u'], its
+    edge columns' u: f -1 and 1 its two edges (u rising), 0 its middle), v down the skirt: the strokes ride with
+    the panel's shape (skirt_hull's panel_shape) and lie where our surface puts them in every view.
+    -> dict(verts, faces, weights {bone: (n,)}, uv (n, 2)) or None."""
     from scipy.spatial import cKDTree
     from .geom import wind
     from .geom.subsurf import subdivide
     strokes = [np.asarray(s, float) for s in (cs.get('strokes') or []) if len(s) >= 2]
     if not strokes:
         return None
+    if cs.get('space') == 'panel':
+        if G.get('panel_u') is None:
+            return None
+        ul, ur = G['panel_u']
+        strokes = [np.c_[(ul + ur) / 2 + s_[:, 0] * (ur - ul) / 2, s_[:, 1]] for s_ in strokes]
     V0 = np.asarray(G['verts'], float)
     F0 = [tuple(int(i) for i in f) for f in G['faces']]
     if G.get('uv') is not None:
@@ -1396,6 +1404,45 @@ def skirt(A, spec):
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=zw)
 
 
+def panel_warp(th, half, VV, ps):
+    """a skirt's vertex angles with its front panel tapered (skirt_hull's `panel_shape`): th the columns' angles (n,),
+    half the panel's half-angle (its faces: |th| < half), VV each vertex's v (rows, n); ps {top, power, scale}: the
+    panel's edge columns at scale x (top + (1 - top) v ** power) of their own angle from its middle, the columns outside
+    spread evenly over the rest of the circle -> angles (rows, n)."""
+    th = np.asarray(th, float)
+    n = len(th)
+    ks = np.nonzero(np.abs(th) < half)[0]                     # the panel's faces' first columns
+    bl, br = th[ks.min()], th[(ks.max() + 1) % n]            # its edge columns
+    c, h0 = (bl + br) / 2, (br - bl) / 2
+    f = float(ps.get('scale', 1.0)) * (float(ps.get('top', 0.1)) + (1 - float(ps.get('top', 0.1)))
+                                       * np.clip(VV, 0, 1) ** float(ps.get('power', 1.0)))
+    f = np.clip(f, 0.01, (np.pi - 1e-3) / h0)
+    d = np.mod(th[None, :] - c + np.pi, 2 * np.pi) - np.pi                       # from the panel's middle, (-pi, pi]
+    inside = np.abs(d) <= h0 + 1e-12
+    hn = h0 * f
+    out = np.where(inside, d * f, np.sign(d) * (hn + (np.abs(d) - h0) * (np.pi - hn) / (np.pi - h0)))
+    return c + out
+
+
+def _field_at(F, vs, VV, TH):
+    """a loft field's radius at each (v, angle) (bilinear: rows vs, columns F.th, periodic round)."""
+    th = np.asarray(F.th, float)
+    n = len(th)
+    step = 2 * np.pi / n
+    x = np.mod(np.asarray(TH, float) - th[0], 2 * np.pi) / step
+    k0 = np.floor(x).astype(int) % n
+    k1 = (k0 + 1) % n
+    fx = x - np.floor(x)
+    y = np.interp(np.asarray(VV, float), vs, np.arange(len(vs)))
+    i0 = np.clip(np.floor(y).astype(int), 0, len(vs) - 1)
+    i1 = np.clip(i0 + 1, 0, len(vs) - 1)
+    fy = y - i0
+    Rf = np.asarray(F.R, float)
+    a = Rf[i0, k0] * (1 - fx) + Rf[i0, k1] * fx
+    b = Rf[i1, k0] * (1 - fx) + Rf[i1, k1] * fx
+    return a * (1 - fy) + b * fy
+
+
 def skirt_hull(A, spec, hull):
     """a pleated skirt lofted through the hull's points of the skirt and its front panel (fold: skirt_panel): the waist at
     the points' top, a hem per angle where they end (the back longer, as drawn), and between them the measured section
@@ -1511,6 +1558,18 @@ def skirt_hull(A, spec, hull):
         VVg, hb = band_rows(spec['band'], F.th, half, hem_at(F.th) - t0_at(F.th), vs, L)
         R = np.array([np.interp(VVg[:, k], vs, F.R[:, k]) for k in range(n)]).T + off + depth * zig * VVg ** 0.7
         T = t0_at(TH) + VVg * (hem_at(TH) - t0_at(TH))
+    THv = np.broadcast_to(TH, R.shape)
+    warped = bool(spec.get('panel_shape')) and half > 0
+    if warped:
+        # the front panel as a template (tool/garments4, Michael's "the skirt's cream section"): the drawn panel is an
+        # inverted box pleat, a triangle from the waist widening to the hem, where a constant angle made a band as wide
+        # at the waist as at the hem (skirt_panel_*_shape). Each vertex row's columns are re-spaced round the axis so the
+        # panel's edge columns sit at `scale` x (top + (1 - top) v ** power) of their own angle, the rest spread over the
+        # remaining circle: the panel's faces keep their columns (a clean edge, its UV and creases ride with it), the
+        # surface is the same field read at the new angles; the knife pleats fan with the columns
+        THv = panel_warp(F.th, half, VVg, spec['panel_shape'])
+        R = _field_at(F, vs, VVg, THv) + off + depth * zig * VVg ** 0.7
+        T = t0_at(THv) + VVg * (hem_at(THv) - t0_at(THv))
         lenc = hem_at(F.th) - t0_at(F.th)
         vb = 1 - hb / np.maximum(1e-9, lenc)                                     # per face column: the band's top (v)
         band = [int(hb[k] > 0 and VVg[i, k] >= vb[k] - 1e-9 and abs(F.th[k]) >= half)
@@ -1525,11 +1584,11 @@ def skirt_hull(A, spec, hull):
         # band, its top rim and pleats standing outside the band: "a strangely warping tuck-in")
         tuck = tuck_under(A, spec, hull, ax, F.th, T, L)
         if tuck:
-            R = tuck_pull(R, T, tuck)
+            R = tuck_pull(R, T, tuck, A=THv if warped else None)
     clear_info = None
     if spec.get('clear_hands'):
-        R, clear_info = clear_arms(A, spec, hull, ax, T, np.broadcast_to(TH, T.shape), R)
-    verts = ax.point(T, np.broadcast_to(TH, T.shape), R).reshape(-1, 3)
+        R, clear_info = clear_arms(A, spec, hull, ax, T, np.broadcast_to(THv, T.shape), R)
+    verts = ax.point(T, np.broadcast_to(THv, T.shape), R).reshape(-1, 3)
     faces = [(i * n + k, i * n + (k + 1) % n, (i + 1) * n + (k + 1) % n, (i + 1) * n + k)
              for i in range(nrow) for k in range(n)]
     uvs = [((k + 0.5) / n, float(VVg[i, k])) for i in range(nrow + 1) for k in range(n)]
@@ -1540,6 +1599,9 @@ def skirt_hull(A, spec, hull):
     Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
     out = dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=float(top - np.median(t0_at(F.th))),
                panel_half=half, axis=ax, grid=(nrow + 1, n), clear=clear_info)
+    kp = np.nonzero(np.abs(F.th) < half)[0]
+    if len(kp):                                  # the panel's edge columns' u (ink_strokes' space 'panel')
+        out['panel_u'] = ((kp.min() + 0.5) / n, (kp.max() + 1.5) / n)
     if band is not None:
         out['band'] = band
     if tuck:
