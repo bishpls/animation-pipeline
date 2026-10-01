@@ -580,8 +580,14 @@ class FaceStage(QAStage):
                 ', '.join('%s %.2e m' % kv for kv in dist.items())))
             far = {k: v for k, v in dist.items() if v > self.MATCH}
             if far:
-                print('sweep face: WARNING: %s further than %.0e m from the evaluator\'s skin: the splice moves them '
-                      'by their nearest vertex' % (far, self.MATCH))
+                As = self.B0.assembly
+                Vb = np.asarray(self.B0._arrays['o/%s/eval/V' % sk], float)
+                d, _ = tree.query(Vb)
+                off = d > self.MATCH
+                zl = (Vb[off, 2] - float(As['eye_z'])) / float(As['L'])
+                print('sweep face: WARNING: %s further than %.0e m from the evaluator\'s skin (%d of %d eval vertices, '
+                      'z %.2f..%.2f L from the eye line): the splice moves them by their nearest vertex' % (
+                          far, self.MATCH, int(off.sum()), len(Vb), zl.min(), zl.max()))
         return self._ref
 
     def bundle(self, objs):

@@ -38,4 +38,15 @@ unchanged by construction.
 
 ## State
 
-(in progress)
+- WIP commit 0a50c46c (defaults unchanged: every new knob off). Coordinator (2026-10-01): the laptop's memory is
+  critical: no new local heavy jobs; sweeps, builds, labs on the boxes (`charkit sweep --box`, `remote run|build`).
+  Sweep declarations for the box go in `charkit/out/remote/*.json` (synced; the rest of charkit/out isn't).
+- Running: local sweep `charkit/out/face7/sw1` (started before the memory call; decl `charkit/out/face7/decl/sw1.json`:
+  noop, cheek refit x3, forehead x2, eyes.wrap x3, dropbound); box build `charkit/out/face7_a` (render box, boards
+  views,body,design; the control: 0a50c46c with defaults = 52f6324 + the new checks), log charkit/out/face7/build_a.log.
+- Calibration (dry, on face7_before = 52f6324 stored): face_contour_three_quarter calibrated (design 0.958-1.036,
+  known-bad 0.774 FAIL); brow_len_closeup_profile calibrated (design 1.0-1.008, known-bad 0.713); brow_len_closeup_front
+  guard; eye_corner_closeup_profile calibrated (design 0.004-0.01, known-bad -0.087), eye_corner_profile known-bad
+  -0.074 (FAIL with the corner limits (0.04, 0.06): thirds of the gap design 0.025 -> known-bad 0.074); front, close-up
+  front and 3/4 corners guards. The corner read averages the outermost 5-15% of the opening's columns (one 4% window read
+  0.047 off with the design moved a pixel). Records not written yet (write after the build: `calibrate ... --build`).
