@@ -3627,9 +3627,11 @@ def collar(A, spec, normals=None, neckline=None):
             walk = np.array([path[2 * j] + Nt[int(np.argmin(((Vt - path[2 * j]) ** 2).sum(1)))] * off
                              for j in range(nr + 1)])
             proj = np.c_[Q[:, 0], ys, Q[:, 1]] + np.nan_to_num(ns) * lo
-            u = np.clip((math.radians(float(lap.get('a', 85))) - abs(a)) / math.radians(float(lap.get('blend', 20))),
-                        0, 1)
+            bl = float(lap.get('blend', 0))
+            u = (np.clip((math.radians(float(lap.get('a', 85))) - abs(a)) / math.radians(bl), 0, 1) if bl > 0 else 1.0)
             w = u * u * (3 - 2 * u) * np.isfinite(ys)
+            if lap.get('top', 'neck') == 'neck':
+                w = w * (np.arange(nr + 1) > 0)            # (the top row stays on the collar's neckline)
             grid[:, k] = w[:, None] * np.nan_to_num(proj) + (1 - w[:, None]) * walk
             continue
         if lap and abs(a) <= math.radians(float(lap.get('a', 85))):
