@@ -52,3 +52,18 @@ The second character's hair under his crown uses the same rule: keep it generic.
   records (the remeasure moves hair_strokes_*, hair_lock_lines_*, hair_piece_*, art_*_hair). The strokes round's
   target art_terminator_hair <= 2.064 was set under the old reading (the clips inflated the design's kinks: 3.74 ->
   2.54 per L front): under the shape truth the same build reads 3.211.
+
+## Calibration (box build2, my copy; known-bads hair5_1580f95, hst_base pushed into it from hairstrokes' store)
+- Before/after on cd1c327f's build (tools/measure.py with CHARKIT_SHAPE_TRUTH off/on; table: charkit/out/hairtruth/
+  distortion.md): body iou_hair F/3q/P 0.827/0.743/0.797 -> 0.862/0.777/0.852; bangs 0.758 -> 0.833 (profile 0.629 ->
+  0.789); side locks 0.505 -> 0.536; lock lines P 0.167 -> 0.205; strokes density P 0.587 -> 0.414; art_terminator_hair
+  2.178 -> 3.211 (grade WARN -> FAIL: the design's kinks per L 3.74/4.35/5.92 -> 2.54/2.73/3.44); art_peeks 18 -> 16.
+- Records: hair_lock_lines_3q/P, hair_back_lines calibrated (hair5_1580f95 FAIL); hair_piece_{bangs, side_locks,
+  upper_back, lower_back, buns}, hair_bun_outline: guard (floor voronoi_families FAILs). hair_piece_bangs re-registered
+  as a shape guard (its hl_base record was blind: a family IoU can't see the lock partition): a decision for Michael.
+  body_*_iou_hair (calib/bodyhair.py): first floor (re-partition inside the drawn head) passed in profile (0.785):
+  coarse; floor now voronoi_head (a random hair silhouette round the head), the old one a probe (job running).
+- art_terminator_hair / art_peeks_hair: known-bad look_v5 is on no reachable machine (laptop, build, build2, render2;
+  the render box is stopped): their records can't be refreshed -> the gate blocks on them (calibration rows can't be
+  --accept'ed). ck7_blotchy (hairshell's store) can't stand in: its spec predates 'base' (the QA refuses it).
+  The Art stand-in now reads no peeks for the design (dbae8593).
