@@ -37,7 +37,7 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                widen_lw={'side_locks': 4.0, 'lower_back': 2.0}, contain=1.0, dedup=0.5, unit='locks', over=0.004,
                contain_family=True, view_depth=1.0, soft_width=True, diff_step=1e-3, shade='proxy', shade_lock=0.0,
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
-               join='sequential', over_ink=0.3, under_inset=0.0)
+               join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex')
 # (tool/hairshell2) shade: 'proxy' (the shells' normals from the default pieces' envelope: hairpieces.shade_normals) or
 # 'union' (round 1: the envelope of every piece, shells included); shade_lock: lock_shading on the shells (None: the
 # style's; 0: the shells' own relief tore the terminator); under: families whose wedges stay under their shells (with
@@ -460,7 +460,24 @@ class Lock:
         Wl = np.minimum(Wl, 1.6 / np.maximum(maximum_filter1d(kb, 5, mode='nearest'), 1e-9))
         Tl = np.minimum(self.o['depth_ratio'] * Wl, 1.6 / np.maximum(maximum_filter1d(ka, 5, mode='nearest'), 1e-9))
         part = tube(line, Wl, Tl, ch, self.twist, self.o['n_ring'])
+        from .hairpieces import fold_mask
+        nr = self.o['n_ring']
+        for _ in range(int(self.o.get('fold_fix', 0))):
+            # (tool/hairshell2) a folded tube (a lock whose fit bends tighter than its width: the clamp above reads the
+            # curvature at the stations, a fold can start between them) narrowed where it folds, 0.7 a step over the
+            # stations round each folded face, until no face folds
+            fm = fold_mask(part['V'], part['T'], part['outer'], part['vn_env'])
+            side = np.nonzero(fm[:(len(line) - 1) * nr * 2])[0]
+            if not fm.any():
+                break
+            ks = np.unique(side // (2 * nr)) if len(side) else np.array([len(line) - 1])
+            sc = np.ones(len(line))
+            for k_ in ks:
+                sc[max(0, k_ - 2):k_ + 4] = 0.7
+            Wl, Tl = Wl * sc, Tl * sc
+            part = tube(line, Wl, Tl, ch, self.twist, nr)
         keep = self.o.get('over_ink')
+        part['over'] = bool(getattr(self, 'over', False))
         if getattr(self, 'over', False) and keep is not None:
             # (tool/hairshell2) a lock laid over its family's mass (the back's hem flicks) draws its ink only over the
             # last `over_ink` of its length, eased in over 0.1 of it, as the design draws the hem's flicks: lobes of

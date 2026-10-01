@@ -214,6 +214,14 @@ gaps, identity first); extend B to the whole head next? Recommended yes; hem fli
 normals: lock_shading 0 for shells, or the shells out of the envelope normals' union: `charkit sweep swap
 charkit/out/hs_hull_r charkit/out/hs_shells_r --check art_terminator_hair` names the carrier), then the gaps (peeks).
 
+## The candidate (converged, coordinator 2026-10-01): lockshell DEFAULT
+
+proxy shading, shade_lock 0, widen {side_locks 4, lower_back 2}, over_ink 0.3, join 'sequential' (three-quarter on, no
+trim), fold_fix 4 (sw10: a folded shell narrowed 0.7 a step round its folded faces: shells' folds 2 -> 0), shade_at
+'vertex' (sw11: sampling the proxy at its nearest vertex, all shells or the flicks only, is worse: terminator mean
+1.89 / 2.11). Real builds: `charkit/out/hs2_shells_r` (before fold_fix: folds 12, f10.2 5 and f21.1 2 on the box, 0
+on the laptop: those two locks still fit differently on the two machines), `charkit/out/hs3_shells_r` (the candidate).
+
 ## Jobs
 
 None running.

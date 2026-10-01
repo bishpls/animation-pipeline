@@ -2845,7 +2845,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
 
     def add(name, family, parts, proxy=None):
         Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf, ou, ow = [], [], [], [], [], [], [], 0, [], 0, [], []
-        sh = []
+        sh, ov = [], []
         own = any(p.get('own_normals') for p in parts)
         for k, p in enumerate(parts):
             Vs.append(p['V']); Ts.append(p['T'] + off); vn.append(p['vn_env']); st.append(p['strand'])
@@ -2855,11 +2855,12 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
             ou.append(np.asarray(p.get('outer', np.ones(len(p['V']), bool)), bool))
             ow.append(np.asarray(p.get('outline_w', np.ones(len(p['V']))), float))
             sh.append(np.full(len(p['V']), 'fit' in p and isinstance(p.get('fit'), dict) and 'cost_px' in p['fit']))
+            ov.append(np.full(len(p['V']), bool(p.get('over', False))))
             nf += folds(p['V'], p['T'], p.get('outer', np.ones(len(p['V']), bool)), p['vn_env'])
         pieces[name] = dict(family=family, V=np.concatenate(Vs), T=np.concatenate(Ts), vn_env=np.concatenate(vn),
                             vn_shade=np.concatenate(vs), own_normals=own, outer=np.concatenate(ou),
                             strand=np.concatenate(st), lock=np.concatenate(lk), chains=chains,
-                            outline_w=np.concatenate(ow), shell=np.concatenate(sh))
+                            outline_w=np.concatenate(ow), shell=np.concatenate(sh), over=np.concatenate(ov))
         if proxy is not None:
             # (tool/hairshell2: the piece as the default builds it, its wedges: the shading envelope's solid when the
             # lock shells shade from the hull's mass, lock_shells shade 'proxy')
@@ -3194,6 +3195,11 @@ def folds(V, T, outer, vn_env):
     the normal its corners should have (vn_env: the envelope's, reversed on the inner surface) by more than 120 degrees,
     or one whose neighbours on average face the other way. A steep face (the inner surface dipping past an ear) is not
     a fold. -> count."""
+    return int(fold_mask(V, T, outer, vn_env).sum())
+
+
+def fold_mask(V, T, outer, vn_env):
+    """folds()' faces as a mask over T (which faces are folded)."""
     T = np.asarray(T)
     fo = outer[T]
     surf = fo.all(1) | ~fo.any(1)
@@ -3213,7 +3219,7 @@ def folds(V, T, outer, vn_env):
     tot = np.bincount(a, d, len(T)) + np.bincount(b, d, len(T))
     cnt = np.bincount(a, None, len(T)) + np.bincount(b, None, len(T))
     flipped = (cnt > 0) & (tot / np.maximum(cnt, 1) < 0)
-    return int((surf & (against | flipped)).sum())
+    return surf & (against | flipped)
 
 
 STRAND_TONE_FAMILIES = ('flyaways', 'ahoge')     # the strands strand_tone 'root' shades in one tone (the root's)
@@ -3242,8 +3248,22 @@ def shade_normals(pieces, L, style, ls=None):
         for n in names:
             Vq, Tq = pieces[n].get('proxy', (pieces[n]['V'], pieces[n]['T']))
             Vp.append(Vq); Tp.append(np.asarray(Tq) + o_); o_ += len(Vq)
+        Ve = V
+        at_ = ls.get('shade_at', 'vertex')
+        if at_ in ('nearest', 'nearest_over'):
+            # (shade_at) a shell's vertex takes the proxy's normal at the proxy's nearest vertex: the shell shades as
+            # the mass right under it, so the terminator runs on across a lock laid over the mass ('nearest_over': the
+            # laid-over groups' shells only, the hem flicks)
+            from scipy.spatial import cKDTree
+            key = 'over' if at_ == 'nearest_over' else 'shell'
+            m_ = np.concatenate([np.asarray(pieces[n].get(key, np.zeros(len(pieces[n]['V']), bool)), bool)
+                                 for n in names])
+            if m_.any():
+                Pv = np.concatenate(Vp)
+                Ve = V.copy()
+                Ve[m_] = Pv[cKDTree(Pv).query(V[m_])[1]]
         N = envelope_normals(Mesh(np.concatenate(Vp), np.concatenate(Tp)), h=h, close=close, blur=blur,
-                             at=Mesh(V, T))
+                             at=Mesh(Ve, T))
     else:
         N = envelope_normals(Mesh(V, T), h=h, close=close, blur=blur)
     w = style.get('lock_shading', 0.0)          # the locks' own normals blended in: their relief shades as drawn
