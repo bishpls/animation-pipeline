@@ -269,14 +269,14 @@ def store(name, src, why, commit=None, flag=None):
             return os.path.join(dst, x.split('/%s/' % orig, 1)[1])
         return x
     meta['spec'] = fix(meta.get('spec'))
-    _write_json(os.path.join(dst, 'bundle', 'bundle.json'), meta)
+    json.dump(meta, open(os.path.join(dst, 'bundle', 'bundle.json'), 'w'))
     q = os.path.join(src, 'qa', 'qa.json')
     rec = dict(name=name, why=why, flag=flag, commit=commit, source=src.replace(os.path.expanduser('~'), '~'),
                stored=time.strftime('%Y-%m-%d'),
                bundle=(meta.get('content') or '')[:16] if isinstance(meta.get('content'), str) else None,
                qa_checks=len(json.load(open(q)).get('checks', {})) if os.path.exists(q) else None)
     os.makedirs(os.path.join(ROOT, KNOWN), exist_ok=True)
-    _write_json(os.path.join(ROOT, KNOWN, name + '.json'), rec)
+    json.dump(rec, open(os.path.join(ROOT, KNOWN, name + '.json'), 'w'), indent=1)
     return dst, rec
 
 
@@ -662,7 +662,7 @@ def accept(check, by, why, value=None, status='FAIL', branch=None, recorded_by='
                branch=branch, recorded_by=recorded_by)
     d = os.path.join(root, ACCEPTED)
     os.makedirs(d, exist_ok=True)
-    _write_json(os.path.join(d, check + '.json'), rec)
+    json.dump(rec, open(os.path.join(d, check + '.json'), 'w'), indent=1)
     return rec
 
 
