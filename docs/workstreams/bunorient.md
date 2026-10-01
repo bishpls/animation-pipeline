@@ -78,3 +78,12 @@ tool/hair5's ground). Stopped there as the coordinator asked; for Michael as a n
 - next: write tools/bunorient/orient.py (plan above), measure the base fit's multistart spread and the 10 um jumps on
   base_inputs.pkl, then try three_quarter in bun_views (needs bun_targets' masks: extend the capture), then the slimmed
   test, then calibrate / pregate / gate.
+
+## Round 2 (2026-09-30 night, relaunched lean after face5's calibration)
+- `tools/bunorient/orient.py`: `capture` (bunstab's plus bun_targets' inputs: the 25 hair-layer masks, the views, the
+  hull frame; `charkit/out/bo/base_inputs_tg.pkl` from bo_base, rebuilt buns 1.4e-8 / 1.2e-8 L from the build's) and
+  `spread` (per bun, the fit from block_frame's pose and 12 starts rotated +-10 / 20 deg about each axis; each fit's
+  rotation from the default start's fit, soft loss, and IoU in all four views, fitted or not). Variants: default,
+  per_side, tq (the three-quarter added), tq_near (the near bun only in the three-quarter).
+- Running (laptop): bunstab stab at 1 um and 10 um on base_inputs.pkl -> `charkit/out/bo/stab_1um.json`,
+  `stab_10um.json`; orient spread default / tq / per_side / tq_near -> `charkit/out/bo/spread_*.json`.
