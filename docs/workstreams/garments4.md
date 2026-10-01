@@ -99,9 +99,13 @@ p1 against before (pipeline-3d's bow), the moves:
   Guard IoUs (before -> after): sleeve_L F/3q/P/B 0.859/0.976/0.983/0.893 -> 0.948/0.986/0.941/0.854; sleeve_R F/3q/B
   0.889/0.353/0.900 -> 0.954/0.323/0.862; top F/3q/P/B 0.492/0.570/0.527/0.914 -> 0.583/0.688/0.620/0.931; bodice_panel
   P 0.169 -> 0.192; collar F/3q/P/B 0.603/0.403/0.025/0.928 -> 0.657/0.470/0.026/0.928.
-- **Gate (running at checkpoint):** `remote gate tool/garments4 --into pipeline-3d` at def9343a (into 257222b), box job
-  `gate-garments4-1001-001736-397a`, log `charkit/out/garments4/gate_part1.log`; report lands in charkit/out/gate/.
-  If the session ends first: `python -m charkit remote attach gate-garments4-1001-001736-397a`.
+- **Gate 1** (def9343 into 257222b): FAIL, one blocker: test_bodyeval's knob inventory (the shell's new `bed` not
+  listed; bodysens.NOT_KNOBS now lists `bed` and `creases`, 9e5d6f5). Carry refused (the build reads bodysens.py).
+- **Gate 2: PASS under K** (9e5d6f5 into pipeline-3d 257222b; `charkit/out/gate/gate_tool-garments4_9e5d6f5_into_257222b.md`):
+  no new FAIL, no flag-check regression, build CPU 0.97x, 0 calibration records needed, 0 guard findings; 106 items
+  reported. PASS -> WARN: body_profile_chest, collar_three_quarter_torn, sleeve_front_profile_R. Flag values moved,
+  grade unchanged: collar_back_lay 0.042 -> 0.061 FAIL (the puffs' raised tops beside the unchanged collar flap),
+  collar_back_square 0.325 -> 0.305 FAIL, art_outline_collar 1.379 -> 1.442 PASS. Mergeable (branch head after the notes).
 - **Review page:** `charkit/out/garments4/review/part1/index.html` (part1.json beside it; sweep s3's boards). Asked of
   Michael: (1) the knot graded on the front only, (2) w4's slanted loop ends, (3) the loops' bottom at 0.30, (4) the far
   sleeve's 3q cost (0.353 -> 0.323).
