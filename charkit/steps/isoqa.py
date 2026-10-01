@@ -10,4 +10,8 @@ MEASUREMENT_STEPS = [
     ('iso_bow_*', 'f824be4c', "the bow's outline against bow_closeup (shape_bow: its front bow agrees with the turnaround's, "
      "body IoU 0.871 against the breakdown's 0.762), the lines inside it against garment_breakdown (lines_bow); "
      "iso_bow_body graded (flag); the knot's outline share reaches the picture's line width"),
+    ('iso_bow_body', 'da26c03b', "the body compared as its silhouette (isoqa.silhouette: the parts with the lines next to "
+     "them taken in, holes filled, both sides): the drawn creases cost the parts-only IoU a share per line; the "
+     "calibration set keeps its grades (turnaround 0.871 -> 0.917 PASS, b2_close 0.744 -> 0.772 WARN, b2_before 0.616 "
+     "-> 0.679 FAIL, g3_render3 0.659 -> 0.724 FAIL)"),
 ]
