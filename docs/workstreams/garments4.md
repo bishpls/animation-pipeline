@@ -484,3 +484,31 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   treads turned perpendicular to the columns' hang).
 - Sweep st1 (tools/garments4/st1.json, box; out charkit/out/garments4/sweeps/st1): snap, fold, fold + lean 2/4/6e-3,
   flap square 0.5/1, fold_l4 + square 1.
+- Coordinator (2026-10-01): tool/layerrefs merged into pipeline-3d: the garment_breakdown flat-lay caution is already in
+  the manifest (don't duplicate); new references: the base body inside the costume (for the neck-chest join; its
+  profile cautioned only at the back thigh) and the hair without its clips. The bow-less bodice + flat collar sheet is
+  still ours to generate (milestone 2). Merge pipeline-3d before the next gate.
+
+## Next, milestone 2 (for the lean relaunch; coordinator: neck join, then reference, then the V, then flat lapels; gate each)
+1. **Neck-chest join** (branch tool/garments4-neck from pipeline-3d after layerrefs, 393539e7+): measure first. The
+   check is faceregion.neck_crease (per column round the neck, the skin outline's bend over the join window CUT -0.52 L,
+   -0.10/+0.08 L; masked skin) and neck_crease_all (whole skin, INFO: 44.7 on every build). Reference: the new base-body
+   reference (tool/layerrefs: the body inside the costume; profile cautioned at the back thigh only): measure our body's
+   neck-to-chest front and profile silhouettes against it (declared shape/width-profile family on the skin in the window
+   z -0.45..-0.75, front and profile). Fix the shape, not the reach (body.neck_join 0.18/0.24 made it no better and
+   moved the shoulders: tool/garments4-shoulders f6e33039): ease the head's neck slope into the chest over 0.04-0.06 L
+   above the cut in code_base.neck_curve / blend_neck (the monotone cubic turns vertical -> chest flare within ~0.02 L
+   under the cut, NECK_BASE 0.12 L loft). Guard: skin, neck and torso IoUs per view; face/jaw checks (faceregion,
+   jaw_*) hold. Gate the join alone.
+2. **Reference**: one gptimage call, n=2, tools/gptimage.py, ledger: the blouse as worn WITHOUT the bow, front / 3q /
+   side / back, one scale, orthographic, --ref the turnaround (sailor collar flat over shoulders and chest, the stripe
+   along its edges, a low band at the back of the neck, the V showing skin down to where the bow sits). Refcheck with
+   charkit/layerref.py against the turnaround (bodice and collar silhouettes, the V's shape); register only if it
+   passes, as the shape authority for the lapels, the V and the bodice front (the garment_breakdown caution is already
+   in the manifest).
+3. **The V**: nv2's opening rows (tools/garments4/nv2.json on tool/garments4-shoulders) gave neck_v_front_skin 0.476
+   -> 0.765 and art_outline_neck W -> P; blocked by neck_crease 26.9 -> 55.3 until (1) lands. Declare
+   neck_v_front_skin (class_iou family from fed2ef44; draft charkit/out/garments4/drafts/neckv.json), calibrate, gate.
+4. **Flat lapels**: a lapel template lying flat along the V's edges, scored per view on lapel shape and width along its
+   length (declared width-profile family against the new reference); then re-judge art_outline_collar (its FAILs
+   likely the stand-up lumps). Supersedes the shoulders branch's E2/A3 question.
