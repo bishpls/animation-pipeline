@@ -76,3 +76,10 @@ The second character's hair under his crown uses the same rule: keep it generic.
   restore look_v5 (the stopped render box ran perceptual on it, 2026-09-29: it may hold it) into charkit/out/calib/
   builds, `python -m charkit calibrate art_terminator_hair,art_peeks_hair --build BUILD`, store the design measures
   (`python -m charkit.artifactqa design BUNDLE_DIR`: a new stamp, hair_shape), gate.
+
+## Gate (2026-10-01)
+- All remeasured graded checks have fresh GOOD records (calibrated: hair_lock_lines_*, hair_back_lines, the 12
+  hair_strokes_*, bun_L_front_lines; guard: hair_piece_{bangs,side_locks,upper_back,lower_back,buns},
+  hair_bun_outline, body_*_iou_hair). pipeline-3d 27a4b6c3 (accessories6, infra5-s) merged in (clean).
+- Pregate --box auto: PASS (0 moved), 98453674 into 27a4b6c3.
+- Gate launched: `python -m charkit remote gate tool/hairtruth --into pipeline-3d` (log charkit/out/hairtruth/gate.log).
