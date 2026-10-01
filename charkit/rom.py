@@ -647,6 +647,9 @@ GARMENT_GROUPS = {
 }
 UPPER = ('top', 'bodice_panel', 'collar', 'bow')               # what the hair and the sleeves may pass through
 SKIRT = ('skirt', 'overskirt_panel_L', 'overskirt_panel_R')
+ZONE = 0.35                 # L: the skin round a joint read for its strain, collapsed and folded area
+ZONES = [(z + '_' + S, s + b) for s, S in (('left', 'L'), ('right', 'R')) for z, b in (
+    ('shoulder', 'UpperArm'), ('elbow', 'LowerArm'), ('hip', 'UpperLeg'), ('knee', 'LowerLeg'))] + [('neck', 'neck')]
 JUNCTION = 0.12             # L: a skin pair's points this near the other region's caps at rest are its junction
 TOL = 0.004                  # L: a new penetration shallower than this is contact, not counted
 MAX_POINTS = 12000           # points a region or garment is queried with (every k-th vertex beyond)
@@ -696,6 +699,16 @@ class Context:
                 far = self.closed[b].cap_distance(o.V, o.V[idx]) > JUNCTION * self.L
                 self.pair_pts[name] = idx[far]
         self.skin_bv0 = BVH((o.V, o.F))
+        # the skin round each joint (within ZONE L of its head at rest): where its deformation is read
+        self.zones = {}
+        sk_ = rig.sk
+        for zn, bone in ZONES:
+            if bone in sk_.head:
+                keep = np.linalg.norm(o.V - sk_.head[bone], axis=1) < ZONE * self.L
+                if keep.any():
+                    Fz = o.F[keep[o.F].all(1)]
+                    Ez = o.edges()
+                    self.zones[zn] = (Fz, Ez[keep[Ez].all(1)])
         self.gpts = {n: _every(len(ob.V), max_points) for n, ob in rig.objs.items() if ob.kind == 'garment'}
         self.edges = {n: ob.edges() for n, ob in rig.objs.items()}
         hair = [n for n, ob in rig.objs.items() if ob.kind == 'hair']
@@ -761,6 +774,8 @@ def measure_pose(ctx, D, X=None):
     # the skin's own deformation
     o = rig.objs[sk]
     out['skin'] = dict(strain(o.V, Xs, ctx.edges[sk]), **skin_faces(rig, o, D, Xs))
+    out['zones'] = {zn: dict(strain(o.V, Xs, Ez), **skin_faces(rig, o, D, Xs, Fz))
+                    for zn, (Fz, Ez) in ctx.zones.items() if len(Fz)}
     return out
 
 
@@ -795,6 +810,12 @@ def summary(m):
         s[grp] = gw(names)
         s[grp + '_share'] = gw(names, 'share')
     s['garment_strain'] = max([g[n]['strain']['p95'] for n in g] or [0.0])
+    z = m.get('zones') or {}
+    for fam in ('shoulder', 'elbow', 'hip', 'knee', 'neck'):
+        zz = [v for k, v in z.items() if k.split('_')[0] == fam]
+        if zz:
+            s[fam + '_strain'] = max(v['p95'] for v in zz)
+            s[fam + '_folded'] = max(v['folded'] + v['collapsed'] for v in zz)
     for k, v in cr.items():
         s[k] = v['share']
     return {k: round(float(v), 5) for k, v in s.items()}
@@ -912,11 +933,14 @@ LIMITS = {
     'hair_shoulders': (0.001, 0.01), 'hand_skirt': (0.002, 0.01), 'sleeve_top': (0.002, 0.01),
     'skin_strain': (0.25, 0.5), 'garment_strain': (0.25, 0.5), 'skin_collapsed': (0.002, 0.01),
     'skin_folded': (0.002, 0.01),
+    'zone_strain': (0.25, 0.5), 'zone_folded': (0.01, 0.03),
 }
 
 
 def limit_of(key):
     k = 'vol' if key.startswith('vol_') else 'sleeve_top' if key.startswith('sleeve_top') else key
+    if key.split('_')[0] in ('shoulder', 'elbow', 'hip', 'knee', 'neck') and key.endswith(('_strain', '_folded')):
+        k = 'zone_' + key.split('_')[1]
     return LIMITS.get(k)
 
 
@@ -979,6 +1003,7 @@ def _js(x):
 
 
 COLUMNS = ('vol_shoulder', 'vol_elbow', 'vol_wrist', 'vol_hip', 'vol_knee', 'vol_fingers', 'vol_neck', 'vol_waist',
+           'shoulder_strain', 'shoulder_folded', 'elbow_folded', 'hip_strain', 'knee_folded', 'neck_strain',
            'arm_torso', 'leg_torso', 'finger_finger', 'sleeve_body', 'skirt_legs', 'top_body', 'shorts_boots',
            'hair_shoulders', 'hand_skirt', 'sleeve_top_L', 'sleeve_top_R', 'garment_strain', 'skin_strain',
            'skin_collapsed', 'skin_folded')
