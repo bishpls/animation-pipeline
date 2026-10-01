@@ -359,5 +359,7 @@ IoU (0.620 -> 0.583) and the truth score (side locks 0.589 -> 0.559): the joined
 ## Jobs
 
 - sw1-sw5 done (`charkit/out/hairshell2/swN.json` -> `swN/`). sw6-sw9 done (sw9: the underlayer set in 0.02 / 0.04 L: folds 7 -> 21-22, side locks' IoU down: off).
+- Merged pipeline-3d d0d6304 (garments4 Part 2) -> bc26951. Pregate at bc26951: PASS, 0 moved
+  (`charkit/out/pregate/pregate_tool-hairshell2_bc269518_into_d0d6304c.md`).
 - Real render-box build of the pilot (lockshell DEFAULT = the chosen config; spec tools/hairshell/clawd_shells.json):
   `charkit/out/hs2_shells_r` (job id in charkit/out/remote/jobs/, log charkit/out/hairshell2/hs2_shells_r.log).
