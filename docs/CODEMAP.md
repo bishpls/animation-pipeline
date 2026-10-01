@@ -99,6 +99,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hairlocks` | `hairlocks` |
 | `hairpage` | `hairpage` |
 | `hairsplit` | `hairsplit` |
+| `hand` | `code_hand` |
 | `history` | `history` |
 | `kill` | `procs` |
 | `mouth` | `mouthlab` |
@@ -114,6 +115,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `refs-check` | `manifest` |
 | `remote` | `remote` |
 | `review` | `review` |
+| `script` | `cli` |
 | `slots` | `procs` |
 | `sweep` | `sweep` |
 | `trace` | `trace` |
@@ -199,6 +201,9 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hands.py` | `hand_*_reach_[LR]` | hands | Hands | mitten |
 | `hands.py` | `hand_*_digits_[LR]` | hands | Hands | mitten |
 | `hands.py` | `hand_*_cleft_[LR]` | hands | Hands | mitten |
+| `hands.py` | `hand_*_gaps_[LR]` | hands | Hands | comb_hand |
+| `hands.py` | `hand_*_taper_[LR]` | hands | Hands | comb_hand |
+| `hands.py` | `hand_*_cleftpos_[LR]` | hands | Hands | comb_hand |
 | `jaw.py` | `jaw_outline_hidden` | face_region | Jaw | f5_base |
 | `jaw.py` | `jaw_taper` | face_region | Jaw | jaw0_flagged |
 | `jaw.py` | `chin_point_z` | face_region | Jaw | jaw0_flagged |
@@ -247,6 +252,17 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 |---|---|---|---|---|---|
 | `accqa.py` | `acc_crab_{view}_visible` | visible | pin_crab | accessories | [0.97, 0.9] |
 | `accqa.py` | `acc_star_{view}_visible` | visible | pin_star | accessories | [0.97, 0.9] |
+| `accqa.py` | `acc_crab_legs` | limbs | pin_crab | accessories | [0, 0] |
+| `accqa.py` | `acc_crab_leg_reach` | limbs | pin_crab | accessories | [0.2, 0.35] |
+| `accqa.py` | `acc_crab_leg_width` | limbs | pin_crab | accessories | [0.2, 0.35] |
+| `accqa.py` | `acc_crab_leg_roots` | limbs | pin_crab | accessories | [12.0, 25.0] |
+| `accqa.py` | `acc_crab_claw_fingers` | limbs | pin_crab | accessories | [0, 0] |
+| `accqa.py` | `acc_crab_claw_notch` | limbs | pin_crab | accessories | [0.06, 0.1] |
+| `accqa.py` | `acc_crab_stalks` | limbs | pin_crab | accessories | [0.25, 0.5] |
+| `accqa.py` | `acc_crab_{view}_bearing` | pair | ['pin_star', 'pin_crab'] | accessories | [30.0, 55.0] |
+| `accqa.py` | `acc_crab_{view}_gap` | pair | ['pin_star', 'pin_crab'] | accessories | [0.025, 0.05] |
+| `accqa.py` | `acc_crab_{view}_turn` | pair | ['pin_star', 'pin_crab'] | accessories | [25.0, 45.0] |
+| `accqa.py` | `acc_crab_{view}_flow` | pair | ['pin_star', 'pin_crab'] | accessories | [25.0, 45.0] |
 | `creaseqa.py` | `skirt_panel_{view}_creases` | ink_inside | skirt | declared | [0.35, 0.6] |
 | `creaseqa.py` | `skirt_panel_{view}_edges` | ink_inside | skirt | declared | [0.35, 0.6] |
 | `creaseqa.py` | `skirt_panel_{view}_shape` | shape_iou | skirt | declared | [0.8, 0.65] |
@@ -284,7 +300,9 @@ Hair accessories and small props (docs/CHARKIT.md §2): meshes placed on the hai
 - `tube(P, rad, sides=8)`: a capped tube along a polyline P (k, 3) with a radius per point -> (verts, faces).
 - `star_outline(shape=None)`: a star's outline in its plane (x right, y up; the height tip to tip = up + down) -> (k, 2) points, tips and the ...
 - `star(shape=None)`: a star clip, its back on the z = 0 plane, facing +z: the outline (star_outline) as a rim `thick` deep, the middle ...
-- `crab(shape=None)`: a little crab clip, its back near the z = 0 plane, facing +z, the body 1 wide: a flattened ellipsoid body, two ...
+- `capsule(P, rad, sides=8, nv=6)`: a tube along a polyline P with a radius per point, its ends rounded (a sphere at each end) -> (verts, faces).
+- `pincer(c, r, up, notch, cut, depth, long=1.0, rings=(1.0, 0.92, 0.75, 0.5, ...)`: a crab's claw: a flat-backed dome (its back on z = c's, rising `depth` in front) over an outline round c, radius ...
+- `crab(shape=None)`: a little crab clip, its back near the z = 0 plane, facing +z, the body 1 wide (the clips-alone sheet's crab, ...
 - class `Ground`: the surfaces clips rest on (the hair's, then each clip placed): ray casts in world, charkit.hair's (Blender's BVH ...
 - `anchor(s, L, V=None, centre=None)`: a clip's anchor and the direction out from the head there -> (p, out): 'at' is the point itself (seating then ...
 - `place(v, s, L, V=None, centre=None, ground=None, frame=False)`: a clip's local geometry (its back on z = 0, facing +z, in L) placed: anchored on the hair (anchor()), facing ...
@@ -305,6 +323,9 @@ The hair clips' fits (tool/accessories5, docs/workstreams/accessories5.md): char
 - `posed(V, yaw=0.0, roll=0.0)`: local verts turned yaw degrees about their up axis (y) and spun roll degrees in their plane (about z).
 - `silhouette(V, F, px=240)`: local verts drawn along -z (face-on), about px across -> bool mask (orthographic; the QA's raster).
 - `score_shape(kind, shape, poses, D, w_alone=0.0, views=VIEWS, w_arms=W_ARMS)`: a template's per-view as-drawn IoU (poses {view: (yaw, roll)}) and its face-on IoU against the clips-alone ...
+- `face_decls(kind)`: accqa's declared checks on the FACE view for a clip kind (its parts face-on against the clips-alone sheet).
+- `shape_checks(kind, shape, poses, D, views=VIEWS)`: a template (one shape, a pose per view) measured as the QA measures the built clip -> checks: per view ...
+- `shape_loss(C, kind, w_alone=0.5, w_side=W_SIDE, w_parts=W_PARTS, pull=False)`: shape_checks() as one number: per view (1 - IoU) (WEIGHT), (1 - IoU) face-on times w_alone and edge-on times ...
 - `fit_shape(kind, D, shape0, minutes=10.0, w_alone=0.25, log=print)`: the template's shape knobs (SHAPE_KNOBS) and each view's pose fitted -> dict(shape, poses, score).
 - class `Scene`: a build's scene for placing its clips: the hair they rest on (accessories.Ground, its BVHs built once), and per ...
 - `fit_place(S, specs, minutes=30.0, kinds=KINDS, log=print)`: both clips' placements fitted on the scene S (the shapes fixed) -> dict(specs, result).
@@ -313,7 +334,7 @@ The hair clips' fits (tool/accessories5, docs/workstreams/accessories5.md): char
 - `shape_picture(kind, shape, poses, D, S=96)`: a template fit's picture: per view (and the clips-alone drawing face-on) ours aligned on the drawn clip as the QA ...
 - `main(args)`
 
-#### `charkit/accqa.py` (QA parts: `accessories`; 2 declared checks)
+#### `charkit/accqa.py` (QA parts: `accessories`; 13 declared checks)
 
 Hair accessories (the clips charkit.accessories builds: a star, a crab, ...) against the design, clip by clip and view by view, and the QA's accessory class (bodyqa.CLASS 'accessory': a clip is neither hair nor iris on either side).
 
@@ -332,6 +353,13 @@ Hair accessories (the clips charkit.accessories builds: a star, a crab, ...) aga
 - `arms(m, width=20.0)`: a star's arms from its centroid as fractions of its height (the up and down reaches' sum), each the furthest ...
 - `face_on(V, F, axes, ppl=400.0, edge=False)`: a clip drawn alone along its own facing (axes: columns x, y, z = its facing; world verts V), orthographic at ppl ...
 - `clip_axes(V, centre=None)`: a placed clip's own frame from its vertices: columns x, y, z = its thin axis (the smallest principal axis, away ...
+- `own_axes(V, spec=None, centre=None)`: a placed clip's own frame (columns x, y, z = its facing; y its up, toward a crab's claws): from its spec's facing ...
+- `face_masks(geo, axes, alone)`: each clip face-on in its own frame (axes per clip), scaled to the clips-alone drawing's of its kind (equal areas; ...
+- `face_labels(masks, gap=8)`: clips' face-on masks side by side on one label image (clip k: k + 1) -> label image.
+- `axis_in_view(R, az)`: a clip's own up (its frame's y: a crab's claws) in a view's picture -> degrees (0 the picture's right, 90 up).
+- `hair_flow(B, azs, iris, centre, L, ppl, views=('front', 'three_quarter', ...)`: the hair's flow in each view's picture: our hair drawn alone (its nearest surface), each pixel its triangle's ...
+- `flow_under(F, m)`: the hair's flow under a mask: its strands' mean direction there (picture degrees) and coherence (0..1).
+- `edge_body(m, keep=0.3)`: the clips-alone sheet's edge-on clip less its hair-clip loop (drawn behind it, the back on the right; we don't ...
 - `compare(mo, md, ppl, kind, view, occ=None)`: ours against the design for one clip in one view -> {measure: check}.
 - `triangulate(M, az3)`: a clip's 3D centroid (x her left, y toward her back from the eyes, z up from the eye line; L) from its centroids ...
 - `our_labels(meshes, clips, az, origin, L, ppl, win=WIN, ids=False)`: ours on a view's window grid: meshes [(V, T)] drawn as occluders, clips [(V, T)] labelled 1..n -> label image (0 ...
@@ -348,7 +376,7 @@ Hair accessories (the clips charkit.accessories builds: a star, a crab, ...) aga
 - `reclass(dv, masks)`: bodyqa.design_views' views with the clips' pixels (grid_masks) in the accessory class, cls and raw alike (a drawn ...
 - `piece_of(kind, spec_acc=None)`: a spec accessory's outfit graph piece: its 'piece', else PIECE by kind.
 - `evaluate(B, designs, pieces, az3=None, alone=None, labels=None)`: ours against every sheet's clips -> (table, checks, pictures {sheet: {view: (design rgb, masks, ours label, ids)}}).
-- `structure(clips, geo, centre, alone=None)`: each clip face-on (its own facing: clip_axes): the star's arms against head_turnaround's proportions (STAR_ARMS: ...
+- `structure(clips, geo, centre, alone=None, spec_acc=None)`: each clip face-on (its own frame: own_axes, from its spec's facing and tilt): the star's arms against ...
 - `zoom_box(pics, ppl, pad=0.06, win=WIN)`: the rows and columns (one box for every view of a sheet) that hold the clips, both sides, padded by pad L.
 - `panels(rgb, masks, lab, kinds, box, pieces_of)`: one view's three panels over the zoom box: the drawing, ours (the clips in their colours over grey), and the ...
 - `picture(pics, ppl, pieces_of, scale=2)`: a sheet's views as rows of panels (panels()), zoomed to the clips at one scale -> image.
@@ -981,6 +1009,7 @@ The hand template (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7
 
 - `params(spec=None, **over)`: the hand's knobs: DEFAULT, the spec's body.hand over it, then over.
 - `frame(J, side, P)`: the hand's frame at the wrist: (W, R) with R's columns ex (along the hand), ey (radial), ez (dorsal), from the ...
+- `layout(P)`: the fingers held together (round 4, tool/hands2: de2fa87's four thin tubes fanned apart read as a comb): their ...
 - `digits(W, R, P)`: every digit's joints and segment frames -> {name: (joints (4, 3), frames, widths (base, tip))}.
 - `digit_rings(J, F, widths, nth, bones, inset=INSET)`: a digit's tube: rings along its chain (from inset behind its first joint, loops either side of each knuckle, a ...
 - `palm_rings(W, R, P, nth=NTH['palm'])`: the palm: a rounded box from inside the cuff to past the knuckles, its width easing from the wrist's to the ...
@@ -989,7 +1018,8 @@ The hand template (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7
 - `mesh(H_)`: a hand's parts as one triangle mesh -> (V, T, part index per triangle).
 - `cuff_end(H, side, J, spec=None)`: our wrist cuff's far edge along the forearm, L from the wrist joint: the spec's band on the lower arm (its middle ...
 - class `Fit`: the hand's knobs against the design's drawn hands: per view and side, the hand-check measures (handqa's shape IoU ...
-- `main(args)`
+- `show(F, P, out)`: a picture of the template against the drawn hands: per view and side the drawn hand (grey) with ours (red ...
+- `main(args)`: python -m charkit.code_hand fit --build B [--spec S | --write S] [--rounds N] [--over JSON] [--knobs a,b] [--png ...
 - `curl_pose(H_, curl=80.0, thumb=40.0)`: a fist's skinning, numpy only: every finger joint bent `curl` degrees toward the palm (the thumb's joints ...
 - `ring_area(ring)`: a ring's area on its best-fit plane.
 - `fist_report(H_, curl=80.0, thumb=40.0)`: the fist's numbers: per finger the knuckle loops' smallest area over its rest area (the volume kept at the ...
@@ -1083,6 +1113,9 @@ Declared checks (tool/sweep, 2026-09-30): a check as a declaration (the piece, i
 - `stair_of(M, cls, lines, ppl, gap=STAIR_GAP, above=0.08, tol=0.02, folds=None)`: stair_runs, stair_creases and stair_read on a piece's mask, the classes over it, the lines (ink: the band left ...
 - `stair(Mo, Md, ctx, measure='corner', above=0.08, tol=0.02, round_=2)`: the stepped band (stair_of) on ours and the drawn piece (or pieces: a list, their readings pooled): ours from our ...
 - `visible(Mo, Md, ctx, round_=3)`: the share of the piece that shows: its pixels with everything drawn (Mo) over its own silhouette, its objects ...
+- `limbs(Mo, Md, ctx, measure='count', round_=3)`: the piece's parts (charkit.limbs.read: legs per side, their reach and roots, the lobes' fingers and notches, the ...
+- `pair_read(ma, mb, ppl, axis=None, flow=None)`: two masks' relation (b against a) -> dict(bearing (degrees: 0 the picture's right, 90 up), dist, gap (L; - the ...
+- `pair(Mo, Md, ctx, measure='bearing', round_=1)`: two pieces' relation, piece [a, b]: ours each drawn alone (ctx 'pair': alone {piece: mask}, axis {ours, design}: ...
 - `grade(v, limits, better='lower')`
 - `inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, ...)`: what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the ...
 - `our_lines(B, ppl, az3, views=VIEWS)`: our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls ...
@@ -1937,7 +1970,12 @@ The hands (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7): each 
 - `design_seams(dv, views=VIEWS)`: the design's ink inside its figures (its raw classes' line pixels), per view -> {view: bool image}.
 - `sides(view)`
 - `hands_of(skin, cuffs, ppl)`: {side: hand_mask()} for one view: cuffs {side: mask}.
-- `features(h, seams, ppl)`: what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width).
+- `bands_across(h, ppl, shares)`: per share of the reach past the cuff, the hand's band across the arm there (0.75 px either side): (its span ...
+- `gaps(h, ppl, shares=GAP_BANDS)`: the fingers held together or apart: the mean share of the hand's span across the arm with no hand in it, over ...
+- `taper(h, ppl)`: how the hand narrows to its fingertips: its mean width across the arm over TIP_BANDS of the reach over its widest ...
+- `wrist(h, ppl)`: the wrist's narrowing: the hand's width across the arm at WRIST_BAND of the reach over its widest (reported in ...
+- `cleft_at(m, h, ppl)`: where the deepest silhouette pocket's bottom lies along the reach past the cuff (a share of the reach): the ...
+- `features(h, seams, ppl)`: what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width, gaps, taper, wrist, ...
 - `hands(B, design=None, out=None)`
 - `measure(B, design, out=None)`
 
@@ -2018,6 +2056,19 @@ Separated layer references checked against the turnaround before they are regist
 - `check_bodice(spec, path, log=print, rgb=None)`
 - `save_images(imgs, out_dir)`
 - `main(args)`
+
+#### `charkit/limbs.py`
+
+A piece's parts read from its silhouette (tool/accessories6, docs/workstreams/accessories6.md; Michael 2026-10-01 on the crab clip: "legs too short, and all on the bottom of the crab, not actually on the sides... the pinchers are solid circles"): the core (the body), the lobes (big parts joined to it by something thinner: the claws), and the limbs (thin ...
+
+- `disk(r)`
+- `dilate(m, r)`: m grown by a disk of radius r px (a distance transform: fast at any radius).
+- `erode(m, r)`
+- `opening(m, r)`
+- `segment(m)`: the parts' masks -> dict(m (cropped, padded), core, lobes [mask], limbs (label image), n (limbs), D (distance ...
+- `read(m)`: the parts' numbers (module docstring) -> dict(W, H (the core's extent, px), legs {L, R: [limb]}, stalks [limb], ...
+- `compare(Ro, Rd, measure)`: one measure of ours (Ro) against the drawing's (Rd), both read() -> dict(value, ours, design[, why]) or None (the ...
+- `spoil(m, how)`: a drawing spoiled one way (SPOILS) -> mask (the cropped, padded frame segment() reads), or None.
 
 #### `charkit/lookab.py`
 
@@ -2196,6 +2247,8 @@ charkit sweep optimize: a fit's knobs tuned by a batch optimizer instead of an a
 - `synthetic(decl)`
 - class `AccfitPlace`: the clips' placement as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_place'): args ...
 - `accfit_place(decl)`
+- class `AccfitShape`: a clip template's fit as charkit.accfit scores it (stage 'python', python 'charkit.optimize:accfit_shape'; ...
+- `accfit_shape(decl)`
 - `main(args)`: `sweep optimize ...` (args after 'optimize').
 - `pick_box(reserve=1, log=print)`: --box auto: charkit.remote.pick_box (the build box while it has room, else the box with the most free slots).
 
@@ -3928,7 +3981,7 @@ Calibration adapter for the hair truth's score (charkit.hairlayers.score: the ha
 
 - class `HairTruth`
 
-#### `charkit/calib/hands.py` (4 calibration entries)
+#### `charkit/calib/hands.py` (7 calibration entries)
 
 Calibration adapter for the hands (charkit.handqa's 'hands' part: hand_shape_*, hand_*_reach_*, hand_*_digits_*, hand_*_cleft_*). The stand-in for ours is labels.py's Garments (the drawing's skin class and the outfit's drawn piece masks as our objects' labels, the drawing's lines absorbed: our skin, our wrist cuffs), with the drawing's ink inside the ...
 
@@ -3979,7 +4032,7 @@ Calibration adapters for the bow: its parts and the lines inside them (charkit.p
 
 Measurement steps, one file per measuring module (charkit/steps/<module>.py holds the steps of the checks charkit/<module>.py measures): each a module-level MEASUREMENT_STEPS literal that charkit.registry.steps() reads with ast. Nothing imports these files, so adding a step never changes a build's code keys (the stages, the hull's stamp). How to add one: ...
 
-#### `charkit/steps/accqa.py` (14 measurement steps)
+#### `charkit/steps/accqa.py` (27 measurement steps)
 
 The measurement steps of the checks charkit/accqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
@@ -4023,7 +4076,7 @@ The measurement steps of the checks charkit/faceregion.py measures (charkit.regi
 
 The measurement steps of the checks charkit/hairflagqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/handqa.py` (2 measurement steps)
+#### `charkit/steps/handqa.py` (4 measurement steps)
 
 The measurement steps of the checks charkit/handqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
