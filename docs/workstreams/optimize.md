@@ -83,9 +83,19 @@ get a slot; budget ~15-25 generations (population 16: 240-400 rows) for 5-10 kno
   slots over ssh: remote.box_slots / boxjob `slots`; the build box while it has 4 free beyond the reserve, else the
   most free), the base pushed to a box whose copy lacks it, the minutes budget counted from the first ready worker.
   At launch: build 0 of 16 free (6 waiting), render 3 of 3, render2 7 of 10 -> render2.
-- **Running:** the staircase acceptance with `--box auto` (render2), out `charkit/out/optimize/stairs`, log
-  `charkit/out/optimize/stairs.log` (the job id is in the log). If the local follow dies: `python -m charkit remote
-  --box render2 attach JID`; resume: the same command with `--box render2 --resume`.
+- **Running (render2):** the staircase acceptance, job `sweep-optim-1001-104211-9b37` (6 workers, population 12;
+  at gen 7: 113 evaluations, best f 0.6 against the hand result's 0.5); out `charkit/out/optimize/stairs`; the local
+  follow (`remote --box render2 attach`) logs to `charkit/out/optimize/stairs_attach.log` and then makes the reports.
+  Caveat: pipeline-3d (07f305e8: the clips round) was merged and synced to render2 at 11:14 mid-run: the screen's
+  workers keep the code they loaded, but the confirm builds will build with the merged code (the new clips), so
+  the compare row (opt_base, built before the merge) differs from them in the clips too: score a fresh default-spec
+  build of the merged head as the hand result instead.
+- pipeline-3d 07f305e8 merged (1a460c72): `charkit.accfit` is in the tree now. A second acceptance on accfit's own
+  loss: `optimize.accfit_place` (a python problem: Scene.measure's loss and per clip/view readings), declaration
+  `charkit/out/remote/opt_clips.json` (14 knobs as accfit.fit_place's, start start_A as the clips round's place_A),
+  against `accfit place` (its Nelder-Mead) from the same start on the same scene (opt_base's hair, the merged spec).
+  **Running (render2):** NM job `accfit-optim-1001-111439-7440` (25 min, out `charkit/out/optimize/clips_nm`), CMA
+  (4 workers, 560 evaluations, out `charkit/out/optimize/clips_cma`, log `charkit/out/optimize/clips_cma.log`).
 
 ## Next steps
 1. Read the staircase run (OUT/review, opt.json, confirm.json); compare with the hand loop (st1-st5: 5 sweeps, ~42
