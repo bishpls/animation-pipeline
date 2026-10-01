@@ -332,20 +332,28 @@ def garment_arrays(B0, name, V, F, pmat=None):
     return rep, [p + 'lnor']
 
 
-def hair_arrays(B0, name, V, T, vn=None, ow=None):
+def hair_arrays(B0, name, V, T, vn=None, ow=None, ink=None):
     """a rebuilt hair piece's arrays in place of a bundle object's eval variant (tools/hair5/labart.py's splice): V, the
     triangles, slot 0, the loop normals from the piece's shading normals (the build sets them exactly), the outline's
     inward move along the angle-weighted vertex normal by |thickness| (1 + offset) / 2, times the piece's outline_w per
     vertex when it has one (the Blender build's outline_w vertex group: without it the splice drew full-width lines
     where the build fades them, e.g. tool/hairshell2: art_terminator_hair 2.207 against the build's 2.318 on the same
-    geometry) -> (rep, drop)."""
+    geometry). ink (per triangle): the hair's ink strokes (charkit.geom.hairink) on the base object's ink slot (it
+    must have one: a base built with strokes) -> (rep, drop)."""
     from charkit.geom.mesh import vertex_normals
     a = B0._arrays
     files = set(a.files if hasattr(a, 'files') else a)
     p = 'o/%s/eval/' % name
     V, T = np.asarray(V, float), np.asarray(T, np.int64)
+    pmat = np.zeros(len(T), np.int32)
+    if ink is not None and np.any(ink):
+        from charkit.qa3d import is_ink
+        slot = next((k for k, m in enumerate(B0.obj(name).materials or []) if is_ink(m)), None)
+        if slot is None:
+            raise ValueError('%s: strokes need a base built with them (no ink slot on its hair objects)' % name)
+        pmat[np.asarray(ink, bool)] = slot
     rep = {p + 'V': V.astype(np.float32), p + 'loopv': T.ravel().astype(np.int32),
-           p + 'counts': np.full(len(T), 3, np.int32), p + 'pmat': np.zeros(len(T), np.int32)}
+           p + 'counts': np.full(len(T), 3, np.int32), p + 'pmat': pmat}
     drop = []
     if vn is not None:
         rep[p + 'lnor'] = np.asarray(vn, float)[T.ravel()].astype(np.float32)
@@ -433,8 +441,10 @@ class HairStage(QAStage):
             m = load_npz(os.path.join(pdir, p['file']))
             with np.load(os.path.join(pdir, p['file'])) as z:
                 ow = np.asarray(z['outline_w'], float) if 'outline_w' in z.files else None
+                ink = np.asarray(z['ink'], bool) if 'ink' in z.files else None
             got['hair_' + p['name']] = dict(V=np.asarray(m.V, float), F=np.asarray(m.F, np.int64),
-                                            vn=None if m.vn is None else np.asarray(m.vn, float), kind='hair', ow=ow)
+                                            vn=None if m.vn is None else np.asarray(m.vn, float), kind='hair', ow=ow,
+                                            ink=ink)
         return got
 
     def bundle(self, objs):
@@ -442,7 +452,7 @@ class HairStage(QAStage):
         for n, o in objs.items():
             if not self.B0.has('o/%s/eval/V' % n):
                 continue
-            r, d = hair_arrays(self.B0, n, o['V'], o['F'], o.get('vn'), o.get('ow'))
+            r, d = hair_arrays(self.B0, n, o['V'], o['F'], o.get('vn'), o.get('ow'), o.get('ink'))
             rep.update(r)
             drop += d
         return spliced(self.B0, rep, drop)

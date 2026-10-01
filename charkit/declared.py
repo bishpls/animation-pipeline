@@ -407,10 +407,163 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
                 precision=round(prec, 3))
 
 
+def orientation(sk, s=1.5):
+    """a skeleton's direction at each pixel, radians in [0, pi) (rows down, columns right): the structure tensor of the
+    skeleton mask, whose gradient runs across the stroke, turned a quarter."""
+    from scipy import ndimage
+    f = ndimage.gaussian_filter(sk.astype(float), 1.0)
+    gy, gx = np.gradient(f)
+    Jxx, Jyy, Jxy = (ndimage.gaussian_filter(a, s) for a in (gx * gx, gy * gy, gx * gy))
+    return (0.5 * np.arctan2(2 * Jxy, Jxx - Jyy) + np.pi / 2) % np.pi
+
+
+_LOCKS = {}
+
+
+def lock_image(spec, view, shape):
+    """the splitter's lock image in a view (the produced hair_split, charkit.hairsplit) on the design grid, or None."""
+    import os
+    from . import manifest
+    p = manifest.produced(spec, 'hair_split', log=lambda *a: None)
+    z = os.path.splitext(p)[0] + '.npz' if p else None
+    if not z or not os.path.exists(z):
+        return None
+    key = (z, os.path.getmtime(z))
+    if key not in _LOCKS:
+        from .geom.hairink import split_locks
+        _LOCKS.clear()
+        _LOCKS[key] = split_locks(spec)
+    lock = _LOCKS[key].get(view)
+    if lock is None:
+        return None
+    out = np.zeros(shape, lock.dtype)
+    h, w = min(shape[0], lock.shape[0]), min(shape[1], lock.shape[1])
+    out[:h, :w] = lock[:h, :w]
+    return out
+
+
+def lock_walls(spec, view, shape):
+    """the splitter's lock boundaries in a view on the design grid (geom.hairink.lock_boundaries), or None."""
+    from .geom.hairink import lock_boundaries
+    lock = lock_image(spec, view, shape)
+    return None if lock is None else lock_boundaries(lock)
+
+
+def flow(sk, ppl, scale=0.03):
+    """the drawn hair's flow on a design grid: its strokes' directions (orientation(), doubled angles) spread by a
+    normalised Gaussian convolution at `scale` L -> (direction radians [0, pi), coherence 0..1, stroke density)."""
+    from scipy import ndimage
+    th = orientation(sk)
+    w = sk.astype(float)
+    s = max(1.0, scale * ppl)
+    g = ndimage.gaussian_filter(w, s)
+    c = ndimage.gaussian_filter(w * np.cos(2 * th), s) / np.maximum(g, 1e-9)
+    n = ndimage.gaussian_filter(w * np.sin(2 * th), s) / np.maximum(g, 1e-9)
+    return (0.5 * np.arctan2(n, c)) % np.pi, np.hypot(c, n), g
+
+
+def strokes(Mo, Md, ctx, measure='density', strokes='strand', ours='ink', wall=0.012, tol=0.015, near=0.04,
+            scale=0.06, edge_o=0.01, min_len=0.1, min_stroke=0.02, flow_scale=0.03, coherent=0.6, min_ours=0.05,
+            round_=3):
+    """the strokes drawn inside the hair's mass (tool/hairstrokes, Michael 2026-10-01: "detail in the bulk of the mass":
+    strand lines and partial separations), against ours. The design's: its lines (the line class and the fainter
+    strokes, hairflagqa.drawn_lines) skeletonized inside the mass (hairflagqa.design_side's keep: off the hair's outline,
+    clear of the buns, the ahoge and the clips), pieces shorter than `min_stroke` L dropped (geom.hairink.drawn_strokes:
+    the tracer's own reading); strokes 'strand' leaves out those within `wall` L of a boundary between two of the
+    splitter's locks (the lock lines: the shells' outlines are the geometry's), 'all' keeps them. Ours: our ink strokes
+    (ours 'ink': ctx 'ink', a piece's ink slot) or every line of ours (ours 'lines': outlines too) inside our hair's mass
+    (off our outline by `edge_o` L), skeletonized.
+
+    The turnaround draws its strand texture view by view (tool/hairstrokes: strokes placed from one view add 0.00-0.01
+    to the recall in the others), so one 3D set of strokes matches each view's exact strokes only where it was taken
+    from that view; the measures are the flag's intent in every view:
+      density   the drawn strokes' and ours' density fields (length per area, a Gaussian at `scale` L, over both
+                masses): the L1 difference over their sum (0 the same, 1 none where the other has them): strokes where
+                the drawing has them, as many, at the scale of a lock (the drawn lines lie about 0.04 L apart, so a
+                nearest-line recall at 0.04 L reads strokes moved at random 0.62-0.74)
+      presence  the share of the drawn strokes' length with none of ours within `near` L (1 - recall)
+      place     the same within `tol` L (where exactly: the view's own strokes; its cost in the other views)
+      dir       the median angle (degrees) between our strokes and the drawn hair's flow (flow(): every drawn line inside
+                the mass, lock lines included, at `flow_scale` L) where that flow is coherent (>= `coherent`): our
+                strokes run with the hair
+      extra     the share of our strokes' length with no drawn line (any: lock lines and the outline included) within
+                `near` L (1 - precision: strokes where the drawing has none)
+    A view whose drawn mass holds under `min_len` L of strokes is skipped; dir with under `min_ours` L of ours reads
+    FAIL (too little of ours to read)."""
+    from scipy import ndimage
+    from skimage.morphology import skeletonize
+    from . import hairflagqa
+    from .geom.hairink import drawn_strokes
+    ppl, view = ctx['ppl'], ctx['view']
+    D = ctx.get('hair_D')
+    if D is None or view not in D['keep']:
+        return None
+    sh = Mo.shape
+    keep_d = fit(D['keep'][view], sh)
+    lines_d = fit(D['lines'][view], sh)
+    sk_d = drawn_strokes(lines_d, keep_d, ppl, None, 'all', wall, min_stroke)
+    want = sk_d if strokes == 'all' else drawn_strokes(lines_d, keep_d, ppl, lock_image(ctx['spec'], view, sh),
+                                                        strokes, wall, min_stroke)
+    d_len = float(want.sum()) / ppl
+    if d_len < min_len:
+        return None
+    src = ctx.get('ink') if ours == 'ink' else ctx.get('lines')
+    if src is None or Mo.sum() < 12:
+        return dict(value=None, why=WHY_OURS)
+    other = ctx.get('hair_other')
+    other = fit(other, sh) if other is not None else np.zeros(sh, bool)
+    solid = ndimage.binary_fill_holes(ndimage.binary_closing(Mo | other, iterations=2))
+    keep_o = ndimage.distance_transform_edt(solid) > edge_o * ppl
+    if other.any():
+        keep_o &= ndimage.distance_transform_edt(~other) > hairflagqa.CLEAR * ppl
+    o_ = skeletonize(fit(src, sh) & keep_o & Mo)
+    o_ &= ndimage.binary_dilation(keep_d, iterations=int(round(near * ppl)))      # (ours over the drawn mass)
+    o_len = float(o_.sum()) / ppl
+    dist_o = ndimage.distance_transform_edt(~o_) if o_.any() else np.full(sh, np.inf)
+    all_d = skeletonize(lines_d)                       # (extra: near any drawn line, the hair's outline included)
+    dist_d = ndimage.distance_transform_edt(~all_d) if all_d.any() else np.full(sh, np.inf)
+    nwant = max(1, int(want.sum()))
+    # the density fields: each stroke set's length per area at `scale` L (a normalised Gaussian over the masses), their
+    # L1 difference over their sum (0 the same strokes, 1 none where the other has them)
+    zone = ndimage.binary_dilation(keep_d | (keep_o & Mo), iterations=2)
+    g = lambda m: ndimage.gaussian_filter(m.astype(float), max(1.0, scale * ppl)) * zone
+    Dd, Do = g(want), g(o_)
+    den = float((Dd + Do).sum())
+    dens = float(np.abs(Do - Dd).sum()) / den if den > 0 else 1.0
+    pres = float((want & (dist_o <= near * ppl)).sum()) / nwant
+    place = float((want & (dist_o <= tol * ppl)).sum()) / nwant
+    extra = float((o_ & (dist_d > near * ppl)).sum()) / max(1, int(o_.sum())) if o_.any() else 0.0
+    ang = None
+    if o_len >= min_ours:
+        fth, coh, _ = flow(sk_d, ppl, flow_scale)
+        m = o_ & (coh >= coherent)
+        if m.sum() >= min_ours * ppl:
+            dd = np.abs(orientation(o_)[m] - fth[m]) % np.pi
+            ang = float(np.degrees(np.median(np.minimum(dd, np.pi - dd))))
+    rec = dict(ours=round(o_len, 3), design=round(d_len, 3), recall=round(pres, 3), place=round(place, 3),
+               precision=round(1.0 - extra, 3) if o_.any() else None, dir=None if ang is None else round(ang, 1),
+               density=round(dens, 3))
+    if measure == 'density':
+        return dict(rec, value=round(dens, round_))
+    if measure == 'presence':
+        return dict(rec, value=round(1.0 - pres, round_))
+    if measure == 'place':
+        return dict(rec, value=round(1.0 - place, round_))
+    if measure == 'dir':
+        if ang is None:
+            return dict(rec, value=None, why='too little of our strokes where the drawn flow is clear')
+        return dict(rec, value=round(ang, 1))
+    if measure == 'extra':
+        return dict(rec, value=round(extra, round_))
+    raise KeyError(measure)
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position, ink_inside=ink_inside, area=area)
+                position=position, ink_inside=ink_inside, area=area, strokes=strokes)
 HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
-LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
+LINE_FAMILIES = ('ink_between', 'ink_inside', 'strokes')     # families that read our drawn lines (inputs' lines)
+HAIR = 'hair'                           # the hair as a piece: our hair_* objects, the drawing's hair class (no graph piece)
+HAIR_OTHER = ('hair_bun', 'hair_ahoge')  # our hair objects that aren't the mass (with the clips: hairflagqa's `other`)
 
 
 def grade(v, limits, better='lower'):
@@ -421,10 +574,12 @@ def grade(v, limits, better='lower'):
 
 
 # ------------------------------------------------------------------------------------------------------------ measuring
-def inputs(B, design, views=VIEWS, lines=False, classes=False):
+def inputs(B, design, views=VIEWS, lines=False, classes=False, hair=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
-    outline pixels per view (our_lines) -> dict, or None when the design or the outfit masks are missing."""
+    outline pixels per view (our_lines); with hair, the hair as a piece (HAIR: our hair_* objects against the drawing's
+    hair class, VIEW__hair) and hairflagqa's design side (hair_D: the mass's inside, its drawn lines) -> dict, or None
+    when the design or the outfit masks are missing."""
     from . import bodymeasure, pieceqa
     ctx = design.sheet_context()
     if 'why' in ctx:
@@ -439,11 +594,33 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False):
     O, names = pieceqa.our_labels(B, ctx['ppl'], ctx['az3'], views=tuple(v for v in views if v in dv))
     out = dict(O=O, names=names, masks=masks, pm=bodymeasure.piece_map(graph, B.spec), ppl=ctx['ppl'], dv=dv,
                graph=graph, spec=B.spec, skin=[o.name for o in B.objects(groups=('skin',))])
+    if hair:
+        _with_hair(B, design, out)
     if lines:
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
+        if hair:
+            out['ink'] = our_ink(B, ctx['ppl'], ctx['az3'], tuple(O))
     if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
         out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
     return out
+
+
+def _with_hair(B, design, I):
+    """the hair as a piece in the inputs I (in place): pm[HAIR] our hair_* objects, masks VIEW__hair the drawing's hair
+    class in its figure (hairflagqa.drawn_hair), hair_D hairflagqa's design side (None without the hair truth), and per
+    view our hair objects that aren't the mass (HAIR_OTHER) with the clips (hair_other, from the labels: read when
+    measured, so a stand-in's labels give theirs)."""
+    from . import hairflagqa
+    names = I['names']
+    I['pm'] = dict(I['pm'], **{HAIR: [(n, None) for n in names if n.startswith('hair_')]})
+    masks = dict(I['masks'])
+    for v, d in I['dv'].items():
+        masks['%s__%s' % (v, HAIR)] = hairflagqa.drawn_hair(d)
+    I['masks'] = masks
+    I['hair_D'] = hairflagqa.design_inputs(B, design)[0]
+    oth = [(n, None) for n in names if n.startswith(HAIR_OTHER)] + \
+        [(o.name, None) for o in B.objects(groups=('accessory',)) if o.name in names]
+    I['hair_other_members'] = oth
 
 
 class _Grid:
@@ -462,26 +639,69 @@ class _Grid:
 
 def our_lines(B, ppl, az3, views=VIEWS):
     """our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls
-    (charkit.qa3d.draw, numpy) and the pixels whose nearest surface is a hull -> {view: bool image}. The generic
-    calibration's stand-in patches it (the drawing's own ink moved with the labels, or none for a random floor)."""
-    from . import bodyqa, qa3d
-    As = B.assembly
-    iw = np.array(qa3d.iris_centres(B))
-    az = bodyqa.azimuths(az3)
-    surfs = []
-    for o in B.objects():
-        variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
-        if o.has(variant):
-            surfs += qa3d.surfaces(B, o, variant)
-    hull = np.array([bool(s['hull']) for s in surfs] + [False])
-    out = {}
-    for v in views:
-        fr = _Grid(bodyqa.origin(v, az[v], iw, As['centre']), float(As['L']), ppl)
-        aux = {}
-        qa3d.draw(B, surfs, az[v], fr, ss=1, aux=aux)
-        mesh = aux['mesh']
-        out[v] = hull[np.where(mesh >= 0, mesh, len(surfs))]
-    return out
+    (charkit.qa3d.draw, numpy) and the pixels whose nearest surface is a hull (an ink stroke's too) -> {view: bool
+    image}. The generic calibration's stand-in patches it (the drawing's own ink moved with the labels, or none for a
+    random floor)."""
+    return _line_images(B, ppl, az3, tuple(views))
+
+
+def our_ink(B, ppl, az3, views=VIEWS):
+    """our ink strokes' pixels per view on the design's grids (a piece's ink slot, qa3d.is_ink: the creases, the
+    hair's strokes), drawn at least a pixel wide where nothing of ours is nearer (a stroke thinner than a pixel still
+    shows, as the drawing's faint strokes do: geom.raster's thin labels), without the outlines -> {view: bool image}.
+    The stand-in patches it as it does our_lines."""
+    def make():
+        from . import bodyqa, qa3d
+        from .geom import raster
+        As = B.assembly
+        iw = np.array(qa3d.iris_centres(B))
+        az = bodyqa.azimuths(az3)
+        items, ink = [], []
+        for o in B.objects():
+            variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
+            if not o.has(variant):
+                continue
+            for s_ in qa3d.surfaces(B, o, variant):
+                k = len(items)
+                is_ink = bool(s_['hull']) and len(s_['slots']) > 0 and \
+                    all(qa3d.is_ink(o.materials[int(t)]) for t in np.unique(s_['slots']))
+                items.append((s_['V'], s_['T'], k, s_['cull']))
+                if is_ink:
+                    ink.append(k)
+        out = {}
+        for v in views:
+            if not ink:
+                out[v] = None
+                continue
+            org = bodyqa.origin(v, az[v], iw, As['centre'])
+            _, lab = raster.window_zbuffer(items, az[v], org, float(As['L']), 1.0 / ppl, bodyqa.WIN, thin=tuple(ink))
+            out[v] = np.isin(lab, ink)
+        shape = next((x.shape for x in out.values() if x is not None), None)
+        return {v: (x if x is not None else np.zeros(shape or (1, 1), bool)) for v, x in out.items()}
+    return B.memo(('declared_ink', float(ppl), float(az3), tuple(views)), make)
+
+
+def _line_images(B, ppl, az3, views):
+    def make():
+        from . import bodyqa, qa3d
+        As = B.assembly
+        iw = np.array(qa3d.iris_centres(B))
+        az = bodyqa.azimuths(az3)
+        surfs = []
+        for o in B.objects():
+            variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
+            if o.has(variant):
+                surfs += qa3d.surfaces(B, o, variant)
+        hull = np.array([bool(s['hull']) for s in surfs] + [False])
+        out = {}
+        for v in views:
+            fr = _Grid(bodyqa.origin(v, az[v], iw, As['centre']), float(As['L']), ppl)
+            aux = {}
+            qa3d.draw(B, surfs, az[v], fr, ss=1, aux=aux)
+            mesh = aux['mesh']
+            out[v] = hull[np.where(mesh >= 0, mesh, len(surfs))]
+        return out
+    return B.memo(('declared_lines', float(ppl), float(az3), views), make)
 
 
 def silhouette(I, view, pid):
@@ -569,6 +789,11 @@ def evaluate(decls, I):
                    cls_ours=(I.get('cls_ours') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
+        if HAIR in pieces:                                # (the hair as a piece: its design side, our non-mass parts)
+            from .bodymeasure import member_mask
+            ctx['hair_D'] = I.get('hair_D')
+            ctx['ink'] = (I.get('ink') or {}).get(view)
+            ctx['hair_other'] = member_mask(lab, {n: i for i, n in enumerate(names)}, I.get('hair_other_members') or [])
         fam = FAMILIES[d['family']]
         if 'round' in params:
             params['round_'] = params.pop('round')
@@ -583,7 +808,7 @@ def evaluate(decls, I):
             if r.get('count_status'):
                 st = pieceqa.worst(st, r['count_status'])
             c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
-            for k in ('count', 'ratio', 'fill', 'ratio_fill'):
+            for k in ('count', 'ratio', 'fill', 'ratio_fill') + (('recall', 'place', 'precision', 'dir', 'density') if d['family'] == 'strokes' else ()):
                 if k in r:
                     c[k] = r[k]
             if d.get('note'):
@@ -610,7 +835,8 @@ def declared(B, design=None, out=None):
         return None, {}
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
     I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds),
-               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) for d in ds))
+               classes=any({'ours_cls', 'relative'} & set(d.get('params') or {}) for d in ds),
+               hair=any(HAIR in (d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]) for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}
@@ -623,34 +849,119 @@ def _calib_base():
     return Details
 
 
+STROKE_FLOORS = {
+    'moved_strokes': "the drawn strands inside the hair's mass each moved 0.05-0.15 L at random (kept inside the mass)",
+    'scattered_strokes': "the drawn strands inside the hair's mass each put anywhere in the mass at random (their length "
+                         "and direction kept: strokes in the wrong places)",
+    'turned_strokes': "the drawn strands inside the hair's mass each turned 30-90 degrees about its middle (in their "
+                      "places, across the hair's flow)",
+}
+
+
 class Declared(_calib_base()):
     """the generic calibration stand-in for the 'declared' part: charkit.calib.details.Details (calib.labels.Garments:
     the drawn piece masks as our labels, moved 1-2 px or a random floor's; the drawn band's overhang handed to the
     jacket, the drawing's classes moved with the labels), and our outline pixels (our_lines) the drawing's own ink moved
-    with the labels for the design, none for a floor (a random stand-in has no line between its pieces)."""
+    with the labels for the design, none for a floor (a random stand-in has no line between its pieces). Our ink strokes
+    (our_ink: the hair's line layer) are the drawing's strands (the strokes family's 'strand' set: its lines inside the
+    hair's mass off the splitter's lock lines), moved with the labels; the stroke floors (STROKE_FLOORS) keep the
+    design's labels and lines in place and move, scatter or turn the strands."""
     part = 'declared'
+    generators = dict(_calib_base().generators, **STROKE_FLOORS)
+
+    def labels(self, kind, arg):
+        if kind in STROKE_FLOORS:
+            return super().labels('design', (0, 0))
+        return super().labels(kind, arg)
+
+    def _drawn(self, v):
+        """the drawing's lines as it draws them: its ink, and its fainter strokes (a crease drawn in a shade:
+        outfit.ridges; ink_inside reads both), skin left out."""
+        from . import bodyqa, outfit
+        line = bodyqa.CLASS['line']
+        d = self.dv.get(v) or {}
+        raw = d.get('raw')
+        if raw is None:
+            return self.cls[v] == line
+        m = raw == line
+        if d.get('rgb') is not None:
+            m = m | (outfit.ridges(d['rgb']) & (raw != bodyqa.CLASS['skin']))
+        return fit(m, self.cls[v].shape)
+
+    def _strands(self, v):
+        """the drawing's strands in a view (the strokes family's 'strand' set, geom.hairink.drawn_strokes) as line
+        pixels, and the hair's mass inside (hairflagqa's keep) -> (pixels, keep) or (None, None) without the hair truth."""
+        from scipy import ndimage
+        from . import hairflagqa
+        from .geom.hairink import drawn_strokes
+        memo = self.__dict__.setdefault('_strand_memo', {})
+        if v not in memo:
+            D = hairflagqa.design_inputs(self.B, self.design)[0]
+            if D is None or v not in D['keep']:
+                memo[v] = (None, None)
+            else:
+                sh = self.cls[v].shape
+                keep, lines = fit(D['keep'][v], sh), fit(D['lines'][v], sh)
+                sk = drawn_strokes(lines, keep, self.ppl, lock_image(self.B.spec, v, sh), 'strand')
+                memo[v] = (lines & ndimage.binary_dilation(sk, iterations=1), keep)
+        return memo[v]
+
+    def stroke_floor(self, v, kind, seed):
+        """the drawing's strands in a view moved, scattered or turned (STROKE_FLOORS) inside the mass -> pixels."""
+        from scipy import ndimage
+        m, keep = self._strands(v)
+        if m is None:
+            return np.zeros(self.cls[v].shape, bool)
+        rng = np.random.default_rng(5000 + 97 * int(seed) + VIEWS.index(v))
+        out = np.zeros(m.shape, bool)
+        ky, kx = np.nonzero(keep)
+        lab, n = ndimage.label(m, structure=np.ones((3, 3)))
+        for k in range(1, n + 1):
+            rr, cc = np.nonzero(lab == k)
+            c = np.array([rr.mean(), cc.mean()])
+            for _ in range(50):
+                if kind == 'moved_strokes':
+                    t = rng.uniform(0, 2 * np.pi)
+                    P = np.c_[rr, cc] + rng.uniform(0.05, 0.15) * self.ppl * np.array([np.sin(t), np.cos(t)])
+                elif kind == 'scattered_strokes':
+                    j = rng.integers(len(ky))
+                    P = np.c_[rr, cc] - c + np.array([ky[j], kx[j]])
+                else:
+                    t = np.radians(rng.uniform(30, 90) * rng.choice([-1, 1]))
+                    Rm = np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]])
+                    P = (np.c_[rr, cc] - c) @ Rm.T + c
+                P = np.round(P).astype(int)
+                ok = (P[:, 0] >= 0) & (P[:, 0] < m.shape[0]) & (P[:, 1] >= 0) & (P[:, 1] < m.shape[1])
+                if ok.all() and keep[P[:, 0], P[:, 1]].mean() > 0.9:
+                    q = np.zeros(m.shape, bool)
+                    q[P[:, 0], P[:, 1]] = True
+                    out |= ndimage.binary_closing(q, iterations=1) | q
+                    break
+        return out
 
     def patches(self, L, kind='design', arg=None):
         import sys
         from .calib.labels import _shift
-        from . import bodyqa
-        line = bodyqa.CLASS['line']
-
-        def drawn(v):
-            # the drawing's lines as it draws them: its ink, and its fainter strokes (a crease drawn in a shade:
-            # outfit.ridges; ink_inside reads both), skin left out
-            from . import outfit
-            d = self.dv.get(v) or {}
-            raw = d.get('raw')
-            if raw is None:
-                return self.cls[v] == line
-            m = raw == line
-            if d.get('rgb') is not None:
-                m = m | (outfit.ridges(d['rgb']) & (raw != bodyqa.CLASS['skin']))
-            return fit(m, self.cls[v].shape)
 
         def lines(B, ppl, az3, views=VIEWS):
             if kind == 'design':
-                return {v: _shift(drawn(v), arg[0], arg[1], False) for v in views if v in self.cls}
+                return {v: _shift(self._drawn(v), arg[0], arg[1], False) for v in views if v in self.cls}
+            if kind in STROKE_FLOORS:
+                out = {}
+                for v in views:
+                    if v in self.cls:
+                        m, _ = self._strands(v)
+                        rest = self._drawn(v) & ~m if m is not None else self._drawn(v)
+                        out[v] = rest | self.stroke_floor(v, kind, arg)
+                return out
             return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
-        return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines)]
+
+        def ink(B, ppl, az3, views=VIEWS):
+            if kind == 'design':
+                return {v: _shift(self._strands(v)[0] if self._strands(v)[0] is not None else
+                                  np.zeros(self.cls[v].shape, bool), arg[0], arg[1], False) for v in views if v in self.cls}
+            if kind in STROKE_FLOORS:
+                return {v: self.stroke_floor(v, kind, arg) for v in views if v in self.cls}
+            return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
+        return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines),
+                                                (sys.modules[__name__], 'our_ink', ink)]

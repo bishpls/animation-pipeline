@@ -896,6 +896,20 @@ def is_ink(name):
     return n.endswith('_ink') and n != 'line_ink'
 
 
+def without_ink(s_):
+    """a surfaces() dict without its ink-slot triangles (is_ink: a piece's creases, the hair's strokes): drawn lines,
+    not the surface's shading."""
+    o = s_['o']
+    ink = [k for k in range(len(o.materials)) if is_ink(o.materials[k])]
+    if not ink:
+        return s_
+    k_ = ~np.isin(s_['slots'], ink)
+    if k_.all():
+        return s_
+    return dict(s_, T=s_['T'][k_], slots=s_['slots'][k_], cull=np.asarray(s_['cull'])[k_] if np.ndim(s_['cull']) else s_['cull'],
+                Tl=s_['Tl'][k_])
+
+
 def render_surfaces(B, o, variant):
     """an object as its render draws it: the surface pulled in by its outline (V + shrink) with its own material slots,
     and the hull (flipped, back-face culled, the hull's slot) on the original surface, or for a thin shell whose inward
@@ -2089,8 +2103,8 @@ def tone_edges(lum, grp, min_px=50):
 
 @qa_part('hair_noise', order=400)
 def hair_noise(B, design=None, out=None):
-    """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
-    drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
+    """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines and
+    its ink strokes (a drawn line between two locks, a drawn strand, is not shading) and behind the rest of the character (which hides the hair's inside
     through the face), from 0, 90 and 180 degrees; each visible hair pixel's luminance cut into three tones at its
     group's 33rd and 66th percentiles (the buns apart from the rest: tone_edges), the tone edges per visible hair
     pixel."""
@@ -2102,7 +2116,7 @@ def hair_noise(B, design=None, out=None):
     surfs, groups = [], []
     for o in hair:
         for x in surfaces(B, o, outline=False):
-            surfs.append(x); groups.append(hair_noise_group(o))
+            surfs.append(without_ink(x)); groups.append(hair_noise_group(o))
     occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
            for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
     grp_of = np.array(groups + [-1] * len(occ) + [-1])             # per surface (and -1 for none)

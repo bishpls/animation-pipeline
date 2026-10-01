@@ -3316,8 +3316,8 @@ def geometric_normals(V, T):
 def save_parts(R, out, meta=None):
     """the pieces as the Blender stage loads parts (charkit.geom.blender.load_part): out/NAME.npz per piece (V, F, vn:
     the shading normals for its custom normals (a lock shades its outside, inside and walls with the mass's outward
-    normal: one cel-shaded mass, its locks told apart by their outlines), vn_geom, strand, lock; meta: family, chains,
-    report) and
+    normal: one cel-shaded mass, its locks told apart by their outlines), vn_geom, strand, lock; ink, per face, where
+    charkit.geom.hairink's strokes ride on it (the build's ink slot); meta: family, chains, report) and
     out/pieces.json (the pieces in order, their families and files). -> pieces.json's path."""
     from .io import save_npz
     from .mesh import Mesh
@@ -3331,7 +3331,8 @@ def save_parts(R, out, meta=None):
                  **({'outline_w': np.asarray(p['outline_w'], np.float32)} if 'outline_w' in p and
                     np.any(np.asarray(p['outline_w']) < 1) else {}),
                  **({'shell': np.asarray(p['shell'], bool)} if p.get('shell') is not None and
-                    np.any(p['shell']) else {}))
+                    np.any(p['shell']) else {}),
+                 **({'ink': np.asarray(p['ink'], np.uint8)} if p.get('ink') is not None and np.any(p['ink']) else {}))
         index['pieces'].append(dict(name=name, family=p['family'], file=name + '.npz', locks=len(p['chains'])))
     path = os.path.join(out, 'pieces.json')
     json.dump(index, open(path, 'w'), indent=1)
