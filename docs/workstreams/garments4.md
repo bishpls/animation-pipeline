@@ -579,3 +579,35 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   knots and the flap square reached clawd.json only): fixed (the alias copied). Otherwise: no new FAIL, no flag
   regression (art_band_lower 1.185 -> 1.111 P, art_mirror_waist 0.715 -> 0.72 P); report
   charkit/out/gate/gate_tool-garments4-stairs_7134ff6d_into_00494dec.md. Gate 2 running.
+- **Stairs gate** running: job gate-garments4-1001-074750-2f1e (log charkit/out/garments4/gate_stairs.log), branch
+  tool/garments4-stairs 7134ff6d into pipeline-3d 00494dec.
+
+## Milestone 2, step 1: the neck join (branch tool/garments4-neck from pipeline-3d 00494dec)
+- **neck_crease's FAILs are its sampling, not a crease** (tools charkit/out/garments4/tools/creasecol.py: the old
+  measure's rows printed; creasex.py: the skin's exact cut per column). The old measure took the largest vertex radius
+  within 6 degrees and 0.006 L of each height every 0.01 L, interpolating gaps: (1) on the steep flare under the cut the
+  torso's subdivided rows are ~0.019 L apart, so two heights catch one row (flat), then a jump (-75 deg): 44.7 on the
+  whole skin, at the window's bottom row, every column; (2) a garment mask's edge crossing the 12-degree sector (the V
+  opened, column -25: r 0.196 -> 0.183 -> 0.190 over 0.02 L) reads a 55.3 bend; (3) the window's clamped ends. The exact
+  cut (each column's half-plane crossed with the triangles) bends 12.6 (masked) / 14.4 (whole) on g4_stairs1, 12.7 /
+  14.4 on g4_nv2 (the V opened), 9.5 / 11.6 on g4_nv2j18; ckpt_full (Michael's "major issues with the neck", the old
+  ring join) 12.5 / 12.3: its join is a smooth cone in this window too.
+- **Remeasure** (958bfcd2): faceregion.crease_of on the exact cut (section_outline), bends read on unbroken runs only
+  (CREASE_RUN 4 steps); tests (test_faceregion: steep flare at 0.004 / 0.019 L rows reads 14.8 / 13.3 PASS, a V cut out
+  of the front PASS, a 0.02 L ring 58 FAIL, the old flat join worse than the cubic). Step registered (steps/faceregion.py
+  'neck_crease*', 958bfcd2). Calibration adapter charkit/calib/neck.py (NeckJoin, computed stand-ins as calib/motion's:
+  design = our join one subdivision level finer, window moved 1-2 px and columns 2.5-5 deg; known-bad 'neck_ring' = a
+  0.02 L ring at the cut, charkit/calib/known_bad/neck_ring.json; floor 'jitter_skin' sd 0.003 L): **CALIBRATED** on
+  g4_stairs1 (design 9.9-10.4, known-bad 49.6 FAIL, floor 35.5-36.8 FAIL, current 12.6 PASS, margin 0.91; no piece
+  shape check covers the skin: shape [] as the jaw entries). Record 4c6272a7. CODEMAP regenerated (pipeline-3d's was
+  stale). Pregate (4c6272a7 into 00494dec): PASS, 0 moved (the evaluator has no face_region).
+- **The join against the base body reference** (tools neckm.py; review/neck_m0.png): only the profile compares (the
+  front's and three-quarter's neck sides are under the drawn hair, our skin is cut at the shoulders). Profile front edge:
+  the turnaround's visible throat and the base body agree at x 0.16-0.17 (z -0.37..-0.50); ours sits 0.035 L behind
+  from the chin to the cut (the head sheet's neck), then 0.03-0.05 L ahead at z -0.62..-0.75 (the torso's top under the
+  collar), behind below -0.78; rms 0.062 L (z -0.36..-0.95), 0.045 in the join window. Not changed this step (the head's
+  neck is the face workstream's, the torso's top the body fit's): reported for the V and the lapels.
+- Next: box gate tool/garments4-neck (after the stairs gate finishes); then step 2 (the reference).
+- **Stairs gate 2: PASS under K** (0425973b into 00494dec; charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md):
+  nothing blocks, CPU 1.04x, 6 new checks calibrated, art_band_lower 1.185 -> 1.111, guard flat or up. pipeline-3d
+  ff41ca2 (the neck merged) merged in afterwards (notes and CODEMAP conflicts resolved, CODEMAP regenerated).

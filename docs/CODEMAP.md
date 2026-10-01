@@ -211,6 +211,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `motion.py` | `motion_kick_skirt_stretch` | motion | Motion | motion_skinned |
 | `motion.py` | `motion_squat_skirt_stretch` | motion | Motion | motion_skinned |
 | `motion.py` | `motion_kick_skirt_inside` | motion | Motion | motion_nocol |
+| `neck.py` | `neck_crease` | face_region | NeckJoin | neck_ring |
 | `parts.py` | `bow_part_knot_iou` | bow_parts | BowParts | g3_render3 |
 | `parts.py` | `bow_part_lobe_iou` | bow_parts | BowParts | - |
 | `parts.py` | `bow_part_knot_line` | bow_parts | BowParts | g3_render3 |
@@ -1365,8 +1366,9 @@ The face's region measures on a built character (a QA module; charkit/qa3d.py's 
 - `eye_bowl(B, step=0.02, w=0.012, h=BOWL_H)`: per eye: the visible front's depth on a grid round it (x from the nose's side to the temple, z from the brow to ...
 - `eye_widths(B)`: the eye opening's width per view against the design's (eyepage's measure: the QA's eye render and the head ...
 - `profile_edge(B, z_top=None, z_bottom=-0.85, step=0.01)`: the rendered figure's front edge in profile against the body sheet's, row by row from the chin to the chest (L ...
-- `neck_crease(B, cols=36, dz=0.01, sector=math.radians(6), variant='masked')`: the sharpest local bend of the skin's outline down any column round the neck near the cut (JOIN): per column the ...
-- `crease_of(V, c, L, cols=36, dz=0.01, sector=math.radians(6))`: neck_crease on plain arrays: the skin's vertices V (world), the head's centre c and L.
+- `neck_crease(B, cols=36, dz=0.01, variant='masked')`: the sharpest local bend of the skin's outline down any column round the neck near the cut (JOIN): per column the ...
+- `section_outline(V, T, axis, a, zs)`: the skin cut by the half-plane at azimuth a round the vertical axis through `axis` (the column's direction (sin ...
+- `crease_of(V, T, c, L, cols=36, dz=0.01)`: neck_crease on plain arrays: the skin's vertices V (world) and triangles T, the head's centre c and L.
 - `cam_points(V, az, target, ref, L, dist=BOARD_CAM['dist'])`: world points -> the board camera's view as points for raster.window_zbuffer at az 0: (u, depth, v) times L, u and ...
 - `vertex_normals(V, T)`: area-weighted vertex normals (outward for counter-clockwise triangles).
 - `board_view(meshes, skin, az, target, ref, L, ppl, ink=INK_L, win=JAW_WIN, ...)`: the board camera's picture of a scene on the jaw window at ppl: meshes [(V world, tris, class per triangle)] ...
@@ -3773,6 +3775,12 @@ Calibration adapter for motion QA (charkit.sim.motionqa: the skirt's new penetra
 - `nudge(move, hold)`: a design move (rows, columns) -> the held solve's nudged settings.
 - class `Motion`
 
+#### `charkit/calib/neck.py` (1 calibration entries)
+
+Calibration adapter for the neck's join crease (charkit.faceregion.neck_crease, part face_region: the sharpest bend of the visible skin's outline down any column round the neck at the join, each column the skin's exact cut). A defect detector on our geometry alone: no drawing grades a 3D bend, so, as charkit.calib.motion does for the motion checks, its ...
+
+- class `NeckJoin`
+
 #### `charkit/calib/parts.py` (10 calibration entries)
 
 Calibration adapters for the bow: its parts and the lines inside them (charkit.partqa's bow_parts: the bow's knot and lobes in every view, the knot's outline and rectangle and each lobe's crease in front) and for the pieces drawn alone against their isolated references (charkit.isoqa's iso_pieces: the bow's silhouette against bow_closeup, its lines ...
@@ -3823,7 +3831,7 @@ The measurement steps of the checks charkit/detailqa.py measures (charkit.regist
 
 The measurement steps of the checks charkit/eyeqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/faceregion.py` (36 measurement steps)
+#### `charkit/steps/faceregion.py` (37 measurement steps)
 
 The measurement steps of the checks charkit/faceregion.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
