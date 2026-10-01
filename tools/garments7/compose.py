@@ -11,9 +11,8 @@ while '--set' in args:
     i = args.index('--set'); p, v = args[i + 1].split('=', 1); sets.append((p, json.loads(v))); del args[i:i + 2]
 base, out, files = args[0], args[1], args[2:]
 S = json.load(open(base))
-for f in files:
-    for p, v in json.load(open(f)).items():
-        sets.append((p, v))
+fs = [(p, v) for f in files for p, v in json.load(open(f)).items()]
+sets = fs + sets                                   # (the files first, then --set over them)
 for p, v in sets:
     if v is None:
         head, key = p.rsplit('.', 1)
