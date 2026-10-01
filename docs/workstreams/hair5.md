@@ -308,6 +308,11 @@ b9: notch 4: neck 0.836, hem 3, art_fragments_hair 1.515 WARN; notch 5: hem 2, n
 tip fewer than notch 6; hair_back_hem is new, WARN doesn't block). Render builds `charkit/out/hair5_b3` (A),
 `charkit/out/hair5_bB3` (B), and the gate, launched together.
 
+Pregate at 86ed60d: PASS (13 moved, 0 blocking). pipeline-3d moved to 342e88c (face5: the jaw); merged -> 5718c65.
+**Gate running** (`python -m charkit remote gate tool/hair5 --into pipeline-3d`, log charkit/out/hair5/gate.log).
+The render builds hair5_b3 / hair5_bB3 were synced at 86ed60d (hair5 on 3f7b730, before face5): the review page's
+pictures and numbers are hair5's own.
+
 ## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
 
 Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed
