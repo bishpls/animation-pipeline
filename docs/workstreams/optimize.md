@@ -64,5 +64,26 @@ get a slot; budget ~15-25 generations (population 16: 240-400 rows) for 5-10 kno
   every constraint kind with real-only routing, declared limits, a synthetic run that meets the anti-gaming trap and
   refuses it, resume after an interrupted generation equals the uninterrupted run, the subprocess pool equals the
   in-process evaluator, a qa-stage run through the sweep's own stage).
-- Base build of the head (ad081524, default spec) on the build box: `charkit/out/opt_base` (fetched).
-- Acceptance run (the staircase): pending.
+- Synthetic, 10 seeds (constrained optimum 0.0176, start 0.49): CMA-ES median best 0.033 at 100 evaluations, 0.021 at
+  200; the random baseline 0.108 / 0.067. Constraint ranking variants (Deb, static and adaptive penalty, stochastic
+  ranking) tried: within noise of each other at 200-400 evaluations; Deb kept (strict).
+- Base build of the head (ad081524, default spec) on the build box: `charkit/out/opt_base` (fetched; 14 min).
+- **Fidelity audit** on opt_base (`charkit/out/optimize/audit_opt_base/audit.md`): 639 checks, every part; 10 read
+  differently numpy vs render (face shadows, terminator bow/collar, art_band_lower 1.111 / 1.238, ink fragments 2-4%);
+  the palette and the eyes read the same. FIDELITY updated from it.
+- **Smoke run** (`charkit/out/optimize/stairs_smoke`, 8 workers, 26 evaluations, 9 min): end to end on the box. Splice
+  set from the probe: skirt + both flaps. Rows 70-150 s (the build 0.2-16 s; the measure dominates: declared 82 s and
+  artifacts 42 s of wall in the build's own QA). `ref_hand` (the hand result's knobs) reads f 0.5 on the screen: only
+  stair_flaps_front_corner WARN, as the hand loop's local rebuild read it (4.0 W). Fixed after: probe labels at a
+  bound, the boards' folder.
+- Busy box: the first full launch found 16 of 16 slots held (hair-shell sweeps): sized to 1 worker, killed. Now the
+  pool is dynamic (workers join as they get slots; at least 4 queued).
+- **Running:** the staircase acceptance, job `sweep-optim-1001-103226-7799` (10 workers queued for slots; out
+  `charkit/out/optimize/stairs`, log `charkit/out/optimize/stairs.log`). If the local follow dies: `python -m charkit
+  remote attach sweep-optim-1001-103226-7799`; if the minutes budget cuts it (it counts the slot wait): rerun the same
+  command with `--resume --minutes 200`.
+
+## Next steps
+1. Read the staircase run (OUT/review, opt.json, confirm.json); compare with the hand loop (st1-st5: 5 sweeps, ~42
+   rows, 4 harness scripts, 05:38-06:22 local on 2026-10-01 plus code changes later removed).
+2. Acceptance review page; pregate; gate (tooling: no check should move).
