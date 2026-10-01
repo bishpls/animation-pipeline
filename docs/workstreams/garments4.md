@@ -798,3 +798,21 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   the skin alone) with `below` / `window`, family `side_line` (dx / rms / axilla); the Declared adapter's stand-in for
   our_body (the sheet's body moved; a floor: the costume's silhouette). Draft tools/garments5/drafts/bodyshoulder.json
   (body_shoulder_{front,back}_top / _side, body_axilla_{front,back}, body_shoulder_{view}_iou).
+- **Weights and the pivot (runs j3, j4: charkit/out/garments5/bodyj3, bodyj4):** the 2D rig's joint (0.544, -0.886) as
+  the pivot folds the deltoid in the side raise (folded 1.8%, the arm leaving the torso under the deltoid); with the
+  rig's joint 0.18 L up the arm's line (socket.pivot; the garments keep the chain's root: garments.arm_seg) and the arm's
+  weight over the bridge's outer half (arm_w [0.5, 1]): side raise strain p95 1.77, folded 0.1%, collapsed 0.55%,
+  nothing inside the torso, volume +0.6%; forward raise 1.91 / 2.7% / 0.24% / none / -0.7% (the old body: no deformation
+  but the arm tube 0.04 L into the torso, 27 vertices). The upper arm over the torso round the rim (torso_arm) and an
+  earlier arm weight made it worse (penetration 0.06-0.15 L). Pivots 0.12 / 0.18 / 0.24 all fine for the side raise;
+  0.18 chosen (the deltoid's centre, ~0.1 L under the shoulder point).
+- **Candidate in the default spec** (8b..., `spec: the joined shoulder on`): body.shoulder {z -0.525, x 0.38, round
+  0.03, hold 0, fall 0.10, az 50, join [[0,.12],[45,.12],[75,.03],[180,.03]], socket {top 0.36, lift [65, 75], reach
+  [0.45, 0.5], arm_w [0.5, 1.0], pivot 0.18}}. Box build g5_c1 (log charkit/out/garments5/build_c1.log).
+- Known-bad g5_base stored on the box (`remote run calibrate store g5_base charkit/out/g5_base ...`: the link made, the
+  JSON written locally: charkit/calib/known_bad/g5_base.json, the box's synced files being read-only).
+- Next: QA g5_c1 against g5_base (kcmp: guard IoUs skin/arm/sleeves/top, hands, cuffs, motion, art_bumps_*, the
+  collar's flags); calibrate the body-shoulder drafts on the box (`remote run --fetch tools/garments5/box_records
+  calibrate 'body_shoulder_*,body_axilla_*' --declared tools/garments5/drafts/bodyshoulder.json --build
+  charkit/out/g5_c1 --json tools/garments5/box_records/cal_body.json`), move them into charkit/bodyshoulderqa.py with
+  the records; pregate on the box; gate.
