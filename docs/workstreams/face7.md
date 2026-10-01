@@ -75,6 +75,16 @@ unchanged by construction.
   0.142 at 0.05; design 0.173): mouth_place_three_quarter_override 0.0425 / 0.0372 / 0.0337 / 0.0303. Suspect the skin's
   lips (the slit, read as mouth) don't move with the line in the keyed bundle; the check now records each object's move.
 
+- **sw5** (forehead and wrap refinements): every forehead row lengthens the profile brow (len 0.91-1.15; f50 peak 0.8 z
+  0.22 dz 0.1: 1.008 PASS, shape 0.793 PASS, brow IoU profile 0.47 -> 0.79) but brow_arch_closeup_profile goes WARN 0.013
+  -> FAIL -0.026..-0.046: the arch is height over length, and the brow's height is the front's (z kept) while its
+  profile length grows 1.4x. The design's profile arch height (0.127 x 0.136 = 0.0173 L) exceeds its front's (0.096 x
+  0.151 = 0.0145 L): the drawing's views disagree; raising brows.arch splits it (sw7). wrap 0.25 from 0.2 (reach 0.07):
+  corners profile -0.017 / close-up -0.03 / 3/4 0.036 / front unchanged, profile spikes 0 -> 0.75, flick unchanged;
+  wrap 0.3: -0.009 / -0.021 / 0.039, flick -0.056 -> -0.097, eye width profile 1.028. Picked wrap 0.25.
+- Coordinator: Michael wants a checkpoint today: gate items as they're ready (a coherent pair), the rest later. Gate 1 =
+  the upper face (forehead + profile eye), sw7 picks the brow arch; gate 2 = the lower face and the mouth override.
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
