@@ -7,7 +7,7 @@ skeletal, not shape keys), docs/ROADMAP.md item 7:
 4. Weights on the VRM finger bones. 5. A `hands` expression component (pose library). 6. QA per pose.
 
 ## State
-- **Step 1 done (ee2eca7):** `charkit/handqa.py`, QA part `hands` (order 1770, prefix `hand_`). A hand = the skin past
+- **Step 1 done (ee2eca7):** `charkit/handqa.py`, QA part `hands` (order 1785, prefix `hand_`; was 1770, which tool/pieceref's bow_parts also took). A hand = the skin past
   its wrist cuff (the drawn `cuff_L/R` masks; ours: the cuff's object via the piece map), measured alike on both sides:
   - `hand_shape_{L,R}`: IoU laid on centroids per view (`views`: the guard's shape), worst view; PASS >= 0.75, WARN >= 0.6
   - `hand_{view}_reach_{L,R}`: reach past the cuff, ours - design (L); PASS 0.04, WARN 0.08

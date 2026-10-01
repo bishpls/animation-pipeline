@@ -389,7 +389,7 @@ def features(h, seams, ppl):
                 pockets=pk, width=round(float(np.percentile(t[m], 99) - np.percentile(t[m], 1)), 4))
 
 
-@qa_part('hands', order=1770, prefix='hand_', table='hands')
+@qa_part('hands', order=1785, prefix='hand_', table='hands')
 def hands(B, design=None, out=None):
     return measure(B, design, out)
 
