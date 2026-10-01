@@ -98,6 +98,36 @@ flyaways; overall 0.607 against 0.627. Kept as an option, off. The gap to the or
 per-family choice (flow for the bangs and the crown, the tips' Voronoi for the side masses) would need the families,
 which the splitter doesn't know.
 
+### Step 3: the B pilot (in progress)
+
+**Code.** `charkit/geom/lockshell.py` (new): each drawn lock a template fitted to its drawn cells: a degree-5 Bezier
+centreline in 3-d (least squares on each matched view's drawn centreline both ways, root and tip; a weak pull to its
+start depth under the hull's envelope; smoothness; never within `gap` of the skin), a lens section `depth_ratio` 0.35
+as thick as wide, broad side tangent to the head turned by one fitted twist (bounded +-46 deg), widths solved in closed
+form per station from every view's drawn width (the section's extent across the projected centreline), clamped by the
+bend's radius (no folds) and tapered to the tip, offset `inset` L per T-junction rank behind, the root carried in to
+the scalp. Targets: per view, each splitter lock's part inside the family's hair-layer mask (a lock the splitter ran
+across two families gives each its part); primary views from the family (side locks: front, then profile; the back
+group: back); other views join by centreline proximity among views the lock faces (the splitter's own cross-view ids
+are weak), a view the joint fit can't follow (> 4 px) dropped. Opt-in: `hair.shape.pieces_opts.lock_shells`
+(`tools/hairshell/clawd_shells.json`: side locks + the back's left hem flicks, phi 100-175); hairpieces.build swaps
+the family's pieces for the shells (and drops the group's wedges); cli.pieces_hair reads the new produced reference
+`hair_split` (manifest; `python -m charkit hairsplit`). `python -m charkit.geom.lockshell BUILD --out DIR --cache PKL`:
+the fit on a build's inputs, per lock and view its cost and IoU, the coverage of each family, a z-buffered picture.
+Tests: `charkit/tests/test_lockshell.py` (closed, fold-free tube; a known lock recovered from two drawn views: 0.1 px,
+IoU 0.81 / 0.74).
+
+**Base:** `charkit/out/hs_base` (box build of the default at 4607707 / f8ad43b's merge; boards views). Its locks against
+the truth (`python -m charkit hairlocks score charkit/out/hs_base`): side locks 0.394 (front 0.419, 3q 0.451, profile
+0.232), lower back 0.304 (back 0.408).
+
+**Sweep 1** (`charkit/out/hairshell/sw1`, the first cut: whole splitter locks by family majority, overlap association):
+side locks front 0.560 -> 0.251 (guard: blocked), profile 0.469 -> 0.519; art_terminator_hair 2.068 -> 3.111; lock lines
+3q 0.176 -> 0.207, profile 0.104 -> 0.165; hair_attached 0 -> 0.024 (a flyaway's root lost its side lock in 3q); no
+back group (the back's hem locks run to the crown: their majority is the upper back). Builder folds 382 + 124.
+Fixed: family-part targets, facing views only, centreline-proximity association, bounded twist, curvature clamp, scalp
+roots. Fit after (ls4): 28 shells, coverage of the side-lock family front 0.557 / profile 0.578.
+
 ## Jobs
 
 None running.
