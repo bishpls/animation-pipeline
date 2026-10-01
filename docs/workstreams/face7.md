@@ -157,6 +157,11 @@ unchanged by construction.
   design | before face7_a | after face7_g2 per view and the face close-ups, the profile eye/brow crops, the 3/4 mouth
   design | rigid | override, the numbers). Scripts: `an/override_pic.py`.
 
+- **Gate 2: FAIL under K** on one blocker, test_spec_alias (clawd_body_pieces.json is clawd.json's alias: edit both);
+  everything else clean: CPU 0.98x, 0 guard findings, the override's record a guard, flag checks moved within status
+  (brow arch front 0.003 -> 0.009, profile 0.009 -> 0.001). Report `charkit/out/gate/gate_tool-face7_49dfb80e_into_
+  9be5b320.md`. Fixed (the alias carries brows.arch and mouth.view); gate 2b launched, log charkit/out/face7/gate2b.log.
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
