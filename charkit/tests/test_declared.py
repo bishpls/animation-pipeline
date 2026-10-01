@@ -262,6 +262,33 @@ def test_top_line_reads_the_shoulder_line_where_it_is_seen():
     assert collarqa.trough([1.0, 0.5, 1.0]) == 0.5
 
 
+def test_band_rows_reads_the_lapels_width_and_the_v():
+    """band_rows (the lapels framing the V): two bands either side of a V, ours 2 px wider on each band's outer edge on
+    every row reads width 0.02 L at 100 px per L and the inner edge 0; a bow over the right band's lower rows (the
+    drawing's and ours) leaves those rows' right side out; ours with the V's inner edges 3 px in reads inner 0.03."""
+    from charkit import bodyqa
+    ppl = 100.0
+    H, W = int((bodyqa.WIN['top'] + 1.0) * ppl), 200
+    r0 = int(round((bodyqa.WIN['top'] + 0.47) * ppl))
+
+    def bands(extra=0, inset=0):
+        M = np.zeros((H, W), bool)
+        for k in range(30):
+            r = r0 + k
+            M[r, 60 - extra:90 - k // 3 + inset] = True                 # the left band, its inner edge the V's
+            M[r, 110 + k // 3 - inset:140 + extra] = True
+        return M
+    bow = np.zeros((H, W), bool)
+    bow[r0 + 20:r0 + 30, 130:150] = True
+    ctx = dict(ppl=ppl, view='front', masks={'front__bow': bow}, pm=None)
+    w = declared.band_rows(bands(extra=2), bands(), ctx, z=(-0.47, -0.77), measure='width', min_rows=5)
+    assert abs(w['value'] - 0.02) < 1e-9 and w['count'] == 30 + 20      # the right band's 10 bow rows left out
+    i = declared.band_rows(bands(extra=2), bands(), ctx, z=(-0.47, -0.77), measure='inner')
+    assert i['value'] == 0.0
+    v = declared.band_rows(bands(inset=3), bands(), ctx, z=(-0.47, -0.77), measure='inner')
+    assert abs(v['value'] - 0.03) < 1e-9
+
+
 def stair_masks(shear=0.0, fold_cols=(), H=300, W=400):
     """a piece over a stepped dark band (classes: 6 orange, 8 dark): three steps 100 px wide, each 30 px lower than
     the one before, its treads sheared by `shear` px of rise over a tread; drawn folds (lines) at fold_cols."""

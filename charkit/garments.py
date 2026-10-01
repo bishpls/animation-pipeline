@@ -1730,14 +1730,17 @@ def _knn_mean(Q, P, k, chunk=2048):
     return mean, near
 
 
-def conform(V, faces, P, L, reach=0.12, k=8, smooth=3):
+def conform(V, faces, P, L, reach=0.12, k=8, smooth=3, weight=None):
     """a thin piece laid onto its hull points: each vertex moved along its normal by how far the local hull surface (the
     mean of its k nearest points) is from it, fully within `reach` L of the points and fading out by twice that; the
-    moves smoothed over the mesh `smooth` times so the points' spacing doesn't show. -> the moved vertices."""
+    moves smoothed over the mesh `smooth` times so the points' spacing doesn't show. weight: per vertex, a factor on
+    the move (0 keeps a vertex where it is: the collar's flat lapels). -> the moved vertices."""
     V = np.asarray(V, float)
     N = vertex_normals(V, faces)
     mean, near = _knn_mean(V, P, k)
     w = np.clip(2 - near / (reach * L), 0, 1)
+    if weight is not None:
+        w = w * np.asarray(weight, float)
     d = ((mean - V) * N).sum(1) * w
     nb = [set() for _ in range(len(V))]
     for f in faces:
@@ -4258,7 +4261,12 @@ def collar(A, spec, normals=None, neckline=None):
     """a sailor collar that drapes: from the neckline, at each azimuth, a walk along the body surface outward and down
     (over the shoulders at the sides, down the chest in front, down the back behind) to a length by azimuth; a V opening at
     the front, a square flap behind; lifted by `offset`. The stripe runs `stripe` (a share of the length) in from its
-    edge. The neckline: level at the neck bone's head plus `rise` L, or `neckline` (fn(azimuth) -> world z: the design's,
+    edge. `front_length` [[degrees, L], ..]: the walk's length by azimuth up to its last entry. `lapel` {a, point,
+    shoulder, reach}: the flat lapels: within `a` degrees of the front each column walks on and is cut where it crosses
+    the line from `point` (the V's point) to `shoulder` ([x, z] L from the midline and the eye line), so the columns'
+    ends are the lapels' outer edge, narrowing from the shoulder to the point (collar_hull's flat_front keeps them off
+    the hull's lumps).
+    The neckline: level at the neck bone's head plus `rise` L, or `neckline` (fn(azimuth) -> world z: the design's,
     collar_hull's), where the collar starts on the body at each azimuth; with `keep_edge` (default) each column's walk is
     shortened by how far below the level ring it starts, so the collar's outer edge stays. -> dict(verts, faces, weights,
     uv, edge (per face: 1 on the stripe))."""
@@ -4284,14 +4292,31 @@ def collar(A, spec, normals=None, neckline=None):
     T = np.array([(f[0], f[k], f[k + 1]) for f in F if all(near[v] for v in f) for k in range(1, len(f) - 1)])
     na, nr = spec.get('cols', 96), spec.get('rows', 12)
 
+    fl = spec.get('front_length')
+    FL = np.asarray(sorted(fl), float) if fl else None
+
     def length(a):
         ab = abs(a)
+        if FL is not None and math.degrees(ab) <= FL[-1, 0]:
+            # a table [[degrees round the neck from the front, L], ...] up to its last azimuth: the lapels' outer edge
+            # (the flat lapels: a band along the V, not the level hem a front walk of one length makes)
+            return float(np.interp(math.degrees(ab), FL[:, 0], FL[:, 1])) * L
         if ab < math.radians(80):
             return sd + (vd - sd) * max(0.0, 1 - ab / math.radians(80)) ** 1.2
         if ab < math.radians(120):
             return sd + (bd - sd) * max(0.0, (ab - math.radians(100)) / math.radians(20))
         return bd
     off = spec.get('offset', 0.03) * L
+    lap = spec.get('lapel')
+    if lap:
+        lap_p = lap.get('point', [0.0, -0.83])          # the V's point, L from the midline and the eye line
+        lap_s = lap.get('shoulder', [0.40, -0.48])      # where the lapels' outer edge meets the shoulder
+        ez_ = _eye_z(A)
+        if lap.get('mode') == 'project':                # the torso's front triangles, under the neck's cut
+            tri = np.array([(f[0], f[k], f[k + 1]) for f in F for k in range(1, len(f) - 1)])
+            zc_, yc_ = V[tri, 2].mean(1), V[tri, 1].mean(1)
+            hw_t = A['weights'].get('head', np.zeros(len(V)))[tri].max(1)
+            lap_T = tri[(zc_ < ez_ - 0.40 * L) & (zc_ > ez_ - 1.3 * L) & (yc_ < nb[1] + 0.05 * L) & (hw_t < 0.3)]
     grid = np.zeros((nr + 1, na, 3))
     for k in range(na):
         a = -math.pi + 2 * math.pi * (k + 0.5) / na
@@ -4304,11 +4329,61 @@ def collar(A, spec, normals=None, neckline=None):
             # a neckline below the level ring (rise) keeps the collar's outer edge where the ring's walk put it: each
             # column shorter by how much lower it starts (the back flap's square bottom stays level)
             ln = max(0.2 * ln, ln - max(0.0, z_ref - float(neckline(a))))
-        path = surface_walk(Vt, Nt, p0, d * 0.7 + np.array([0, 0, -0.3]), ln / (nr * 2), nr * 2,
-                            bias=np.array([0, 0, -0.25]))
+        if lap and lap.get('mode') == 'project' and abs(a) <= math.radians(float(lap.get('a', 85))):
+            # the flat lapels projected: the column a straight line in the front view from its neckline point to its
+            # point on the lapels' outer edge (the line from the V's point up to the shoulder, spread by azimuth),
+            # laid on the torso from the front `off` out along its normal: no walk to crumple over the neck's flare
+            sx = 1.0 if a >= 0 else -1.0
+            Pp = np.array([nb[0] + sx * lap_p[0] * L, ez_ + lap_p[1] * L])
+            Sp = np.array([nb[0] + sx * lap_s[0] * L, ez_ + lap_s[1] * L])
+            O = Pp + (abs(a) / math.radians(float(lap.get('a', 85)))) ** float(lap.get('spread', 1.0)) * (Sp - Pp)
+            ts = np.linspace(0.0, 1.0, nr + 1)
+            Q = (1 - ts)[:, None] * np.array([p0[0], p0[2]])[None] + ts[:, None] * O[None]
+            ys, ns = front_hits(Q, V, lap_T)
+            lo = float(lap.get('off', spec.get('offset', 0.03))) * L       # (over the jacket eased out on the bust)
+            # the column as the collar walks it, for the blend into the collar's own surface toward `a`
+            path = surface_walk(Vt, Nt, p0, d * 0.7 + np.array([0, 0, -0.3]), ln / (nr * 2), nr * 2,
+                                bias=np.array([0, 0, -0.25]))
+            walk = np.array([path[2 * j] + Nt[int(np.argmin(((Vt - path[2 * j]) ** 2).sum(1)))] * off
+                             for j in range(nr + 1)])
+            proj = np.c_[Q[:, 0], ys, Q[:, 1]] + np.nan_to_num(ns) * lo
+            bl = float(lap.get('blend', 0))
+            u = (np.clip((math.radians(float(lap.get('a', 85))) - abs(a)) / math.radians(bl), 0, 1) if bl > 0 else 1.0)
+            w = u * u * (3 - 2 * u) * np.isfinite(ys)
+            if lap.get('top', 'neck') == 'neck':
+                w = w * (np.arange(nr + 1) > 0)            # (the top row stays on the collar's neckline)
+            grid[:, k] = w[:, None] * np.nan_to_num(proj) + (1 - w[:, None]) * walk
+            continue
+        if lap and abs(a) <= math.radians(float(lap.get('a', 85))):
+            # the flat lapels: the column walked on past its length and cut where it crosses the lapels' outer edge
+            # (the drawn line from the V's point up to the shoulder, mirrored to the column's side), so the columns'
+            # ends are the outer edge and the lapel narrows from the shoulder to the point, as drawn
+            reach = max(ln, float(lap.get('reach', 0.9)) * L)
+            path = surface_walk(Vt, Nt, p0, d * 0.7 + np.array([0, 0, -0.3]), reach / (nr * 4), nr * 4,
+                                bias=np.array([0, 0, -0.25]))
+            sx = 1.0 if a >= 0 else -1.0
+            Pp = np.array([nb[0] + sx * lap_p[0] * L, ez_ + lap_p[1] * L])
+            Sp = np.array([nb[0] + sx * lap_s[0] * L, ez_ + lap_s[1] * L])
+            e = Sp - Pp
+            side = e[0] * (path[:, 2] - Pp[1]) - e[1] * (path[:, 0] - Pp[0])
+            flip = np.nonzero(np.sign(side[1:]) != np.sign(side[0]))[0]
+            seg = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))]
+            if len(flip):
+                i0 = int(flip[0])
+                f = side[i0] / (side[i0] - side[i0 + 1])
+                s_end = seg[i0] + f * (seg[i0 + 1] - seg[i0])
+            else:
+                s_end = min(ln, seg[-1])
+            s_end = max(s_end, float(lap.get('min', 0.02)) * L)
+            at_s = np.linspace(0.0, s_end, nr + 1)
+            pts = np.stack([np.interp(at_s, seg, path[:, c]) for c in range(3)], 1)
+        else:
+            path = surface_walk(Vt, Nt, p0, d * 0.7 + np.array([0, 0, -0.3]), ln / (nr * 2), nr * 2,
+                                bias=np.array([0, 0, -0.25]))
+            pts = path[::2][:nr + 1]
         for j in range(nr + 1):
-            i_ = int(np.argmin(((Vt - path[2 * j]) ** 2).sum(1)))
-            grid[j, k] = path[2 * j] + Nt[i_] * off
+            i_ = int(np.argmin(((Vt - pts[j]) ** 2).sum(1)))
+            grid[j, k] = pts[j] + Nt[i_] * off
     st0, st1 = spec.get('stripe', (0.72, 0.86))
     faces, edge = [], []
     if spec.get('v_edge', 'exact') == 'exact':
@@ -4349,10 +4424,39 @@ def collar(A, spec, normals=None, neckline=None):
     return dict(verts=verts, faces=faces, weights=W, uv=uvs, edge=edge)
 
 
+def front_hits(P2, V, T, chunk=256):
+    """the body seen from the front (-y), orthographic: for each point (x, z) the frontmost triangle under it -> (y,
+    normal toward the front), NaN where none (the flat lapels laid on the chest)."""
+    P2 = np.asarray(P2, float)
+    A_, B_, C_ = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
+    nrm = np.cross(B_ - A_, C_ - A_)
+    nrm = nrm / np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-12)
+    nrm = np.where(nrm[:, 1:2] > 0, -nrm, nrm)
+    ax, az = A_[:, 0], A_[:, 2]
+    e1x, e1z, e2x, e2z = B_[:, 0] - ax, B_[:, 2] - az, C_[:, 0] - ax, C_[:, 2] - az
+    det = e1x * e2z - e2x * e1z
+    ok = np.abs(det) > 1e-14
+    ys = np.full(len(P2), np.nan)
+    ns = np.full((len(P2), 3), np.nan)
+    for i in range(0, len(P2), chunk):
+        q = P2[i:i + chunk]
+        dx, dz = q[:, 0:1] - ax[None], q[:, 1:2] - az[None]
+        u = np.where(ok, (dx * e2z - e2x * dz) / np.where(ok, det, 1), -1)
+        v = np.where(ok, (e1x * dz - dx * e1z) / np.where(ok, det, 1), -1)
+        inside = (u >= 0) & (v >= 0) & (u + v <= 1)
+        y = np.where(inside, A_[:, 1][None] + u * (B_[:, 1] - A_[:, 1])[None] + v * (C_[:, 1] - A_[:, 1])[None], np.inf)
+        k = np.argmin(y, 1)
+        hit = np.isfinite(y[np.arange(len(q)), k])
+        ys[i:i + chunk][hit] = y[np.arange(len(q)), k][hit]
+        ns[i:i + chunk][hit] = nrm[k[hit]]
+    return ys, ns
+
+
 def collar_hull(A, spec, normals, hull):
     """collar() laid onto the hull's collar (conform): the sailor collar walked on the body as before, then each vertex
     moved along its normal onto the design's collar surface where the hull shows it (the back flap lies flat on the
-    back, the lapels follow the neckline); `offset` L out from it."""
+    back, the lapels follow the neckline); `offset` L out from it. `flat_front` {a, fade} (degrees round the neck from
+    the front): the lapels within `a` keep their walk on the body, flat, easing into the hull's surface over `fade`."""
     P = _hull_points(hull, spec)
     L = A['head']['L']
     neckline = None
@@ -4368,8 +4472,20 @@ def collar_hull(A, spec, normals, hull):
         drop = spec.get('neck_drop', 0.0) * L
         neckline = lambda a: top(a) - drop
     G = collar(A, spec, normals, neckline)
+    weight = None
+    ff = spec.get('flat_front')
+    if ff:
+        # the lapels laid flat (Michael / the coordinator 2026-10-01: the drawn lapels are wide flat panels along the V;
+        # the hull's collar points bunched ours into lumps beside the neck): in front, within `a` degrees of the
+        # midline round the neck, the collar keeps its walk on the body (no move onto the hull), easing into the
+        # hull's surface over `fade` degrees beyond
+        nb, _ = bone_seg(A, 'neck')
+        Vg = np.asarray(G['verts'], float)
+        az = np.degrees(np.abs(np.arctan2(Vg[:, 0] - nb[0], -(Vg[:, 1] - nb[1]))))
+        u = np.clip((az - float(ff.get('a', 70))) / max(float(ff.get('fade', 20)), 1e-6), 0, 1)
+        weight = u * u * (3 - 2 * u)
     V = conform(G['verts'], G['faces'], P, L, reach=spec.get('reach', 0.12), k=spec.get('conform_k', 8),
-                smooth=spec.get('conform_smooth', 3))
+                smooth=spec.get('conform_smooth', 3), weight=weight)
     G['verts'] = V + vertex_normals(V, G['faces']) * spec.get('lift', 0.005) * L
     if spec.get('pad'):                       # (the jacket's shoulder pad under it: the same lift, so it lies on it)
         G['verts'] = shoulder_pad(A, G['verts'], G['faces'], spec['pad'])

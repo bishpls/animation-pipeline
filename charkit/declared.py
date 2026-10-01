@@ -464,6 +464,79 @@ def class_iou(Mo, Md, ctx, cls='skin', window=(-0.2, 0.2, -0.4, -0.75), round_=4
                 design=round(float(d.sum()) / ppl ** 2, 4))
 
 
+def _runs(row):
+    """a boolean row's runs -> [(start, end)] (end inclusive)."""
+    d = np.diff(np.r_[0, row.astype(np.int8), 0])
+    return list(zip(np.nonzero(d == 1)[0], np.nonzero(d == -1)[0] - 1))
+
+
+def band_edges(M, occ, r0, r1, near=2):
+    """a two-sided band's edges per row (rows r0..r1): its outermost runs left and right -> [(row, side, inner, outer,
+    ok)] in px: side -1 the picture's left band (inner its right end), +1 the right band; ok False where an occluder's
+    pixel lies within `near` px of either end (the edge there is the occluder's, not the band's)."""
+    out = []
+    W = M.shape[1]
+    for r in range(max(0, r0), min(M.shape[0], r1)):
+        R = _runs(M[r])
+        if len(R) < 2:
+            continue
+        o = occ[r] if occ is not None else np.zeros(W, bool)
+        hit = lambda c: bool(o[max(0, c - near):min(W, c + near + 1)].any())
+        (a0, a1), (b0, b1) = R[0], R[-1]
+        out.append((r, -1, a1, a0, not (hit(a0) or hit(a1))))
+        out.append((r, 1, b0, b1, not (hit(b0) or hit(b1))))
+    return out
+
+
+def band_rows(Mo, Md, ctx, z=(-0.47, -0.75), measure='width', occluders=('bow',), near=2, min_rows=5, round_=4):
+    """a two-sided band row by row against the drawn one (the sailor collar's lapels framing the V: Michael's flat
+    lapels, 2026-10-01): per row in z (L from the eye line, top to bottom) the piece's outermost runs left and right,
+    each with its inner edge (toward the other) and its outer edge; a side whose edge touches an occluder (the bow:
+    ours' or the drawing's own) is left out of that row. measure 'width': the RMS over the rows and sides both show of
+    the band's width, ours less the design's (L); 'inner': of the inner edge's x (the V's line); 'outer': of the outer
+    edge's x. ours / design: the band's mean width per side over those rows (L). occluders: outfit pieces, or 'hair'
+    (the drawing's hair class, our hair objects)."""
+    from . import bodyqa, pieceqa
+    ppl, view = ctx['ppl'], ctx['view']
+    Md = fit(Md, Mo.shape)
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    r0, r1 = int(round((bodyqa.WIN['top'] - z[0]) * ppl)), int(round((bodyqa.WIN['top'] - z[1]) * ppl))
+    od = np.zeros(Mo.shape, bool)
+    oo = np.zeros(Mo.shape, bool)
+    for o in occluders or ():
+        if o == 'hair':                     # (the hair: the drawing's hair class, our hair objects)
+            if ctx.get('cls') is not None:
+                od |= fit(ctx['cls'] == bodyqa.CLASS['hair'], Mo.shape)
+            if ctx.get('lab') is not None and ctx.get('names'):
+                oo |= hair_of(ctx['lab'], ctx['names'])
+            continue
+        m = (ctx.get('masks') or {}).get('%s__%s' % (view, o))
+        if m is not None:
+            od |= fit(m, Mo.shape)
+        if ctx.get('pm') is not None:
+            oo |= pieceqa.members(ctx['lab'], ctx['names'], ctx['pm'], o)
+    D = {(r, s): (i, e, ok) for r, s, i, e, ok in band_edges(Md, od, r0, r1, near)}
+    if len(D) < 2 * min_rows:
+        return None
+    O = {(r, s): (i, e, ok) for r, s, i, e, ok in band_edges(Mo, oo, r0, r1, near)}
+    pairs = [(k, D[k], O[k]) for k in D if k in O and D[k][2] and O[k][2]]
+    if len(pairs) < min_rows:
+        return dict(value=None, why=WHY_OURS + ' (%d rows both show)' % len(pairs))
+    wd = lambda q: abs(q[1] - q[0]) + 1
+    if measure == 'width':
+        d = np.array([wd(o) - wd(dd) for _, dd, o in pairs], float)
+    elif measure == 'inner':
+        d = np.array([o[0] - dd[0] for _, dd, o in pairs], float)
+    else:
+        d = np.array([o[1] - dd[1] for _, dd, o in pairs], float)
+    mean_w = lambda P, side, j: round(float(np.mean([wd(q[j]) for k, *q in P if k[1] == side] or [0])) / ppl, 4)
+    P2 = [(k, dd, o) for k, dd, o in pairs]
+    return dict(value=round(float(np.sqrt((d ** 2).mean())) / ppl, round_),
+                ours=[mean_w(P2, -1, 1), mean_w(P2, 1, 1)], design=[mean_w(P2, -1, 0), mean_w(P2, 1, 0)],
+                count=len(pairs))
+
+
 def position(Mo, Md, ctx, axis='both', round_=4):
     """the piece's centroid (L from the midline and the eye line: pieceqa.x_of, z_of) against the design's: the larger of
     |dx| and |dz| (axis 'both'), or one of them."""
@@ -1094,7 +1167,8 @@ def visible(Mo, Md, ctx, round_=3):
 
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
                 position=position, ink_inside=ink_inside, area=area, strokes=strokes, line_weight=line_weight,
-                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, side_line=side_line, visible=visible)
+                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, side_line=side_line, visible=visible,
+                band_rows=band_rows)
 HIGHER = ('shape_iou', 'tones', 'class_iou', 'visible')    # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside', 'strokes', 'stair')     # families that read our drawn lines (inputs' lines)
 HAIR_FAMILIES = ('top_line', 'side_line')         # families that read where the hair lies (ctx hair_ours, hair_drawn)
@@ -1471,7 +1545,7 @@ def evaluate(decls, I):
                    dv=dv.get(view),
                    lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
                    cls_ours=(I.get('cls_ours') or {}).get(view), folds=(I.get('folds') or {}).get(view),
-                   graph=I.get('graph'), spec=I.get('spec'))
+                   graph=I.get('graph'), spec=I.get('spec'), pm=pm)
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
         ctx['alone'] = (lambda v=view, ps=pieces: alone(I, v, ps[0]))
         if HAIR in pieces:                                # (the hair as a piece: its design side, our non-mass parts)
