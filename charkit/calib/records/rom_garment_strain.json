@@ -1,0 +1,88 @@
+{
+ "check": "rom_garment_strain",
+ "part": "rom",
+ "adapter": "RomRigid",
+ "module": "charkit.calib.rom",
+ "at": "2026-10-01T16:00:30",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_skirt",
+  "piece_collar",
+  "piece_top"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "rom_garments_shuffled",
+  "value": 102.5895,
+  "status": "FAIL"
+ },
+ "floor": {
+  "shuffled_weights": {
+   "values": [
+    102.5895,
+    103.7067
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 103.1481,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.6246,
+  "status": "FAIL",
+  "margin": 0.994
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), rom_garments_shuffled reads 102.5895 FAIL; a random stand-in fails it; shape guarded by piece_skirt, piece_collar, piece_top",
+ "build": "charkit/out/rom_base2",
+ "generators": {
+  "shuffled_weights": "every garment's weights shuffled among its vertices (seeded)"
+ },
+ "seconds": 600.3
+}

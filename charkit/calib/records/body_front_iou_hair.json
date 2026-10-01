@@ -1,0 +1,102 @@
+{
+ "check": "body_front_iou_hair",
+ "part": "sheet_body",
+ "adapter": "BodyHair",
+ "module": "charkit.calib.bodyhair",
+ "at": "2026-10-01T21:40:27",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.973,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.952,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.975,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.955,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.973,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.952,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.975,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.955,
+    "PASS"
+   ]
+  },
+  "min": 0.952,
+  "max": 0.975,
+  "spread": 0.023,
+  "median": 0.964
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "a shape check (the hair's silhouette per view against its shape truth): no single flagged build",
+ "floor": {
+  "voronoi_head": {
+   "values": [
+    0.356,
+    0.367,
+    0.355,
+    0.404,
+    0.287
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.356,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "voronoi_hair": {
+   "value": 0.609,
+   "status": "WARN"
+  },
+  "affine_hair": {
+   "value": 0.798,
+   "status": "PASS"
+  }
+ },
+ "blind_to": [
+  "affine_hair"
+ ],
+ "current": {
+  "value": 0.862,
+  "status": "PASS",
+  "margin": 0.832
+ },
+ "verdict": "guard",
+ "why": "no known-bad (a shape check (the hair's silhouette per view against its shape truth): no single flagged build); the design passes and the floor does not",
+ "build": "charkit/out/hairtruth/base",
+ "generators": {
+  "voronoi_head": "the head's box (above the hair/dress split, the drawn head's columns, background included) cut into random cells (40), each hair at random (weighted by the hair's share of the box) or else what the drawing has there",
+  "voronoi_hair": "the head's drawn hair and skin (above the hair/dress split) cut into random cells (40), each hair or skin at random (weighted by their drawn areas)",
+  "affine_hair": "(probe) the drawn hair moved 0.03-0.06 L and scaled 0.9-1.1 about its middle"
+ },
+ "seconds": 59.9
+}

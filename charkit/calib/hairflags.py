@@ -96,8 +96,8 @@ class HairFlags:
         from .. import hairflagqa as hf, hairlayers
         self.B, self.design = B, design
         self.D, self.ppl = hf.design_inputs(B, design)
-        self.truth = hairlayers.load_truth(hairlayers._p(hf.truth_path(B)))
-        self.lab, self.pieces = hf.design_labels(self.truth, design.design_views())
+        self.truth = hf.truth_for(design, hairlayers.load_truth(hairlayers._p(hf.truth_path(B))))
+        self.lab, self.pieces = hf.design_labels(self.truth, design.shape_views('hair'))
         self.lines = self.D['lines']
 
     def _codes(self, names):

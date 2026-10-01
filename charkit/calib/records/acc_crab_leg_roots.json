@@ -1,0 +1,92 @@
+{
+ "check": "acc_crab_leg_roots",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T18:48:47",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "acc_crab_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.7,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.9,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.4,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.7,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.7,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.7,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 1.9,
+  "spread": 1.9,
+  "median": 0.7
+ },
+ "known_bad": {
+  "name": "acc_a3_crab",
+  "value": null,
+  "status": "FAIL"
+ },
+ "floor": {
+  "bottom_legs": {
+   "values": [
+    52.5,
+    52.5,
+    52.5,
+    52.5,
+    52.5
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 52.5,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.1,
+  "status": "PASS",
+  "margin": 1.012
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 1.9), acc_a3_crab reads None FAIL; a random stand-in fails it; shape guarded by acc_crab_shape",
+ "build": "charkit/out/acc6/after",
+ "generators": {
+  "bottom_legs": "the clips-alone sheet's crab with its legs turned under the body (55 degrees down)"
+ },
+ "seconds": 370.5
+}

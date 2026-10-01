@@ -1,0 +1,87 @@
+{
+ "check": "rom_hair_shoulders",
+ "part": "rom",
+ "adapter": "Rom",
+ "module": "charkit.calib.rom",
+ "at": "2026-10-01T15:50:30",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_collar",
+  "piece_top"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.00011,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.00011,
+    "PASS"
+   ],
+   "+1,+0": [
+    7e-05,
+    "PASS"
+   ],
+   "+2,+0": [
+    7e-05,
+    "PASS"
+   ],
+   "+0,-1": [
+    7e-05,
+    "PASS"
+   ],
+   "+0,-2": [
+    5e-05,
+    "PASS"
+   ],
+   "-1,+0": [
+    7e-05,
+    "PASS"
+   ],
+   "-2,+0": [
+    7e-05,
+    "PASS"
+   ]
+  },
+  "min": 5e-05,
+  "max": 0.00011,
+  "spread": 0.0001,
+  "median": 7e-05
+ },
+ "known_bad": {
+  "name": "rom_hair_on_chest",
+  "value": 0.01056,
+  "status": "FAIL"
+ },
+ "floor": {
+  "shuffled_weights": {
+   "values": [
+    0.06944,
+    0.07231
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.070875,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 7e-05,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0001), rom_hair_on_chest reads 0.01056 FAIL; a random stand-in fails it; shape guarded by piece_collar, piece_top",
+ "build": "charkit/out/rom_base2",
+ "generators": {
+  "shuffled_weights": "the skin's weights shuffled among its vertices (seeded): a random rig"
+ },
+ "seconds": 925.8
+}

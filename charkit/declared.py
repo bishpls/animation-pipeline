@@ -38,6 +38,21 @@ Families (FAMILIES; lengths in L, ours against the design's own drawn piece meas
   visible      the share of the piece's own silhouette (its objects each drawn alone: the inputs' `alone`, {view:
                {object: mask}}) that shows with everything drawn (Michael's non-occlusion rule, 2026-09-30: pieces
                don't hide each other); measured where the design draws the piece (higher is better)
+  limbs        a piece's parts read from its silhouette, upright (charkit.limbs: the core, the lobes joined to it, the
+               limbs standing off it; tool/accessories6, the crab clip's legs, pincers and eye stalks): measure 'count'
+               (legs per side, the largest difference), 'reach' (the legs' reach off the core over its width, |ours /
+               design - 1|), 'width' (the legs' width over the core's, |ours / design - 1|), 'root' (where they leave the core: the elliptical angle, 0 at the side, |ours - design|
+               degrees), 'fingers' (per lobe, 1 + its notches: the largest difference), 'notch' (the lobes' deepest
+               notch over their size, |ours - design|), 'stalks' (the stalks' reach, |ours / design - 1|; one missing
+               reads 1). Scale-free: ours and the drawing may be on different grids (a face-on view of the piece)
+  pair         two pieces' relation in a view, piece [a, b] (b placed against a: the crab clip against the star;
+               tool/accessories6, Michael 2026-10-01: a moved piece keeps its relations, not its absolute drawn angle):
+               ours each drawn alone (the inputs' `pair` {view: dict(alone {piece: mask}, axis {ours, design}, flow)}),
+               the drawing's drawn masks. measure 'bearing' (the direction from a's centroid to b's, |ours - design|
+               degrees), 'gap' (the clear distance between them past the drawing's, L: 0 when touching or as close as
+               drawn), 'turn' (b's own axis less the bearing: how b is turned against a, |ours - design| degrees; the
+               target turns as b moves round a), 'flow' (b's axis less the hair's flow under it: `flow`(mask) -> degrees,
+               |ours - design|)
 
 A declaration is a dict in a module-level literal DECLARED_CHECKS = [...] in any charkit module (read with ast,
 nothing imported: the gate and `calibrate` read a tree's without running it; no central list to conflict on):
@@ -1024,9 +1039,94 @@ def visible(Mo, Md, ctx, round_=3):
     return dict(value=round(float((Mo & A).sum()) / float(A.sum()), round_), ours=int(Mo.sum()), alone=int(A.sum()))
 
 
+_LIMBS = {}
+
+
+def limbs(Mo, Md, ctx, measure='count', round_=3):
+    """the piece's parts (charkit.limbs.read: legs per side, their reach and roots, the lobes' fingers and notches, the
+    stalks) ours against the drawing's, one measure (charkit.limbs.compare)."""
+    from . import limbs as lb, pieceqa
+    if Md.sum() < pieceqa.MIN_PX:
+        return None
+    if Mo.sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+
+    def rd(m):                                    # (memoised by the mask's bits: every measure reads the same two)
+        k = (m.shape, hash(np.packbits(m).tobytes()))
+        if k not in _LIMBS:
+            if len(_LIMBS) > 64:
+                _LIMBS.clear()
+            _LIMBS[k] = lb.read(m)
+        return _LIMBS[k]
+    r = lb.compare(rd(Mo), rd(Md), measure)
+    if r is None:
+        return None
+    if r.get('value') is not None and measure not in ('count', 'fingers'):
+        r['value'] = round(float(r['value']), round_)
+    return r
+
+
+def _wrap(a):
+    return (a + 180.0) % 360.0 - 180.0
+
+
+def pair_read(ma, mb, ppl, axis=None, flow=None):
+    """two masks' relation (b against a) -> dict(bearing (degrees: 0 the picture's right, 90 up), dist, gap (L; - the
+    overlap's sqrt(area)), axis, turn, flow, axis_flow) or None."""
+    from scipy import ndimage
+    if ma is None or mb is None or ma.sum() < 20 or mb.sum() < 20:
+        return None
+    ya, xa = np.nonzero(ma)
+    yb, xb = np.nonzero(mb)
+    d = np.array([xb.mean() - xa.mean(), -(yb.mean() - ya.mean())]) / ppl
+    b = float(np.degrees(np.arctan2(d[1], d[0]))) % 360.0
+    ov = int((ma & mb).sum())
+    g = -float(np.sqrt(ov)) / ppl if ov else float(ndimage.distance_transform_edt(~ma)[mb].min() - 1.0) / ppl
+    out = dict(bearing=round(b, 1), dist=round(float(np.linalg.norm(d)), 4), gap=round(g, 4))
+    if axis is not None:
+        out['axis'] = round(float(axis) % 360.0, 1)
+        out['turn'] = round(_wrap(axis - b), 1)
+        if flow is not None:
+            f = flow(mb)
+            if f is not None:
+                out['flow'] = round(float(f[0]), 1)
+                out['coherence'] = round(float(f[1]), 3)
+                out['axis_flow'] = round(_wrap(axis - f[0]), 1)
+    return out
+
+
+def pair(Mo, Md, ctx, measure='bearing', round_=1):
+    """two pieces' relation, piece [a, b]: ours each drawn alone (ctx 'pair': alone {piece: mask}, axis {ours,
+    design}: b's own axis in the picture, degrees; flow: mask -> (the hair's flow under it, coherence)) against the
+    drawing's masks (Md [a, b]) -> |ours - design| for the measure (pair_read; gap: ours past the drawing's, L)."""
+    from . import pieceqa
+    P = ctx.get('pair') or {}
+    pa, pb = ctx['pieces']
+    Da, Db = Md
+    if Da.sum() < pieceqa.MIN_PX or Db.sum() < pieceqa.MIN_PX:
+        return None
+    A = P.get('alone') or {}
+    if A.get(pa) is None or A.get(pb) is None or A[pa].sum() < pieceqa.MIN_PX or A[pb].sum() < pieceqa.MIN_PX:
+        return dict(value=None, why=WHY_OURS)
+    ax = P.get('axis') or {}
+    ro = pair_read(A[pa], A[pb], ctx['ppl'], ax.get('ours'), P.get('flow'))
+    rd = pair_read(fit(Da, A[pa].shape), fit(Db, A[pb].shape), ctx['ppl'], ax.get('design'), P.get('flow'))
+    if ro is None or rd is None:
+        return dict(value=None, why=WHY_OURS)
+    if measure == 'gap':
+        v = max(0.0, ro['gap'] - max(0.0, rd['gap']))
+        return dict(value=round(v, 4), ours=ro['gap'], design=rd['gap'], read=dict(ours=ro, design=rd))
+    key = dict(bearing='bearing', turn='turn', flow='axis_flow')[measure]
+    if key not in ro or key not in rd:
+        return None if key not in rd else dict(value=None, why='ours has no %s' % key)
+    return dict(value=round(abs(_wrap(ro[key] - rd[key])), round_), ours=ro[key], design=rd[key],
+                read=dict(ours=ro, design=rd))
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
                 position=position, ink_inside=ink_inside, area=area, strokes=strokes, line_weight=line_weight,
-                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, visible=visible)
+                tones=tones, top_line=top_line, class_iou=class_iou, stair=stair, visible=visible, limbs=limbs,
+                pair=pair)
 HIGHER = ('shape_iou', 'tones', 'class_iou', 'visible')    # families whose value is better higher (a declaration's `better` overrides)
 LINE_FAMILIES = ('ink_between', 'ink_inside', 'strokes', 'stair')     # families that read our drawn lines (inputs' lines)
 HAIR_FAMILIES = ('top_line',)                     # families that read where the hair lies (ctx hair_ours, hair_drawn)
@@ -1076,13 +1176,18 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
         if hair:
             out['ink'] = our_ink(B, ctx['ppl'], ctx['az3'], tuple(O))
+            if out.get('hair_hide'):                # (the hair's shape truth: ours drawn without our clips)
+                out['lines_hair'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O), hide=out['hair_hide'])
+                out['ink_hair'] = our_ink(B, ctx['ppl'], ctx['az3'], tuple(O), hide=out['hair_hide'])
     if classes:                                   # (a declaration's ours_cls: our model-sheet classes per view)
         out['cls_ours'] = pieceqa.our_classes(B, ctx['ppl'], ctx['az3'], tuple(O))
     if head:                                      # (the head sheet's pictures and ours at its scale: line_weight)
         from . import hairweight
         Dh = hairweight.design_head(B, design)
         hv = tuple(v for v in (head if isinstance(head, (tuple, list)) else views) if v in Dh)
-        out['head'] = dict(D=Dh, O=hairweight.our_head(B, next(iter(Dh.values()))['az3'], hv) if hv else {})
+        hh = design.hidden('hair')
+        out['head'] = dict(D=Dh, O=(hairweight.our_head(B, next(iter(Dh.values()))['az3'], hv, hide=hh) if hh else
+                                    hairweight.our_head(B, next(iter(Dh.values()))['az3'], hv)) if hv else {})
     if tones:                                     # (our cel tones on the design grids: the tones family)
         from . import hairtones
         tv = tuple(v for v in (tones if isinstance(tones, (tuple, list)) else views) if v in O)
@@ -1097,7 +1202,7 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
 def _with_truths(B, I, ppl, az3):
     """the shape truths in the inputs I (in place): `truth` the manifest's entries and masks (layerref.load_truths),
     `without(view, exclude, classes=False)` our labels (or model-sheet classes) z-buffered without the named objects
-    (pieceqa.our_labels / our_classes' exclude; cached), `alone_of(view, keep)` the named objects alone
+    (pieceqa.our_labels / our_classes' hide; cached), `alone_of(view, keep)` the named objects alone
     (pieceqa.alone). Read when measured, so a calibration stand-in's patched pieceqa gives its own."""
     from . import layerref, pieceqa
     ST, TM = layerref.load_truths(B.spec)
@@ -1108,9 +1213,9 @@ def _with_truths(B, I, ppl, az3):
         key = (view, tuple(sorted(exclude)), classes)
         if key not in cache:
             if classes:
-                cache[key] = pieceqa.our_classes(B, ppl, az3, (view,), exclude=set(exclude)).get(view)
+                cache[key] = pieceqa.our_classes(B, ppl, az3, (view,), hide=set(exclude)).get(view)
             else:
-                got = pieceqa.our_labels(B, ppl, az3, (view,), exclude=set(exclude))[0].get(view)
+                got = pieceqa.our_labels(B, ppl, az3, (view,), hide=set(exclude))[0].get(view)
                 cache[key] = None if got is None else got['lab']
         return cache[key]
     I['without'] = without
@@ -1121,18 +1226,26 @@ def _with_hair(B, design, I):
     """the hair as a piece in the inputs I (in place): pm[HAIR] our hair_* objects, masks VIEW__hair the drawing's hair
     class in its figure (hairflagqa.drawn_hair), hair_D hairflagqa's design side (None without the hair truth), and per
     view our hair objects that aren't the mass (HAIR_OTHER) with the clips (hair_other, from the labels: read when
-    measured, so a stand-in's labels give theirs)."""
-    from . import hairflagqa
+    measured, so a stand-in's labels give theirs). Against the hair's shape truth (charkit.shapetruth: the drawing's
+    clips repainted away, qa3d.Design.shape_views), the drawn hair is that, and ours is drawn without our clips:
+    O_hair (our labels without them), dv_hair (the design's views it reads) and hair_hide (what is left out)."""
+    from . import hairflagqa, pieceqa
     names = I['names']
     I['pm'] = dict(I['pm'], **{HAIR: [(n, None) for n in names if n.startswith('hair_')]})
+    hide = design.hidden('hair')
+    dvh = design.shape_views('hair') if hide else I['dv']
     masks = dict(I['masks'])
-    for v, d in I['dv'].items():
+    for v, d in dvh.items():
         masks['%s__%s' % (v, HAIR)] = hairflagqa.drawn_hair(d)
     I['masks'] = masks
     I['hair_D'] = hairflagqa.design_inputs(B, design)[0]
     oth = [(n, None) for n in names if n.startswith(HAIR_OTHER)] + \
-        [(o.name, None) for o in B.objects(groups=('accessory',)) if o.name in names]
+        [(o.name, None) for o in B.objects(groups=('accessory',)) if o.name in names and o.name not in hide]
     I['hair_other_members'] = oth
+    if hide:
+        I['O_hair'], _ = pieceqa.our_labels(B, I['ppl'], design.sheet_context()['az3'], views=tuple(I['O']),
+                                            hide=hide)
+        I['dv_hair'], I['hair_hide'] = dvh, hide
 
 
 class _Grid:
@@ -1149,21 +1262,21 @@ class _Grid:
         return raster.window_zbuffer(items, az, self.origin, 1.0, self.pix, self.win, ids=ids)
 
 
-def our_lines(B, ppl, az3, views=VIEWS):
+def our_lines(B, ppl, az3, views=VIEWS, hide=()):
     """our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls
     (charkit.qa3d.draw, numpy) and the pixels whose nearest surface is a hull (an ink stroke's too) -> {view: bool
-    image}. The generic calibration's stand-in patches it (the drawing's own ink moved with the labels, or none for a
-    random floor)."""
-    return _line_images(B, ppl, az3, tuple(views))
+    image}; hide: objects left out (a part's shape truth: the hair without our clips). The generic calibration's
+    stand-in patches it (the drawing's own ink moved with the labels, or none for a random floor)."""
+    return _line_images(B, ppl, az3, tuple(views), tuple(sorted(hide)))
 
 
-def our_ink(B, ppl, az3, views=VIEWS):
+def our_ink(B, ppl, az3, views=VIEWS, hide=()):
     """our ink strokes' pixels per view on the design's grids (a piece's ink slot, qa3d.is_ink: the creases, the
     hair's strokes), drawn at least a pixel wide where nothing of ours is nearer (a stroke thinner than a pixel still
     shows, as the drawing's faint strokes do: geom.raster's thin labels), without the outlines -> {view: bool image}.
     The hair's lock lines (geom.hairink.LOCK_MATERIAL: lines drawn as ink where the lock shells aren't) are lines, not
-    strokes: they occlude here and aren't ink (our_lines draws them as it draws an outline). The stand-in patches it
-    as it does our_lines."""
+    strokes: they occlude here and aren't ink (our_lines draws them as it draws an outline). hide: objects left out (as
+    our_lines'). The stand-in patches it as it does our_lines."""
     def make():
         from . import bodyqa, qa3d
         from .geom import raster
@@ -1174,7 +1287,7 @@ def our_ink(B, ppl, az3, views=VIEWS):
         items, ink = [], []
         for o in B.objects():
             variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
-            if not o.has(variant):
+            if not o.has(variant) or o.name in hide:
                 continue
             for s_ in qa3d.surfaces(B, o, variant):
                 is_ink = bool(s_['hull']) and len(s_['slots']) > 0 and \
@@ -1199,10 +1312,11 @@ def our_ink(B, ppl, az3, views=VIEWS):
             out[v] = np.isin(lab, ink)
         shape = next((x.shape for x in out.values() if x is not None), None)
         return {v: (x if x is not None else np.zeros(shape or (1, 1), bool)) for v, x in out.items()}
-    return B.memo(('declared_ink', float(ppl), float(az3), tuple(views)), make)
+    return B.memo(('declared_ink', float(ppl), float(az3), tuple(views)) + ((tuple(sorted(hide)),) if hide else ()),
+                  make)
 
 
-def _line_images(B, ppl, az3, views):
+def _line_images(B, ppl, az3, views, hide=()):
     def make():
         from . import bodyqa, qa3d
         As = B.assembly
@@ -1211,7 +1325,7 @@ def _line_images(B, ppl, az3, views):
         surfs = []
         for o in B.objects():
             variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
-            if o.has(variant):
+            if o.has(variant) and o.name not in hide:
                 surfs += qa3d.surfaces(B, o, variant)
         hull = np.array([bool(s['hull']) for s in surfs] + [False])
         out = {}
@@ -1222,7 +1336,7 @@ def _line_images(B, ppl, az3, views):
             mesh = aux['mesh']
             out[v] = hull[np.where(mesh >= 0, mesh, len(surfs))]
         return out
-    return B.memo(('declared_lines', float(ppl), float(az3), views), make)
+    return B.memo(('declared_lines', float(ppl), float(az3), views) + ((hide,) if hide else ()), make)
 
 
 FOLD_DEG = 15.0          # degrees: a fold where the surface turns by at least this ...
@@ -1412,6 +1526,11 @@ def evaluate(decls, I):
         pieces = d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]
         if any(p not in pm for p in pieces):
             continue
+        # the hair against its shape truth (_with_hair): our labels without our clips, the views it reads
+        sht = HAIR in pieces and view in (I.get('O_hair') or {})
+        dvv = (I['dv_hair'] if sht else dv).get(view) or {}
+        if sht:
+            lab = I['O_hair'][view]['lab']
         params = dict(d.get('params') or {})
         M = masks
         if params.pop('fold', False) and I.get('graph') is not None:      # (the drawn pieces we don't build folded in)
@@ -1429,17 +1548,19 @@ def evaluate(decls, I):
             if cl is None:
                 continue
             Mo = [m & (cl[:m.shape[0], :m.shape[1]] == bodyqa.CLASS[oc]) for m in Mo]
-        ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=(dv.get(view) or {}).get('fg'), cls=(dv.get(view) or {}).get('cls'),
-                   dv=dv.get(view),
-                   lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
+        ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=dvv.get('fg'), cls=dvv.get('cls'), dv=dvv or None,
+                   lines=(I.get('lines_hair' if sht else 'lines') or {}).get(view), piece=pieces[0], names=names,
+                   masks=masks,
                    cls_ours=(I.get('cls_ours') or {}).get(view), folds=(I.get('folds') or {}).get(view),
                    graph=I.get('graph'), spec=I.get('spec'))
         ctx['silhouette'] = (lambda v=view, ps=pieces: silhouette(I, v, ps[0]))
         ctx['alone'] = (lambda v=view, ps=pieces: alone(I, v, ps[0]))
+        ctx['pieces'] = pieces
+        ctx['pair'] = (I.get('pair') or {}).get(view)
         if HAIR in pieces:                                # (the hair as a piece: its design side, our non-mass parts)
             from .bodymeasure import member_mask
             ctx['hair_D'] = I.get('hair_D')
-            ctx['ink'] = (I.get('ink') or {}).get(view)
+            ctx['ink'] = (I.get('ink_hair' if sht else 'ink') or {}).get(view)
             ctx['hair_other'] = member_mask(lab, {n: i for i, n in enumerate(names)}, I.get('hair_other_members') or [])
             ctx['head'] = I.get('head')
             ctx['tones'] = (I.get('tones') or {}).get(view)
@@ -1473,7 +1594,7 @@ def evaluate(decls, I):
             if r.get('count_status'):
                 st = pieceqa.worst(st, r['count_status'])
             c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
-            for k in ('count', 'ratio', 'fill', 'ratio_fill', 'alone') + (('recall', 'place', 'precision', 'dir', 'density') if d['family'] == 'strokes' else ()) + \
+            for k in ('count', 'ratio', 'fill', 'ratio_fill', 'alone', 'read') + (('recall', 'place', 'precision', 'dir', 'density') if d['family'] == 'strokes' else ()) + \
                     (('f1', 'recall', 'precision', 'zone') if d['family'] == 'tones' else ()):
                 if k in r:
                     c[k] = r[k]
@@ -1557,6 +1678,7 @@ class Declared(_calib_base()):
     other floor has no strokes there."""
     part = 'declared'
     generators = dict(_calib_base().generators, **STROKE_FLOORS, **WEIGHT_FLOORS, **TONE_FLOORS)
+    views_for = 'hair'          # (the design's views as the hair's checks read them: its shape truth, when declared)
 
     def labels(self, kind, arg):
         if kind in STROKE_FLOORS or kind in WEIGHT_FLOORS or kind in TONE_FLOORS:
@@ -1714,7 +1836,7 @@ class Declared(_calib_base()):
         import sys
         from .calib.labels import _shift
 
-        def lines(B, ppl, az3, views=VIEWS):
+        def lines(B, ppl, az3, views=VIEWS, hide=()):
             if kind == 'design':
                 return {v: _shift(self._drawn(v), arg[0], arg[1], False) for v in views if v in self.cls}
             if kind in STROKE_FLOORS:
@@ -1727,7 +1849,7 @@ class Declared(_calib_base()):
                 return out
             return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
 
-        def ink(B, ppl, az3, views=VIEWS):
+        def ink(B, ppl, az3, views=VIEWS, hide=()):
             if kind == 'design':
                 return {v: _shift(self._strands(v)[0] if self._strands(v)[0] is not None else
                                   np.zeros(self.cls[v].shape, bool), arg[0], arg[1], False) for v in views if v in self.cls}
@@ -1738,7 +1860,7 @@ class Declared(_calib_base()):
 
         from . import hairtones
 
-        def our_head(B, az3, views=hairweight.VIEWS, ss=hairweight.SS):
+        def our_head(B, az3, views=hairweight.VIEWS, ss=hairweight.SS, hide=()):
             return self.head(kind, arg, views)
 
         def our_tones(B, ppl, az3, views):

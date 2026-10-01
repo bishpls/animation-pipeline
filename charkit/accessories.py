@@ -29,8 +29,12 @@ import numpy as np
 STAR = dict(points=4, up=0.5, down=0.5, side=0.4, minor=0.0, inner=0.14, curve=0.3, depth=0.09, thick=0.03, segs=4,
             minor_at=45.0, rings=1)
 CONFORM = dict(reach=0.1, clear=0.004, rings=8)   # conform's defaults (L; a conformed star's rings, so it can bend)
-CRAB = dict(body_h=0.72, body_d=0.42, claw=0.3, claw_at=(0.62, 0.52), claw_notch=55.0, claw_up=35.0, arm=0.07,
-            eyes=0.055, eye_at=(0.13, 0.36), stalk=0.1, legs=3, leg=0.28, leg_r=0.035, leg_span=(-10.0, -60.0))
+CRAB = dict(body_h=0.74, body_d=0.34, claw=0.58, claw_at=(0.62, 0.46), claw_long=1.0, claw_up=25.0, claw_notch=40.0,
+            claw_cut=0.5, claw_d=0.45, arm=0.06, eyes=0.06, eye_at=(0.18, 0.47), stalk=0.35, legs=3, leg=0.25,
+            leg_r=0.053, leg_at=(15.0, -28.0), leg_dir=(-25.0, -55.0), leg_bend=10.0)
+# (the clips-alone sheet's crab, read face-on by charkit.limbs in its body's width: claws 0.58 across at (0.62, 0.46),
+# a V notch 0.25 of their size deep; legs 0.11 thick reaching 0.25 off the body from its sides (roots at 15, -13 and
+# -28 degrees round it, pointing 25 to 55 degrees down); eyes 0.12 across on stalks 0.21 above the body)
 
 
 CROWN = dict(points=8, band=0.36, thick=0.03, point_w=0.55, lobe=0.3, jewels=8, jewel_r=0.035, flare=0.05, segs=96)
@@ -193,60 +197,99 @@ def star(shape=None):
     return np.array(V, float), F
 
 
-def _notched(V, c, axis_a, notch, depth=0.75):
-    """a claw's pincer: vertices of a sphere round c whose direction (in the plane of axis_a and the view axis z) lies
-    within notch/2 degrees of axis_a pulled toward the centre (a Pac-Man bite)."""
-    V = V.copy()
-    d = V - c
-    a2 = np.array([axis_a[0], axis_a[1], 0.0]); a2 /= np.linalg.norm(a2)
-    b2 = np.array([-a2[1], a2[0], 0.0])
-    ang = np.degrees(np.arctan2(d @ b2, d @ a2))
-    w = np.clip(1 - np.abs(ang) / (notch / 2), 0, 1)
-    k = 1 - depth * w ** 0.7
-    proj = (d @ a2)[:, None] * a2 + (d @ b2)[:, None] * b2
-    return c + proj * k[:, None] + (d - proj)
+def capsule(P, rad, sides=8, nv=6):
+    """a tube along a polyline P with a radius per point, its ends rounded (a sphere at each end) -> (verts, faces)."""
+    rad = np.broadcast_to(np.asarray(rad, float), (len(P),))
+    parts = [tube(P, rad, sides) + (0,)]
+    for i in (0, len(P) - 1):
+        parts.append(sphere(P[i], rad[i], sides, nv) + (0,))
+    V, F, _ = _join(parts)
+    return V, F
+
+
+def pincer(c, r, up, notch, cut, depth, long=1.0, rings=(1.0, 0.92, 0.75, 0.5, 0.22), m=72):
+    """a crab's claw: a flat-backed dome (its back on z = c's, rising `depth` in front) over an outline round c, radius r
+    (r * long along the claw's own axis, `up` degrees from vertical), cut by a V notch at the top: the notch opening
+    `notch` degrees wide (at the outline) and `cut` of the radius deep, its axis turned `up` degrees from the vertical
+    toward the inside (a sign: + to the picture's left) -> (verts, faces). The two fingers either side of the V are the
+    pincers (the clips-alone sheet's claws)."""
+    a = np.radians(up)
+    ax = np.array([-math.sin(a), math.cos(a)])                    # the notch's direction (and the claw's long axis)
+    bx = np.array([ax[1], -ax[0]])
+    phi = np.linspace(0, 2 * np.pi, m, endpoint=False)            # 0 along the notch
+    d = np.abs((phi + np.pi) % (2 * np.pi) - np.pi)
+    h = np.radians(max(1.0, notch)) / 2
+    k = np.where(d < h, 1 - cut * (1 - d / h), 1.0)
+    R = np.stack([np.cos(phi) * long, np.sin(phi)], 1) * r * k[:, None]   # (along the axis, across)
+    O = R[:, :1] * ax[None] + R[:, 1:] * bx[None]                 # the outline in the claw's plane (x, y)
+    V = []
+    for f in rings:                                               # the back (flat) then the front (domed), ring by ring
+        V += [(c[0] + f * x, c[1] + f * y, c[2]) for x, y in O]
+    for f in rings:
+        z = depth * math.sqrt(max(0.0, 1 - f * f)) + 0.15 * depth
+        V += [(c[0] + f * x, c[1] + f * y, c[2] + z) for x, y in O]
+    nb = len(rings)
+    V += [tuple(c), (c[0], c[1], c[2] + 1.15 * depth)]
+    cb, cf = len(V) - 2, len(V) - 1
+    F = []
+    for i in range(m):
+        i2 = (i + 1) % m
+        F.append((i, nb * m + i, nb * m + i2, i2))                # the rim
+        for j in range(nb - 1):
+            F.append(((j + 1) * m + i, j * m + i, j * m + i2, (j + 1) * m + i2))              # back (faces -z)
+            F.append(((nb + j + 1) * m + i2, (nb + j) * m + i2, (nb + j) * m + i, (nb + j + 1) * m + i))
+        F.append((cb, (nb - 1) * m + i, (nb - 1) * m + i2))
+        F.append((cf, (2 * nb - 1) * m + i2, (2 * nb - 1) * m + i))
+    return np.array(V, float), F
 
 
 def crab(shape=None):
-    """a little crab clip, its back near the z = 0 plane, facing +z, the body 1 wide: a flattened ellipsoid body, two
-    claws raised on arms (notched: the pincers), two eyes on stalks, legs along each side.
-    -> (verts, faces, per-face material: 0 the shell, 1 the eyes)."""
+    """a little crab clip, its back near the z = 0 plane, facing +z, the body 1 wide (the clips-alone sheet's crab,
+    tool/accessories6): a flattened ellipsoid body; two claws raised on short arms, each a domed pincer with a V notch
+    (pincer()); two eyes on stalks over the body; `legs` legs a side leaving the body's sides (their roots `leg_at`
+    degrees round the body's ellipse, the first to the last: 0 at the side, + up), each a rounded tube `leg` long past
+    the body's outline pointing `leg_dir` degrees from the horizontal (outward; - down), bent `leg_bend` degrees down
+    at its middle. -> (verts, faces, per-face material: 0 the shell, 1 the eyes)."""
     S = dict(CRAB, **(shape or {}))
     bw, bh, bd = 0.5, S['body_h'] / 2, S['body_d'] / 2
     parts = []
-    V, F = sphere((0, 0, bd * 0.8), (bw, bh, bd), 16, 10)
+    V, F = sphere((0, 0, bd * 0.8), (bw, bh, bd), 20, 12)
     parts.append((V, F, 0))
     for sx in (-1, 1):
         cx, cy = S['claw_at'][0] * sx, S['claw_at'][1]
         cr = S['claw'] / 2
-        c = np.array([cx, cy, bd * 0.9])
-        # the arm: from the body's upper side out to the claw
-        root = np.array([0.36 * sx, 0.12, bd * 0.9])
-        mid = (root + c) / 2 + np.array([0.04 * sx, -0.02, 0])
-        tv, tf = tube([root, mid, c - (c - root) / np.linalg.norm(c - root) * cr * 0.6], S['arm'], 8)
-        parts.append((tv, tf, 0))
-        cv, cf = sphere(c, (cr, cr * 0.95, cr * 0.7), 16, 10)
-        up = math.radians(S['claw_up'])
-        cv = _notched(cv, c, (math.sin(up) * -sx, math.cos(up)), S['claw_notch'])
-        parts.append((cv, cf, 0))
-        # an eye on its stalk
+        c = np.array([cx, cy, bd * 0.55])
+        # the arm: from the body's upper side out to the claw's lower inner edge
+        root = np.array([0.38 * sx, 0.45 * bh, bd * 0.9])
+        tip = c + np.array([-0.45 * cr * sx, -0.55 * cr, 0.35 * cr * S['claw_d']])
+        parts.append(capsule([root, (root + tip) / 2 + np.array([0.03 * sx, -0.02, 0]), tip], S['arm'], 8, 4) + (0,))
+        pv, pf = pincer(c, cr, S['claw_up'] * sx, S['claw_notch'], S['claw_cut'], S['claw_d'] * cr * 2,
+                        S.get('claw_long', 1.0))
+        parts.append((pv, pf, 0))
+        # an eye on its stalk, the stalk from the body's top
         ex, ey = S['eye_at'][0] * sx, S['eye_at'][1]
-        base = np.array([ex * 0.9, bh * 0.55, bd * 1.2])
-        top = np.array([ex, ey, bd * 1.3])
-        sv, sf = tube([base, top], S['eyes'] * 0.35, 6)
+        t = math.asin(min(1.0, abs(ex) / bw))
+        base = np.array([ex * 0.95, bh * math.cos(t) * 0.8, bd * 1.2])
+        top = np.array([ex, ey, bd * 1.35])
+        sv, sf = tube([base, top], S['eyes'] * S['stalk'], 6)
         parts.append((sv, sf, 0))
-        ev, ef = sphere(top, S['eyes'], 10, 6)
+        ev, ef = sphere(top, S['eyes'], 12, 8)
         parts.append((ev, ef, 1))
-        # the legs: short bent sticks out and down the side
+        # the legs: from inside the body out through its side
         n = int(S['legs'])
-        a0, a1 = S['leg_span']
+        a0, a1 = S['leg_at']
+        d0, d1 = S['leg_dir']
         for j in range(n):
-            a = math.radians(a0 + (a1 - a0) * (j / max(1, n - 1)))
-            r0 = np.array([bw * 0.85 * math.cos(a) * sx, bh * 0.85 * math.sin(a), bd * 0.7])
-            dirv = np.array([math.cos(a) * sx, math.sin(a) - 0.25, 0.0]); dirv /= np.linalg.norm(dirv)
-            knee = r0 + dirv * S['leg'] * 0.55 + np.array([0, 0.03, 0])
-            foot = knee + (dirv + np.array([0, -0.6, 0])) / np.linalg.norm(dirv + np.array([0, -0.6, 0])) * S['leg'] * 0.5
-            lv, lf = tube([r0, knee, foot], [S['leg_r'], S['leg_r'], S['leg_r'] * 0.6], 6)
+            f = j / max(1, n - 1)
+            a = math.radians(a0 + (a1 - a0) * f)
+            d = math.radians(d0 + (d1 - d0) * f)
+            rim = np.array([bw * math.cos(a) * sx, bh * math.sin(a), bd * 0.75])
+            dirv = np.array([math.cos(d) * sx, math.sin(d), 0.0])
+            start = rim - dirv * 0.12
+            knee = rim + dirv * S['leg'] * 0.5
+            b = d - math.radians(S.get('leg_bend', 0.0))
+            foot = knee + np.array([math.cos(b) * sx, math.sin(b), 0.0]) * S['leg'] * 0.5
+            lv, lf = capsule([start, knee, foot], [S['leg_r'], S['leg_r'], S['leg_r'] * 0.85], 8, 4)
             parts.append((lv, lf, 0))
     return _join(parts)
 

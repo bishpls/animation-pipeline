@@ -146,13 +146,14 @@ if __name__ == '__main__':
         sys.exit(0)
     for key, val in (('top_layers', top), ('collar_ghost', cg)):
         text = outfit.set_member(text, 'references', key, val)
-    M = json.loads(text)
-    M['shape_truth'] = shape_truth
-    # the new top-level key appended in the file's own layout
-    end = text.rstrip().rfind('}')
-    body = json.dumps(shape_truth, indent=1, ensure_ascii=False).replace('\n', '\n ')
-    if '"shape_truth"' not in text.split('"references"')[0] and '\n "shape_truth":' not in text:
+    # the entries into the manifest's shape_truth (the hair's is pipeline-3d's: kept), laid out as the file is
+    if '\n "shape_truth":' in text:
+        for k, v in shape_truth.items():
+            text = outfit.set_member(text, 'shape_truth', k, v)
+    else:
+        end = text.rstrip().rfind('}')
+        body = json.dumps(shape_truth, indent=1, ensure_ascii=False).replace('\n', '\n ')
         text = text[:end].rstrip() + ',\n "shape_truth": ' + body + '\n}\n'
-    assert json.loads(text) == M, 'the laid-out text and the data differ'
+    assert all(json.loads(text)['shape_truth'][k] == v for k, v in shape_truth.items())
     open(MP, 'w').write(text)
     print('registered: top_layers, collar_ghost, shape_truth_masks, shape_truth', sorted(shape_truth))

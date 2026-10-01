@@ -64,18 +64,29 @@ class Art:
         self.B, self.design = B, design
         self.D, _ = artifactqa.design_measures(B, design)
 
-    def heads(self, dy, dx):
+    def heads(self, dy, dx, sheet=None):
         """artifactqa.design_heads with the head sheet, brought to scale once (refcheck.at_scale's fit to 0.3 px doesn't
-        converge on a sheet moved a pixel before it), moved dy, dx inside each head's fixed box, eye line and chin row."""
+        converge on a sheet moved a pixel before it), moved dy, dx inside each head's fixed box, eye line and chin row.
+        The hair from the hair's shape truth when it declares one (qa3d.Design.shape_head: its clips repainted away),
+        as the design's measures read it (artifactqa.design_compute)."""
         from .. import artifactqa as aq, refcheck
-        if not hasattr(self, '_at'):
+        if sheet is None and aq.HAIR_SHAPE_TRUTH and self.design.hidden('hair'):
+            out = self.heads(dy, dx, sheet='drawn')
+            hair = self.heads(dy, dx, sheet='shape')
+            for v, rec in out.items():
+                if 'hair' in (hair.get(v) or {}):
+                    rec['hair'] = hair[v]['hair']
+            return out
+        key = '_at_shape' if sheet == 'shape' else '_at'
+        if not hasattr(self, key):
             fs = self.design.ref()['face_sheet']
-            rgb0, _ = refcheck.without_guides(np.asarray(self.design.rgba(fs['image'])[..., :3], float))
+            pic = self.design.shape_head('hair') if sheet == 'shape' else self.design.rgba(fs['image'])[..., :3]
+            rgb0, _ = refcheck.without_guides(np.asarray(pic, float))
             rgb1, _, H = refcheck.at_scale(rgb0, self.B.assembly['eye_knobs']['x'],
                                            2 * self.B.assembly['eye_knobs']['x'] * aq.HEAD_PPL, fs.get('facing', -1))
             _, chin = refcheck.measure_heads(rgb1, H['heads'], aq.HEAD_PPL, fs.get('facing', -1))
-            self._at = (rgb1, H, -float(chin) if chin is not None else 0.36)
-        rgb1, H, chin_L = self._at
+            setattr(self, key, (rgb1, H, -float(chin) if chin is not None else 0.36))
+        rgb1, H, chin_L = getattr(self, key)
         rgb1 = _shift(rgb1, dy, dx)
         out = {}
         for view, h in H['heads'].items():
@@ -107,6 +118,10 @@ class Art:
             dy, dx = arg if kind == 'design' else (0, 0)
             nudge = ('boot_R', 'boot_cuff_R') if kind == 'boot_nudge' else None
             head = self.heads(dy, dx)
+        for regs in head.values():              # (the drawing has no pieces: none of its own bits peeks past another,
+            for rec in regs.values():           # so the design standing in for ours reads no peeks)
+                if isinstance(rec, dict) and rec.get('fragments') is not None:
+                    rec['fragments'].setdefault('peeks', 0)
         ctx = self.design.sheet_context()
         masks, graph, _ = bodymeasure.piece_masks(self.B.spec)
         views = {v: dict(rgb=_shift(np.asarray(x['rgb'], float), dy, dx, 1.0), fg=_shift(x['fg'], dy, dx, False),

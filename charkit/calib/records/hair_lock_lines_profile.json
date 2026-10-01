@@ -3,7 +3,7 @@
  "part": "hair_flags",
  "adapter": "HairFlags",
  "module": "charkit.calib.hairflags",
- "at": "2026-10-01T07:43:44",
+ "at": "2026-10-01T21:38:19",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -15,56 +15,56 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.9965,
+    1.0,
     "PASS"
    ],
    "+0,+2": [
-    0.9827,
+    0.9897,
     "PASS"
    ],
    "+1,+0": [
-    0.9993,
+    1.0,
     "PASS"
    ],
    "+2,+0": [
-    0.9913,
+    0.9966,
     "PASS"
    ],
    "+0,-1": [
-    0.9965,
+    1.0,
     "PASS"
    ],
    "+0,-2": [
-    0.9834,
+    0.9902,
     "PASS"
    ],
    "-1,+0": [
-    0.9993,
+    1.0,
     "PASS"
    ],
    "-2,+0": [
-    0.9905,
+    0.996,
     "PASS"
    ]
   },
-  "min": 0.9827,
-  "max": 0.9993,
-  "spread": 0.0166,
-  "median": 0.9939
+  "min": 0.9897,
+  "max": 1.0,
+  "spread": 0.0103,
+  "median": 0.9983
  },
  "known_bad": {
   "name": "hair5_1580f95",
-  "value": 0.1638,
+  "value": 0.1802,
   "status": "FAIL"
  },
  "floor": {
   "voronoi_lines": {
    "values": [
-    0.0613,
-    0.128,
-    0.037,
-    0.1737,
-    0.0346
+    0.0,
+    0.0846,
+    0.0,
+    0.0271,
+    0.0522
    ],
    "statuses": [
     "FAIL",
@@ -73,7 +73,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 0.0613,
+   "median": 0.0271,
    "status": "FAIL",
    "passing": 0
   },
@@ -99,24 +99,24 @@
  },
  "probes": {
   "stripes": {
-   "value": 0.5619,
+   "value": 0.594,
    "status": "WARN"
   }
  },
  "blind_to": [],
  "current": {
-  "value": 0.1668,
+  "value": 0.205,
   "status": "FAIL",
-  "margin": 0.141
+  "margin": 0.194
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.0166), hair5_1580f95 reads 0.1638 FAIL, the floor voronoi_lines FAIL, solid FAIL",
+ "why": "the design passes every move (spread 0.0103), hair5_1580f95 reads 0.1802 FAIL, the floor voronoi_lines FAIL, solid FAIL",
  "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
- "build": "charkit/out/hst_s1",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
   "solid": "no ink inside the mass (a solid orange mass)",
   "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
  },
- "seconds": 39.3
+ "seconds": 61.4
 }

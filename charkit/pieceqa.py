@@ -345,16 +345,15 @@ def our_section(B, sleeve, band, skin, nth=72):
 
 
 # ------------------------------------------------------------------------------------------------------------ our views
-def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), exclude=()):
+def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), hide=()):
     """our objects z-buffered on the design's grids: per view the object label image (index into names; + 1000 for a
-    two-sided object's right half: world x < 0) and its depth. exclude: object names left out (ours drawn as a shape
-    truth's sheet draws the outfit: without the bow, without the collar and the bow; declared's `truth`).
-    -> ({view: dict(lab, depth)}, names)."""
+    two-sided object's right half: world x < 0) and its depth; hide: object names left out (a part's shape truth: the
+    hair without our clips). -> ({view: dict(lab, depth)}, names)."""
     from . import qa3d
     from .faceqa import zbuffer
     meshes, names = qa3d.scene_objects(B)
     obj = [(V, T, np.where(V[T].mean(1)[:, 0] >= 0, i, i + 1000)) for i, (V, T, _) in enumerate(meshes)
-           if names[i] not in exclude]
+           if names[i] not in hide]
     As = B.assembly
     iw = np.array(qa3d.iris_centres(B))
     az = bodyqa.azimuths(az3)
@@ -366,14 +365,14 @@ def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'),
     return out, names
 
 
-def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), exclude=()):
-    """our model-sheet classes on the design's grids per view (bodyqa.ours: lines absorbed); exclude: object names left
-    out (as our_labels') -> {view: cls}."""
+def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), hide=()):
+    """our model-sheet classes on the design's grids per view (bodyqa.ours: lines absorbed); hide: object names left out
+    (as our_labels': ours drawn as a shape truth's sheet draws the outfit, declared's `truth`) -> {view: cls}."""
     from . import qa3d
     from .faceqa import zbuffer
     meshes, nm = qa3d.scene_objects(B)
-    if exclude:
-        meshes = [m for m, n in zip(meshes, nm) if n not in exclude]
+    if hide:
+        meshes = [m for m, n in zip(meshes, nm) if n not in hide]
     As = B.assembly
     iw = np.array(qa3d.iris_centres(B))
     az = bodyqa.azimuths(az3)

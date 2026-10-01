@@ -250,3 +250,20 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_a_ring_of_starts_searches_from_each():
+    with tempfile.TemporaryDirectory() as d:
+        starts = {'low': {'a': 0.05, 'b': 0.05}, 'high': {'a': 0.95, 'b': 0.95}}
+        decl = syn(budget=dict(generations=8, evals=1000), stop=dict(stall=0), starts=starts)
+        R, res = run(decl, os.path.join(d, 'ring'))
+        names = [h['name'] for h in R.H if h['kind'] == 'cma']
+        assert any(n.startswith('slow_g') for n in names) and any(n.startswith('shigh_g') for n in names)
+        assert {h['start'] for h in R.H if h['kind'] == 'cma'} == {'low', 'high'}
+        assert any(h['name'] == 'start_low' for h in R.H) and any(h['name'] == 'start_high' for h in R.H)
+        st = json.load(open(os.path.join(d, 'ring', 'state.json')))
+        assert set(st['starts_done']) == {'low', 'high'}
+        # each start ran its share of the generations (4 of 8), and the best is the best of either
+        assert max(h['gen'] for h in R.H if h.get('start') == 'low' and h['kind'] == 'cma') == 3
+        best = R.best()
+        assert best['f'] == min(st['starts_done'][k]['f'] for k in ('low', 'high'))
