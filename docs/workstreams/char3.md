@@ -209,7 +209,43 @@ Clawd's pregate moves (0.001-0.002 on 3 hair readings): ATTRIBUTED, not this bra
   name head_sections' runtime deps in the hull's key (e.g. the produced entry's code list), which rebuilds every copy's
   hull once.
 
+## Generality report, round 2 (public summary; the private report: charkit/private/c3/report/report.json)
+
+The second character's first full builds (references in, rigged model out, no per-character tuning, no MakeHuman
+fallback): b1 (the body on the clothed hull) and b2 (fixes 18-20); b3 (all fixes, 18-25) building.
+- Stages (charkit/private/c3/report/stages.json, 21 stages): ran unchanged 2 (reference generation, the clothed hull);
+  generic fix landed 13 (palette, sheet and head detection, refcheck, layerref, spec colours, body window, outfit
+  masks and graph, the body hull, the code body, the head fit's jaw, the hull hair's colour, the QA parts' sheets and
+  scale, the review page's design); missing builder built 3 (facial hair, garments by drafting, crown and pin); Clawd
+  assumptions remaining 6 (below).
+- QA pass share (PASS / (PASS + WARN + FAIL + errored parts)), checks named for Clawd's pieces apart:
+  | build | all | applicable | Clawd-named | checks |
+  | --- | --- | --- | --- | --- |
+  | c3 b1 | 0.43 | 0.41 | 0.50 | 188 |
+  | c3 b2 | 0.49 | 0.44 | 0.69 | 190 |
+  | Clawd (g7_base) | 0.74 | 0.76 | 0.73 | 708 |
+  The earlier attempt (2026-09-30) read 0.30 with nothing reaching the model.
+- His references reached the model (numbers in the report): the code head from his head sheets (the jaw from the
+  beard-free redraw), the body from his base body sheet (shape IoU 0.875 / 0.813 / 0.942 / 0.863), the hair and beard
+  cut from his clothed hull, his palette in every colour, 7 garments and 2 accessories drafted from his outfit graph and
+  masks (crown points and the pin's emblem from their own sheets).
+- Remaining overfit points, ranked: (1) the face measure's skin flood stops at drawn folds: the chin read at the nose,
+  the beard starved; (2) hair under headwear: the hull's head top is the crown, the hair's declared shape truth unread;
+  (3) face features (eyes, lashes, blush, brows) are Clawd's defaults with no 2D rig; (4) QA checks named for her pieces
+  and parts reading her objects (motion's clawd_skin); (5) slim-body garment drafts, her skirt hem, no drape/knot/strap
+  templates, plain crown spikes; (6) the joined shoulder's absolute-L knobs; (7) hairlayers' fixed families; (8) hands
+  (template, handref cuffs); (9) eye checks calibrated on large eyes; (10) the review page's regions; (11) MakeHuman
+  legacies in the code path: mh.VRM_JOINTS (the joint names) and base_anime's SOCKET / CAVITY (hm08's eye and mouth
+  rings); (12) infra: the produced hull's key misses head_sections' runtime imports.
+
 ## Exact next steps
+
+0. (round 2, in flight) the gate of b39d996b (job gate-char3-1001-153423-9793 on render2, log
+   charkit/private/c3/out/gate2.log; report into charkit/out/gate); b3 (job build-char3-1001-153450-356d on render2,
+   log charkit/private/c3/out/b3_build.log, out charkit/private/c3/out/b3); s1, the joined shoulder (job
+   build-char3-1001-151614-f06c on the build box, out charkit/private/c3/out/s1). When b3 lands:
+   `python charkit/private/c3/review/build_page.py charkit/private/c3/out/b3 ~/animation-pipeline-garments4/charkit/out/g7_base --before charkit/private/c3/out/b1`,
+   then `python -m charkit review page charkit/private/c3/out/review_build/page.json --out charkit/private/c3/out/review_build/page`.
 
 1. (done) the venv stages all pass locally.
 2. First box build (LAUNCHED at the checkpoint: `charkit/private/c3/box_build.sh b1`, log
