@@ -41,12 +41,14 @@ DEFAULT = dict(families=('side_locks',), groups=(), primary={'side_locks': ('fro
                under=(), trim_other=False, trim_px=6.0, root_w_other=2.0, tip_w_other=2.0, primary_slack=None,
                join='sequential', over_ink=0.3, under_inset=0.0, fold_fix=4, shade_at='vertex',
                det=True, det_method='lm', det_step=1e-6, det_tol=1e-10, det_nfev=600, det_q_in=2.0 ** -12,
-               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0, skin_clear=True, det_join_nfev=150)
+               det_q_out=2.0 ** -12, widen_back=1.0, hug_free=0.0, skin_clear='vertex', det_join_nfev=150)
 # (round 4) det_join_nfev: a trial join's evaluations (det): one the fit can't bring within view_cost_max in that many
 # is dropped (it ran to det_nfev before: the build's CPU); one it accepts that the cap stopped is fitted again in full.
-# (round 4) skin_clear: the shell held gap L outside the skin (the crown chart's skin field): 'narrow' (narrowed
-# where its edge enters the head, the rest pushed), 'ring' (True: each station's section pushed out), 'vertex' (each
-# vertex pushed), False off. A wide, twisted lock's edge swung into the temple (hair_penetration).
+# (round 4) skin_clear: the shell held gap L outside the skin (the crown chart's skin field): 'vertex' (the default:
+# each vertex pushed out, a smooth max; sweep r6sw1: penetration 0, the profile's strokes as before, folds 9 -> 16 on
+# the inner face against the temple, peeks 19), 'narrow' (narrowed where its edge enters the head, the rest pushed:
+# folds 9, peeks 21), 'ring' (True: each station's section pushed out: hair_strokes_profile_dir 16.9 -> 22.8), False
+# off. A wide, twisted lock's edge swung into the temple (hair_penetration 0.040 L).
 # (round 4) hug_free: the share of a lock's length at its tip where the depth pulls (prior_depth, view_depth) fade out
 # (a group's opts, e.g. the hem's flicks: on the mass along their body, free at their tips); 0 off.
 # (tool/hairshell3) det: the reproducible fit (the same shells on every machine): a smooth objective (the drawn

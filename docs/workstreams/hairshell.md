@@ -855,3 +855,9 @@ Reported, not blocking: scalp_px 4 P -> 65 W, body_profile_iou_skin 0.724 P -> 0
 back lines 0.928 -> 0.584, lock lines up. Next: skin_clear modes (lockshell): 'narrow' (narrow the lock where its edge
 enters the head, as fold_fix narrows a fold; the visible face stays), 'ring', 'vertex'; sweep r6sw1 on r6b_default
 (render2, six placements), then the default's mode and a re-gate.
+Sweep r6sw1 (render2, base r6b_default; penetration and folds from each row's own pieces, since the splice reads the
+base's raw mesh): ring (r6b) pen 0, folds 9, strokes P dir 22.8 W, peeks 19 / 19.0, term mean 1.484; **vertex** pen 0,
+folds 16, dir 16.9 P, peeks 19 / 19.2, term 1.461; narrow pen 0, folds 9, dir 16.9 P, peeks 21 / 20.3, term 1.583,
+side locks P 0.600; off pen 0.0398. art_peeks_hair is Michael's flag, hair_folds isn't (WARN to 40; the new folds lie
+on f20.1's inner face against the temple, under the lock), so the default is `skin_clear 'vertex'` (= r6_default's
+build: hair_penetration 0 P, strokes P dir 16.9 P, art_terminator_hair 1.303 P, six 1.417, back 1.77). Re-gate 3.
