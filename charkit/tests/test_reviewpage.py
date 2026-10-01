@@ -59,6 +59,13 @@ def test_page():
         assert len(sizes) == 1, sizes
 
 
+def test_table_section():
+    from charkit import reviewpage
+    h = reviewpage.table_section({'title': 'T <x>', 'columns': ['pose', 'value'],
+                                  'rows': [['rest', ['0.5', 'FAIL']], ['a', 'b']]})
+    assert '<h2>T &lt;x&gt;</h2>' in h and '<td class="FAIL">0.5</td>' in h and '<td>b</td>' in h
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

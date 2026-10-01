@@ -29,6 +29,9 @@ regenerate it after changing a module's docstring or public functions. The curat
 - **Review pages**: reviewpage.py (`charkit review page`: the standard page), preview.py (per-merge previews),
   review.py, flags.py, checkpoint.py, *page.py.
 - **Simulation**: sim/ (xpbd.py cloth, springbone.py, drape.py, motion.py, motionqa.py).
+- **Range of motion**: pose.py and poses/*.json (named poses as data, in anatomical terms, any humanoid), rom.py (the
+  suite: the shipped export's rig posed and measured, `charkit rom BUILD`), romqa.py (QA part 'rom', report-only),
+  calib/rom.py (its reference rigs and known-bads).
 - **Renderer**: render/ (charkit's WebGPU toon renderer: gpu.py, buffers.py, views.py, softras.py, parity.py);
   qarender.py (the QA's drawing through it).
 - **Geometry kernel**: geom/ (mesh IO, repair, booleans, BVH, raster, loft, hull, solidify, subsurf).
@@ -73,6 +76,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | 2300 | `skirt` | - | skirt | `charkit/qa3d.py:skirt` |
 | 2400 | `accessories` | - | accessories | `charkit/accqa.py:qa_accessories` |
 | 2500 | `motion` | `motion_` | motion | `charkit/sim/motionqa.py:motion_qa` |
+| 2600 | `rom` | - | rom | `charkit/romqa.py:rom_qa` |
 
 ## Commands (`python -m charkit CMD`)
 
@@ -99,6 +103,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hairlocks` | `hairlocks` |
 | `hairpage` | `hairpage` |
 | `hairsplit` | `hairsplit` |
+| `hand` | `code_hand` |
 | `history` | `history` |
 | `kill` | `procs` |
 | `mouth` | `mouthlab` |
@@ -114,6 +119,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `refs-check` | `manifest` |
 | `remote` | `remote` |
 | `review` | `review` |
+| `rom` | `rom` |
 | `slots` | `procs` |
 | `sweep` | `sweep` |
 | `trace` | `trace` |
@@ -199,6 +205,9 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hands.py` | `hand_*_reach_[LR]` | hands | Hands | mitten |
 | `hands.py` | `hand_*_digits_[LR]` | hands | Hands | mitten |
 | `hands.py` | `hand_*_cleft_[LR]` | hands | Hands | mitten |
+| `hands.py` | `hand_*_gaps_[LR]` | hands | Hands | comb_hand |
+| `hands.py` | `hand_*_taper_[LR]` | hands | Hands | comb_hand |
+| `hands.py` | `hand_*_cleftpos_[LR]` | hands | Hands | comb_hand |
 | `jaw.py` | `jaw_outline_hidden` | face_region | Jaw | f5_base |
 | `jaw.py` | `jaw_taper` | face_region | Jaw | jaw0_flagged |
 | `jaw.py` | `chin_point_z` | face_region | Jaw | jaw0_flagged |
@@ -240,6 +249,14 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `parts.py` | `iso_bow_crease_*` | iso_pieces | IsoParts | g3_render3 |
 | `parts.py` | `bow_profile_tail_*` | bow_profile | BowProfile | g3_render3 |
 | `parts.py` | `bow_profile_loop_*` | bow_profile | BowProfile | g3_render3 |
+| `rom.py` | `rom_vol_elbow` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_vol_knee` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_vol_fingers` | rom | RomVolume | rom_lbs |
+| `rom.py` | `rom_shoulder_torso` | rom | Rom | rom_rigid_shoulder |
+| `rom.py` | `rom_hair_shoulders` | rom | Rom | rom_hair_on_chest |
+| `rom.py` | `rom_finger_finger` | rom | Rom | rom_fingers_shifted |
+| `rom.py` | `rom_weights_stray` | rom | Rom | rom_stray |
+| `rom.py` | `rom_garment_strain` | rom | RomRigid | rom_garments_shuffled |
 
 ## Declared checks (charkit/declared.py)
 
@@ -981,6 +998,7 @@ The hand template (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7
 
 - `params(spec=None, **over)`: the hand's knobs: DEFAULT, the spec's body.hand over it, then over.
 - `frame(J, side, P)`: the hand's frame at the wrist: (W, R) with R's columns ex (along the hand), ey (radial), ez (dorsal), from the ...
+- `layout(P)`: the fingers held together (round 4, tool/hands2: de2fa87's four thin tubes fanned apart read as a comb): their ...
 - `digits(W, R, P)`: every digit's joints and segment frames -> {name: (joints (4, 3), frames, widths (base, tip))}.
 - `digit_rings(J, F, widths, nth, bones, inset=INSET)`: a digit's tube: rings along its chain (from inset behind its first joint, loops either side of each knuckle, a ...
 - `palm_rings(W, R, P, nth=NTH['palm'])`: the palm: a rounded box from inside the cuff to past the knuckles, its width easing from the wrist's to the ...
@@ -989,7 +1007,8 @@ The hand template (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7
 - `mesh(H_)`: a hand's parts as one triangle mesh -> (V, T, part index per triangle).
 - `cuff_end(H, side, J, spec=None)`: our wrist cuff's far edge along the forearm, L from the wrist joint: the spec's band on the lower arm (its middle ...
 - class `Fit`: the hand's knobs against the design's drawn hands: per view and side, the hand-check measures (handqa's shape IoU ...
-- `main(args)`
+- `show(F, P, out)`: a picture of the template against the drawn hands: per view and side the drawn hand (grey) with ours (red ...
+- `main(args)`: python -m charkit.code_hand fit --build B [--spec S | --write S] [--rounds N] [--over JSON] [--knobs a,b] [--png ...
 - `curl_pose(H_, curl=80.0, thumb=40.0)`: a fist's skinning, numpy only: every finger joint bent `curl` degrees toward the palm (the thumb's joints ...
 - `ring_area(ring)`: a ring's area on its best-fit plane.
 - `fist_report(H_, curl=80.0, thumb=40.0)`: the fist's numbers: per finger the knuckle loops' smallest area over its rest area (the volume kept at the ...
@@ -1937,7 +1956,12 @@ The hands (tool/hands, docs/workstreams/hands.md; docs/ROADMAP.md item 7): each 
 - `design_seams(dv, views=VIEWS)`: the design's ink inside its figures (its raw classes' line pixels), per view -> {view: bool image}.
 - `sides(view)`
 - `hands_of(skin, cuffs, ppl)`: {side: hand_mask()} for one view: cuffs {side: mask}.
-- `features(h, seams, ppl)`: what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width).
+- `bands_across(h, ppl, shares)`: per share of the reach past the cuff, the hand's band across the arm there (0.75 px either side): (its span ...
+- `gaps(h, ppl, shares=GAP_BANDS)`: the fingers held together or apart: the mean share of the hand's span across the arm with no hand in it, over ...
+- `taper(h, ppl)`: how the hand narrows to its fingertips: its mean width across the arm over TIP_BANDS of the reach over its widest ...
+- `wrist(h, ppl)`: the wrist's narrowing: the hand's width across the arm at WRIST_BAND of the reach over its widest (reported in ...
+- `cleft_at(m, h, ppl)`: where the deepest silhouette pocket's bottom lies along the reach past the cuff (a share of the reach): the ...
+- `features(h, seams, ppl)`: what the checks read of one hand -> dict(px, reach, digits, per_band, cleft, pockets, width, gaps, taper, wrist, ...
 - `hands(B, design=None, out=None)`
 - `measure(B, design, out=None)`
 
@@ -2458,6 +2482,21 @@ Garment piece details (tool/garments2, docs/workstreams/garments2.md): the fault
 - `piece_details(B, design=None, out=None)`: the outfit pieces' details against the design: the puff sleeves' spikes, outline and width along the arm and ...
 - `measure(B, design, out=None)`: the piece details' checks on a bundle against the design (qa3d.Design) -> (table, checks).
 
+#### `charkit/pose.py`
+
+Named poses as data (tool/rom, 2026-10-01): a pose is a preset in a JSON library (charkit/poses/*.json), applied to any humanoid skeleton (the VRM humanoid bones: charkit.mh.VRM_JOINTS / VRM_PARENT) in anatomical terms, so motion tests, the range-of-motion suite (charkit.rom) and shots reuse the same presets on any character.
+
+- `library(path=LIBRARY)`: a pose library file -> {name: preset} (in the file's order).
+- `rotation(axis, deg)`: the rotation by deg degrees about axis (right-handed; Rodrigues).
+- `side_of(bone)`
+- `bare(bone)`: a bone's side-less name ('leftLowerArm' -> 'LowerArm').
+- class `Skeleton`: the humanoid's rest skeleton (Blender's frame): heads and tails per VRM bone, parents (charkit.mh.VRM_PARENT), ...
+- `ops_of(sk, preset)`: a preset's ops per bone: {bone: {op: value}} (side-less keys and patterns expanded to both sides).
+- `bone_rotation(sk, b, ops, d, flex, spread, f=1.0)`: the rotation (3x3, world) of bone b's ops taken f of the way, from its carried direction d, hinge direction flex ...
+- `solve(sk, preset, f=1.0)`: {bone: 4x4 world deformation} of a preset taken f of the way (rest -> posed; Blender's frame), composed down the ...
+- `posed_joints(sk, D)`: each bone's posed head and tail -> ({bone: head}, {bone: tail}).
+- `angle_between(sk, D, a, b)`: the posed angle (degrees) between bones a and b's directions (the flexion a joint reached).
+
 #### `charkit/pregate.py`
 
 The local pre-gate check (docs/ROADMAP.md "Iteration speed", redesign item 2): the fast evaluator's checks on this worktree as it is (uncommitted edits included) against pipeline-3d's, judged as the gate judges them (charkit.gate's compare_qa and judge: policy K), on the laptop, before a box gate. The evaluator is charkit.bodyeval as the body fit reads ...
@@ -2766,9 +2805,62 @@ The standard review page (`charkit review page`): what every round's hand-made p
 - `checks_table(builds, patterns)`: each build's qa.json on the named checks (patterns), side by side; flag checks marked [F] -> HTML.
 - `key_numbers(builds, patterns, limit=8)`: the summary's key numbers when the JSON gives none: the first `limit` named checks across the builds.
 - `sweep_section(page, path)`: a sweep's table (sweep.md, as HTML) and its rows' boards -> HTML.
+- `table_section(sec)`: a given table: {"title", "text", "columns", "rows"}, a cell a string or [text, status].
 - `figures_section(page, sec)`: a section of given pictures (a round's own measurement pictures: the drawn locks, a fit's overlay): {"title", ...
 - `make(spec, out=None, log=print)`: the page from a PAGE.json's dict -> its index.html path.
 - `main(args)`
+
+#### `charkit/rom.py`
+
+The range-of-motion suite (tool/rom, 2026-10-01; docs/CHARKIT_HANDOFF.md "Known gaps before motion testing" item 2): the shipped rig posed through the pose library (charkit/poses/rom.json, charkit.pose) and measured per pose, numbers before pictures. The rig is the build's export (OUT/NAME.look.glb): its skeleton (the VRM humanoid's nodes and inverse ...
+
+- class `Obj`: one exported object welded into a mesh (Blender's frame): V (n, 3) its surface (the outline's inward move ...
+- class `Rig`: a build's shipped rig: the export's skeleton (Skeleton on the bones' heads from the inverse bind matrices, tails ...
+- `dqs(V, J, W, R, t)`: dual quaternion skinning of V (n, 3) with bone indices J and weights W (n, k) by the bones' rotations R (nb, 3, ...
+- `load(build, export=None)`: a build folder -> (Rig, the bundle or None): the export beside the bundle (NAME.look.glb, else NAME.vrm), the ...
+- `board_views(rig, az=BOARD_AZ, res=BOARD_RES, prefix='', centre=None, ortho=None)`: the posed boards' views: orthographic, one scale for every pose (1.45 x the height on the picture's height, the ...
+- `render_boards(rig, poses, out, az=BOARD_AZ, res=BOARD_RES, adapter=None, ss=2, ...)`: each pose drawn by charkit's toon renderer from every azimuth into out/POSE_AZ.png -> {pose: {az: path}}.
+- `head_length(rig, B=None)`: the character's head length L (m): the bundle's assembly L, else the export's boards / head L.
+- `regions(rig, skin='clawd_skin')`: the skin's vertices by region (each vertex's dominant bone): {name: bool (n,)}: torso, head, and per side the arm ...
+- `shells(V, F)`: each vertex's connected shell (an id).
+- `submesh(F, keep)`: the triangles of F whose three vertices are all kept -> (m, 3).
+- `boundary_loops(F)`: an oriented triangle set's boundary loops (each directed edge with no reverse twin), chained -> [[v...]].
+- `capped(X, F, loops)`: X with a centroid per loop appended, F with each loop fanned shut (orientation closing the surface) -> (X', F').
+- class `Closed`: a region of a mesh as a closed surface (its boundary loops capped, the same caps rest and posed).
+- `inside_new(Q0, Q1, bv0, bv1, L, tol=0.004)`: points (rest Q0, posed Q1) inside a closed surface posed (bv1) and not at rest (bv0), deeper than tol L -> ...
+- `crossing_edges(X, E, bv)`: which edges (X[E[:, 0]] -> X[E[:, 1]]) cross the surface in bv -> bool (len(E),).
+- `crossings_new(X0, X1, E, bv0, bv1)`: edges crossing a surface posed and not at rest -> dict(n, share).
+- `strain(V0, V1, E, min_len=0.0)`: |edge / rest edge - 1| over edges E at least min_len long at rest (all of them when none is) -> dict(p95, max).
+- `tri_area_n(X, F)`
+- `skin_faces(rig, o, D, X1, F=None)`: the skin's faces against rest: collapsed (under 20% of their rest area) and folded (their normal turned over ...
+- `ring_area(Q)`: a ring's area on its best-fit plane (charkit.code_hand.ring_area).
+- `joint_rings(rig, skin='clawd_skin')`: every joint's rest rings on the skin -> {joint: [dict(offset, ring, area (m^2), r)]}, joints named per side ...
+- `ring_ratios(rings, X)`: each joint's rings posed (X the posed skin) over rest -> {joint: dict(min, at (offset), ratios)}.
+- class `Context`: what every pose shares: the rig, L, the skin's regions and rings, the closed regions and their rest BVHs, the ...
+- `measure_pose(ctx, D, X=None)`: one pose's measures (D: {bone: 4x4}) -> dict(rings, skin_pairs, garments, crossings, strain, skin).
+- `joint_family(j)`
+- `summary(m)`: a pose's measures as its headline numbers (the report's table and the QA's checks read these) -> dict: vol_FAMILY ...
+- `dense_weights(rig, o, rows=None)`: an object's weights as a dense (n, bones) float32 array (bones: rig.bone_names(), humanoid ancestors merged).
+- `seg_dist(P_, a, b)`
+- `weight_sanity(rig, L, skin='clawd_skin', step_len=0.03, stray_far=0.35, ...)`: the rig's weights checked once (no pose): per object the largest |sum - 1|, the vertices with no weight, stray ...
+- `limit_of(key)`
+- `grade(key, v)`
+- `run(build, out=None, poses=None, boards=False, export=None, lib=None, ...)`: the suite on a build -> the report (also out/rom.json and out/rom.md when out is given).
+- `markdown(rep)`
+- `main(args)`
+- class `Posable`: a bundle made posable: each drawn variant's vertices (the skin's 'masked', every other object's 'eval') matched ...
+- `art_posed(rig, B, poses, log=print)`: the toon artefact detectors (charkit.artifactqa: outline corners, terminator kinks, fragments, speckle, the ...
+- `render_closeups(rig, out, lib=None, which=None, res=(520, 520), adapter=None, ss=2, ...)`: the close-up set (CLOSEUPS) into out/NAME_AZ.png: the joint the pose stresses, posed, at a fixed window round its ...
+- `compare_markdown(reps, labels)`: several bodies' reports (run()'s) side by side: per pose, body findings then garment findings, each cell the ...
+
+#### `charkit/romqa.py` (QA parts: `rom`)
+
+Range-of-motion QA (tool/rom, 2026-10-01): the range-of-motion suite (charkit.rom) run on a build's export at the poses each check names, report-only. Every check is the worst reading over its poses (the pose named in `pose`, every pose's reading in `by_pose`), graded against physical limits (charkit.rom.LIMITS: there is no drawing of these poses); a ...
+
+- `poses_needed(checks=CHECKS)`
+- `checks_of(rep, calibrated=CALIBRATED)`: the suite's report (charkit.rom.run's, or measure()'s) -> {check: dict(value, status, grade, pose, by_pose)}.
+- `measure(B, poses=None, weights=None, f=1.0, lib=None, max_points=6000, ...)`: the suite on a bundle's build at the checks' poses -> the report (charkit.rom.run's shape, no pictures).
+- `rom_qa(B, design=None, out=None)`: the range-of-motion suite at the checks' poses on the build's export (report-only).
 
 #### `charkit/scene.py`
 
@@ -3928,7 +4020,7 @@ Calibration adapter for the hair truth's score (charkit.hairlayers.score: the ha
 
 - class `HairTruth`
 
-#### `charkit/calib/hands.py` (4 calibration entries)
+#### `charkit/calib/hands.py` (7 calibration entries)
 
 Calibration adapter for the hands (charkit.handqa's 'hands' part: hand_shape_*, hand_*_reach_*, hand_*_digits_*, hand_*_cleft_*). The stand-in for ours is labels.py's Garments (the drawing's skin class and the outfit's drawn piece masks as our objects' labels, the drawing's lines absorbed: our skin, our wrist cuffs), with the drawing's ink inside the ...
 
@@ -3972,6 +4064,25 @@ Calibration adapters for the bow: its parts and the lines inside them (charkit.p
 - class `BowParts`: bow_parts: the turnaround's bow parts and lines as ours.
 - class `IsoParts`: iso_pieces: the turnaround's front bow (parts and lines) as ours drawn alone.
 - class `BowProfile`: bow_profile (bowqa): the drawn profile bow's loops (the outfit's `bow` mask) and tails (bow_tail_L|R) as our ...
+
+#### `charkit/calib/rom.py` (8 calibration entries)
+
+Calibration adapter for range-of-motion QA (charkit.romqa: the range-of-motion suite at the checks' poses on the build's export; tool/rom, 2026-10-01). Defect detectors with physical limits (no drawing of these poses grades them); the shape they could be gamed against is the body's and the garments' (sheet_pieces' piece IoUs: a fix that moves the ...
+
+- `rigid_joints(rig, skin='clawd_skin')`: every skin vertex on its dominant bone alone (no blend across any joint).
+- `garments_on_hips(rig)`
+- `hair_on_chest(rig)`
+- `skirt_on_thigh(rig)`
+- `fingers_shifted(rig, skin='clawd_skin')`: each finger's vertices skinned to the bones two fingers on (index -> ring, middle -> little, ring -> index, ...
+- `stray(rig, skin='clawd_skin', share=0.02, seed=0)`: share of the skin's vertices given half their weight on a far bone (the opposite foot's for the upper body, the ...
+- `shuffled(rig, seed=0, skin='clawd_skin')`
+- `garments_rigid(rig)`: every garment on its own commonest dominant bone alone: garments that never stretch (the garment strain check's ...
+- `garments_shuffled(rig, seed=0)`
+- class `Rom`: the build as it ships, nudged (the design leg): range-of-motion QA's checks that the build itself passes.
+- class `RomVolume`: joint volume: the design leg the same rig skinned by dual quaternions (Kavan et al.
+- class `RomFit`: garments against the body: the design leg every garment skinned with the skin's weights under it (garments_fit: ...
+- class `RomRigid`: garment strain: the design leg every garment rigid on its commonest bone (garments_rigid: nothing stretches), nudged.
+- `garments_fit(rig, skin='clawd_skin')`: every garment skinned with the skin's own weights at its nearest skin point (barycentric, the top four): the ...
 
 ### charkit/steps/
 
@@ -4023,7 +4134,7 @@ The measurement steps of the checks charkit/faceregion.py measures (charkit.regi
 
 The measurement steps of the checks charkit/hairflagqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/handqa.py` (2 measurement steps)
+#### `charkit/steps/handqa.py` (4 measurement steps)
 
 The measurement steps of the checks charkit/handqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
