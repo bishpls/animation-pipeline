@@ -1327,3 +1327,40 @@ def _model_dqs(rig, D):
         prims.append(q)
     M2.prims = prims
     return M2
+
+
+# ------------------------------------------------------------------------------------------------- bodies compared
+BODY_COLS = ('vol_elbow', 'vol_knee', 'vol_fingers', 'arm_torso', 'leg_torso', 'finger_finger', 'shoulder_strain',
+             'shoulder_folded', 'elbow_folded', 'knee_folded', 'neck_strain')
+GARMENT_COLS = ('sleeve_body', 'top_body', 'skirt_legs', 'shorts_boots', 'sleeve_top_L', 'sleeve_top_R',
+                'garment_strain', 'hand_skirt', 'hair_shoulders')
+
+
+def compare_markdown(reps, labels):
+    """several bodies' reports (run()'s) side by side: per pose, body findings then garment findings, each cell the
+    bodies' readings in order (a / b), FAIL in bold, WARN in italics."""
+    def cell(key, vals):
+        out = []
+        for v in vals:
+            if v is None:
+                out.append('-')
+                continue
+            g = grade(key, v)
+            t = '%.3g' % v
+            out.append('**%s**' % t if g == 'FAIL' else '_%s_' % t if g == 'WARN' else t)
+        return ' / '.join(out)
+    L = ['# Range of motion: %s' % ' / '.join(labels), '',
+         'Each cell: %s. Report-only, physical limits (charkit.rom.LIMITS); **FAIL**, _WARN_.' % ' / '.join(labels)]
+    for title, cols in (('Body', BODY_COLS), ('Garments and hair', GARMENT_COLS)):
+        L += ['', '## ' + title, '', '| pose | ' + ' | '.join(cols) + ' |', '|---|' + '---|' * len(cols)]
+        for p in reps[0]['poses']:
+            row = [cell(c, [(r['poses'].get(p) or {}).get('summary', {}).get(c) for r in reps]) for c in cols]
+            L.append('| %s | %s |' % (p, ' | '.join(row)))
+    L += ['', '## Weights (worst object)', '']
+    for lab, r in zip(labels, reps):
+        w = r['weights']
+        worst = max(w, key=lambda n: w[n].get('stray_share', 0))
+        L.append('- %s: stray influences worst on %s (%.2f%% of its vertices, weight up to %.2f); skin stray %s, '
+                 'sums within %.1e' % (lab, worst, 100 * w[worst]['stray_share'], w[worst]['stray_w'],
+                                       w.get('clawd_skin', {}).get('stray'), max(x['sum_err'] for x in w.values())))
+    return '\n'.join(L) + '\n'
