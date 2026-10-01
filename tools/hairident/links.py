@@ -31,7 +31,8 @@ def make(task, answers=None):
             if a is None or a['verdict'] == 'unsure':
                 q['unsure' if a else 'unanswered'] = q.get('unsure' if a else 'unanswered', []) + [vn]
                 continue
-            q['views'][vn] = [] if a['verdict'] == 'hidden' else list(a['regions'])
+            q['views'][vn] = [] if a['verdict'] == 'hidden' else ({'points': a.get('points', [])}
+                                                                  if a['verdict'] == 'point' else list(a['regions']))
         out[it['id']] = q
     return dict(source='answers' if answers else 'proposals', links=out)
 

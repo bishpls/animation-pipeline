@@ -254,7 +254,9 @@ def lock_picture(sc, fits, masks, path, rgb=None, k=2, pad=40):
 # ------------------------------------------------------------------------------------------------ the joint fit
 
 IDENT = dict(rounds=3, assign_max=12.0, tip_w=0.25, overlap_min=0.3, overlap_w=6.0, layer_w=4.0, layer_gap=0.3,
-             depth_two=0.0, view_w={}, az_eff={}, join_cost_max=6.0, nfev=150, refit_nfev=300)
+             depth_two=0.0, view_w={}, az_eff={}, join_cost_max=6.0, nfev=150, refit_nfev=300,
+             depth_sigma=0.0, depth_sigma_known=0.03, shift_pen=0.15, known_sep=30.0, assign_facing=-0.25,
+             primary_slack=3.0, later_primaries='after', height_cost=False)
 # rounds          assignment / refit rounds (stops early when no view's assignment changes)
 # assign_max      px: a lock left unassigned in a view costs this (the Hungarian's dummy column): a pair dearer stays apart
 # tip_w           the tips' height apart (px) per px of centreline cost
@@ -271,6 +273,19 @@ IDENT = dict(rounds=3, assign_max=12.0, tip_w=0.25, overlap_min=0.3, overlap_w=6
 # join_cost_max   px: a view whose refitted cost exceeds this is dropped for the round (the lock and the drawing there
 #                 disagree)
 # nfev, refit_nfev  evaluation caps of a trial and of the round's final refit
+# depth_sigma     L: how far a lock fitted in one view may lie in depth from the envelope's guess: in another view its
+#                 projection may slide sideways by depth_sigma * |sin(the views' angle)| (a front lock's depth is the
+#                 hull's guess until a second view places it); 0 off. depth_sigma_known once two views >= known_sep deg
+#                 apart have placed it
+# shift_pen       px of cost per px of that slide
+# assign_facing   a lock whose outward direction faces a view less than this isn't a candidate there (the shells'
+#                 own `facing`, 0.2, kept the face-framing locks out of the three-quarter, where the drawing shows them)
+# height_cost     where the lock's depth isn't placed yet (depth_sigma's slide), the pair's cost from its heights:
+#                 height_cost() (the projected curve's shape there is the hull's guess, not the lock's)
+# primary_slack   px: a join that raises the lock's primary view past its own fit by more than this is dropped
+# later_primaries 'after': a family's later primary views (the side locks' profile) seed locks only from the targets
+#                 the first round's assignment left over (a drawn lock is first the same lock seen again); 'before':
+#                 the shells' way (seeded with the first, by shell coverage)
 
 
 def centre_cost(Pp, D, o):
@@ -289,6 +304,19 @@ def centre_cost(Pp, D, o):
         return np.inf
     d = 0.5 * (float(np.mean(_seg_dist(D[sd], Pp))) + float(np.mean(_seg_dist(Pp[sp], D))))
     return d + o['tip_w'] * abs(float(Pp[-1, 1] - D[-1, 1])) + o['overlap_w'] * max(0.0, 1.0 - ov)
+
+
+def height_cost(Pp, D, S, o):
+    """a projected centreline against a drawn one when the lock's depth is unknown: the tips' rows apart, half the
+    roots', the heights' overlap shortfall, and the mean column apart beyond the depth's slide S px (a tenth)."""
+    lo, hi = max(Pp[:, 1].min(), D[:, 1].min()), min(Pp[:, 1].max(), D[:, 1].max())
+    span = min(np.ptp(Pp[:, 1]), np.ptp(D[:, 1])) + 1e-9
+    ov = (hi - lo) / span
+    if ov < o['overlap_min']:
+        return np.inf
+    dc = abs(float(np.mean(Pp[:, 0]) - np.mean(D[:, 0])))
+    return (abs(float(Pp[-1, 1] - D[-1, 1])) + 0.5 * abs(float(Pp[0, 1] - D[0, 1])) +
+            o['overlap_w'] * max(0.0, 1.0 - ov) + 0.1 * max(0.0, dc - S))
 
 
 class Ident:
@@ -327,6 +355,8 @@ class Ident:
                [(g['family'], g) for g in self.cfg.get('groups', ())]
         for fam, grp in jobs:
             prim = [grp['view']] if grp else list(o['primary'].get(fam, ('front',)))
+            if self.io['later_primaries'] == 'after':
+                prim = prim[:1]
             for pv in prim:
                 if pv not in self.views:
                     continue
@@ -358,8 +388,31 @@ class Ident:
                     sc.fit(lk, cap=self.io['refit_nfev'])
                     self.locks.append(lk)
                     self.meta.append(dict(family=fam, primary=pv, target=T_['id'], group=grp, layer=T_['layer'],
-                                          assign={pv: T_['id']}))
+                                          assign={pv: T_['id']}, solo=lk.cost.get(pv)))
         self.log('lockident: %d locks from the primary views' % len(self.locks))
+
+    def seed_later(self, A):
+        """the later primary views' targets no lock was assigned (a drawn lock no lock of the first views is) -> new
+        locks, fitted alone (later_primaries 'after')."""
+        sc, o = self.sc, self.sc.o
+        n0 = len(self.locks)
+        for fam in self.cfg.get('families', ('side_locks',)):
+            for pv in list(o['primary'].get(fam, ('front',)))[1:]:
+                if pv not in self.views:
+                    continue
+                taken = {t['id'] for i, t in A.get(pv, {}).items() if self.meta[i]['family'] == fam}
+                for T_ in self.targets(pv, fam):
+                    if T_['id'] in taken:
+                        continue
+                    lk = sc.lock('%s:%s%d.%d' % (fam, pv[0], T_['lock'], T_['id'][1]), fam, pv, T_['mask'], T_['root'],
+                                 T_['lock'], T_['layer'], opts=self.lock_opts(None))
+                    if lk is None:
+                        continue
+                    sc.fit(lk, cap=self.io['refit_nfev'])
+                    self.locks.append(lk)
+                    self.meta.append(dict(family=fam, primary=pv, target=T_['id'], group=None, layer=T_['layer'],
+                                          assign={pv: T_['id']}, solo=lk.cost.get(pv)))
+        self.log('lockident: %d locks seeded from the later primary views\' leftover targets' % (len(self.locks) - n0))
 
     def assign(self, vn):
         """one view's targets matched to the locks at once -> {lock index: target id}."""
@@ -375,14 +428,31 @@ class Ident:
             from .hairpieces import view_px
             az = self.az_of(vn, fam)
             C = np.full((len(idx), len(tgs)), np.inf)
+            ppl = sc.views[vn].ppl
             for a, i in enumerate(idx):
-                P = self.locks[i].curve()
-                if sc.facing(P, vn) < sc.o['facing']:
+                lk = self.locks[i]
+                P = lk.curve()
+                if sc.facing(P, vn) < o['assign_facing']:
                     continue
                 c_, r_ = view_px(P, sc.views[vn], az, False, sc.hull_frame)
                 Pp = np.c_[c_, r_]
+                shifts = [0.0]
+                if o['depth_sigma']:
+                    azs = [d['az'] for v_, d in lk.drawn.items() if v_ != vn]
+                    sep = max((abs((x - y + 180) % 360 - 180) for x in azs for y in azs), default=0.0)
+                    sg = o['depth_sigma_known'] if sep >= o['known_sep'] else o['depth_sigma']
+                    near = min(azs, key=lambda x: abs((x - az + 180) % 360 - 180)) if azs else az
+                    S_ = sg * abs(math.sin(math.radians(az - near))) * ppl
+                    if S_ >= 1.0:
+                        shifts = list(np.linspace(-S_, S_, 2 * int(min(8, math.ceil(S_ / 3.0))) + 1))
                 for b, t in enumerate(tgs):
-                    C[a, b] = centre_cost(Pp, t['D'], o)
+                    if len(shifts) > 1 and o.get('height_cost'):
+                        # the depth not yet placed: the heights decide (a lock's root and tip rows are the same in
+                        # every view), the side position within the slide's reach
+                        C[a, b] = height_cost(Pp, t['D'], max(abs(shifts[0]), 1.0), o)
+                    else:
+                        C[a, b] = min(centre_cost(Pp + np.array([dx, 0.0]), t['D'], o) + o['shift_pen'] * abs(dx)
+                                      for dx in shifts)
             big = 1e6
             for it in range(4):
                 M = np.where(np.isfinite(C), C, big)
@@ -423,6 +493,9 @@ class Ident:
             lk.o = dict(lk.o, view_depth=sc.o['view_depth'])
         sc.fit(lk, cap=self.io['refit_nfev'])
         bad = [vn for vn, c in lk.cost.items() if vn != mt['primary'] and c > self.io['join_cost_max']]
+        if not bad and mt.get('solo') is not None and len(lk.cost) > 1 and \
+                lk.cost.get(mt['primary'], 0.0) > mt['solo'] + self.io['primary_slack']:
+            bad = [max((vn for vn in lk.cost if vn != mt['primary']), key=lambda v_: lk.cost[v_])]
         if bad:
             for vn in bad:
                 lk.drawn.pop(vn)
@@ -439,6 +512,9 @@ class Ident:
         prev = None
         for r in range(self.io['rounds']):
             A = {vn: self.assign(vn) for vn in self.views}
+            if r == 0 and self.io['later_primaries'] == 'after':
+                self.seed_later(A)
+                A = {vn: self.assign(vn) for vn in self.views}
             sig = {(vn, i): t['id'] for vn, a in A.items() for i, t in a.items()}
             if sig == prev:
                 break
@@ -460,3 +536,39 @@ class Ident:
                               iou=self.sc.iou(lk, part), dropped=mt.get('dropped', []),
                               twist_deg=round(math.degrees(lk.twist), 1)))
         return dict(locks=locks, fitted_2plus=sum(1 for x in locks if len(x['views']) > 1), n=len(locks))
+
+
+# ------------------------------------------------------------------------------------------------ the build's shells
+
+def build_shells(F, masks, views, hull_frame, L, ls_opts, log=print):
+    """lockshell.build_shells' product (dict(parts {family or group key: [part dicts]}, report, opts)) from the joint
+    fit: the shells' options (hair.shape.pieces_opts.lock_shells) with `ident` (True or this module's IDENT overrides)
+    decide each lock's views by the assignment rounds instead of the shells' greedy association."""
+    o = dict(ls.DEFAULT, **{k: v for k, v in ls_opts.items() if k not in ('split', 'ident')})
+    ctx = dict(F=F, masks=masks, views=views, hull_frame=hull_frame, L=L, split=ls_opts['split'])
+    lock_o = {k: v for k, v in o.items() if k not in ('families', 'groups')}
+    sc = Scene(ctx, lock_o)
+    idn = ls_opts.get('ident')
+    cfg = dict(families=list(o['families']), groups=list(o['groups']), ident=idn if isinstance(idn, dict) else {})
+    idt = Ident(sc, cfg, log=log).run()
+    out, report = {}, dict(locks=[], ident=dict(cfg['ident']))
+    for lk, mt in zip(idt.locks, idt.meta):
+        grp = mt['group']
+        key = mt['family'] if grp is None else grp.get('name', '%s_%s' % (grp['family'], grp.get('view', '')))
+        part = lk.shell()
+        ious = {}
+        for vn, d in lk.drawn.items():
+            sil = ls.silhouette(part['V'], part['T'], sc.views[vn], d['az'], sc.hull_frame, d['mask'].shape)
+            ious[vn] = round(float((sil & d['mask']).sum() / max(1, (sil | d['mask']).sum())), 3)
+        part['fit']['iou'] = ious
+        part['fit']['name'] = lk.name
+        part['fit']['assign'] = {vn: list(t) for vn, t in mt['assign'].items()}
+        part['fit']['dropped'] = list(mt.get('dropped') or [])
+        part['_drawn'] = {vn: d['mask'] for vn, d in lk.drawn.items()}
+        part['fit']['side'] = 'L' if (part['V'][:, 0].mean() - sc.F['chart'].c[0]) > 0 else 'R'
+        out.setdefault(key, []).append(part)
+        report['locks'].append(part['fit'])
+        if log:
+            log('lock shell %s: views %s, cost px %s, IoU %s' % (lk.name, sorted(lk.drawn), lk.cost, ious))
+    report['fitted_2plus'] = sum(1 for x in report['locks'] if len(x.get('views') or ()) > 1)
+    return dict(parts=out, report=report, opts={k: v for k, v in o.items() if k != 'split'})

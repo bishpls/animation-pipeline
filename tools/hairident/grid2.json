@@ -1,0 +1,183 @@
+{
+ "A_compromise": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.15,
+   "assign_max": 20,
+   "join_cost_max": 12,
+   "primary_slack": 6,
+   "view_w": {
+    "three_quarter": 0.5
+   }
+  }
+ },
+ "B_keep_all": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.15,
+   "assign_max": 20,
+   "join_cost_max": 1000,
+   "primary_slack": 1000,
+   "view_w": {
+    "three_quarter": 0.5
+   }
+  }
+ },
+ "C_depth_pull": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.15,
+   "assign_max": 20,
+   "join_cost_max": 12,
+   "primary_slack": 6,
+   "view_w": {
+    "three_quarter": 0.5
+   },
+   "depth_two": 0.3
+  }
+ },
+ "D_strict": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.15,
+   "assign_max": 15,
+   "join_cost_max": 8,
+   "primary_slack": 4,
+   "view_w": {
+    "three_quarter": 0.5
+   }
+  }
+ },
+ "E_no_shift": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.0,
+   "assign_max": 20,
+   "join_cost_max": 12,
+   "primary_slack": 6,
+   "view_w": {
+    "three_quarter": 0.5
+   }
+  }
+ },
+ "_pilot": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.15,
+   "assign_max": 20,
+   "join_cost_max": 12,
+   "primary_slack": 6,
+   "view_w": {
+    "three_quarter": 0.5
+   }
+  }
+ }
+}

@@ -865,6 +865,10 @@ def det_inputs(F, views, hull_frame, L, q=2.0 ** -12):
 def build_shells(F, masks, views, hull_frame, L, ls, log=print):
     """the lock shells the spec asks for (pieces_opts.lock_shells: see the module) -> dict(parts {family or group: [part
     dicts]}, groups [{family, view, phi}], report)."""
+    if ls.get('ident'):
+        # (tool/hairident) the cross-view joint fit decides each lock's views (charkit.geom.lockident)
+        from . import lockident
+        return lockident.build_shells(F, masks, views, hull_frame, L, ls, log)
     o = dict(DEFAULT, **{k: v for k, v in ls.items() if k not in ('split',)})
     if o.get('det'):
         F, views, hull_frame, L = det_inputs(F, views, hull_frame, L, o.get('det_q_in'))

@@ -1,7 +1,8 @@
 """The cross-view lock fit (charkit.geom.lockident) run on a build's context and scored against cross-view links: the
 held-out correspondence truth (Michael's answers on the labelling page) or the agent's proposals.
 
-    python tools/hairident/ident.py BUILD OUT [--cfg JSON|@FILE] [--links LINKS.json] [--holdout] [--pilot]
+    python tools/hairident/ident.py BUILD OUT [--cfg JSON|@FILE] [--truth charkit/refs/clawd/hair_lock_links.json]
+                                    [--holdout] [--pilot]
         OUT/ident.json: the fit's report, the links scored (right / wrong / missing / extra per item and view), and
         with --holdout each view held out in turn (the locks fitted on the other three, then assigned in the held-out
         view without refitting: its link accuracy and the assigned targets' IoU); --pilot scores the pilot's own
@@ -29,16 +30,22 @@ def region_mask(R, vn, rids):
     return m
 
 
-def score(locks, links, R, views=None, share=0.3):
-    """locks: [dict(name, assign {view: mask})]; links: the links JSON's; -> dict(items, counts per view and all).
+def score(locks, T, views=None, share=0.3, near_px=3):
+    """locks: [dict(name, assign {view: mask})]; T: the held-out truth (tools/hairident/truth.load: per item its home
+    (view, mask) and per answered view a mask, 'hidden' or points) -> dict(items, counts per view and all).
     A lock is an item's when its mask in the item's home view covers `share` of the home region (the most covering);
-    then per answered view: right (the lock's mask there lies `share` or more on the answer's regions, or the answer
-    says not visible and the lock isn't assigned there), wrong (assigned elsewhere), missing (unassigned where the
-    answer has the lock), extra (assigned where the answer says not visible)."""
+    an item no lock covers is 'unmatched' (the fit has no lock there: coverage, not identity). Per answered view:
+    a positive link (a region, or points) is right when the lock's mask there lies `share` or more on the truth's
+    region (points: the mask covers a point, within near_px), wrong when it lies elsewhere, missing when the lock isn't
+    assigned there; a negative link (not visible) is right when the lock isn't assigned there, extra when it is."""
+    from scipy import ndimage
     out, cnt = {}, {}
-    for item, L_ in links.items():
-        hv = L_['home']
-        H = region_mask(R, hv, L_['views'][hv])
+
+    def add(k, v):
+        c = cnt.setdefault(k, {})
+        c[v] = c.get(v, 0) + 1
+    for item, q in T.items():
+        hv, H = q['home']
         if not H.any():
             continue
         best = (0.0, None)
@@ -51,29 +58,38 @@ def score(locks, links, R, views=None, share=0.3):
                 best = (c, lk)
         lk = best[1] if best[0] >= share else None
         res = dict(lock=None if lk is None else lk['name'], cover=round(best[0], 3), views={})
-        for vn, rids in L_['views'].items():
+        for vn, ans in q['views'].items():
             if vn == hv or (views and vn not in views):
                 continue
             if lk is None:
                 v = 'unmatched'
             else:
                 m = lk['assign'].get(vn)
-                if not rids:
-                    v = 'right' if m is None else 'extra'
+                if isinstance(ans, str):
+                    v = 'right_neg' if m is None else 'extra'
                 elif m is None:
                     v = 'missing'
+                elif isinstance(ans, list):
+                    mm = ndimage.binary_dilation(m, iterations=near_px)
+                    ok = any(0 <= int(round(y)) < mm.shape[0] and 0 <= int(round(x)) < mm.shape[1] and
+                             mm[int(round(y)), int(round(x))] for x, y in ans)
+                    v = 'right_pos' if ok else 'wrong'
                 else:
-                    on = float((m & region_mask(R, vn, rids)).sum()) / max(1, m.sum())
-                    v = 'right' if on >= share else 'wrong'
+                    on = float((m & ans).sum()) / max(1, m.sum())
+                    v = 'right_pos' if on >= share else 'wrong'
             res['views'][vn] = v
-            for k in (vn, 'all'):
-                cnt.setdefault(k, {}).setdefault(v, 0)
-                cnt[k][v] += 1
+            add(vn, v)
+            add('all', v)
+            add('fam:' + q['family'], v)
         out[item] = res
     for k, c in cnt.items():
-        n = sum(c.values())
-        c['n'] = n
-        c['accuracy'] = round(c.get('right', 0) / n, 3) if n else None
+        npos = c.get('right_pos', 0) + c.get('wrong', 0) + c.get('missing', 0)
+        nneg = c.get('right_neg', 0) + c.get('extra', 0)
+        c['positives'], c['negatives'] = npos, nneg
+        c['pos_accuracy'] = round(c.get('right_pos', 0) / npos, 3) if npos else None
+        c['neg_accuracy'] = round(c.get('right_neg', 0) / nneg, 3) if nneg else None
+        n = npos + nneg
+        c['accuracy'] = round((c.get('right_pos', 0) + c.get('right_neg', 0)) / n, 3) if n else None
     return dict(items=out, counts=cnt)
 
 
@@ -101,14 +117,14 @@ def pilot_masks(sc, ctx):
     return out, res['report']
 
 
-def run(build, out, cfg, links, holdout=False, pilot=False, log=print):
+def run(build, out, cfg, T, holdout=False, pilot=False, log=print):
     ctx, R = rb.setup(build, out)
     sc = li.Scene(ctx)
     t0 = time.time()
     idt = li.Ident(sc, cfg, log=log).run()
     rep = idt.report()
     rep['seconds'] = round(time.time() - t0, 1)
-    rep['score'] = score(masks_of(idt), links, R)
+    rep['score'] = score(masks_of(idt), T)
     res = dict(cfg=cfg, fit=rep)
     if holdout:
         res['holdout'] = {}
@@ -122,7 +138,7 @@ def run(build, out, cfg, links, holdout=False, pilot=False, log=print):
             for i, t in A.items():
                 idt2.meta[i]['assign'][hv] = t['id']
             ms = masks_of(idt2)
-            sc_ = score(ms, links, R, views=[hv])
+            sc_ = score(ms, T, views=[hv])
             ious = []
             for i, t in A.items():
                 lk = idt2.locks[i]
@@ -133,7 +149,7 @@ def run(build, out, cfg, links, holdout=False, pilot=False, log=print):
                                       in_fit=rep['score']['counts'].get(hv))
     if pilot:
         pm, prep = pilot_masks(sc, ctx)
-        res['pilot'] = dict(score=score(pm, links, R), fitted_2plus=prep.get('fitted_2plus'), n=len(prep['locks']))
+        res['pilot'] = dict(score=score(pm, T), fitted_2plus=prep.get('fitted_2plus'), n=len(prep['locks']))
     return res
 
 
@@ -142,8 +158,9 @@ def main(a):
     os.makedirs(out, exist_ok=True)
     cfg = rb._opt(a, '--cfg', None)
     cfg = json.load(open(cfg[1:])) if cfg and cfg.startswith('@') else (json.loads(cfg) if cfg else dict(PILOT))
-    links = json.load(open(rb._opt(a, '--links', os.path.join(ROOT, 'tools/hairident/links_proposed.json'))))['links']
-    res = run(build, out, cfg, links, '--holdout' in a, '--pilot' in a)
+    import truth as tr
+    T = tr.load(rb._opt(a, '--truth', os.path.join(ROOT, 'charkit/refs/clawd/hair_lock_links.json')))
+    res = run(build, out, cfg, T, '--holdout' in a, '--pilot' in a)
     json.dump(res, open(os.path.join(out, 'ident.json'), 'w'), indent=1, default=str)
     f = res['fit']
     print('locks %d, in 2+ views %d, %.0f s; links: %s' % (f['n'], f['fitted_2plus'], f['seconds'],
