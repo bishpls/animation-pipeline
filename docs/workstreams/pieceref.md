@@ -408,9 +408,17 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
    - pipeline-3d de2fa87 (tool/hands) merged (59ce8f96; prompts.json: both kept). The coordinator gates this branch
      in a batch with tool/face6 and tool/sweep (no gate of mine this round).
 
+   - **The close-hung tails deferred too** (coordinator): `close_hung` {on: false, ribbon {turn 20, w [0.204, 0.338]},
+     drop 0.2}, resolved by bow_spec like the pleat; the default spec resolves exactly to pipeline-3d's bow (ribbon
+     turn 40, w [0.25, 0.415], no drop). The 2x2 on it (splice `df` on pr3, `harness/twobytwo.py SRC`: option C and
+     pipeline-3d's collarqa loaded from git): option C 0.0 PASS (widest run 0.165 L, ribcal), pipeline-3d's measure
+     0.0526 PASS (its base value); pr3 (close-hung + w4) 0.0 / 0.5526 F, the gate's 2x2 reproduced. df reads
+     pipeline-3d's values on every flag check (bleed 0.0, loop_end 0.121, torn, spikes, collar); the new checks
+     (bow_part_*, bow_profile_loop/tail_*, iso_bow_body) read FAIL on it.
+
 ## The garments round's plan (coordinator)
-Turn w4 + t12 on (`pleat.on: true`) in the same gate as the neighbours' placement fixes, so the bow's corners meet
-pieces placed as drawn:
+Turn the close-hung tails, w4 and t12 on together (`close_hung.on: true`, `pleat.on: true`) in one gate with the
+neighbours' placement fixes, so the bow's corners meet pieces placed as drawn:
 1. **The collar's lapels** end inside the bow's top edge as drawn (now they reach out to the lobes' upper outer
    corners: art_outline_collar 1.379 -> 2.096 W, 3 corners in front against 1).
 2. **The sleeve caps** 0.06 L higher (our top row 394 against the drawn 381 at 212.5 px/L): the bow's corner then no
