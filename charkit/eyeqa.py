@@ -377,6 +377,9 @@ def front_edge(S, nasal=-1, mid=0.8):
             '_edge': [(float(a * rows[0] + b), float(rows[0])), (float(a * rows[-1] + b), float(rows[-1]))]}
 
 
+FLICK_BELOW = 0.15               # opening heights under the far corner's row that the flick's window reaches
+
+
 def flick(S, nasal=-1):
     """the upper lash line's far tip against the opening's far corner (see the module) -> dict."""
     O = S['opening']
@@ -386,7 +389,13 @@ def flick(S, nasal=-1):
     ow, oh = ob[1] - ob[0] + 1, ob[3] - ob[2] + 1
     H, W = O.shape
     yy, xx = np.mgrid[0:H, 0:W]
-    win = (yy < (ob[2] + ob[3]) / 2) & (yy > ob[2] - 0.6 * oh) & (xx > ob[0] - 0.6 * ow) & (xx < ob[1] + 0.9 * ow)
+    cxc = ob[1] if nasal < 0 else ob[0]
+    cy = float(np.nonzero(O[:, cxc])[0].mean())
+    # the window reaches FLICK_BELOW opening heights under the far corner's row (and at least the opening's middle row):
+    # the flick leaves the corner, so its tip lies near the corner's row. (It ended at the middle row until tool/face6:
+    # a flick whose tip lay on that row read its notch instead, -0.34 against 0.53, as the opening's box moved a pixel.)
+    bottom = max((ob[2] + ob[3]) / 2, cy + FLICK_BELOW * oh)
+    win = (yy < bottom) & (yy > ob[2] - 0.6 * oh) & (xx > ob[0] - 0.6 * ow) & (xx < ob[1] + 0.9 * ow)
     line = S['line'] & win
     # the lash line: the dark component lying most along the opening's top edge (not a hair strand or the face's line)
     o0, o1 = _rows(O)
@@ -411,9 +420,6 @@ def flick(S, nasal=-1):
     k = np.nonzero(far == far.max())[0]
     k = k[np.argmin(ys[k])]
     tx, ty = float(xs[k]), float(ys[k])
-    cxc = ob[1] if nasal < 0 else ob[0]
-    rr = np.nonzero(O[:, cxc])[0]
-    cy = float(rr.mean())
     out_ = (tx - cxc) * -nasal
     return {'flick_out': round(out_ / ow, 3), 'flick_up': round((cy - ty) / oh, 3),
             'flick_angle': round(float(np.degrees(np.arctan2(cy - ty, out_))), 1), '_tip': (tx, ty), '_corner': (float(cxc), cy)}
