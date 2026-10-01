@@ -15,7 +15,7 @@ compact cell nearest its middle, its tails the two cells reaching lowest, its lo
 picture's right: the flat-lay and the close-ups draw the piece from the front); its lines are its ink and its fainter
 strokes (outfit.ridges: the creases are drawn in a shade).
 
-Checks (qa3d part 'iso_pieces', prefix 'iso_'; the bow's outline from its shape authority `shape_bow`, the lines
+Checks (qa3d part 'iso_pieces'; the bow's outline from its shape authority `shape_bow`, the lines
 inside it from `lines_bow` when the manifest names one: each graded against the reference that agrees with the
 turnaround on that property, the refcheck):
   iso_bow_body       the lobes and knot scaled to their own width: IoU with the reference's
@@ -239,7 +239,7 @@ def reference(design, key, kind='shape'):
     return rgb, auth, pc
 
 
-@qa_part('iso_pieces', order=1775, prefix='iso_', table='iso_pieces')
+@qa_part('iso_pieces', order=1775, table='iso_pieces')
 def iso_pieces(B, design=None, out=None):
     """rigid pieces alone against their isolated shape references (Michael, 2026-09-30)."""
     return measure(B, design)
