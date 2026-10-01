@@ -291,3 +291,20 @@ for a file written after the merge returned), test_procs's slot queue (the waite
 slot comes after the release: its own timestamp against the release's) and wait-for-build (the fake build runs until
 released), test_boxjob's kill (exit 143, no time bound), test_softras's speed bound (CPU time, not wall). Left: timers
 used only to synchronise or to guard a hang (test_produced_cache's racing stores, test_boxjob's waits).
+
+## The QA-only iteration build, before and after
+
+`charkit qa BUNDLE --cache off` (the QA part cache off, the design memo on: an iteration after a geometry change),
+twice each side, the second measured (the memo warm), side by side on build2: before (pipeline-3d's code) on bb3's
+bundle, after (this branch, `--profile iterate`) on b4's (identical bundles). **851 -> 698 s CPU (-18%), 401 -> 339 s
+wall (-16%).** By change: declared 340 -> 226 s CPU (the line images' picture), motion 24 -> 0 (skipped by the iterate
+profile, reported: `motion` SKIPPED "skipped by profile iterate", part_status skipped), skirt 28 -> 14 (the drawn bands
+kept on disk). Readings: 720 of 723 equal; the 3 others are motion's, skipped. (charkit/out/infra5/b4/qi2/qa.json,
+~/animation-pipeline-infra5o-base/charkit/out/infra5/bb3/qi2/qa.json.)
+
+## The final gate
+
+**PASS under K: tool/infra5-o 30290fb8 into pipeline-3d 27a4b6c3** (`remote --box build gate --code tool/infra5-o`;
+charkit/out/gate/gate_tool-infra5-o_30290fb8_into_27a4b6c3.md): nothing blocks, no check changed, 104 test files
+pass, 692 s; CPU 1660 -> 1078 s (the baseline cached; the candidate restored the produced references and steps that
+the earlier gates had stored under this branch's keys). Commits after 30290fb8: notes only.
