@@ -80,6 +80,31 @@ declared calibrated check):
   hence the back left out and the veto; art_terminator_hair single placement 2.147 but six placements 2.020 +- 0.088
   (base 2.006 +- 0.081): neutral; peeks 17.5 -> 17.7.
 
+## Scope additions, strokes milestone
+- **(c) the buns' drawn lines** (where a bun's front block meets the one behind, its tiers' steps; tools/bunov.py):
+  today ours lack them (bun_{L,R}_{view}_lines, ink_inside in the drawn bun with our ink: 0.65-1.0 FAIL in every view).
+  Traced from the design (geom.hairink bun set: the lines inside each drawn bun, off its outline 0.015 L) and laid on
+  the bun pieces: lab (bun veto by head-on views only, facing 0.9: our bun block isn't the drawn one exactly, so lines
+  from one view land off the others; without a veto the profile bun's side fills with other views' lines): L front /
+  3q / profile / back 0.009 / 0.254 / 0.269 / 0.059, R front / 3q / back 0.118 / 0.291 / 0.235, all PASS.
+- **(b) strays beyond the silhouette** (tools/strays.py: what an opening by a disk r 2 / 4 px cuts off the hair's
+  silhouette): the design's thin parts are the locks' sharp flick tips (front 28 pieces 0.81 L at r 4; profile 14),
+  plus the hooked flyaways under the buns: filled thin shapes with two outlines, not single-line strays. Nothing for the
+  line layer to build (the brief: the flicks are the geometry track's). Measured for the geometry track: ours in front
+  sticks out more at r 2 (0.306 L against the drawn 0.089: the flyaway blades, horizontal), and the profile has no tips
+  at all (0 against 14 pieces 0.34 L).
+- **(a) line weight and taper:** built (ribbons 0.0035 L against the outline's 0.0056 L, tapering to 0.15 over 60% of
+  their length; the head turnaround draws inner strokes thinner than the outline, tapered). A calibrated check needs
+  our head drawn at the head sheet's 400 px/L against the sheet's own strokes (the body sheet's 212 px/L can't resolve
+  1-2 px widths): pending (after the strokes gate).
+
+## Tones: today's reading (tools/tones.py on hst_base; shadow = value under the outfit graph's lit/shade midpoint)
+- Shadow IoU (inside both hairs, off the lines) F/3q/P/B 0.360/0.362/0.450/0.463; shadow share design 0.22/0.23/0.24/
+  0.21, ours 0.26/0.21/0.19/0.14. The drawn shadow: the lower halves of the locks, the back's hem lobes, the buns' lower
+  faces, a thin band under the bangs.
+- Highlights (value 0.06 over lit): design 0.004-0.009 L^2 per view (short pale marks on the crown), ours 0.002-0.015
+  (the streaks and the buns' diamond), IoU 0.000 in every view.
+
 ## Jobs
 - Box build `charkit/out/hst_s1` (619659c, render box, boards views,body,design): the first real strokes build (log
   charkit/out/hairstrokes/build_s1.log). Calibration on the lab build labb_v2: calib3.log (local).
