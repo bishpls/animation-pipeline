@@ -139,6 +139,43 @@ def test_detect_figures_on_the_sheet():
     assert all(r['ok'] for r in V.values()), V
 
 
+def merged_sheet():
+    """a misread sheet: one wide skin blob (the views joined, as a drawn ground line joins them) whose only iris-coloured
+    pair sits 200 px apart on a figure 100 px tall: the eye-spacing scale makes it 0.17 head lengths tall."""
+    im = np.ones((160, 460, 3)) * BG
+    im[30:130, 30:430] = SKIN
+    im[29, 30:430] = im[130, 30:430] = LINE
+    yy, xx = np.mgrid[0:160, 0:460].astype(float)
+    for x in (130, 330):
+        im[((xx - x) ** 2 + (yy - 40) ** 2) <= 25] = IRIS
+    return im
+
+
+def test_a_misread_scale_raises_instead_of_sizing_grids_at_it():
+    """the 68 GB hazard (2026-09-30): a sheet whose eyes were misread gave 3719 px/L and the QA's body grids at that scale
+    ran the build box to 68 GB. Calibrated: the synthetic sheet and Clawd's sheet (above) still scale; the merged one
+    raises; a measuring grid past faceqa.MAX_WINDOW_PX raises wherever it is sized (the design crop, the z-buffers)."""
+    import pytest
+    from charkit import bodyqa, faceqa
+    with pytest.raises(RuntimeError, match='implausible scale'):
+        sheetqa.detect_figures(merged_sheet())
+    im, _ = sheet(40.0)
+    assert sheetqa.detect_figures(im)['scale'] == 'eyes'                      # the good sheet scales by its eyes
+    a = np.zeros((1440, 2560), np.uint8)
+    assert bodyqa.crop(a, (300, 200), 212.0).shape == (1590, 975)             # Clawd's body window at her scale
+    with pytest.raises(RuntimeError, match='over the'):
+        bodyqa.crop(a, (300, 200), 3719.0)                                    # the misread scale's
+    with pytest.raises(RuntimeError, match='over the'):
+        faceqa.zbuffer_splat([], 0.0, (0.0, 0.0), 1.0, 1.0 / 3719.0, bodyqa.WIN)
+    try:
+        from charkit.geom import raster
+    except ImportError:                                                       # (numba: the venv)
+        return
+    assert raster.window_shape(1.0 / 212.0, bodyqa.WIN) == (975, 1590)
+    with pytest.raises(RuntimeError, match='over the'):
+        raster.window_shape(1.0 / 3719.0, bodyqa.WIN)
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

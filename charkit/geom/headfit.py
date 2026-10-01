@@ -94,7 +94,7 @@ def hidden_outline(spec, eye_x=0.168, facing=-1):
     import importlib
     fr = importlib.import_module('charkit.faceregion')
     refcheck = importlib.import_module('charkit.refcheck')
-    fs = spec['ref']['face_sheet']
+    fs = importlib.import_module('charkit.manifest').shape_sheet(spec, 'jaw')     # (the jaw's shape truth)
     views, ppl = fr.design_jaw_views(refcheck._load(fs['image']), eye_x, facing, which=('front',))
     cls = views['front']['cls']
     chin = fr.jaw_front(cls, ppl)['chin']
@@ -1082,7 +1082,8 @@ def build(spec, out, against=None, log=print):
     from . import io
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
-    fs = spec['ref']['face_sheet']
+    from charkit import manifest
+    fs = manifest.shape_sheet(spec, 'jaw')
     ex, fc = spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1)
     C = contours(refcheck._load(fs['image']), ex, fc, hidden=hidden_outline(spec, ex, fc) if HIDDEN else None)
     F = Face(C)

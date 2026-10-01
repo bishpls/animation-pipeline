@@ -1,7 +1,8 @@
 """Hair accessories and small props (docs/CHARKIT.md §2): meshes placed on the hair and oriented to it. Kinds: 'bun'
 (stacked rounded pads, the hair's own material), 'star' (a sparkle clip: n major points, optional minor points between
 them, curved edges, a raised faceted middle), 'crab' (a little crab clip: a flattened body, two raised notched claws,
-eyes on stalks, legs). charkit.accqa measures them against the design's clips, view by view.
+eyes on stalks, legs), 'crown' (a ring band with blades round its top and jewels: crown()), 'pin' (a round badge with a
+domed face, a rim and its emblem's cells: pin()). charkit.accqa measures the clips against the design's, view by view.
 
 An accessory spec:
   kind, size             size in L: a star's height tip to tip, a crab's body width, a bun pad's width
@@ -34,6 +35,10 @@ CRAB = dict(body_h=0.74, body_d=0.34, claw=0.58, claw_at=(0.62, 0.46), claw_long
 # (the clips-alone sheet's crab, read face-on by charkit.limbs in its body's width: claws 0.58 across at (0.62, 0.46),
 # a V notch 0.25 of their size deep; legs 0.11 thick reaching 0.25 off the body from its sides (roots at 15, -13 and
 # -28 degrees round it, pointing 25 to 55 degrees down); eyes 0.12 across on stalks 0.21 above the body)
+
+
+CROWN = dict(points=8, band=0.36, thick=0.03, point_w=0.55, lobe=0.3, jewels=8, jewel_r=0.035, flare=0.05, segs=96)
+PIN = dict(dome=0.12, rim=0.08, thick=0.06, segs=48)
 
 
 # ------------------------------------------------------------------------------------------------------------ helpers
@@ -497,7 +502,134 @@ def conform(w, Rm, outline, under, L, reach=0.1, clear=0.004):
     return w + Rm[:, 2][None] * lift[:, None], float(lift.max() / L)
 
 
-def generate(V, L, specs, ground=None, centre=None, with_mats=False):
+def crown(sh=None):
+    """a crown in L (placed by generate: its base ring's centre at the origin, up +z, the front toward -y): a band of
+    height `height` * `band` round an ellipse of outer radii rx (x) and ry (y), `thick` thick, flaring `flare` of its
+    radius wider at its top; `points` blades round its top edge (each `point_w` of the gap between points wide at its
+    base, with side lobes `lobe` up its height: a fleur's three-part outline), up to `height`; `jewels` hemispheres
+    round the band's middle, between the points, alternating two jewel materials.
+    -> (verts, faces, per-face material: 0 the metal, 1 and 2 the jewels)."""
+    K = dict(CROWN, **(sh or {}))
+    rx, ry, H = K['rx'], K['ry'], K['height']
+    hb, th, n, M = H * K['band'], K['thick'] * H, int(K['points']), int(K['segs'])
+    V, F, Mt = [], [], []
+
+    def ring(theta, z, inset=0.0):
+        g = 1 + K['flare'] * min(z, hb) / max(hb, 1e-9)          # (the blades rise straight from the band's top)
+        x, y = rx * g * np.sin(theta), -ry * g * np.cos(theta)
+        r = np.hypot(x, y) + 1e-12
+        return np.stack([x - inset * x / r, y - inset * y / r, np.full_like(theta, z)], -1)
+    th_ = np.linspace(0, 2 * np.pi, M, endpoint=False)
+    rows = [ring(th_, 0.0), ring(th_, hb), ring(th_, hb, th), ring(th_, 0.0, th)]   # outer bottom, top, inner top, bottom
+    for r_ in rows:
+        V += r_.tolist()
+    for a in range(4):
+        b = (a + 1) % 4
+        for k in range(M):
+            k2 = (k + 1) % M
+            F.append((a * M + k, a * M + k2, b * M + k2, b * M + k)); Mt.append(0)
+    # the points: a blade each (outer and inner faces, its sides), with side lobes
+    for i in range(n):
+        phi = 2 * np.pi * i / n
+        half = K['point_w'] * np.pi / n
+        t = np.array([phi - half, phi - 0.45 * half, phi, phi + 0.45 * half, phi + half])
+        zs = np.array([hb, hb + K['lobe'] * (H - hb) * 1.1, H, hb + K['lobe'] * (H - hb) * 1.1, hb])
+        o = np.array([ring(np.array([a]), z)[0] for a, z in zip(t, zs)])
+        inn = np.array([ring(np.array([a]), z, th)[0] for a, z in zip(t, zs)])
+        b0 = len(V)
+        V += o.tolist() + inn.tolist()
+        # the outline (the base, the lobes, the tip) as a fan from the base's middle on each face
+        base_o = len(V); V.append(ring(np.array([phi]), hb)[0].tolist())
+        base_i = len(V); V.append(ring(np.array([phi]), hb, th)[0].tolist())
+        for j in range(4):
+            F.append((base_o, b0 + j, b0 + j + 1)); Mt.append(0)
+            F.append((base_i, b0 + 5 + j + 1, b0 + 5 + j)); Mt.append(0)
+            F.append((b0 + j, b0 + 5 + j, b0 + 5 + j + 1, b0 + j + 1)); Mt.append(0)
+    # the jewels: low hemispheres on the band's outer face, between the points
+    for i in range(int(K['jewels'])):
+        phi = 2 * np.pi * (i + 0.5) / K['jewels']
+        c = ring(np.array([phi]), 0.5 * hb)[0]
+        nrm = c[:2] / (np.linalg.norm(c[:2]) + 1e-12)
+        nrm = np.array([nrm[0], nrm[1], 0.0])
+        up = np.array([0, 0, 1.0]); side = np.cross(up, nrm)
+        jr = K['jewel_r'] * H
+        b0 = len(V)
+        rings_ = 3; segs = 8
+        for a in range(rings_):
+            el = np.pi / 2 * a / rings_
+            for k in range(segs):
+                az = 2 * np.pi * k / segs
+                d = np.cos(el) * (np.cos(az) * side + np.sin(az) * up) + np.sin(el) * nrm
+                V.append((c + jr * d).tolist())
+        top = len(V); V.append((c + jr * nrm).tolist())
+        for a in range(rings_ - 1):
+            for k in range(segs):
+                k2 = (k + 1) % segs
+                F.append((b0 + a * segs + k, b0 + a * segs + k2, b0 + (a + 1) * segs + k2, b0 + (a + 1) * segs + k))
+                Mt.append(1 + i % 2)
+        for k in range(segs):
+            F.append((b0 + (rings_ - 1) * segs + k, b0 + (rings_ - 1) * segs + (k + 1) % segs, top)); Mt.append(1 + i % 2)
+    return np.asarray(V, float), F, np.asarray(Mt, np.int32)
+
+
+def pin(sh=None):
+    """a round pin-back badge in L, its back on z = 0 facing +z: a disc of radius r, `thick` of r thick, its face domed
+    `dome` of r, with a rim `rim` of r wide; `emblem` (optional): {'cells': rows of colour indices (0 none), 'colors'}
+    over the face, square cells raised a little (an image's pixels: the badge's own drawing).
+    -> (verts, faces, per-face material: 0 the face, 1 the rim, 2.. the emblem's colours)."""
+    K = dict(PIN, **(sh or {}))
+    r, M = K['r'], int(K['segs'])
+    t, dome, rimw = K['thick'] * r, K['dome'] * r, K['rim'] * r
+    a = np.linspace(0, 2 * np.pi, M, endpoint=False)
+    V, F, Mt = [], [], []
+    circ = lambda rr, z: np.stack([rr * np.cos(a), rr * np.sin(a), np.full(M, z)], -1)
+    rings = [(r, 0.0, 1), (r, t, 1), (r - rimw, t + 0.3 * dome, 0)]
+    for k in range(1, 5):                                     # the dome: rings rising to the centre
+        f = k / 5
+        rings.append(((r - rimw) * (1 - f), t + 0.3 * dome + dome * 0.7 * np.sin(f * np.pi / 2), 0))
+    for rr, z, _ in rings:
+        V += circ(rr, z).tolist()
+    for j in range(len(rings) - 1):
+        for k in range(M):
+            k2 = (k + 1) % M
+            F.append((j * M + k, j * M + k2, (j + 1) * M + k2, (j + 1) * M + k)); Mt.append(1 if j < 2 else 0)
+    c = len(V); V.append([0.0, 0.0, t + dome]); last = (len(rings) - 1) * M
+    for k in range(M):
+        F.append((last + k, last + (k + 1) % M, c)); Mt.append(0)
+    b = len(V); V.append([0.0, 0.0, 0.0])
+    for k in range(M):
+        F.append(((k + 1) % M, k, b)); Mt.append(1)
+    em = K.get('emblem')
+    if em and em.get('cells'):
+        C = np.asarray(em['cells'], int)
+        n = C.shape[0]
+        cell = 2 * (r - rimw) / n
+        for i in range(n):
+            for j in range(C.shape[1]):
+                if C[i, j] <= 0:
+                    continue
+                x0, y0 = -(r - rimw) + j * cell, (r - rimw) - (i + 1) * cell
+                if max(np.hypot(x0 + a_ * cell, y0 + b_ * cell) for a_ in (0, 1) for b_ in (0, 1)) > r - rimw:
+                    continue                                    # (only cells wholly on the face)
+                d = (x0 + cell / 2) ** 2 + (y0 + cell / 2) ** 2
+                z = t + 0.3 * dome + dome * 0.7 * np.sin(np.pi / 2 * (1 - np.sqrt(d) / (r - rimw))) + 0.004 * r
+                b0 = len(V)
+                V += [[x0, y0, z], [x0 + cell, y0, z], [x0 + cell, y0 + cell, z], [x0, y0 + cell, z]]
+                F.append((b0, b0 + 1, b0 + 2, b0 + 3)); Mt.append(1 + int(C[i, j]))
+    return np.asarray(V, float), F, np.asarray(Mt, np.int32)
+
+
+def from_eyes(s, L, head):
+    """a placement given from the eyes' middle ('from_eyes': [x, y, z] L, x her left, y toward her back, z up), the
+    head's frame -> world point. head: the assembly's head info (centre, L, H, eye_knobs)."""
+    c = np.asarray(head['centre'], float)
+    ez = c[2] + head['eye_knobs']['z'] * L
+    ey = c[1] - head['H'].df
+    d = np.asarray(s['from_eyes'], float) * L
+    return np.array([c[0], ey, ez]) + d
+
+
+def generate(V, L, specs, ground=None, centre=None, with_mats=False, head=None):
     """accessory meshes: list of (name, verts, faces, spec) (and per-face material indices with_mats: 0 the main
     colour, 1 a crab's eyes). V: the hair volume (charkit.hair.Volume; the buns', and any clip placed by az / el); ground:
     the hair's surfaces [(verts, faces)] in world, which the clips rest on (each clip then on the ones before it too);
@@ -547,6 +679,20 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
                 w = place(v, s, L, V, centre, G)
             if G is not None:
                 G.add(w, f)
+        elif k == 'crown':                                    # round the head, its base ring placed from the eyes
+            v, f, mats = crown(s.get('shape'))
+            Rm = _axes(np.array([0.0, -1.0, 0.0]) if not s.get('facing') else _dir(*s['facing']), 0.0)
+            base = from_eyes(s, L, head) if head is not None and s.get('from_eyes') is not None else \
+                np.asarray(centre, float) + np.asarray(s.get('at', (0, 0, 0.5)), float) * L
+            tilt = math.radians(s.get('tilt', 0.0))             # forward tilt about x
+            Rt = np.array([[1, 0, 0], [0, math.cos(tilt), -math.sin(tilt)], [0, math.sin(tilt), math.cos(tilt)]])
+            w = base + (v * L) @ Rt.T
+        elif k == 'pin':                                      # on a garment's surface: placed, not seated on hair
+            v, f, mats = pin(s.get('shape'))
+            p = from_eyes(s, L, head) if head is not None and s.get('from_eyes') is not None else \
+                np.asarray(centre, float) + np.asarray(s['at'], float) * L
+            Rm = _axes(_dir(*s.get('facing', (0.0, 0.0))), s.get('tilt', 0.0))
+            w = p + (v * L) @ Rm.T
         else:
             raise ValueError(k)
         rec = (s.get('name', f'{k}_{i}'), w, f, s)
@@ -574,10 +720,13 @@ def build(A, arm, V, specs, mats, ground=None):
     from . import character, shade
     L = A['head']['L']
     obs = []
-    for name, v, f, s, fm in generate(V, L, specs, ground=ground, centre=A['head']['centre'], with_mats=True):
+    for name, v, f, s, fm in generate(V, L, specs, ground=ground, centre=A['head']['centre'], with_mats=True,
+                                      head=A['head']):
         m = mats.get(s.get('material', s['kind'])) or shade.flat(name + '_mat', s.get('color', (0.9, 0.9, 0.9)))
         ms = [m]
-        if (fm > 0).any():
+        if s.get('colors'):                                   # a kind with several materials (a crown's jewels, a
+            ms += [shade.flat('%s_%d' % (name, j + 1), tuple(c)) for j, c in enumerate(s['colors'])]   # pin's emblem)
+        elif (fm > 0).any():
             ms.append(shade.flat(name + '_eyes', s.get('eye_color', (0.12, 0.07, 0.07))))
         ob = character._mesh(name, v, f, None, ms)
         for p, mi in zip(ob.data.polygons, fm):
@@ -588,6 +737,12 @@ def build(A, arm, V, specs, mats, ground=None):
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         bm.to_mesh(ob.data); bm.free()
         shade.outline(ob, thick=0.0010, color=s.get('line', (0.35, 0.16, 0.12)), name=f'{name}_line')
-        character._to_head(ob, arm)
+        if s.get('bone'):                                     # rides its bone (a pin on the chest), else the head
+            ob.parent = arm
+            g = ob.vertex_groups.new(name=s['bone'])
+            g.add(list(range(len(ob.data.vertices))), 1.0, 'REPLACE')
+            md = ob.modifiers.new('rig', 'ARMATURE'); md.object = arm
+        else:
+            character._to_head(ob, arm)
         obs.append(ob)
     return obs
