@@ -1,0 +1,99 @@
+{
+ "check": "hand_front_gaps_L",
+ "part": "hands",
+ "adapter": "Hands",
+ "module": "charkit.calib.hands",
+ "at": "2026-10-01T16:31:18",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "hand_shape_L",
+  "hand_shape_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "comb_hand",
+  "value": 0.1237,
+  "status": "FAIL"
+ },
+ "floor": {
+  "blob_hands": {
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.0,
+   "status": "PASS",
+   "passing": 5
+  }
+ },
+ "probes": {
+  "comb_hands": {
+   "value": 0.2962,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), comb_hand reads 0.1237 FAIL; a random stand-in passes it (blob_hands); shape guarded by hand_shape_L, hand_shape_R",
+ "build": "charkit/out/hands2_after_q",
+ "generators": {
+  "blob_hands": "each drawn hand replaced by the ellipse of its own area, centroid and second moments",
+  "comb_hands": "each drawn hand's fingers cut apart: three slits along the arm, 2 px wide, from 50% of its reach past the cuff to the tips, at quarters of its width there (de2fa87's comb of separate fingers)"
+ },
+ "seconds": 342.9
+}

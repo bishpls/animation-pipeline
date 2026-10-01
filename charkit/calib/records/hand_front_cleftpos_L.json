@@ -1,0 +1,119 @@
+{
+ "check": "hand_front_cleftpos_L",
+ "part": "hands",
+ "adapter": "Hands",
+ "module": "charkit.calib.hands",
+ "at": "2026-10-01T16:31:18",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hand_shape_L",
+  "hand_shape_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.0039,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.0039,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.0039,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.0039,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.0039,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.0039,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.0039,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.0039,
+    "PASS"
+   ]
+  },
+  "min": -0.0039,
+  "max": -0.0039,
+  "spread": 0.0,
+  "median": -0.0039
+ },
+ "known_bad": {
+  "name": "comb_hand",
+  "value": 0.092,
+  "status": "FAIL"
+ },
+ "floor": {
+  "stub_hands": {
+   "values": [
+    -0.4824,
+    -0.492,
+    -0.4701,
+    -0.4742,
+    -0.5158
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.4824,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "blob_hands": {
+   "values": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": null,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "comb_hands": {
+   "value": -0.1239,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": -0.0293,
+  "status": "PASS",
+  "margin": 0.947
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), comb_hand reads 0.092 FAIL, the floor stub_hands FAIL, blob_hands FAIL",
+ "build": "charkit/out/hands2_after_q",
+ "generators": {
+  "stub_hands": "each drawn hand cut off at 35-60% of its reach past the cuff",
+  "blob_hands": "each drawn hand replaced by the ellipse of its own area, centroid and second moments",
+  "comb_hands": "each drawn hand's fingers cut apart: three slits along the arm, 2 px wide, from 50% of its reach past the cuff to the tips, at quarters of its width there (de2fa87's comb of separate fingers)"
+ },
+ "seconds": 342.9
+}
