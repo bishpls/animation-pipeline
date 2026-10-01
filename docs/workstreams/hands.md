@@ -339,3 +339,30 @@ Dry calibration (`calibrate ... --build charkit/out/calib/cur_comb --no-write`, 
    close-ups), pregate, `python -m charkit remote gate tool/hands2 --into pipeline-3d`.
 - Box build `charkit/out/hands2_base` (pipeline-3d 71a2f0e, the before): **landed** after wrap-up (exit 0, boards
   body,design fetched; log charkit/out/hands2/base.log). Use it as the review page's before (hands_b4 has the same hand).
+
+## Round 5: the on-model hand (tool/hands2, relaunched 2026-10-01; coordinator brief)
+Merged pipeline-3d 00494de (f4781fe). Coordinator decisions: gaps and taper report-only only where the view can't show
+them, the reason recorded; cleftpos tightened, not loosened. The laptop is memory-critical (coordinator, mid-round):
+fits, builds and calibrations run on the boxes; local work is light (single evaluations, reading results).
+- **Checks scoped (4c76150):** handqa.EDGE_ON: gaps INFO in profile L (our fingers edge-on at rest A: the comb reads
+  0.023) and 3q R (the far hand, drawn 0.16 L across, comb 0); taper INFO in 3q R (the drawing itself ends square there,
+  0.70). cleftpos 0.06/0.12 -> 0.04/0.055. `wrist` (width at 5% of the reach over the widest) in the table, not graded.
+  Dry calibration vs comb_hand (calib_dry2.log): all 17 graded gaps/taper/cleftpos CALIBRATED (the comb's 3q L
+  cleftpos 0.059 now FAILs). The 3 INFO-only checks need no record (leave them out of `calibrate`).
+  Steps registered: charkit/steps/handqa.py ('hand_*' at c6aceaa and 4c76150).
+- **code_hand.cuff_end was stale:** pipeline-3d's cuff template (span, no t/width) put the cuff 0.31 L up the forearm
+  in the fit (reach errors 0.31). Fixed: span[1] - forearm length. The fit then reads the base hand as the QA does
+  (front L IoU 0.762 vs QA 0.761).
+- **Template rebuilt (code_hand.layout/digits):** the fingers tile the knuckle line (palm_w; neighbours overlap by
+  `overlap` of their width), their tips laid the same way at the tapered widths about the middle finger's (converging);
+  `spread` a fan beyond that (0 = held together); finger_w gone (derived). Thumb from near the wrist's radial edge
+  (0.3 wrist_w), its knobs (thumb_w, thumb_out, thumb_down, thumb_base, thumb_len to 0.46) all fitted. yaw/out fixed
+  (rest A). Fit.score adds the structure (gaps, taper, cleftpos, wrist: each over its PASS limit, x STRUCT 0.1, capped
+  at 3 units) and per-view IoU floors (`--floors`, FLOOR_W 5 per point under: the guard's intent). `charkit hand
+  fit|show` (cli) so fits run on the boxes; `--method de --workers N`.
+- fit1 (local Powell, before the floors; charkit/out/hands2/fit1.log, fit1.png): gaps 0 everywhere, taper 0.37-0.44 vs
+  drawn 0.40-0.48, cleftpos within 0.01-0.06, wrist 0.79 vs 0.78-0.84 (front/back); but IoU front 0.73/0.74, back
+  0.70/0.72, 3q 0.62/0.67, **profile 0.385** (the before's 0.49: the guard). diag/rotwidth.py: in front/back the widths
+  now track the drawn; a 9 deg turn gives 0.79-0.82 (the hand's angle: dev 0 gives front 0.79, dev -4 0.81).
+- Next: fit2 on the render box (DE + Powell, floors at 0.9 x the before's QA hand_shape views), then the spec, tests,
+  the box build, calibrate 'hand_*' on it (42 records minus the 3 INFO-only), review page, pregate, gate.

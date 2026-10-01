@@ -30,19 +30,20 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT = dict(
     length=0.66,          # L: the wrist joint to the middle fingertip
     palm=0.46,            # the palm's share of the length (the middle knuckle's distance from the wrist)
-    palm_w=0.2,           # L: the palm's width across the knuckles
-    wrist_w=0.13,         # L: its width at the wrist
+    palm_w=0.15,          # L: the palm's width across the knuckles (the fingers' span there: they tile it)
+    wrist_w=0.11,         # L: its width at the wrist (the drawn hands narrow to the wrist: 0.66-0.84 of their widest)
     palm_t=0.07,          # L: its thickness
-    finger_w=0.05,        # L: the middle finger's width at its knuckle
-    taper=0.7,            # a finger's width at its tip over its knuckle's
+    taper=0.6,            # a finger's width at its tip over its knuckle's
+    overlap=0.12,         # the share of a finger's width its neighbour overlaps (fingers held together: the drawn
+                          # relaxed hand shows no background between them, 0-0.01 of its span at the tips)
     fingers=(0.93, 1.0, 0.95, 0.78),    # index, middle, ring, little: lengths over the middle's
-    spread=3.0,           # degrees between neighbouring fingers (a fan about the middle)
+    spread=0.0,           # degrees each finger fans out from the middle's line beyond the touching layout (- closer)
     curl=6.0,             # degrees each finger joint bends toward the palm at rest (the drawn relaxed hand)
-    thumb_len=0.3,        # L: the thumb from its CMC to its tip
-    thumb_w=0.056,        # L: its width at its MCP
-    thumb_out=30.0,       # degrees the thumb opens from the hand's axis toward its side (radial)
-    thumb_down=35.0,      # degrees it turns toward the palm (opposition)
-    thumb_base=0.1,       # L: its CMC from the wrist along the hand
+    thumb_len=0.27,       # L: the thumb from its CMC to its tip
+    thumb_w=0.05,         # L: its width at its MCP
+    thumb_out=20.0,       # degrees the thumb opens from the hand's axis toward its side (radial; the drawn V cleft)
+    thumb_down=15.0,      # degrees it turns toward the palm (opposition)
+    thumb_base=0.06,      # L: its CMC from the wrist along the hand
     yaw=40.0,             # degrees the back of the hand turns from her side toward the viewer, about the forearm
     bend=0.0,             # degrees the hand bends at the wrist toward the palm (flexion; - extension)
     dev=0.0,              # degrees it bends toward the little finger's side (ulnar deviation; - radial)
@@ -50,18 +51,18 @@ DEFAULT = dict(
     line=1.0,             # the hand's outline width over the skin's (charkit.character.outline_weights): the drawn
                           # hands' finer line (their fill share, charkit/out/hands/ink.py)
 )
-FIT_KNOBS = ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'finger_w', 'taper', 'yaw', 'bend', 'dev', 'thumb_base',
-             'thumb_len', 'thumb_out', 'thumb_down', 'spread', 'curl')
-BOUNDS = dict(length=(0.45, 0.85), palm=(0.4, 0.52), palm_w=(0.14, 0.27), wrist_w=(0.09, 0.18),
-              palm_t=(0.045, 0.085), finger_w=(0.035, 0.062), taper=(0.55, 0.9), spread=(0.0, 12.0), curl=(0.0, 30.0),
-              thumb_len=(0.22, 0.38), thumb_w=(0.04, 0.075), thumb_out=(5.0, 70.0), thumb_down=(0.0, 70.0),
-              thumb_base=(0.04, 0.16), yaw=(-60.0, 110.0), bend=(-30.0, 30.0), dev=(-25.0, 25.0))
+# (rest orientation A, Michael 2026-09-30: yaw and out stay the joint fit's; tool/hands2 refits the shape only)
+FIT_KNOBS = ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'taper', 'overlap', 'spread', 'curl', 'bend', 'dev',
+             'thumb_base', 'thumb_len', 'thumb_w', 'thumb_out', 'thumb_down')
+BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.24), wrist_w=(0.07, 0.18),
+              palm_t=(0.04, 0.085), taper=(0.35, 0.9), overlap=(0.0, 0.35), spread=(-4.0, 8.0), curl=(0.0, 30.0),
+              thumb_len=(0.16, 0.46), thumb_w=(0.03, 0.085), thumb_out=(0.0, 60.0), thumb_down=(0.0, 60.0),
+              thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0))
 FINGERS = ('index', 'middle', 'ring', 'little')
 PHALANGES = (0.45, 0.3, 0.25)         # a finger's proximal, intermediate and distal shares of its length
 THUMB_BONES = (0.36, 0.36, 0.28)      # the thumb's metacarpal, proximal and distal shares
 WIDTH = (1.0, 1.03, 0.96, 0.84)       # index .. little: width over the middle's
 KNUCKLE_ARC = (0.035, 0.0, 0.03, 0.09)  # index .. little: the knuckle's setback from the middle's, over the palm's length
-ACROSS = (0.36, 0.12, -0.12, -0.36)   # index .. little: the knuckle across the palm, over its width (radial +)
 DEPTH = 0.86                          # a finger's section: its dorsal-palmar depth over its width
 JOINT_BLEND = 0.8                     # a finger's weight eases across a knuckle over this share of its radius each side
 INSET = 0.04                          # L: a finger's tube starts this far inside the palm, behind its knuckle
@@ -145,23 +146,45 @@ def _chain(base, R0, lengths, curls, spread_deg=0.0, out_deg=0.0, down_deg=0.0):
     return np.array(pts), frames
 
 
+def layout(P):
+    """the fingers held together (round 4, tool/hands2: de2fa87's four thin tubes fanned apart read as a comb): their
+    widths tiling the knuckle line (palm_w, neighbours overlapping by `overlap` of their width), and their tips laid
+    the same way at their tapered widths about the middle finger's, so each finger runs from its knuckle to its tip
+    beside its neighbours and the hand converges on the middle fingertip -> (widths at the knuckles, across at the
+    knuckles, across at the tips; radial +, L, from the hand's axis), each (4,)."""
+    o = P['overlap']
+    Wd = np.asarray(WIDTH, float)
+    pitch = lambda w: 0.5 * (w[:-1] + w[1:]) * (1 - o)          # neighbouring centres' distances
+    unit = 0.5 * (Wd[0] + Wd[-1]) + pitch(Wd).sum()
+    w0 = Wd * P['palm_w'] / unit                                 # the outer edges span the palm's knuckle width
+    c0 = np.r_[0.0, -np.cumsum(pitch(w0))]                       # index .. little, radial +
+    c0 -=0.5 * ((c0[0] + 0.5 * w0[0]) + (c0[-1] - 0.5 * w0[-1]))  # the span centred on the hand's axis
+    w1 = w0 * P['taper']
+    c1 = np.r_[0.0, -np.cumsum(pitch(w1))]
+    c1 += c0[1] - c1[1]                                          # about the middle finger's line
+    return w0, c0, c1
+
+
 def digits(W, R, P):
     """every digit's joints and segment frames -> {name: (joints (4, 3), frames, widths (base, tip))}."""
     ex, ey, ez = R[:, 0], R[:, 1], R[:, 2]
     palm_len = P['length'] * P['palm']
     fl = P['length'] - palm_len
+    w0, c0, c1 = layout(P)
     out = {}
     for i, name in enumerate(FINGERS):
-        base = W + ex * palm_len * (1 - KNUCKLE_ARC[i]) + ey * P['palm_w'] * ACROSS[i] + ez * 0.12 * P['palm_t']
+        base = W + ex * palm_len * (1 - KNUCKLE_ARC[i]) + ey * c0[i] + ez * 0.12 * P['palm_t']
         lens = [fl * P['fingers'][i] * s for s in PHALANGES]
-        J, F = _chain(base, R, lens, [P['curl']] * 3, spread_deg=P['spread'] * (1.3 - i))
-        w0 = P['finger_w'] * WIDTH[i]
-        out[name] = (J, F, (w0, w0 * P['taper']))
-    base = W + ex * P['thumb_base'] + ey * 0.42 * P['wrist_w'] - ez * 0.15 * P['palm_t']
+        # toward its tip's place beside its neighbours (the tips converge on the middle's), plus the spread's fan
+        conv = np.degrees(np.arctan2(c1[i] - c0[i], sum(lens)))
+        J, F = _chain(base, R, lens, [P['curl']] * 3, spread_deg=conv + P['spread'] * (1 - i))
+        out[name] = (J, F, (w0[i], w0[i] * P['taper']))
+    # the thumb: from its CMC inside the palm's radial edge near the wrist, opened out (radial) and toward the palm
+    base = W + ex * P['thumb_base'] + ey * 0.3 * P['wrist_w'] - ez * 0.15 * P['palm_t']
     lens = [P['thumb_len'] * s for s in THUMB_BONES]
     J, F = _chain(base, R, lens, [0.0, P['curl'] * 0.6, P['curl'] * 0.6], out_deg=P['thumb_out'],
                   down_deg=P['thumb_down'])
-    out['thumb'] = (J, F, (P['thumb_w'] * 1.15, P['thumb_w'] * P['taper']))
+    out['thumb'] = (J, F, (P['thumb_w'] * 1.15, P['thumb_w'] * max(P['taper'], 0.7)))
     return out
 
 
@@ -313,15 +336,25 @@ def cuff_end(H, side, J, spec=None):
     bone = side + 'LowerArm'
     for g in (spec or {}).get('garments') or []:
         if g.get('kind') == 'band' and g.get('bone') == bone:
+            if 'span' in g and 't' not in g:                  # the cuff template (garments.cuff): span L from the elbow
+                return float(g['span'][1] - n)
             return float((g.get('t', 0.5) - 1.0) * n + 0.5 * g.get('width', 0.08))
     C = H.points('cuff_' + ('L' if side == 'left' else 'R'))
     return float(np.percentile((C - J[2]) @ f, 98)) if len(C) else 0.06
 
 
+STRUCT = 0.1     # the fit's weight on each structure measure at its PASS limit (beside 1 - IoU and the reach / 0.1 L)
+STRUCT_CAP = 3.0 # a structure term's units are capped here (a FAIL either way; the deepest pocket can jump from one
+                 # pocket to another as a knob moves, and an uncapped jump steers the search)
+FLOOR_W = 5.0    # the cost of each IoU point under a view's floor (Fit.floors: the guard's intent inside the fit)
+
+
 class Fit:
     """the hand's knobs against the design's drawn hands: per view and side, the hand-check measures (handqa's
-    shape IoU laid on the centroids, reach past the cuff) of the template rendered with the QA's projection (the
-    hull's frame: the design's grids), the part past the cuff's far edge standing for what shows past our cuff."""
+    shape IoU laid on the centroids, reach past the cuff; and since round 4 the structure inside the silhouette the IoU
+    can't see: the fingertips' gaps, the taper to the fingertips, where the thumb's cleft lies, the wrist's narrowing)
+    of the template rendered with the QA's projection (the hull's frame: the design's grids), the part past the cuff's
+    far edge standing for what shows past our cuff."""
 
     def __init__(self, B, design, spec, hull_dir, graph_path):
         from . import bodymeasure, handqa
@@ -345,8 +378,11 @@ class Fit:
                     continue
                 h = handqa.hand_mask(fg & (cls == CLASS['skin']), m[:cls.shape[0], :cls.shape[1]], self.ppl)
                 if h is not None:
-                    self.drawn[(v, s)] = dict(mask=h['mask'], reach=handqa.reach(h, self.ppl), u=h['u'])
+                    self.drawn[(v, s)] = dict(mask=h['mask'], reach=handqa.reach(h, self.ppl), u=h['u'],
+                                              W=handqa.bands_across(h, self.ppl, handqa.PROFILE_BANDS)[0],
+                                              **self.structure(h))
         self.base = params(spec)
+        self.floors = None          # {view_side: IoU}: each view's shape IoU kept at least this (FLOOR_W per point under)
 
     def silhouettes(self, P, side):
         """the template's part past the cuff per view -> {view: (mask, reach L past the cuff along the drawn arm, the
@@ -378,71 +414,200 @@ class Fit:
             r = float(np.percentile((xs - cx) * d['u'][0] + (ys - cy) * d['u'][1], 99.5)) / self.ppl if len(ys) else 0.0
             u2, z2, _ = proj(np.array([J[1], J[2]]), az[v])                # the forearm's direction in the view
             uf = np.array([u2[1] - u2[0], -(z2[1] - z2[0])])
-            out[v] = (m, r, uf / max(np.linalg.norm(uf), 1e-9))
+            uf = uf / max(np.linalg.norm(uf), 1e-9)
+            out[v] = (m, r, uf, np.array([cx, cy]))
         return out
 
-    def score(self, P):
-        """-> (cost, per hand {key: (iou, reach error)}): 1 - IoU plus the reach error over 0.1 L, the mean over hands."""
+    def structure(self, h):
+        """handqa's structure measures of one hand (h: hand_mask's dict) -> dict(gaps, taper, cleft, cleft_at, wrist)."""
         from . import handqa
-        per, costs = {}, []
+        cd, _ = handqa.cleft(h['mask'], self.ppl)
+        return dict(gaps=handqa.gaps(h, self.ppl), taper=handqa.taper(h, self.ppl), cleft=cd,
+                    cleft_at=handqa.cleft_at(h['mask'], h, self.ppl), wrist=handqa.wrist(h, self.ppl))
+
+    def terms(self, d, f, view, side):
+        """one hand's structure against the drawn, each over its check's PASS limit (handqa.LIMITS; the wrist, not
+        graded, over 0.1), where the check grades it -> {name: (ours, design, cost units)}."""
+        from . import handqa
+        T = {}
+        for k in ('gaps', 'taper'):
+            if (view, side) in handqa.EDGE_ON.get(k, {}):
+                continue
+            x = f[k] - d[k]
+            T[k] = (f[k], d[k], (max(x, 0.0) if k == 'gaps' else abs(x)) / handqa.LIMITS[k][0])
+        if d['cleft'] >= handqa.CLEFT_MIN:
+            T['cleftpos'] = (f['cleft_at'], d['cleft_at'], 2.0 if f['cleft_at'] is None or d['cleft_at'] is None else
+                             abs(f['cleft_at'] - d['cleft_at']) / handqa.LIMITS['cleftpos'][0])
+        T['wrist'] = (f['wrist'], d['wrist'], abs(f['wrist'] - d['wrist']) / 0.1)
+        return T
+
+    def score(self, P, structure=True, detail=False):
+        """-> (cost, per hand {key: (iou, reach error)}): 1 - IoU plus the reach error over 0.1 L plus STRUCT times each
+        structure term (terms()), the mean over hands and views. detail: per {key: dict(iou, reach, terms)}."""
+        from . import handqa
+        per, costs, full = {}, [], {}
         for side in ('left', 'right'):
             got = self.silhouettes(P, side)
             S = 'L' if side == 'left' else 'R'
-            for v, (m, r, uf) in got.items():
+            for v, (m, r, uf, c) in got.items():
                 d = self.drawn[(v, S)]
                 iou = handqa.shape_iou(d['mask'], m, d['u'], uf) if m.any() else 0.0
                 per['%s_%s' % (v, S)] = (round(iou, 4), round(r - d['reach'], 4))
-                costs.append((1 - iou) + abs(r - d['reach']) / 0.1)
+                cost = (1 - iou) + abs(r - d['reach']) / 0.1
+                fl = (self.floors or {}).get('%s_%s' % (v, S))
+                if fl is not None:
+                    cost += FLOOR_W * max(0.0, fl - iou)
+                if structure or detail:
+                    T = self.terms(d, self.structure(dict(mask=m, c=c, u=uf, end=0.0)), v, S) if m.sum() > 50 else {}
+                    if structure:
+                        cost += STRUCT * sum(min(t[2], STRUCT_CAP) for t in T.values())
+                    full['%s_%s' % (v, S)] = dict(iou=round(iou, 4), reach=round(r - d['reach'], 4),
+                                                  terms={k: (None if a is None else round(a, 3),
+                                                             None if b is None else round(b, 3), round(u, 2))
+                                                         for k, (a, b, u) in T.items()})
+                costs.append(cost)
+        if detail:
+            return float(np.mean(costs)), full
         return float(np.mean(costs)), per
 
-    def run(self, knobs=FIT_KNOBS, rounds=3, log=print):
-        """Powell's method over the knobs within BOUNDS (scaled to their ranges), then a coordinate search at a fine step
-        -> (P, cost, per)."""
+    def run(self, knobs=FIT_KNOBS, rounds=3, log=print, method='powell', workers=1, seed=0, maxiter=40):
+        """Powell's method over the knobs within BOUNDS (scaled to their ranges), from the spec's knobs, `rounds` times
+        from the best so far; or method 'de': differential evolution over the box (scipy; `workers` processes, forked
+        with this fit), then Powell from its best -> (P, cost, per)."""
         from scipy.optimize import minimize
         P0 = dict(self.base)
         lo = np.array([BOUNDS[k][0] for k in knobs])
         hi = np.array([BOUNDS[k][1] for k in knobs])
         x0 = (np.clip([P0[k] for k in knobs], lo, hi) - lo) / (hi - lo)
         best = {'c': np.inf}
+        to_P = lambda x: dict(P0, **{k: float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1)) for i, k in enumerate(knobs)})
 
         def f(x):
-            P = dict(P0)
-            P.update({k: float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1)) for i, k in enumerate(knobs)})
+            P = to_P(x)
             c, per = self.score(P)
             if c < best['c']:
                 best.update(c=c, P=P, per=per)
             return c
         c0 = f(x0)
         log('start %.4f %s' % (c0, best['per']))
+        if method == 'de':
+            from scipy.optimize import differential_evolution
+            global _DE
+            _DE = (self, to_P)
+            pool = None
+            if workers > 1:
+                import multiprocessing as mp
+                pool = mp.get_context('fork').Pool(workers)
+            try:
+                res = differential_evolution(_de_cost, [(0, 1)] * len(knobs), x0=x0, seed=seed, maxiter=maxiter,
+                                             popsize=12, tol=1e-4, polish=False, init='sobol',
+                                             workers=pool.map if pool else 1, updating='deferred' if pool else 'immediate')
+            finally:
+                if pool:
+                    pool.close()
+            f(res.x)
+            log('de %.4f (%d evaluations) %s' % (best['c'], res.nfev, {k: round(best['P'][k], 4) for k in knobs}))
         for r in range(rounds):
-            res = minimize(f, x0 if r == 0 else (np.array([best['P'][k] for k in knobs]) - lo) / (hi - lo),
-                           method='Powell', bounds=[(0, 1)] * len(knobs),
+            xs = (np.array([best['P'][k] for k in knobs]) - lo) / (hi - lo)
+            res = minimize(f, xs, method='Powell', bounds=[(0, 1)] * len(knobs),
                            options=dict(xtol=0.01, ftol=1e-4, maxfev=400))
             log('round %d %.4f (%d evaluations) %s' % (r, best['c'], res.nfev,
                                                         {k: round(best['P'][k], 4) for k in knobs}))
         return best['P'], best['c'], best['per']
 
 
-def main(args):
-    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
-    if not args or args[0] != 'fit':
-        print(__doc__)
-        return 0
-    from . import bundle, manifest, qa3d
-    build = opt('--build')
-    B = bundle.load(os.path.join(build, 'bundle'))
+_DE = None
+
+
+def _de_cost(x):
+    """differential evolution's cost (module level, so forked workers reach the fit through _DE)."""
+    F, to_P = _DE
+    return F.score(to_P(x))[0]
+
+
+def _fit_for(build, spec_path, over=None):
+    from . import calibrate, manifest, qa3d
+    B = calibrate.load_bundle(build)
     D = qa3d.Design(B)
-    spec_path = opt('--write') or opt('--spec') or os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')
     spec = json.load(open(spec_path))
+    if over:
+        spec.setdefault('body', {}).setdefault('hand', {}).update(over)
     hull = manifest.produced(B.spec, 'hull')
     masks = manifest.produced(B.spec, 'outfit_masks')
-    F = Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json'))
-    P, c, per = F.run(rounds=int(opt('--rounds', 3)))
-    print(json.dumps(dict(cost=round(c, 4), per=per, knobs={k: (round(v, 4) if isinstance(v, float) else v)
-                                                              for k, v in P.items()}), indent=1))
+    return Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json')), spec
+
+
+def show(F, P, out):
+    """a picture of the template against the drawn hands: per view and side the drawn hand (grey) with ours (red
+    outline) turned to the drawn arm and laid on the centroids, as hand_shape lays them; the IoU and the structure
+    terms (ours / drawn) under each -> the path."""
+    from PIL import Image, ImageDraw
+    from scipy import ndimage
+    from . import handqa
+    _, full = F.score(P, detail=True)
+    tiles = []
+    for side in ('left', 'right'):
+        S = 'L' if side == 'left' else 'R'
+        for v, (m, r, uf, c) in F.silhouettes(P, side).items():
+            d = F.drawn[(v, S)]
+            A, Bm = handqa.aligned_pair(d['mask'], handqa.rotated(m, uf, d['u']))
+            img = np.full(A.shape + (3,), 255, np.uint8)
+            img[A] = (175, 175, 175)
+            img[Bm & ~ndimage.binary_erosion(Bm)] = (220, 30, 30)
+            img = np.kron(img, np.ones((3, 3, 1), np.uint8))
+            k = '%s_%s' % (v, S)
+            lines = ['%s IoU %.3f reach %+.3f' % (k, full[k]['iou'], full[k]['reach'])]
+            lines += ['%s %s / %s' % (n, a, b) for n, (a, b, _) in full[k]['terms'].items()]
+            canvas = np.full((img.shape[0] + 12 * len(lines) + 4, max(img.shape[1], 190), 3), 255, np.uint8)
+            canvas[:img.shape[0], :img.shape[1]] = img
+            im = Image.fromarray(canvas)
+            for i, t in enumerate(lines):
+                ImageDraw.Draw(im).text((2, img.shape[0] + 2 + 12 * i), t, fill=(0, 0, 0))
+            tiles.append(np.asarray(im))
+    H = max(t.shape[0] for t in tiles)
+    row = np.concatenate([np.pad(t, ((0, H - t.shape[0]), (0, 8), (0, 0)), constant_values=255) for t in tiles], 1)
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    Image.fromarray(row).save(out)
+    return out
+
+
+def main(args):
+    """python -m charkit.code_hand fit --build B [--spec S | --write S] [--rounds N] [--over JSON] [--knobs a,b]
+                                        [--png P] [--json J] [--floors JSON] [--method de --workers N --maxiter N]
+       python -m charkit.code_hand show --build B [--spec S] [--over JSON] --out PNG    (the template vs the drawn)"""
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    if not args or args[0] not in ('fit', 'show'):
+        print(__doc__)
+        return 0
+    spec_path = opt('--write') or opt('--spec') or os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')
+    over = json.loads(opt('--over')) if opt('--over') else None
+    F, spec = _fit_for(opt('--build'), spec_path, over)
+    if opt('--floors'):
+        F.floors = json.loads(opt('--floors'))
+    if args[0] == 'show':
+        c, full = F.score(F.base, detail=True)
+        print(json.dumps(dict(cost=round(c, 4), per=full), indent=1))
+        print(show(F, F.base, opt('--out', 'hand_fit.png')))
+        return 0
+    knobs = tuple(opt('--knobs').split(',')) if opt('--knobs') else FIT_KNOBS
+    if opt('--floors'):
+        F.floors = json.loads(opt('--floors'))
+    P, c, per = F.run(knobs=knobs, rounds=int(opt('--rounds', 3)), log=lambda *a, **k: print(*a, flush=True),
+                      method=opt('--method', 'powell'), workers=int(opt('--workers', 1)), seed=int(opt('--seed', 0)),
+                      maxiter=int(opt('--maxiter', 40)))
+    c, full = F.score(P, detail=True)
+    res = dict(cost=round(c, 4), per=full, knobs={k: (round(v, 4) if isinstance(v, float) else v) for k, v in P.items()},
+               fist=fist_report(hand(F.J['left'], 'left', P)))
+    print(json.dumps(res, indent=1))
+    if opt('--json'):
+        os.makedirs(os.path.dirname(os.path.abspath(opt('--json'))), exist_ok=True)
+        json.dump(res, open(opt('--json'), 'w'), indent=1)
+    if opt('--png'):
+        print(show(F, P, opt('--png')))
     if opt('--write'):
+        spec = json.load(open(spec_path))
         spec.setdefault('body', {})['hand'] = {k: (round(P[k], 4) if isinstance(P[k], float) else list(P[k]))
-                                               for k in P}
+                                               for k in DEFAULT if k in P}
         json.dump(spec, open(spec_path, 'w'), indent=1)
         print('wrote body.hand into %s' % spec_path)
     return 0
@@ -493,22 +658,25 @@ def ring_area(ring):
 def fist_report(H_, curl=80.0, thumb=40.0):
     """the fist's numbers: per finger the knuckle loops' smallest area over its rest area (the volume kept at the
     bends), and the interpenetration between neighbouring fingers (each posed ring's points inside the neighbour's
-    posed tube: their share, and the deepest, L) -> dict."""
+    posed tube: their share, and the deepest, L), at rest too (`rest_overlap`: since round 4 the fingers are held
+    together, overlapping by `overlap` of their width) -> dict."""
     from scipy.spatial import cKDTree
     posed = curl_pose(H_, curl, thumb)
-    rep = {'curl': curl, 'thumb': thumb, 'knuckle_area': {}, 'overlap': {}}
+    rep = {'curl': curl, 'thumb': thumb, 'knuckle_area': {}, 'overlap': {}, 'rest_overlap': {}}
     for name in FINGERS + ('thumb',):
         rest, now = H_['parts'][name][0], posed[name]
         ratios = [ring_area(now[i]) / max(ring_area(rest[i]), 1e-12) for i in range(len(rest))]
         rep['knuckle_area'][name] = round(float(min(ratios)), 3)
-    for a, b in zip(FINGERS[:-1], FINGERS[1:]):
-        A, Bp = posed[a], posed[b]
-        cb, rb = Bp.mean(1), np.linalg.norm(Bp - Bp.mean(1)[:, None], axis=2).mean(1)
-        tree = cKDTree(cb)
-        P = A.reshape(-1, 3)
-        d, i = tree.query(P)
-        depth = rb[i] - np.linalg.norm(P - cb[i], axis=1)
-        inside = depth > 0
-        rep['overlap']['%s/%s' % (a, b)] = dict(share=round(float(inside.mean()), 3),
-                                                deepest=round(float(depth.max()), 4))
+    rest = {n: H_['parts'][n][0] for n in FINGERS}
+    for key, got in (('overlap', posed), ('rest_overlap', rest)):
+        for a, b in zip(FINGERS[:-1], FINGERS[1:]):
+            A, Bp = got[a], got[b]
+            cb, rb = Bp.mean(1), np.linalg.norm(Bp - Bp.mean(1)[:, None], axis=2).mean(1)
+            tree = cKDTree(cb)
+            P = A.reshape(-1, 3)
+            d, i = tree.query(P)
+            depth = rb[i] - np.linalg.norm(P - cb[i], axis=1)
+            inside = depth > 0
+            rep[key]['%s/%s' % (a, b)] = dict(share=round(float(inside.mean()), 3),
+                                              deepest=round(float(max(depth.max(), 0.0)), 4))
     return rep

@@ -69,6 +69,60 @@ def test_the_hands_mirror():
         assert np.allclose(A[1], B[1]) and np.allclose(A[1].sum(1), 1)
 
 
+def test_weights_valid_on_every_finger_bone():
+    """each part's rings' weights sum to 1 and every one of the 15 finger bones per hand (30 in all) carries weight."""
+    bones = set()
+    for side, H in _hands().items():
+        for name in ch.PARTS:
+            rings, Wt, B = H['parts'][name]
+            assert len(Wt) == len(rings) and np.allclose(Wt.sum(1), 1), (side, name)
+            bones |= {b for i, b in enumerate(B) if Wt[:, i].max() > 0.5 and 'Hand' not in b}
+    assert len(bones) == 30, sorted(bones)
+
+
+def test_fingers_held_together():
+    """neighbouring fingers touch along their length (round 4: de2fa87's four tubes fanned apart read as a comb, the
+    fingertips' gaps 0.11-0.18 of the hand's span where the drawn hands show none): across the hand (the palm's plane),
+    the centre lines' distance at every station of the shorter finger is at most the two radii's sum, and the
+    fingertips converge (the tips' span narrower than the knuckles')."""
+    P = ch.params(json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json'))))
+    for side, H in _hands().items():
+        W, R = H['frame']
+        D = H['digits']
+        for a, b in zip(ch.FINGERS[:-1], ch.FINGERS[1:]):
+            (Ja, _, wa), (Jb, _, wb) = D[a], D[b]
+            for f in np.linspace(0.05, 0.95, 10):
+                pa = np.array([np.interp(f, np.linspace(0, 1, 4), Ja[:, k]) for k in range(3)])
+                pb = np.array([np.interp(f, np.linspace(0, 1, 4), Jb[:, k]) for k in range(3)])
+                gap = abs((pa - pb) @ R[:, 1])
+                ra = 0.5 * (wa[0] + (wa[1] - wa[0]) * f)
+                rb = 0.5 * (wb[0] + (wb[1] - wb[0]) * f)
+                assert gap <= ra + rb + 1e-6, (side, a, b, f, gap, ra + rb)
+        across = lambda k: [D[n][0][k] @ R[:, 1] for n in ch.FINGERS]
+        assert np.ptp(across(3)) < np.ptp(across(0)), side
+
+
+def test_the_thumb_opens():
+    """the thumb is its own prong (round 4: a nub folded against the palm, the drawn V cleft missing): its tip lies
+    outside the palm's radial edge."""
+    P = ch.params(json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json'))))
+    for side, H in _hands().items():
+        W, R = H['frame']
+        tip = H['digits']['thumb'][0][-1]
+        assert (tip - W) @ R[:, 1] > 0.5 * P['palm_w'], side
+
+
+def test_fist_precheck():
+    """a fist (80 deg per finger joint, the thumb 40) keeps the knuckle loops' section (>= 0.7 of rest) and adds
+    little interpenetration between neighbours beyond what they share at rest (held together, overlapping by
+    `overlap` of their width)."""
+    for side, H in _hands().items():
+        rep = ch.fist_report(H)
+        assert min(rep['knuckle_area'].values()) >= 0.7, rep['knuckle_area']
+        for k, v in rep['overlap'].items():
+            assert v['deepest'] <= rep['rest_overlap'][k]['deepest'] + 0.006, (k, v, rep['rest_overlap'][k])
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
