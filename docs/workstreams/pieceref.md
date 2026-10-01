@@ -333,6 +333,21 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      knot), `ribbon.back` (L: the tails' tops set back toward the loops), `pleat.tuck` [sizes, u-width] (the strip's
      lower half forward by the knot), `clear.mode 'column'` (`clear_column`: the lobes moved toward the camera by one
      smoothed offset per column, measured at the lower rim against the jacket's rendered front `below` under it).
+     Also `pleat.strip_ov` (the strip's top higher behind the panel; the panel's edge kept). Committed 6671831d with
+     tests (test_bow_pleat.py: root rows inside the knot and nothing else moved, tuck, strip_ov).
+
+     | run (splice on pr3; w4 +) | bow torn F/3q/P | collar_front_torn | knot iou/rect | piece_bow F/3q/P | lobes F L/R, 3q L/R, P | iso body |
+     |---|---|---|---|---|---|---|
+     | sw_w4 (= pr3) | 0.0155 F/0.0207 F/0.0306 F | 0.0033 F (3 frag) | 1.0 / 0.270 W | 0.951/0.852/0.685 | .989/.980, .834/.887, .894 | (0.810 box) |
+     | t1 root .08 (unpinned) | 0.0031 P/0.0229 F/0.0384 F | 0.0018 W | 0.6 F / 0.404 F | same | | 0.772 |
+     | t2 t1 + tuck [.04,.3] | 0.0031 P/0.0228 F/0.0 P | 0.0018 W | 0.6 F / 0.404 F | same | | 0.772 |
+     | t4 root pinned + tuck | 0.0031 P/0.0228 F/0.0 P | 0.0018 W | 1.0 / 0.270 W | same | .989/.980, .838/.887, .894 | 0.799 W |
+     | t6/t7 strip_ov .04/.07 alone | 0.0153 F/0.0153-0.013 F/0.03 F | 0.0033 F | | same | | 0.81 |
+     | t8 t4 + strip_ov .07 | 0.0042 W/0.0037 P/0.0 P | 0.0018 W | 1.0 / 0.270 W | 0.951/0.853/0.685 | .989/.980, .839/.889, .897 | 0.800 W |
+     | **t9** root .155 + tuck + strip_ov .07 | **0.0015 P/0.0037 P/0.0 P** | **0.0017 P** (0 frag) | 1.0 / 0.294 W | 0.951/0.853/0.685 | .990/.980, .841/.888, .897 | 0.792 W |
+
+     t9 also: knot_line 0 P, crease len 0.23 P / dir 16.4 W, loop_end 0.123 P, thick 0.042 W, lean 4.5 P, hang 0 P,
+     reach 0.033 W, ribbon 0 P. (zsh doesn't split an unquoted variable: pass sets literally or via `batch5.sh`, bash.)
 
 ## Next steps (round 5)
 1. The new FAILs from the pleated bow: the bow's torn outline (round the square upper corners, the strips' ends; measure
