@@ -268,7 +268,7 @@ def qa(bundle, parts=None, top_n=25, out=None, profile='full', log=print):
     for P in registry.parts():
         if parts and P.name not in parts:
             continue
-        if P.name in qa3d.skipped_by(profile):
+        if P.name in getattr(qa3d, 'skipped_by', lambda p: set())(profile):
             res[P.name] = dict(skipped='profile %s' % profile)
             continue
         pr = cProfile.Profile()

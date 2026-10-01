@@ -8,6 +8,7 @@
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl] [--no-time]  # a build's state log, or what changed
+    python -m charkit profile BUILD [--vs OTHER] | qa BUNDLE [--parts ..]   # a build's wall and CPU by stage (charkit/profile.py)
     python -m charkit worker start | stop | status                  # a live Blender that takes build jobs
     python -m charkit cache [info | clear]                          # the build cache (charkit/out/.cache)
     python -m charkit gate BRANCH [--into REF] [--args "--base anime"] # what merging BRANCH would do, measured first
@@ -836,6 +837,9 @@ def main(argv=None):
     elif cmd == 'trace':
         from . import trace
         trace.main(rest)
+    elif cmd == 'profile':
+        from . import profile
+        raise SystemExit(profile.main(rest))
     elif cmd == 'export':
         export(rest)
     elif cmd == 'bodyeval':
