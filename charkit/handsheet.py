@@ -591,3 +591,175 @@ def _cuff_c(d):
     s = xs * u[0] + ys * u[1]
     i = np.argmin(s)
     return np.array([xs[i], ys[i]], float)
+
+
+# ------------------------------------------------------------------- landmarks (Michael, 2026-10-01: thumb excluded)
+# The palm's width read as the silhouette's full width across the arm counted the thumb wherever it crossed the line
+# (the relaxed back-of-hand views) and not where it lay tucked edge-on (the turnaround's front and back): a thumb-pose
+# artefact, not a palm. The hand engine is built from fixed structural ratios read off landmarks, and posed drawings
+# only validate poses. Landmarks:
+#   webs        the clefts between neighbouring fingers (index/middle, middle/ring, ring/little): on an open hand the
+#               silhouette's, on a closed one the proximal ends of the drawn lines between the fingers
+#   MCP line    the line through the webs (the metacarpal heads' row; anime-simplified: at the webs)
+#   MCP span    the palm's width there, index's outer edge to the little finger's (the open hand: the silhouette's run
+#               along the MCP line, the thumb parted above it), or 4 x the webs' mean spacing (any hand: the fingers
+#               tile the knuckle row, so the spacing doesn't see the thumb)
+#   wrist       the narrowest width along the arm between the cuff's edge and the MCP line's first quarter
+#   palm length the wrist's middle to the middle finger's MCP (the middle of its two webs)
+#   thumb web   the thumb's cleft (the open hand's deepest, beside the thumb): its share of the palm length
+
+
+def _run_along(m, p, d, step=0.5):
+    """the mask's run along direction d through point p (or the run nearest p) -> (a, b) points, or None."""
+    H, W = m.shape
+    ts = np.arange(-max(H, W), max(H, W), step)
+    pts = p[None] + ts[:, None] * d[None]
+    xi, yi = np.round(pts[:, 0]).astype(int), np.round(pts[:, 1]).astype(int)
+    ok = (xi >= 0) & (xi < W) & (yi >= 0) & (yi < H)
+    inside = np.zeros(len(ts), bool)
+    inside[ok] = m[yi[ok], xi[ok]]
+    if not inside.any():
+        return None
+    i0 = int(np.argmin(np.abs(ts)))
+    if not inside[i0]:
+        idx = np.nonzero(inside)[0]
+        i0 = idx[np.argmin(np.abs(idx - i0))]
+    a = i0
+    while a > 0 and inside[a - 1]:
+        a -= 1
+    b = i0
+    while b < len(ts) - 1 and inside[b + 1]:
+        b += 1
+    return pts[a], pts[b]
+
+
+def web_lines(h, line, min_len=0.08, start=0.35):
+    """a closed hand's webs from its drawn lines: the line pixels inside the hand (its outline's band left out),
+    skeletonized, each piece at least min_len of the reach long, running within 35 deg of the arm, starting past
+    `start` of the reach (a line from nearer the wrist is the thumb's edge) -> [(x, y)] its proximal ends."""
+    from scipy import ndimage
+    from skimage.morphology import skeletonize
+    m, c, u, ppl = h['mask'], np.asarray(h['c'], float), np.asarray(h['u'], float), h['ppl']
+    r = handqa.reach(h, ppl) * ppl
+    full = ndimage.binary_fill_holes(ndimage.binary_closing(m | line, iterations=3))
+    inner = ndimage.binary_erosion(full, iterations=max(2, int(0.025 * r)))
+    sk = skeletonize(line & inner)
+    lab, n = ndimage.label(sk, structure=np.ones((3, 3)))
+    wrist = c + u * h['end'] * ppl
+    out = []
+    for k in range(1, n + 1):
+        ys, xs = np.nonzero(lab == k)
+        if len(ys) < min_len * r:
+            continue
+        P = np.c_[xs, ys].astype(float)
+        s = (P - wrist) @ u
+        w_, U = np.linalg.eigh(np.cov((P - P.mean(0)).T))
+        ax = U[:, np.argmax(w_)]
+        if abs(ax @ u) < np.cos(np.radians(35)):
+            continue
+        i = int(np.argmin(s))
+        if s[i] < start * r:
+            continue
+        out.append(P[i])
+    # one web per drawn line: pieces whose starts lie within 0.04 of the reach across the arm are one line (a finger
+    # line broken by a crease); its most proximal start kept
+    acr = np.array([-u[1], u[0]])
+    out = sorted(out, key=lambda p: float((p - wrist) @ acr))
+    merged = []
+    for p in out:
+        if merged and abs(float((p - merged[-1][-1]) @ acr)) < 0.04 * r:
+            merged[-1].append(p)
+        else:
+            merged.append([p])
+    return [min(g, key=lambda q: float((q - wrist) @ u)) for g in merged]
+
+
+def landmarks(h, line=None, open_hand=None):
+    """the hand's landmarks and ratios (see above) -> dict(webs, mcp_s (the MCP line's share of the reach along the
+    arm), mcp_span_run (the open hand's run, share of the reach), mcp_span_est (4 x the webs' spacing), wrist_w, palm_len,
+    ratios {span_over_len (run, est), wrist_over_span, ...}, thumb_web (share of palm_len), fingers [length over palm_len,
+    base width over span]). open_hand: digits() of an open hand (its clefts as webs); else the drawn lines'."""
+    m, c, u, ppl = h['mask'], np.asarray(h['c'], float), np.asarray(h['u'], float), h['ppl']
+    r = handqa.reach(h, ppl) * ppl
+    wrist0 = c + u * h['end'] * ppl
+    acr = np.array([-u[1], u[0]])
+    out = dict(reach_px=r)
+    thumb_web = None
+    if open_hand is not None:
+        D = open_hand
+        # the webs: the clefts between the four fingers (all but the thumb's: the cleft beside the digit turned
+        # furthest toward the thumb's side, the largest angle)
+        dg = sorted(D['digits'], key=lambda d: d['angle'])
+        thumb = dg[-1]
+        cl = [np.asarray(k) for k in D['clefts']]
+        tw = min(cl, key=lambda k: np.linalg.norm(k - thumb['cleft'])) if cl else None
+        webs = [k for k in cl if tw is None or np.linalg.norm(k - tw) > 1]
+        thumb_web = tw
+        out['fingers_open'] = dg[:-1]
+        out['thumb_open'] = thumb
+    else:
+        webs = web_lines(h, line) if line is not None else []
+    webs = sorted(webs, key=lambda p: float((p - wrist0) @ acr))
+    out['webs'] = [tuple(np.round(p, 1)) for p in webs]
+    if len(webs) < 2:
+        out['why'] = 'fewer than two webs visible'
+        return out
+    W_ = np.array(webs)
+    s_w = (W_ - wrist0) @ u
+    t_w = (W_ - wrist0) @ acr
+    # the MCP line: through the webs (a least-squares line, its direction near the across axis)
+    A = np.c_[t_w, np.ones(len(t_w))]
+    k_, b_ = np.linalg.lstsq(A, s_w, rcond=None)[0]
+    d = acr + u * k_
+    d /= np.linalg.norm(d)
+    mid = wrist0 + acr * t_w.mean() + u * (k_ * t_w.mean() + b_)
+    spacing = float(np.mean(np.diff(np.sort(t_w)))) if len(t_w) >= 2 else None
+    out['mcp_s'] = float((mid - wrist0) @ u) / r
+    out['mcp_span_est'] = 4.0 * spacing / r if spacing else None
+    if open_hand is not None:
+        run = _run_along(m, mid - u * 0.02 * r, d)
+        if run is not None:
+            out['mcp_span_run'] = float(np.linalg.norm(run[1] - run[0])) / r
+            out['mcp_run_pts'] = (tuple(run[0]), tuple(run[1]))
+    # the middle finger's MCP: between the two webs nearest the hand's middle (the middle finger's)
+    order = np.argsort(t_w)
+    if len(webs) >= 3:
+        j = order[len(order) // 2]
+        i = order[len(order) // 2 - 1]
+        mcp_mid = 0.5 * (W_[i] + W_[j])
+    else:
+        mcp_mid = W_.mean(0)
+    # the wrist: the narrowest run across the arm between the cuff's edge and a quarter of the way to the MCP line
+    s_mcp = float((mcp_mid - wrist0) @ u)
+    best = None
+    for s in np.linspace(0.0, 0.25 * s_mcp, 12):
+        p = wrist0 + u * (s + 1.0)
+        run = _run_along(m, p, acr)
+        if run is None:
+            continue
+        w = float(np.linalg.norm(run[1] - run[0]))
+        if best is None or w < best[0]:
+            best = (w, 0.5 * (run[0] + run[1]), run)
+    if best is None:
+        out['why'] = 'no wrist'
+        return out
+    out['wrist_w'] = best[0] / r
+    out['wrist_pts'] = (tuple(best[2][0]), tuple(best[2][1]))
+    palm_len = float(np.linalg.norm(mcp_mid - best[1]))
+    out['palm_len'] = palm_len / r
+    out['mcp_mid'] = tuple(mcp_mid)
+    out['wrist_mid'] = tuple(best[1])
+    R_ = dict(span_est_over_len=(out['mcp_span_est'] * r / palm_len) if out.get('mcp_span_est') else None,
+              wrist_over_len=best[0] / palm_len)
+    if out.get('mcp_span_run'):
+        R_['span_run_over_len'] = out['mcp_span_run'] * r / palm_len
+        R_['wrist_over_span_run'] = best[0] / (out['mcp_span_run'] * r)
+    if thumb_web is not None:
+        R_['thumb_web_over_len'] = float((thumb_web - best[1]) @ u) / palm_len
+    if open_hand is not None:
+        R_['fingers_over_len'] = [round(f['length'] * r / palm_len, 3) for f in out['fingers_open']]
+        R_['finger_base_w_over_len'] = [round(f['widths'][0] * r / palm_len, 3) for f in out['fingers_open']]
+        R_['thumb_len_over_len'] = out['thumb_open']['length'] * r / palm_len
+        R_['thumb_base_w_over_len'] = out['thumb_open']['widths'][0] * r / palm_len
+    out['ratios'] = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in R_.items()}
+    return out

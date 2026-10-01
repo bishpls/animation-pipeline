@@ -499,3 +499,36 @@ hands2 | hands3, per pose and view; 3q rest close-ups), calibrate, pregate --box
   fit` on the final rest (poses per row); the review page (sheet | comb | hands2 | hands3 per pose and view, 3q rest
   close-ups); calibrate fingerlines_* (5 records) on the after-build; pregate --box auto; gate. The hands-only ink colour
   (a per-vertex outline ink: Blender line material, export attribute, our renderer, look.js) stays in what's left.
+
+### Reframing (Michael, 2026-10-01, after the palm page): fixed structural ratios from landmarks; poses only validate
+The palm page's widths were wrong: handsheet.palm_line took the silhouette's full width across the arm at 0.494 of the
+reach, so a thumb crossing the line (the relaxed back-of-hand views) counted as palm, and one tucked edge-on (the
+turnaround's front and back) didn't: the "disagreement" was thumb pose. Using posed hands as structural references is
+fraught. **The hand engine is built from fixed structural ratios read off landmarks (thumb excluded), and posed
+drawings only validate poses** (joint angles; IoU after posing is a check, not the structure's fit). Addendum: every
+finger's three segments and the thumb's (metacarpal from its CMC near the wrist, proximal, distal) as ratios of the
+palm length, measured along the joint chain on the open hand (never as projected extents in posed drawings); a
+standard-ratio prior per style profile (middle > ring ~ index > little; segments ~1 : 0.6 : 0.45; the thumb reaching
+about the index's first joint adducted; anime slimmer and longer) as the default and sanity range: a character without a
+hand sheet gets the profile's defaults scaled to its turnaround, one with a sheet refines them from its open hand; the
+measure works from the wrist width too (c3's sheet can't be scaled by Clawd's cuffs). The superseded: palm_compare's
+palm_line, JointFit's silhouette-IoU structure fit (kept as tools, not the structure's source).
+- **Step 1 (landmarks, charkit/handsheet.py landmarks/web_lines; probe charkit/out/hands3/landmarks_probe.py, picture
+  landmarks.png, numbers landmarks.json).** The sheet's OPEN hand (every landmark visible: the three finger webs = the
+  silhouette's clefts): MCP span 1.064 cuff widths (the run along the MCP line, index's outer edge to the little's) /
+  1.029 (4 x the webs' spacing); palm length (the cuff's edge to the middle MCP) 1.109; span / palm length 0.96 / 0.93;
+  wrist at the cuff's edge 0.416 (0.375 of the palm length, 0.39 of the span); fingers MCP to tip over the palm length
+  little 0.715, ring 0.827, middle 0.920, index 0.843; base widths 0.17-0.20 of it; the thumb's web at 0.74 of the palm
+  length from the wrist, the thumb from its web 0.59, base width 0.22. Closed hands (webs from the drawn finger lines'
+  starts): the turnaround's front L/R and back R show one line each (not measurable), back L two (0.51 cuff widths:
+  not neighbouring lines), three-quarter L two (0.98), profile L three (0.82); the sheet's relaxed back picks the thumb's
+  edge line, its fist the knuckle creases (1.52): unreliable. **Thumb out, the references don't measurably disagree**:
+  where the turnaround shows the webs (profile L, 3q L) its MCP span is 0.82-0.98 cuff widths against the open hand's
+  1.03-1.06 (the drawn lines start below the true webs, profile and 3q foreshorten); the 0.437 vs 0.31 "disagreement"
+  (29%) was the thumb. The open hand is the structure's source; the turnaround sets the size.
+- Against an anatomical prior (to be set per style profile): span / palm length 0.93-0.96 vs ~0.75-0.85 and wrist / span
+  0.39 vs ~0.65-0.75 fall outside: the palm length and the wrist are read at the cuff's edge, and the cuff hides the
+  wrist crease (the visible palm starts lower; the visible "wrist" is the cuff's opening). Fingers: middle 0.92 of the
+  palm length (anatomy ~0.75-0.85; anime longer), order middle > index 0.843 ~ ring 0.827 > little 0.715. The open
+  hand draws no joint creases on its fingers, so the segments along the joint chain need the creases elsewhere (the
+  relaxed and point hands' finger lines) or the prior's 1 : 0.6 : 0.45.
