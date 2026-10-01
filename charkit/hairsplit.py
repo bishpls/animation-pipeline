@@ -69,7 +69,9 @@ P = dict(
     tip_scales=(0.02, 0.04, 0.07),   # L: the outline's curvature scales
     tip_prom=0.02,         # L: a tip (notch) stands out from the outline's distance to the crown by at least this
     tip_acute=75.0,        # deg: a convex corner sharper than this is a tip whatever its direction (a curled flick)
-    seed_len=0.05,         # L: a tip's seed runs up its axis at most this far
+    seed_mode='axis',      # a tip's seed: 'axis' up its axis, 'disk' its end (the free hair within seed_r of it)
+    seed_r=0.025,          # L: the disk seed's radius (at most half the way to the next tip)
+    seed_len=0.05,         # L: an axis seed runs up its axis at most this far
     frag_min=0.0,        # L^2: a region smaller than this is a fragment: it joins its longest-edged neighbour
     lock_min=0.003,        # L^2: a tipless region this large that flows out of the hair is a lock of its own
     pieces=False,          # the hair pieces (buns) apart from the lock split (on: their removal cuts the strands under them)
@@ -91,6 +93,12 @@ P = dict(
     axis_step=0.5,         # px: the tracing step
     axis_max=1.5,          # L: an axis is traced at most this far
     match_cost=0.15,       # L: a cross-view match costs at most this (tip distance on the shell)
+    match_du=0.02,         # L: a tip's position is known to this across the picture (its azimuth interval)
+    limb_spread=30.0,      # deg: a tip on the silhouette may lie this far round past the shell's limb
+    match_by='tips',       # cross-view links: 'tips' (every detected tip matched, its lock linked) or 'locks'
+    match_dir=0.1,         # L per unit: the tips' outward directions' vertical parts differing costs this much
+    match_root=0.0,        # the roots' azimuth gap's weight in a match's cost (0: the tips decide; a lock's root moves
+                           # with how much of the unscored mass it took)
 )
 
 
@@ -740,33 +748,53 @@ class Split:
         return out
 
     def seeds(self):
-        """each tip's seed: its axis from the tip upstream, up to half the way to the nearest other tip (at most
-        seed_len L), stopping at a wall."""
+        """each tip's seed: its own end. seed_mode 'disk': the hair off the walls within seed_r L of the tip, the part
+        of it nearest the tip (a flick's end, a strand's: whatever way it points); 'axis': its axis from the tip
+        upstream, up to half the way to the nearest other tip (at most seed_len L), stopping at a wall."""
+        from scipy import ndimage
         P = self.P
         T = np.array([t['rc'] for t in self.tip_list]) if self.tip_list else np.zeros((0, 2))
+        free = self.H & ~self.walls
         out = {}
         for ti, t in enumerate(self.tip_list):
-            d = np.hypot(*(T - T[ti]).T)
-            d[ti] = np.inf
-            lim = min(0.5 * d.min() if len(d) > 1 else np.inf, P['seed_len'] * self.ppl)
-            a = t['axis']
-            seg = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(a, axis=0).T))]) if len(a) > 1 else np.zeros(1)
             m = np.zeros(self.H.shape, bool)
-            started = False
-            for (r, c), L_ in zip(a, seg):
-                r, c = int(round(r)), int(round(c))
-                if not (0 <= r < m.shape[0] and 0 <= c < m.shape[1]) or not self.H[r, c]:
-                    continue
-                if L_ > lim + (seg[0] if False else 0) and started:
-                    break
-                if self.walls[r, c]:
-                    if started:
-                        break                              # the next wall: the seed stops
-                    continue                               # the outline's ink at the tip: step over it
-                started = True
-                m[r, c] = True
+            r0, c0 = t['rc']
+            if P['seed_mode'] == 'disk':
+                d = np.hypot(*(T - T[ti]).T)
+                d[ti] = np.inf
+                for rad in (P['seed_r'], 2 * P['seed_r']):
+                    R = min(rad * self.ppl, 0.5 * d.min() if len(d) > 1 else np.inf)
+                    R = max(R, 2 * self.lw)
+                    a, b = int(max(0, r0 - R - 1)), int(min(self.H.shape[0], r0 + R + 2))
+                    c, e = int(max(0, c0 - R - 1)), int(min(self.H.shape[1], c0 + R + 2))
+                    rr, cc = np.mgrid[a:b, c:e]
+                    win = free[a:b, c:e] & (np.hypot(rr - r0, cc - c0) <= R)
+                    lab, n = ndimage.label(win)
+                    if n:
+                        dd = [np.hypot(rr[lab == j] - r0, cc[lab == j] - c0).min() for j in range(1, n + 1)]
+                        m[a:b, c:e] = lab == (int(np.argmin(dd)) + 1)
+                        break
+            else:
+                d = np.hypot(*(T - T[ti]).T)
+                d[ti] = np.inf
+                lim = min(0.5 * d.min() if len(d) > 1 else np.inf, P['seed_len'] * self.ppl)
+                a = t['axis']
+                seg = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(a, axis=0).T))]) if len(a) > 1 else np.zeros(1)
+                started = False
+                for (r, c), L_ in zip(a, seg):
+                    r, c = int(round(r)), int(round(c))
+                    if not (0 <= r < m.shape[0] and 0 <= c < m.shape[1]) or not self.H[r, c]:
+                        continue
+                    if L_ > lim and started:
+                        break
+                    if self.walls[r, c]:
+                        if started:
+                            break                          # the next wall: the seed stops
+                        continue                           # the outline's ink at the tip: step over it
+                    started = True
+                    m[r, c] = True
             if not m.any():
-                r, c = int(round(t['rc'][0])), int(round(t['rc'][1]))
+                r, c = int(round(r0)), int(round(c0))
                 m[min(max(r, 0), m.shape[0] - 1), min(max(c, 0), m.shape[1] - 1)] = True
             out[ti + 1] = m
         self.seed_masks = out
@@ -1067,10 +1095,26 @@ class Split:
         locks = self.locks if locks is None else locks
         ids = sorted(int(i) for i in np.unique(locks[locks > 0]))
         tip_of = {}
+        if not hasattr(self, 'tip_ends'):
+            keep_ = self.P['seed_mode']
+            saved = getattr(self, 'seed_masks', None)
+            self.P['seed_mode'] = 'disk'
+            self.tip_ends = self.seeds()
+            self.P['seed_mode'] = keep_
+            if saved is not None:
+                self.seed_masks = saved
         for ti, t in enumerate(self.tip_list):
-            r, c = int(round(t['rc'][0])), int(round(t['rc'][1]))
-            r = min(max(r, 0), locks.shape[0] - 1); c = min(max(c, 0), locks.shape[1] - 1)
-            l_ = int(locks[r, c]) or int(self.locks[r, c])
+            # the tip's lock: the one under its end (the free hair within seed_r of it: the outline's ink at the tip
+            # may have grown into a neighbour)
+            sm = self.tip_ends.get(ti + 1)
+            v = locks[sm] if sm is not None and sm.any() else np.zeros(0, int)
+            v = v[v > 0]
+            if len(v):
+                l_ = int(np.bincount(v).argmax())
+            else:
+                r, c = int(round(t['rc'][0])), int(round(t['rc'][1]))
+                r = min(max(r, 0), locks.shape[0] - 1); c = min(max(c, 0), locks.shape[1] - 1)
+                l_ = int(locks[r, c])
             if l_ and (l_ not in tip_of or t['sharp'] > self.tip_list[tip_of[l_]]['sharp']):
                 tip_of[l_] = ti
         cells_in = {}
@@ -1085,8 +1129,10 @@ class Split:
             if l_ in tip_of:
                 t = self.tip_list[tip_of[l_]]
                 tip = t['rc']; tipk = 'drawn'
+                tip_index = tip_of[l_]
                 axis = t['axis']
             else:
+                tip_index = None
                 # no tip: its most downstream pixel (the furthest from the crown along the flow) and its axis from there
                 d = np.hypot(rr - self.crown[0], cc - self.crown[1])
                 j = int(np.argmax(d))
@@ -1119,7 +1165,7 @@ class Split:
                             w += 1
                     widths.append(round((w + 1) / self.ppl, 4))
             out[l_] = dict(id=l_, area_px=int(m.sum()), cells=cells_in[l_], tip_rc=[round(tip[0], 1), round(tip[1], 1)],
-                           tip=tipk, root_rc=[round(float(root[0]), 1), round(float(root[1]), 1)],
+                           tip=tipk, tip_index=tip_index, root_rc=[round(float(root[0]), 1), round(float(root[1]), 1)],
                            axis_rc=ax[::max(1, len(ax) // 24)].round(1).tolist(), length_L=round(float(
                                np.hypot(*np.diff(ax, axis=0).T).sum() / self.ppl) if len(ax) > 1 else 0.0, 4),
                            width_L=widths, layer=round(float(self.layer_rank.get(l_, 0.0)), 3) if hasattr(
@@ -1270,34 +1316,80 @@ def _adiff(a, b):
     return abs((a - b + 180.0) % 360.0 - 180.0)
 
 
+def _limb(shell, z, az, side):
+    """the azimuth (deg) of the shell's limb at height z seen from az, on the picture's side (+1 right, -1 left)."""
+    t = np.linspace(-np.pi, np.pi, 1441)
+    x0, a, y0, b = shell.at(z)
+    r = math.radians(az)
+    vis = (np.sin(t) / max(a, 1e-3)) * math.sin(r) + (np.cos(t) / max(b, 1e-3)) * math.cos(r) > -1e-9
+    uu = shell.u_of(t, z, az)
+    uu = np.where(vis, uu, np.nan)
+    j = int(np.nanargmax(uu)) if side > 0 else int(np.nanargmin(uu))
+    return float(np.degrees(t[j]))
+
+
 def head_coords(splits, shell):
-    """each lock's tip and root -> (phi deg, z L) and its tip's place: 'hem' (on the outer outline, pointing down),
-    'edge' (elsewhere on the outline) or 'inner'."""
+    """each lock's tip and root in head-centred coordinates: (phi deg round the head's axis: 0 the front, 90 her left,
+    180 the back; z L up from the eye line), from each view's camera onto the hair's elliptic shell. A tip's azimuth is
+    an interval: its position +- match_du L across the picture; a tip on the silhouette (at or past the shell's limb)
+    reaches limb_spread degrees past the limb, since a point on the outline can lie anywhere round it."""
+    du, spread = P['match_du'], P['limb_spread']
     for name, S in splits.items():
         for l_, x in S.lock_info.items():
             ut, zt = S.uz(x['tip_rc']); ur, zr = S.uz(x['root_rc'])
             x['tip_uz'] = [round(ut, 4), round(zt, 4)]; x['root_uz'] = [round(ur, 4), round(zr, 4)]
             x['tip_phi'] = round(shell.phi(ut, zt, S.az), 1); x['root_phi'] = round(shell.phi(ur, zr, S.az), 1)
+            lo, hi = sorted([shell.phi(ut - du, zt, S.az), shell.phi(ut + du, zt, S.az)])
+            if hi - lo > 180:
+                lo, hi = hi, lo + 360
+            # on the silhouette: within du of the shell's limb (or past it)
+            umin = float(np.nanmin(shell.u_of(np.linspace(-np.pi, np.pi, 721), zt, S.az)))
+            umax = float(np.nanmax(shell.u_of(np.linspace(-np.pi, np.pi, 721), zt, S.az)))
+            limb = 0
+            if ut >= umax - du:
+                limb = 1
+            elif ut <= umin + du:
+                limb = -1
+            if limb:
+                L_ = _limb(shell, zt, S.az, limb)
+                # past the limb: away from the camera's side, round to the back of this view
+                beyond = L_ + spread * (1 if ((L_ - S.az + 540) % 360 - 180) > 0 else -1)
+                a_, b_ = sorted([L_, beyond])
+                lo, hi = min(lo, a_), max(hi, b_)
+            x['tip_phi_range'] = [round(lo, 1), round(hi, 1)]
+            x['tip_limb'] = limb
+
+
+def _gap(r1, r2):
+    """the angular gap (deg) between two azimuth intervals (0 where they overlap), on the circle."""
+    best = 360.0
+    for k in (-360, 0, 360):
+        a0, a1 = r1[0] + k, r1[1] + k
+        g = max(0.0, max(a0, r2[0]) - min(a1, r2[1]))
+        best = min(best, g)
+    return best
+
+
+def _visible(rng, az, margin=10.0):
+    """does the azimuth interval reach the side view az sees (within margin degrees past its limbs)?"""
+    return _gap(rng, [az - 90 - margin, az + 90 + margin]) == 0
 
 
 def match(splits, shell, pairs=None, cost_max=None):
-    """locks matched between views: per pair of views, the locks whose tips both views can see (on the shell), by
-    assignment on the tips' distance on the shell (L: arc length at the shell's radius, and height); along the hem
-    (tips on the outer outline's lower edge) the order round the head is kept (an order-preserving alignment).
-    -> ({(view, lock): xid}, [pairs' matches])."""
+    """locks matched between views: per pair of views, the locks whose tips both can see, by assignment on the tips'
+    distance round the head (L: the gap between their azimuth intervals as arc length at the shell's radius, and their
+    heights); along the hem (tips on the outer outline's lower edge) the order round the head is kept (crossing pairs
+    dropped, the dearer first). Cross-view ids by union over the links, one lock per view per id, cheapest first.
+    -> ({(view, lock): xid}, [per pair of views: its links])."""
     from scipy.optimize import linear_sum_assignment
     cost_max = cost_max or P['match_cost']
     names = [n for n in VIEWS if n in splits]
     pairs = pairs or [(a, b) for i, a in enumerate(names) for b in names[i + 1:]]
     matches = []
-
-    def vis(phi, az, margin=8.0):
-        return math.cos(math.radians(phi - az)) > -math.sin(math.radians(margin))
-
     for va, vb in pairs:
         A, B = splits[va], splits[vb]
-        la = [l for l, x in A.lock_info.items() if vis(x['tip_phi'], B.az)]
-        lb = [l for l, x in B.lock_info.items() if vis(x['tip_phi'], A.az)]
+        la = [l for l, x in A.lock_info.items() if _visible(x['tip_phi_range'], B.az)]
+        lb = [l for l, x in B.lock_info.items() if _visible(x['tip_phi_range'], A.az)]
         if not la or not lb:
             continue
         M = np.full((len(la), len(lb)), 10.0)
@@ -1308,55 +1400,116 @@ def match(splits, shell, pairs=None, cost_max=None):
                 zt = 0.5 * (x['tip_uz'][1] + y['tip_uz'][1])
                 _, a_, _, b_ = shell.at(zt)
                 rad = 0.5 * (a_ + b_)
-                dphi = math.radians(_adiff(x['tip_phi'], y['tip_phi'])) * rad
+                dphi = math.radians(_gap(x['tip_phi_range'], y['tip_phi_range'])) * rad
                 dz = x['tip_uz'][1] - y['tip_uz'][1]
                 droot = math.radians(_adiff(x['root_phi'], y['root_phi'])) * rad
-                M[i, j] = math.hypot(dphi, dz) + 0.25 * abs(droot)
+                M[i, j] = math.hypot(dphi, dz) + P['match_root'] * abs(droot)
         ra, cb = linear_sum_assignment(M)
         got = [(la[i], lb[j], float(M[i, j])) for i, j in zip(ra, cb) if M[i, j] <= cost_max]
-        # the hem: order kept round the head (drop the pairs that cross, the dearest first)
         hem = [g for g in got if A.lock_info[g[0]].get('hem') and B.lock_info[g[1]].get('hem')]
-        hem.sort(key=lambda g: A.lock_info[g[0]]['tip_phi'])
+        mid = lambda x: 0.5 * (x['tip_phi_range'][0] + x['tip_phi_range'][1])
+        hem.sort(key=lambda g: mid(A.lock_info[g[0]]))
         dropped = []
         changed = True
         while changed:
             changed = False
             for i in range(len(hem) - 1):
                 p1, p2 = hem[i], hem[i + 1]
-                if _adiff(B.lock_info[p1[1]]['tip_phi'], 0) > -1 and \
-                        ((B.lock_info[p2[1]]['tip_phi'] - B.lock_info[p1[1]]['tip_phi'] + 540) % 360 - 180) < 0:
+                if ((mid(B.lock_info[p2[1]]) - mid(B.lock_info[p1[1]]) + 540) % 360 - 180) < -1e-6:
                     worst = p1 if p1[2] > p2[2] else p2
                     hem.remove(worst); got.remove(worst); dropped.append(worst)
                     changed = True
                     break
         matches.append(dict(views=[va, vb], pairs=[[int(a), int(b), round(c, 4)] for a, b, c in got],
                             order_dropped=len(dropped), candidates=[len(la), len(lb)]))
-    # cross-view ids: union-find over the matches, one lock per view per id (the cheapest links first)
-    parent = {}
+    parent, members = {}, {}
 
     def find(k):
         while parent.setdefault(k, k) != k:
             parent[k] = parent[parent[k]]
             k = parent[k]
         return k
-    members = {}
-    links = sorted(((c, (m['views'][0], a), (m['views'][1], b)) for m in matches for a, b, c in m['pairs']))
     for name, S in splits.items():
         for l_ in S.lock_info:
-            k = (name, l_)
-            parent[k] = k; members[k] = {name}
+            parent[(name, l_)] = (name, l_); members[(name, l_)] = {name}
+    links = sorted((c, (m['views'][0], a), (m['views'][1], b)) for m in matches for a, b, c in m['pairs'])
     for c, ka, kb in links:
         ra, rb = find(ka), find(kb)
         if ra == rb or members[ra] & members[rb]:
             continue
         parent[rb] = ra
         members[ra] |= members[rb]
-    roots = {}
-    xid = {}
+    roots, xid = {}, {}
     for k in parent:
-        r = find(k)
-        xid[k] = roots.setdefault(r, len(roots) + 1)
+        xid[k] = roots.setdefault(find(k), len(roots) + 1)
     return xid, matches
+
+
+def tip_coords(splits, shell):
+    """every detected tip (not only the locks') in head-centred coordinates, as head_coords' locks: -> {view: [dict(i,
+    rc, uz, phi, phi_range, limb, lock)]}."""
+    du, spread = P['match_du'], P['limb_spread']
+    out = {}
+    for name, S in splits.items():
+        lst = []
+        lk = {}
+        for l_, x in S.lock_info.items():
+            if x.get('tip_index') is not None:
+                lk[x['tip_index']] = l_
+        for i, t in enumerate(S.tip_list):
+            u, z = S.uz(t['rc'])
+            phi = shell.phi(u, z, S.az)
+            lo, hi = sorted([shell.phi(u - du, z, S.az), shell.phi(u + du, z, S.az)])
+            if hi - lo > 180:
+                lo, hi = hi, lo + 360
+            tt = np.linspace(-np.pi, np.pi, 721)
+            umin, umax = float(np.nanmin(shell.u_of(tt, z, S.az))), float(np.nanmax(shell.u_of(tt, z, S.az)))
+            limb = 1 if u >= umax - du else (-1 if u <= umin + du else 0)
+            if limb:
+                L_ = _limb(shell, z, S.az, limb)
+                beyond = L_ + spread * (1 if ((L_ - S.az + 540) % 360 - 180) > 0 else -1)
+                a_, b_ = sorted([L_, beyond])
+                lo, hi = min(lo, a_), max(hi, b_)
+            sm = S.tip_ends.get(i + 1) if hasattr(S, 'tip_ends') else None
+            v = S.locks[sm] if sm is not None and sm.any() else np.zeros(0, int)
+            v = v[v > 0]
+            lst.append(dict(i=i, rc=[round(t['rc'][0], 1), round(t['rc'][1], 1)], uz=[round(u, 4), round(z, 4)],
+                            phi=round(phi, 1), phi_range=[round(lo, 1), round(hi, 1)], limb=limb,
+                            out=[round(t['out'][0], 3), round(t['out'][1], 3)],
+                            lock=int(np.bincount(v).argmax()) if len(v) else None))
+        out[name] = lst
+    return out
+
+
+def match_tips(tips, splits, shell, pairs=None, cost_max=None):
+    """tips matched between views (the anchors of the locks' identity): by assignment on the gap between their
+    azimuth intervals (arc length at the shell's radius), their heights and the vertical part of their outward
+    direction (a flick curling up does so in every view); along each side's limb the order by height is kept.
+    -> [dict(views, pairs [[tip a, tip b, cost]])]."""
+    from scipy.optimize import linear_sum_assignment
+    cost_max = cost_max or P['match_cost']
+    names = [n for n in VIEWS if n in tips]
+    pairs = pairs or [(a, b) for i, a in enumerate(names) for b in names[i + 1:]]
+    res = []
+    for va, vb in pairs:
+        A = [t for t in tips[va] if _visible(t['phi_range'], splits[vb].az)]
+        B = [t for t in tips[vb] if _visible(t['phi_range'], splits[va].az)]
+        if not A or not B:
+            continue
+        M = np.full((len(A), len(B)), 10.0)
+        for i, x in enumerate(A):
+            for j, y in enumerate(B):
+                zt = 0.5 * (x['uz'][1] + y['uz'][1])
+                _, a_, _, b_ = shell.at(zt)
+                rad = 0.5 * (a_ + b_)
+                dphi = math.radians(_gap(x['phi_range'], y['phi_range'])) * rad
+                dz = x['uz'][1] - y['uz'][1]
+                dout = abs(x['out'][0] - y['out'][0]) * P['match_dir']
+                M[i, j] = math.sqrt(dphi ** 2 + dz ** 2 + dout ** 2)
+        ra, cb = linear_sum_assignment(M)
+        got = [(A[i]['i'], B[j]['i'], float(M[i, j])) for i, j in zip(ra, cb) if M[i, j] <= cost_max]
+        res.append(dict(views=[va, vb], pairs=[[a, b, round(c, 4)] for a, b, c in got], candidates=[len(A), len(B)]))
+    return res
 
 
 # ------------------------------------------------------------------------------------------------------------ run
@@ -1379,10 +1532,58 @@ def split_views(I, views=None, stage='locks', params=None, log=print):
             outer = _outer_bottom(S)
             for l_, x in S.lock_info.items():
                 x['hem'] = bool(x['tip'] == 'drawn' and outer(x['tip_rc']))
-        xid, matches = match(splits, shell)
+        if P['match_by'] == 'tips':
+            tips = tip_coords(splits, shell)
+            tm = match_tips(tips, splits, shell)
+            xid, matches = _locks_from_tips(splits, tips, tm)
+            for name, S in splits.items():
+                S.tips_head = tips[name]
+            shell.tip_matches = tm
+        else:
+            xid, matches = match(splits, shell)
         for (name, l_), k in xid.items():
             splits[name].lock_info[l_]['xid'] = k
     return splits, shell, xid, matches
+
+
+def _locks_from_tips(splits, tips, tm):
+    """the locks' cross-view links from their tips' (each tip's lock: the one its end lies in), the cheapest first,
+    one lock per view per id -> ({(view, lock): xid}, [per pair of views: lock links])."""
+    matches = []
+    for m in tm:
+        va, vb = m['views']
+        la = {t['i']: t['lock'] for t in tips[va]}; lb = {t['i']: t['lock'] for t in tips[vb]}
+        seen = {}
+        for a, b, c in m['pairs']:
+            if la.get(a) and lb.get(b):
+                k = (la[a], lb[b])
+                if k not in seen or c < seen[k]:
+                    seen[k] = c
+        matches.append(dict(views=[va, vb], pairs=[[int(a), int(b), round(c, 4)] for (a, b), c in seen.items()],
+                            tip_pairs=m['pairs']))
+    parent, members = {}, {}
+
+    def find(k):
+        while parent.setdefault(k, k) != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+    for name, S in splits.items():
+        for l_ in S.lock_info:
+            parent[(name, l_)] = (name, l_); members[(name, l_)] = {name}
+    links = sorted((c, (m['views'][0], a), (m['views'][1], b)) for m in matches for a, b, c in m['pairs'])
+    for c, ka, kb in links:
+        if ka not in parent or kb not in parent:
+            continue
+        ra, rb = find(ka), find(kb)
+        if ra == rb or members[ra] & members[rb]:
+            continue
+        parent[rb] = ra
+        members[ra] |= members[rb]
+    roots, xid = {}, {}
+    for k in parent:
+        xid[k] = roots.setdefault(find(k), len(roots) + 1)
+    return xid, matches
 
 
 def _outer_bottom(S):
