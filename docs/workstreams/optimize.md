@@ -135,8 +135,27 @@ hair, the merged spec), 14 knobs as accfit.fit_place's.
 - Pregate on the box (`pregate --box auto` -> build; tip 49b57a86 merged into pipeline-3d 9be5b320): **PASS, 0 moved,
   0 blocking**, 356 s (charkit/out/pregate/pregate_tool-optimize_49b57a86_into_9be5b320.md). (A laptop pregate at
   369719c1 read 18 moves: pipeline-3d had moved to 9be5b320 since my merge; merged again, 0 moved.)
-- **Running:** `remote gate tool/optimize --into pipeline-3d` (log charkit/out/optimize/gate.log).
+- **Gate: tool/optimize 0faf1087 into pipeline-3d 9be5b320: PASS under K**; nothing blocks, 0 items reported, no
+  check changed; the candidate built (the QA's declared-check reader lists every charkit module, so optimize.py is in
+  the build's closure): CPU 1432.7 -> 1165.1 s (0.81x); 95 test files, 0 failing. Report
+  `charkit/out/gate/gate_tool-optimize_0faf1087_into_9be5b320.md`.
+- pipeline-3d moved to e003960d (face7 gate 2b); merged (8636ddfe, CODEMAP regenerated). `gate --carry`: **not
+  carried** (rc 3): the move changes sweep.py's FaceStage and this branch changes sweep.py (the optimize/worker
+  dispatch in main). Locally on 8636ddfe: test_sweep, test_optimize, test_pregate, test_boxjob pass. Re-gate is the
+  coordinator's call.
+
+## Tools entry (for charkit-worker's Tools section)
+- **Batch fits:** `python -m charkit sweep optimize DECL.json --box auto --out charkit/out/optimize/NAME` (launch in
+  the background with a long timeout; `--plan` first). DECL = a sweep declaration plus `optimize` {knobs (spec paths
+  or template names; lo/hi; int; log), objective (checks toward pass/min/max/target), constraints (guard 15% every
+  piece and view, flags, no new FAIL, keep), budget, reference, confirm}. CMA-ES over persistent workers in build
+  slots (overflows to the box with free slots), the top candidates built for real. One read: OUT/review/index.html,
+  best_override.json, history.md, sensitivity.md. `--resume` carries on; `sweep optimize audit BUILD` says which
+  checks the fast screen reads like the real build. Don't hand-step sweeps or write DE/NM harnesses.
+- **Pregate on the box:** `python -m charkit pregate --box auto` (the committed tip).
 
 ## Next steps
-1. Read the gate (expect: no build (nothing the build reads changed), the tests, no check moved).
-2. If pipeline-3d moves first: merge it, `gate --carry tool/optimize --into pipeline-3d`.
+1. Coordinator: re-gate tool/optimize (8636ddfe) into pipeline-3d if wanted (the carry was refused at sweep.py).
+2. Follow-ups: a measurement scope for speed (a garments row is 70-150 s, 80% in the declared and artifacts parts:
+   measure only what the probe saw move, with the confirm builds checking everything); stage adapters for the hands
+   template and hair-shell six-placement terminator (python problems like accfit_place).
