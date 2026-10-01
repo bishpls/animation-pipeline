@@ -3,9 +3,10 @@ the shipped rig posed through the pose library (charkit/poses/rom.json, charkit.
 before pictures. The rig is the build's export (OUT/NAME.look.glb): its skeleton (the VRM humanoid's nodes and inverse
 bind matrices) and every mesh's four skin weights, skinned linearly as a runtime skins them.
 
-    python -m charkit rom BUILD [--out DIR] [--poses a,b] [--boards] [--json]
+    python -m charkit rom BUILD [--out DIR] [--poses a,b] [--boards] [--art] [--json]
         -> DIR/rom.json (every pose's measures), DIR/rom.md (the table), with --boards DIR/boards/POSE_AZ.png (the toon
-           renderer's picture of each pose, front / three-quarter / profile / back, one scale)
+           renderer's picture of each pose, front / three-quarter / profile / back, one scale), with --art the toon
+           artefact detectors on the posed bundles against the rest (art_posed)
 
 Measured per pose, report-only (there is no drawing of these poses: physical limits are the thresholds, LIMITS):
   sections    joint volume: the skin's cross-section at each moved joint (the elbows, knees, shoulders, wrists,
@@ -111,11 +112,15 @@ class Rig:
                 attrs.append((A(at['JOINTS_0']).astype(np.int64) if 'JOINTS_0' in at else None,
                               A(at['WEIGHTS_0']).astype(np.float64) if 'WEIGHTS_0' in at else None))
         self.attrs = attrs
-        groups = {}
+        groups, bare = {}, {}
         for i, p in enumerate(M.prims):
-            if p.variant or attrs[i][0] is None or p.object in skip:
+            if attrs[i][0] is None or p.object in skip:
                 continue
-            groups.setdefault(p.object, []).append(i)
+            if p.variant == 'bare':                     # (the skin whole, its garment mask off: what's measured)
+                bare.setdefault(p.object, []).append(i)
+            elif not p.variant:
+                groups.setdefault(p.object, []).append(i)
+        groups.update(bare)
         self.objs = {}
         for name, idx in groups.items():
             kind = (kinds or {}).get(name) or _kind(name)
@@ -385,6 +390,16 @@ class Closed:
         Xc, Fc = capped(X, self.F, self.loops)
         return BVH((Xc, Fc))
 
+    def cap_distance(self, X, Q):
+        """the distance of points Q from this region's caps (inf without caps): the junction where the region meets
+        its neighbour."""
+        if not self.loops:
+            return np.full(len(Q), np.inf)
+        from .geom.bvh import BVH
+        Xc, Fc = capped(X, self.F, self.loops)
+        d, _, _ = BVH((Xc, Fc[len(self.F):])).nearest(Q)
+        return d
+
 
 # ------------------------------------------------------------------------------------------------------ the measures
 def inside_new(Q0, Q1, bv0, bv1, L, tol=0.004):
@@ -632,6 +647,8 @@ GARMENT_GROUPS = {
 }
 UPPER = ('top', 'bodice_panel', 'collar', 'bow')               # what the hair and the sleeves may pass through
 SKIRT = ('skirt', 'overskirt_panel_L', 'overskirt_panel_R')
+JUNCTION = 0.12             # L: a skin pair's points this near the other region's caps at rest are its junction
+TOL = 0.004                  # L: a new penetration shallower than this is contact, not counted
 MAX_POINTS = 12000           # points a region or garment is queried with (every k-th vertex beyond)
 MAX_EDGES = 60000            # edges a crossing test casts (every k-th beyond)
 
@@ -660,6 +677,7 @@ class Context:
     def __init__(self, rig, B=None, skin='clawd_skin', max_points=MAX_POINTS, max_edges=MAX_EDGES):
         from .geom.bvh import BVH
         self.rig, self.skin = rig, skin
+        self.tol = TOL
         self.L = head_length(rig, B)
         o = rig.objs[skin]
         self.R = regions(rig, skin)
@@ -669,6 +687,14 @@ class Context:
         self.closed = {r: Closed(o.F, self.R[r]) for r in names if self.R[r].any()}
         self.bv0 = {r: c.bvh(o.V) for r, c in self.closed.items() if len(c.F)}
         self.pts = {r: np.nonzero(self.R[r])[0][_every(int(self.R[r].sum()), max_points)] for r in names}
+        # a pair's points within JUNCTION L of the other region's caps at rest are where the two regions meet (the
+        # thigh's top at the hip socket, the arm at a joined shoulder): left out, so a joint's own turn isn't counted
+        self.pair_pts = {}
+        for name, a, b in SKIN_PAIRS:
+            if b in self.closed and a in self.pts:
+                idx = self.pts[a]
+                far = self.closed[b].cap_distance(o.V, o.V[idx]) > JUNCTION * self.L
+                self.pair_pts[name] = idx[far]
         self.skin_bv0 = BVH((o.V, o.F))
         self.gpts = {n: _every(len(ob.V), max_points) for n, ob in rig.objs.items() if ob.kind == 'garment'}
         self.edges = {n: ob.edges() for n, ob in rig.objs.items()}
@@ -707,16 +733,16 @@ def measure_pose(ctx, D, X=None):
     bv1 = {r: c.bvh(Xs) for r, c in ctx.closed.items() if len(c.F)}
     sp = {}
     for name, a, b in SKIN_PAIRS:
-        if b not in bv1 or a not in ctx.pts:
+        if b not in bv1 or name not in ctx.pair_pts:
             continue
-        idx = ctx.pts[a]
-        sp[name] = inside_new(ctx.rest[sk][idx], Xs[idx], ctx.bv0[b], bv1[b], L)
+        idx = ctx.pair_pts[name]
+        sp[name] = inside_new(ctx.rest[sk][idx], Xs[idx], ctx.bv0[b], bv1[b], L, ctx.tol)
     out['skin_pairs'] = sp
     # garments inside the skin
     skin_bv = BVH((Xs, rig.objs[sk].F))
     g = {}
     for n, idx in ctx.gpts.items():
-        g[n] = inside_new(ctx.rest[n][idx], X[n][idx], ctx.skin_bv0, skin_bv, L)
+        g[n] = inside_new(ctx.rest[n][idx], X[n][idx], ctx.skin_bv0, skin_bv, L, ctx.tol)
         g[n]['strain'] = strain(ctx.rest[n], X[n], ctx.edges[n])
     out['garments'] = g
     # thin surfaces through each other
@@ -906,7 +932,7 @@ def grade(key, v):
 
 
 # ------------------------------------------------------------------------------------------------------------ run
-def run(build, out=None, poses=None, boards=False, export=None, lib=None, log=print, az=BOARD_AZ):
+def run(build, out=None, poses=None, boards=False, export=None, lib=None, log=print, az=BOARD_AZ, art=False):
     """the suite on a build -> the report (also out/rom.json and out/rom.md when out is given)."""
     t0, c0 = time.time(), time.process_time()
     rig, B = load(build, export)
@@ -929,6 +955,8 @@ def run(build, out=None, poses=None, boards=False, export=None, lib=None, log=pr
                                seconds=round(time.time() - t, 2))
         bad = [k for k, g in rep['poses'][n]['grades'].items() if g == 'FAIL']
         log('rom %-18s %.1f s  %s' % (n, time.time() - t, ('FAIL ' + ', '.join(bad)) if bad else 'ok'))
+    if art and B is not None:
+        rep['art'] = art_posed(rig, B, {n: Ds[n] for n in ART_POSES if n in Ds}, log=log)
     rep['seconds'] = round(time.time() - t0, 1)
     rep['cpu_s'] = round(time.process_time() - c0, 1)
     if out:
@@ -970,6 +998,13 @@ def markdown(rep):
             t = '-' if v is None else ('%.3g' % v)
             cells.append('**%s**' % t if g == 'FAIL' else ('_%s_' % t if g == 'WARN' else t))
         L.append('| %s | %s |' % (n, ' | '.join(cells)))
+    if rep.get('art'):
+        L += ['', '## Toon artefacts posed against rest (charkit.artifactqa\'s detectors and proposed grades; the rest '
+              'pose standing for the design)', '', '| pose | FAIL | WARN |', '|---|---|---|']
+        for n, C in rep['art'].items():
+            f = ', '.join('%s %.3g' % (k, c['value']) for k, c in sorted(C.items()) if c['grade'] == 'FAIL')
+            w = ', '.join('%s %.3g' % (k, c['value']) for k, c in sorted(C.items()) if c['grade'] == 'WARN')
+            L.append('| %s | %s | %s |' % (n, f or '-', w or '-'))
     L += ['', '## Weights', '', '| object | sum err | none | stray | stray w | cross | step max | vs skin p95 |',
           '|---|---|---|---|---|---|---|---|']
     for n, w in rep['weights'].items():
@@ -987,7 +1022,8 @@ def main(args):
     build = args[0]
     out = opt('--out', os.path.join(build, 'rom'))
     poses = opt('--poses')
-    rep = run(build, out, poses.split(',') if poses else None, boards='--boards' in args, export=opt('--export'))
+    rep = run(build, out, poses.split(',') if poses else None, boards='--boards' in args, export=opt('--export'),
+              art='--art' in args)
     if '--json' in args:
         print(json.dumps({n: r['summary'] for n, r in rep['poses'].items()}, indent=1))
     print('rom: %d poses, %.0f s; %s' % (len(rep['poses']), rep['seconds'], os.path.join(out, 'rom.md')))
@@ -996,3 +1032,86 @@ def main(args):
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
+
+
+# --------------------------------------------------------------------------------------- toon artefacts on the poses
+ART_SKIP = ('_face', '_neck')   # the skin's regions: a posed arm or hand in the head frame counts as face or neck skin
+ART_POSES = ('raise_forward_90', 'arms_up', 'arm_across', 'elbows_135', 'spine_twist', 'head_turn', 'head_nod',
+             'squat', 'kick_front')
+
+
+class Posable:
+    """a bundle made posable: each drawn variant's vertices (the skin's 'masked', every other object's 'eval') matched
+    to the export's welded vertices (the same evaluation: exact for the garments and the hair; the skin's nearest), so
+    a pose's bundle is the rest bundle with those variants' positions skinned and their directions (shrink, loop
+    normals) turned (charkit.artifactqa then measures it as it measures the rest)."""
+
+    def __init__(self, rig, B):
+        from scipy.spatial import cKDTree
+        self.rig, self.B = rig, B
+        self.A = {k: B._arrays[k] for k in (B._arrays.files if hasattr(B._arrays, 'files') else B._arrays)}
+        self.maps = {}
+        for o in B.objects():
+            var = 'masked' if o.group == 'skin' else 'eval'
+            k = 'o/%s/%s/V' % (o.name, var)
+            if o.name not in rig.objs or k not in self.A:
+                continue
+            V = np.asarray(self.A[k], float)
+            ob = rig.objs[o.name]
+            d, i = cKDTree(ob.V).query(V)
+            self.maps[(o.name, var)] = (i, float(d.max()))
+
+    def bundle(self, D):
+        from . import bundle as bl
+        R, t = self.rig.matrices(D)
+        A = dict(self.A)
+        for (name, var), (idx, _) in self.maps.items():
+            ob = self.rig.objs[name]
+            J, W = ob.J[idx], ob.W[idx]
+            W = W / np.maximum(W.sum(1, keepdims=True), 1e-12)
+            Lm = np.einsum('nk,nkij->nij', W, R[J])
+            T = np.einsum('nk,nkj->nj', W, t[J])
+            p = 'o/%s/%s/' % (name, var)
+            V = np.asarray(A[p + 'V'], float)
+            A[p + 'V'] = np.einsum('nij,nj->ni', Lm, V) + T
+            if p + 'shrink' in A:
+                A[p + 'shrink'] = np.einsum('nij,nj->ni', Lm, np.asarray(A[p + 'shrink'], float)).astype(np.float32)
+            if p + 'lnor' in A:
+                lv = np.asarray(A[p + 'loopv'], np.int64)
+                A[p + 'lnor'] = _rows_unit(np.einsum('nij,nj->ni', Lm[lv], np.asarray(A[p + 'lnor'], float))
+                                           ).astype(np.float32)
+        return bl.Bundle(self.B._meta, A, path=getattr(self.B, 'path', None))
+
+
+def art_posed(rig, B, poses, log=print):
+    """the toon artefact detectors (charkit.artifactqa: outline corners, terminator kinks, fragments, speckle, the
+    silhouette's spikes, points and bumps) on each pose's bundle against the rest bundle's, as artifactqa grades ours
+    against the design's (the rest standing for the design: a pose that makes a region rougher than it is at rest) ->
+    {pose: {check: dict(value, grade, worst view)}}."""
+    from . import artifactqa as aq, qa3d
+    ctx = qa3d.Design(B).sheet_context()
+    body_ppl = None if 'why' in ctx else ctx['ppl']
+    az3 = 35.5 if 'why' in ctx else ctx['az3']
+    page = ctx['rgb'].shape[0] if 'rgb' in ctx else 1440
+    pz = Posable(rig, B)
+    t = time.time()
+    rest = aq.ours(B, az3, body_ppl, body_page=page)
+    log('art rest: %.1f s' % (time.time() - t))
+    C0 = aq.checks(rest, rest)
+    out = {}
+    for n, D in poses.items():
+        t = time.time()
+        O = aq.ours(pz.bundle(D), az3, body_ppl, body_page=page)
+        C = aq.checks(O, rest)
+        out[n] = {}
+        for k, c in C.items():
+            if c.get('value') is None or k.endswith(ART_SKIP):
+                continue
+            if k.startswith('peeks_'):                  # (a count, no ratio: the pose's extra bits over the rest's)
+                v = c['value'] - ((C0.get(k) or {}).get('value') or 0)
+                g = 'PASS' if v <= aq.PEEKS[0] else 'WARN' if v <= aq.PEEKS[1] else 'FAIL'
+                out[n][k] = dict(value=v, grade=g, worst=c.get('worst'))
+            else:
+                out[n][k] = dict(value=c.get('value'), grade=c.get('grade'), worst=c.get('worst'))
+        log('art %s: %.1f s, FAIL %s' % (n, time.time() - t, [k for k, c in out[n].items() if c['grade'] == 'FAIL']))
+    return out

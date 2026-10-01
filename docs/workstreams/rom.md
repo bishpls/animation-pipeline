@@ -20,9 +20,20 @@ default; the joined-shoulder candidate), calibrated against known-bads, wired in
   bend (anatomical hinge, carried by the parent), spread, twist, turn/nod/tilt (body axes).
 - Hand poses after the hand sheet (refs gen/hand_breakdown.png): relaxed, open (spread), fist, point.
 
+## Code (tool/rom)
+- `charkit/pose.py` + `charkit/poses/rom.json`: the pose library (29 presets) and its solver; tests `test_pose.py`.
+- `charkit/rom.py`: Rig (the export: skeleton from the IBMs, tails from the bundle's landmarks, helper bones merged into
+  their humanoid ancestor), Context, measure_pose, summary, LIMITS/grade, weight_sanity, joint rings, Posable +
+  art_posed (artifactqa's detectors on posed bundles vs rest), render_boards (toon renderer), run/markdown/main
+  (`python -m charkit rom BUILD [--boards] [--art]`); tests `test_rom.py`.
+- `charkit/romqa.py`: QA part 'rom' (order 2600), checks rom_* (INFO + proposed grade until calibrated: CALIBRATED).
+- `charkit/calib/rom.py`: the adapter Rom (nudges, shuffled floor, BROKEN known-bads, stored rom_rigid_shoulder).
+- `charkit/gltf.py`: the look export carries the skin weights (look_only read only the outline group before: every
+  vertex bound to the hips, so the look.glb wasn't posable). The QA's cached parts are unaffected (33/34 restored).
+
 ## State
-- 2026-10-01: builds launched on the build box: rom_base (log charkit/out/rom/build_base.log), rom_cand (rom-cand's
-  charkit/out/rom/build_cand.log).
+- 2026-10-01: builds on the build box: rom_base / rom_cand (look export without weights: their QA only), then
+  rom_base2 / rom_cand2 (after 847d7c6c: the weighted look export; logs build_base2.log, rom-cand's build_cand2.log).
 
 ## Findings on the way
 - motion QA is SKIPPED on the current default (hands2_after's qa.json: `ValueError: skirt: not a grid (5110 vertices,
