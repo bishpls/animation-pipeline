@@ -923,3 +923,30 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   (cuts' 5th element r round the neck's axis); then the collar walk, the back flap bed, bow_front_bleed.
 - Running: sweep d1 (render2, base g6_c0, tools/garments6/v/d1.json -> charkit/out/garments6/sweeps/d1, log
   sweep_d1.log): tuck / clear by parts / neck r; local bodyj6 test (T0, F1) -> charkit/out/garments6/bodyj6_test.
+- Sweeps d1/d2 (render2, base g6_c0; tools/garments6/sweepk.py reads a sweep's rows under K against the old body
+  g5_base_r2): the jacket tucked under the puffs (top.tuck margin 0) + the puffs grown round the bridge and arm by part
+  (sleeve_L.clear_body {gap 0.025, parts [shoulder, arm], inner 0}): piece_top f/3q/p/b 0.311/0.577/0.577/0.743 ->
+  0.626/0.719/0.623/0.860 (old body 0.749/0.800/0.634/0.931), sleeve_L 0.889/0.964/0.867/0.867, sleeve_R front 0.891,
+  bow_front_bleed 0.153 F -> 0.06 W, art_bumps/points_top 20/27 -> 0. The smooth envelope (clear_body.spread 0.04-0.06)
+  balloons the puff (profile 0.94 -> 0.65-0.69, a block up to the neck): not used; the 3x3 max filter leaves lumps on
+  the inner front (sleeve_front_spikes 0.08 F).
+- The sweep can't see the skin's mask (the garments stage splices garments only; neck_crease reads the base's masked
+  skin): neck_crease, the skin's wings, art_outline_neck need full builds.
+- Body variants k2 (tools/garments6/bodyj6.py, render2 -> charkit/out/garments6/bodyj6_k2): score vs the sheet / whole-skin
+  crease / the bridge over the neck ring: T0 0.0293 / 88 / 25 verts 0.038 L; F1 (the flare: h 0.08, share 1 at 75-180
+  deg, to 0.04, p 2) 0.0281 / 90 / same; L45 (socket lift top 45) 0.0324 / 88 / 5, 0.021; F1L45 0.0315 / 83 / 5, 0.021;
+  L30 0.040. The whole-skin crease stays 83-90 (the level shoulder's own turn; the QA reads the masked skin). Posed on
+  every variant: strain p95 1.75-1.95, folded <= 3.3%, nothing inside the torso.
+- tools/garments6/bodysec.py (sections by part): the bridge forms the whole shoulder top from x 0.15 out (the hole's
+  top starts by the neck); its front and back columns leave the torso nearly perpendicular (a wall at the hole's front
+  edge, x 0.2-0.25, y -0.05); the rim's top corners rise to -0.505 (the skin wings over the collar in the renders).
+- posed.py (the raises with the garments on, left arm): with the puff rigid on the upper arm the skin it holds comes out
+  under it (side raise 53 vertices, 0.12 L; forward 19, 0.11); with the cap weighted from the body (sleeve weights {from
+  body, rigid_from 0.05, blend 0.15}) 8 / 0.046 and 13 / 0.041, the puff's strain p95 2.0 / 2.4, folded 1.2% / 3.9%.
+- poke.py (what comes through what, at rest): with the radial neck cut the jacket covers the shoulder tops and came
+  through the collar (front 209, back 20 vertices); the collar beds: the back/front projections (bed side back/front)
+  front 102 / back 23; along the collar's normal (bed side normal, 6 passes) front 10 / back 5 (max 0.04 L).
+- Builds running (render2): g6_f1 (body F1 + garments tools/garments6/v/ga.json: tuck, radial neck cut, beds bow + collar
+  back/front projections, clear_body {gap 0.02, from_t -0.3}, the cap's body weights), g6_f1l45 (body F1L45, same);
+  specs charkit/out/garments6/specs/b_F1.json, b_F1L45.json; logs build_f1.log, build_f1l45.log. Next garment set gb.json
+  (the collar bed along its normal).

@@ -442,6 +442,12 @@ def bed(A, sv, sf, spec, hull):
         G = collar_hull(A, dict(ps, _spec=sa), vertex_normals(A['verts'], A['faces']), hull)
         P = np.asarray(G['verts'], float)
         F_ = [tuple(f) for f in G['faces']]
+        if b.get('side') == 'normal':
+            # (passes: a pass's smoothing can carry a neighbour's move across a fold of the sheet; the next pass, its
+            # nearest points read again, takes it back under)
+            for _ in range(int(b.get('passes', 6))):
+                sv = bed_sheet(A, sv, sf, P, F_, L, b)
+            return sv
         # the side's own panel only (the lapels in front, the flap behind: through the body they overlap in projection,
         # and the other side's surface would drag the shell through the body to it)
         yc = bone_seg(A, 'neck')[0][1]
@@ -471,6 +477,59 @@ def bed(A, sv, sf, spec, hull):
         if not F_:
             return sv
     return bed_under(sv, sf, P, F_, L, b)
+
+
+def bed_sheet(A, sv, sf, P, F_, L, b):
+    """bed()'s geometry along a sheet's own normal (side 'normal'; round 6): a thin piece lying on the shell (the sailor
+    collar over the jacket: its lapels, the flap, and over the shoulders' tops, where no one projection sees it) and the
+    shell's vertices it covers (their nearest point on the sheet inside its faces, within `reach` L) that stand less than
+    `gap` L under its inner side, moved in along its normal (outward: away from the body's upright axis, and up) to
+    `gap` under it; within `margin` L past its rim (the nearest point on the rim, the vertex that far out sideways) too,
+    easing out over `ease` L; the moves smoothed over the shell's mesh (`smooth` passes) and never less than needed under
+    the sheet. -> sv moved."""
+    from .geom.bvh import BVH
+    T = np.array([(f[0], f[k], f[k + 1]) for f in F_ for k in range(1, len(f) - 1)], np.int64)
+    if not len(T):
+        return sv
+    gap, margin, ease, reach = (b.get(k, d) * L for k, d in (('gap', 0.008), ('margin', 0.015), ('ease', 0.04),
+                                                              ('reach', 0.1)))
+    bv = BVH((P, T))
+    d, f, q, reg = bv.nearest(sv, return_region=True)
+    n = np.cross(P[T[f, 1]] - P[T[f, 0]], P[T[f, 2]] - P[T[f, 0]])
+    n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-12)
+    yc = float(np.mean(np.asarray(A['verts'])[:, 1]))
+    rad = np.c_[q[:, 0], q[:, 1] - yc, np.zeros(len(q))]
+    rad /= np.maximum(np.linalg.norm(rad, axis=1, keepdims=True), 1e-12)
+    n[np.sum(n * (rad + np.array([0.0, 0.0, 0.5])), 1) < 0] *= -1
+    sd = np.sum((sv - q) * n, 1)                                  # > 0: out past the sheet's inner side... at its middle
+    th = b.get('thick', 0.012) * L                                # (the sheet's thickness: its surface is its middle)
+    lat = np.linalg.norm((sv - q) - sd[:, None] * n, axis=1)     # sideways past the rim (0 inside its faces)
+    from collections import Counter
+    ec = Counter((min(a, c), max(a, c)) for t in T for a, c in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])))
+    rim_v = np.zeros(len(P), bool)
+    for (a, c), k in ec.items():
+        if k == 1:
+            rim_v[[a, c]] = True
+    on_rim = rim_v[T[f]].any(1) & (reg != 0)
+    w = np.where(on_rim, np.clip(1 - (lat - margin) / max(ease, 1e-9), 0, 1), 1.0)
+    w = w * w * (3 - 2 * w)
+    need = np.maximum(0.0, sd + 0.5 * th + gap)
+    near = d < reach
+    mv = np.where((near & (w > 0))[:, None], -(need * w)[:, None] * n, 0.0)
+    if b.get('smooth', 3) and np.abs(mv).sum() > 0:
+        nb = [set() for _ in range(len(sv))]
+        for f_ in sf:
+            for a_ in f_:
+                nb[a_].update(f_)
+        nb = [np.fromiter(x, int) for x in nb]
+        raw = mv.copy()
+        hard = near & ~on_rim & (need > 0)
+        for _ in range(b.get('smooth', 3)):
+            mv = np.array([mv[x].mean(0) if len(x) else mv[i] for i, x in enumerate(nb)])
+            # never less than needed under the sheet itself
+            short = hard & (np.sum(mv * raw, 1) < np.sum(raw * raw, 1))
+            mv[short] = raw[short]
+    return sv + mv
 
 
 def bed_under(sv, sf, P, F_, L, b):
