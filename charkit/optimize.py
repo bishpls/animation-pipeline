@@ -6,7 +6,8 @@ on persistent workers, each holding the stage's context and a build slot; the to
 builds.
 
     python -m charkit sweep optimize DECL.json [--out DIR] [--workers N|auto] [--reserve K] [--resume] [--no-confirm]
-                                     [--confirm K] [--evals N] [--minutes M] [--seed S] [--box [NAME]] [--plan]
+                                     [--confirm K] [--evals N] [--minutes M] [--generations G] [--seed S]
+                                     [--box [NAME | auto]] [--plan]
     python -m charkit sweep --optimize DECL.json ...                     # the same
     python -m charkit sweep optimize report OUT                          # the tables, plots and review page again
     python -m charkit sweep optimize audit BUILD [--parts P,..] [--out DIR]   # which checks the fast path measures
@@ -1013,8 +1014,9 @@ class Run:
         for k in ('seed',):
             if ov.get(k) is not None:
                 o[k] = ov[k]
-        if ov.get('evals') or ov.get('minutes'):
-            o['budget'] = dict(o.get('budget') or {}, **{k: ov[k] for k in ('evals', 'minutes') if ov.get(k)})
+        if ov.get('evals') or ov.get('minutes') or ov.get('generations'):
+            o['budget'] = dict(o.get('budget') or {}, **{k: ov[k] for k in ('evals', 'minutes', 'generations')
+                                                         if ov.get(k)})
         if ov.get('confirm') is not None:
             o['confirm'] = dict(o.get('confirm') or {}, top=ov['confirm'])
         self.log = log
@@ -2185,6 +2187,7 @@ def main(args):
     ov = dict(seed=int(_opt(args, '--seed')) if _opt(args, '--seed') else None,
               evals=int(_opt(args, '--evals')) if _opt(args, '--evals') else None,
               minutes=float(_opt(args, '--minutes')) if _opt(args, '--minutes') else None,
+              generations=int(_opt(args, '--generations')) if _opt(args, '--generations') else None,
               confirm=int(_opt(args, '--confirm')) if _opt(args, '--confirm') else None)
     R = Run(sw._abs(decl), out, workers=int(w) if str(w).isdigit() else 'auto',
             reserve=int(_opt(args, '--reserve', 1)), inproc='--inproc' in args, overrides=ov)
