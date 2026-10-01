@@ -1254,3 +1254,16 @@ tree's code: `charkit/out/calib_jaw/known_bads.json`.
   anti-gaming guard block (gate.judge: kinds 'new FAIL', 'anti-gaming guard'), not a 'flag check regressed' block
   (1.804 PASS -> 2.111 WARN). Recording Michael's acceptance of it needs gate.py to take that kind too: tool/calib's /
   the coordinator's change, not this branch's (a branch widening its own gate is the gaming the guard is for).
+
+**The gate** (7ff9272 into pipeline-3d 3f7b730, `--accept jaw_taper_shape`;
+`charkit/out/gate/gate_tool-face5_7ff9272_into_3f7b730.md`): **FAIL under K, 8 blockers**: art_terminator_hair 1.804
+PASS -> 2.111 WARN (flag check regressed: the side locks, tool/hair5's; `--accept-fail` can't record it, above) and
+the 7 calibration records that aren't calibrated (chin_angle, chin_underside, chin_v, jaw_taper, jaw_taper_shape coarse;
+neck_front_wiggle miscalibrated; neck_to_face blind). The 8 calibrated records pass the gate's calibration rule
+(jaw_outline_hidden new; the 7 remeasured). jaw_taper_shape's 2x2 accepted (0.0399 WARN -> 0.0157 PASS). No guard
+findings. CPU 1.01x (candidate built, baseline cached). Tests 76 files, 0 failing. Flag values: art_speckle_neck
+0.833 -> 0.678, art_peeks_hair 18 -> 17.
+- To land: Michael's calls on the 7 (INFO, or tighten: jaw_taper_shape to ~0.012 calibrates it with the current build
+  WARN) and on the terminator (an acceptance the gate can record: gate.judge's accepted kinds to include 'flag check
+  regressed', tool/calib's change). Then recalibrate any check whose grading changes (`python -m charkit calibrate CHECK
+  --build charkit/out/f5m --seeds 9`), commit, re-gate. tool/face6 merges face5 after it lands.
