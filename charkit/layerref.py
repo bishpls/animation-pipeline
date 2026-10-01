@@ -474,9 +474,10 @@ def check_skirt(spec, path, log=print, keep_masks=None):
         DC = np.zeros_like(R)
         for p in OCCLUDERS[layer][v]:
             DC |= t['pieces'].get(p, False)
-        # the truth's unscored pixels (its drawn lines, the outline round each cell) score neither way, as in
-        # outfit.score
-        DC = (ndimage.binary_closing(DC, iterations=3) | t['pieces']['unscored']) & t['fg'] & band & ~R
+        # the truth's unscored rim round the layer's cells (their drawn outline, 4 px) scores neither way, as
+        # outfit.score leaves unscored pixels out (the truth leaves the hair, skin and boots unscored too: only the rim)
+        rim = t['pieces']['unscored'] & ndimage.binary_dilation(R, iterations=4)
+        DC = (ndimage.binary_closing(DC, iterations=3) | rim) & t['fg'] & band & ~R
         # the search on a window round the turnaround's layer and its occluders (the band, 0.5 L either side)
         yy, xx = np.nonzero(R | DC)
         pad = int(0.5 * t['ppl'])

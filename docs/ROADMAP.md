@@ -114,7 +114,10 @@ Our gap is vocabulary: a builder, or a generic fallback, for every piece type.
      4. per layer group in the graph (each piece that covers another: accessories, drapery, independent layers), one
         separated sheet: the cover alone and the covered layer WITHOUT it, as worn, front / three-quarter / side /
         back, one scale, the turnaround as the edit's reference (Clawd's: bodice without the bow, the collar alone,
-        the skirt's layers, the clips);
+        the skirt's layers, the clips). Generation lessons from Clawd's: show garments on legless tailor's dress
+        forms (a lower-body mannequin, a lower-body close-up as input, or "the shorts alone" were refused by the image
+        model's moderation); give a small accessory drawn alone an enlarged crop of it as input (from the turnaround
+        alone the crab and star came back generic);
      5. close-ups for pieces with internal structure (knots, creases, locks, construction) and pose sheets (hands);
      6. every sheet refchecked against the turnaround before registering (the visible parts' silhouettes, the scale,
         the covered layer inside its cover's silhouette: `python -m charkit.layerref`), registered with a
