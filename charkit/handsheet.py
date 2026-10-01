@@ -337,6 +337,67 @@ def picture(F, P, out):
     return out
 
 
+class JointFit:
+    """the template's structure fitted across both references at once (the canonical rule's step 3 when they disagree:
+    the base takes the best fit across views and reports per-view costs): the hand sheet's open pose (SheetFit, the
+    open angles as 'open.<knob>') and the turnaround's rest hands (code_hand.Fit with its IoU floors, the rest angles
+    as plain knobs), the structure shared -> cost: the two costs summed."""
+
+    def __init__(self, build, spec_path, open_over, rest_over=None, floors=None):
+        from . import code_hand
+        self.T = code_hand._fit_only(build, spec_path, rest_over)
+        self.T.floors = floors
+        self.S = SheetFit(spec_path, 'open', over=open_over)
+        self.base = dict(self.T.base)
+        for k, v in (open_over or {}).items():
+            self.base['open.' + k] = v
+        self.floors = floors
+        self.src = ('charkit.handsheet:JointFit', (build, spec_path, open_over, rest_over, floors))
+
+    def split(self, P):
+        rest = {k: v for k, v in P.items() if not k.startswith('open.')}
+        opn = dict(rest, **{k[5:]: v for k, v in P.items() if k.startswith('open.')})
+        return rest, opn
+
+    def score(self, P, detail=False):
+        rest, opn = self.split(P)
+        ct, pt = self.T.score(rest, detail=detail)
+        cs, ps = self.S.score(opn, detail=detail)
+        per = dict(pt, sheet_back=ps['back'], sheet_side=ps['side'])
+        return ct + cs, per
+
+
+def joint_main(args):
+    """python -m charkit handsheet joint --build B --open JSON (the open angles) [--rest JSON] [--floors JSON] --knobs ..
+    [--method de --workers N --maxiter N] [--rounds N] [--json J] [--png-rest P] [--png-open P]"""
+    import json
+    from . import code_hand
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    spec_path = opt('--spec') or os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')
+    F = JointFit(opt('--build'), spec_path, json.loads(opt('--open')), json.loads(opt('--rest')) if opt('--rest') else None,
+                 json.loads(opt('--floors')) if opt('--floors') else None)
+    knobs = tuple(opt('--knobs').split(','))
+    P, c, per = code_hand.search(F, knobs, rounds=int(opt('--rounds', 1)), log=lambda *a, **k: print(*a, flush=True),
+                                 method=opt('--method', 'powell'), workers=int(opt('--workers', 1)),
+                                 maxiter=int(opt('--maxiter', 30)), popsize=int(opt('--popsize', 12)),
+                                 maxfev=int(opt('--maxfev', 300)))
+    rest, opn = F.split(P)
+    ct, ft = F.T.score(rest, detail=True)
+    cs, fs = F.S.score(opn, detail=True)
+    res = dict(cost=round(c, 4), turnaround=ft, sheet=fs, rest={k: v for k, v in rest.items() if k in code_hand.DEFAULT},
+               open={k[5:]: v for k, v in P.items() if k.startswith('open.')},
+               fist=code_hand.fist_report(code_hand.hand(F.T.J['left'], 'left', rest)))
+    print(json.dumps(res, indent=1, default=str))
+    if opt('--json'):
+        os.makedirs(os.path.dirname(os.path.abspath(opt('--json'))), exist_ok=True)
+        json.dump(res, open(opt('--json'), 'w'), indent=1, default=str)
+    if opt('--png-rest'):
+        print(code_hand.show(F.T, rest, opt('--png-rest')))
+    if opt('--png-open'):
+        print(picture(F.S, opn, opt('--png-open')))
+    return 0
+
+
 OPEN_KNOBS = ('palm', 'palm_w', 'wrist_w', 'palm_t', 'taper', 'overlap', 'fingers.0', 'fingers.2', 'fingers.3',
               'thumb_base', 'thumb_across', 'thumb_len', 'thumb_w', 'thumb_out', 'thumb_down', 'curl', 'dev',
               'fan_index', 'fan_middle', 'fan_ring', 'fan_little', 'view_turn_side')
@@ -351,6 +412,8 @@ def main(args):
     from . import code_hand
     spec_path = opt('--spec') or os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')
     over = json.loads(opt('--over')) if opt('--over') else None
+    if args and args[0] == 'joint':
+        return joint_main(args)
     F = SheetFit(spec_path, opt('--pose', 'open'), over=over)
     if not args or args[0] == 'show':
         c, full = F.score(F.base, detail=True)

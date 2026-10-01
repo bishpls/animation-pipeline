@@ -493,8 +493,16 @@ class Fit:
                       popsize=popsize, maxfev=maxfev)
 
 
+def bounds_of(k):
+    """a knob's bounds: KNOB_BOUNDS, or a prefixed knob's ('open.curl': curl's)."""
+    return KNOB_BOUNDS[k] if k in KNOB_BOUNDS else KNOB_BOUNDS[k.split('.', 1)[1]]
+
+
 def get_knob(P, k):
-    """a knob's value; 'fingers.I' is the I-th of the fingers' lengths."""
+    """a knob's value; 'fingers.I' is the I-th of the fingers' lengths; a prefixed knob ('open.curl') its own key, else
+    the unprefixed one's."""
+    if '.' in k and not k.startswith('fingers.'):
+        return P.get(k, P.get(k.split('.', 1)[1]))
     if k.startswith('fingers.'):
         return P['fingers'][int(k.split('.')[1])]
     return P[k]
@@ -529,8 +537,8 @@ def search(fit, knobs, rounds=3, log=print, method='powell', workers=1, seed=0, 
     -> (cost, per), .base, .floors, .src -> (P, cost, per)."""
     from scipy.optimize import minimize
     P0 = dict(fit.base)
-    lo = np.array([KNOB_BOUNDS[k][0] for k in knobs])
-    hi = np.array([KNOB_BOUNDS[k][1] for k in knobs])
+    lo = np.array([bounds_of(k)[0] for k in knobs])
+    hi = np.array([bounds_of(k)[1] for k in knobs])
     x0 = (np.clip([get_knob(P0, k) for k in knobs], lo, hi) - lo) / (hi - lo)
     best = {'c': np.inf}
     to_P = lambda x: _to_P(P0, knobs, lo, hi, x)
