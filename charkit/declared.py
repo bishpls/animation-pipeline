@@ -277,9 +277,53 @@ def position(Mo, Md, ctx, axis='both', round_=4):
                 design=[round(float(xd), 4), round(float(zd), 4)])
 
 
+def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, round_=3):
+    """the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's
+    ink, with its fainter strokes (faint: outfit.ridges, as partqa.design_lines reads the bow's creases), inside the drawn
+    region (the piece's mask, or the drawn piece `region`'s: the skirt's cream panel; closed, holes filled, its outline's
+    band `band` L left out), against ours drawn with outlines and ink strokes (ctx 'lines') inside the same region and on
+    our piece; each skeletonized. The share of the drawn lines' length with none of ours within `tol` L (1 - recall:
+    where the lines are, not only how much; `ours` and `design` their lengths in L, `precision` the share of ours near a
+    drawn one). A view whose drawn region holds under `min_len` L of lines is skipped."""
+    from scipy import ndimage
+    from skimage.morphology import skeletonize
+    from . import bodyqa, outfit
+    ppl, view = ctx['ppl'], ctx['view']
+    sh = Mo.shape
+    R = fit(ctx['masks'].get('%s__%s' % (view, region)), sh) if region else fit(Md, sh)
+    if R is None or not R.any():
+        return None
+    R = ndimage.binary_fill_holes(ndimage.binary_closing(R, iterations=3))
+    inner = ndimage.binary_erosion(R, iterations=max(1, int(round(band * ppl))))
+    dv = ctx.get('dv') or {}
+    raw = dv.get('raw')
+    if raw is None:
+        return None
+    ink = raw == bodyqa.CLASS['line']
+    if faint and dv.get('rgb') is not None:
+        ink = ink | (outfit.ridges(dv['rgb']) & (raw != bodyqa.CLASS['skin']))
+    d_ = skeletonize(fit(ink, sh) & inner)
+    d_len = float(d_.sum()) / ppl
+    if d_len < min_len:
+        return None
+    lines = ctx.get('lines')
+    if lines is None or not Mo.any():
+        return dict(value=None, why=WHY_OURS)
+    o_ = skeletonize(fit(lines, sh) & inner & ndimage.binary_dilation(Mo, iterations=2))
+    o_len = float(o_.sum()) / ppl
+    r = tol * ppl
+    near_o = ndimage.distance_transform_edt(~o_) <= r if o_.any() else np.zeros(sh, bool)
+    near_d = ndimage.distance_transform_edt(~d_) <= r
+    recall = float((d_ & near_o).sum()) / max(1, int(d_.sum()))
+    prec = float((o_ & near_d).sum()) / max(1, int(o_.sum())) if o_.any() else 0.0
+    return dict(value=round(1.0 - recall, round_), ours=round(o_len, 3), design=round(d_len, 3),
+                precision=round(prec, 3))
+
+
 FAMILIES = dict(shape_iou=shape_iou, width=width, edge=edge, tips=tips, angle=angle, ink_between=ink_between,
-                position=position)
+                position=position, ink_inside=ink_inside)
 HIGHER = ('shape_iou',)                 # families whose value is better higher (a declaration's `better` overrides)
+LINE_FAMILIES = ('ink_between', 'ink_inside')     # families that read our drawn lines (inputs' lines)
 
 
 def grade(v, limits, better='lower'):
@@ -404,6 +448,7 @@ def evaluate(decls, I):
             continue
         Mo = [pieceqa.members(lab, names, pm, p) for p in pieces]
         ctx = dict(ppl=ppl, view=view, lab=lab, dv_fg=(dv.get(view) or {}).get('fg'), cls=(dv.get(view) or {}).get('cls'),
+                   dv=dv.get(view),
                    lines=(I.get('lines') or {}).get(view), piece=pieces[0], names=names, masks=masks,
                    graph=I.get('graph'), spec=I.get('spec'))
         fam = FAMILIES[d['family']]
@@ -445,7 +490,7 @@ def declared(B, design=None, out=None):
     if not ds:
         return None, {}
     views = tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds))
-    I = inputs(B, design, views, lines=any(d['family'] == 'ink_between' for d in ds))
+    I = inputs(B, design, views, lines=any(d['family'] in LINE_FAMILIES for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}
@@ -471,8 +516,21 @@ class Declared(_calib_base()):
         from . import bodyqa
         line = bodyqa.CLASS['line']
 
+        def drawn(v):
+            # the drawing's lines as it draws them: its ink, and its fainter strokes (a crease drawn in a shade:
+            # outfit.ridges; ink_inside reads both), skin left out
+            from . import outfit
+            d = self.dv.get(v) or {}
+            raw = d.get('raw')
+            if raw is None:
+                return self.cls[v] == line
+            m = raw == line
+            if d.get('rgb') is not None:
+                m = m | (outfit.ridges(d['rgb']) & (raw != bodyqa.CLASS['skin']))
+            return fit(m, self.cls[v].shape)
+
         def lines(B, ppl, az3, views=VIEWS):
             if kind == 'design':
-                return {v: _shift(self.cls[v] == line, arg[0], arg[1], False) for v in views if v in self.cls}
+                return {v: _shift(drawn(v), arg[0], arg[1], False) for v in views if v in self.cls}
             return {v: np.zeros(self.cls[v].shape, bool) for v in views if v in self.cls}
         return super().patches(L, kind, arg) + [(sys.modules[__name__], 'our_lines', lines)]

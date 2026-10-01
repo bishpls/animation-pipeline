@@ -899,6 +899,14 @@ def render_surfaces(B, o, variant):
     cull = np.array([bool((o.material(int(s))[1] or {}).get('cull')) for s in range(max(1, len(o.materials)))])
     sh = o.a(variant, 'shrink')
     out = [((V + sh) if sh is not None else V, T, tm, cull[np.minimum(tm, len(cull) - 1)], Tl, False)]
+    ink = [k for k in range(len(o.materials)) if str(o.materials[k] or '').endswith('_ink')]
+    if ink and len(T):
+        # a piece's creases drawn as ink (charkit.garments.with_ink: strokes on a *_ink slot): lines, as its outline
+        # hull is (the line checks read them so: declared.our_lines, partqa), not cloth
+        k_ = np.isin(tm, ink)
+        if k_.any():
+            V0, T0, tm0, c0, Tl0, _ = out[0]
+            out = [(V0, T0[~k_], tm0[~k_], c0[~k_], Tl0[~k_], False), (V0, T0[k_], tm0[k_], c0[k_], Tl0[k_], True)]
     if sh is not None and o.outline:
         slot = int(o.outline['slot'])
         hc = bool((o.material(slot)[1] or {}).get('cull', True))
