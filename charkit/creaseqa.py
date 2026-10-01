@@ -37,7 +37,10 @@ DECLARED_CHECKS = [
     dict(check='skirt_panel_{view}_shape', family='shape_iou', piece='skirt', views=['front', 'three_quarter'],
          params=dict(drawn='skirt_panel', ours_cls='cream', close=True), limits=[0.8, 0.65],
          note="the skirt's cream panel: our skirt's cream pixels against the drawn panel, both closed (IoU)",
-         calibrate=dict(known_bad='g4_before', baseline=['voronoi_pieces'], shape=['piece_skirt'])),
+         calibrate=dict(known_bad=None, no_known_bad="the panel's shape guard (as the piece_* shape IoUs are: "
+                        "agreement with the drawing, no single flagged defect; g4_before's band-shaped panel reads 0.69 "
+                        "WARN): the design moved 1-2 px must pass and a random stand-in must fail",
+                        baseline=['voronoi_pieces'], shape=['piece_skirt'])),
     dict(check='bow_{view}_creases', family='ink_inside', piece='bow', views=['front', 'three_quarter'],
          params=dict(band=0.015, round=3), limits=[0.35, 0.6], flag="the bow lacks fine crease texture (Michael, 2026-09-30)",
          note="the bow's drawn creases and wrinkles inside its lobes and knot (ink and fainter strokes, skeletonized) our "
