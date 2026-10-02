@@ -10,6 +10,8 @@ hair), garment layers, a new character's pieces all fit it.
     python -m charkit label serve TASK.json [--port 8770] [--no-open] [--answers PATH]
         a local server (standard library; binds 127.0.0.1 only) for the page; every answer is written to the
         answers JSON at once (atomic replace), with its history (undo); reopening resumes at the first open item
+    python -m charkit label board DIR [--port 8774] [--no-open]
+        a read-only page folder (an analysis board) served on 127.0.0.1
     python -m charkit label status TASK.json [--answers PATH]
         progress: answered, unsure, skipped, and the links as answered
 
@@ -513,6 +515,49 @@ def status(task_path, answers=None):
     return 0
 
 
+def serve_board(folder, port=8774, open_page=True):
+    """a read-only page folder (an analysis board: index.html and what it reads) served on 127.0.0.1, nothing outside
+    the folder."""
+    import mimetypes
+    root = os.path.realpath(folder)
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *a):
+            pass
+
+        def do_GET(self):
+            p = urllib.parse.unquote(urllib.parse.urlparse(self.path).path).lstrip('/') or 'index.html'
+            f = os.path.realpath(os.path.join(root, p))
+            if not f.startswith(root + os.sep) or not os.path.isfile(f):
+                self.send_response(404)
+                self.end_headers()
+                return
+            b = open(f, 'rb').read()
+            self.send_response(200)
+            self.send_header('Content-Type', mimetypes.guess_type(f)[0] or 'application/octet-stream')
+            self.send_header('Content-Length', str(len(b)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(b)
+    for k in range(20):
+        try:
+            srv = ThreadingHTTPServer(('127.0.0.1', port + k), H)
+            break
+        except OSError:
+            continue
+    else:
+        raise SystemExit('no free port from %d' % port)
+    url = 'http://127.0.0.1:%d/' % srv.server_address[1]
+    print('board %s: %s' % (folder, url))
+    sys.stdout.flush()
+    if open_page:
+        webbrowser.open(url)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
 def _opt(args, name, default=None):
     return args[args.index(name) + 1] if name in args else default
 
@@ -527,6 +572,9 @@ def main(args):
         return 0
     if cmd == 'status':
         return status(rest[0], _opt(rest, '--answers'))
+    if cmd == 'board':
+        serve_board(rest[0], int(_opt(rest, '--port', 8774)), '--no-open' not in rest)
+        return 0
     raise SystemExit('unknown label command %r\n%s' % (cmd, __doc__))
 
 
