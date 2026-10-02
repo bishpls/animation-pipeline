@@ -40,11 +40,12 @@ _Z = dict(curl=(0.0, 0.0, 0.0), spread=0.0)
 # the curled index and middle; open straightens the rest's curl and fans the fingers; point keeps the index straight
 POSES = {
     'relaxed': {},
-    # (open: fitted to the hand sheet's open hand per row, round 6's poses1: curl -6.4, spread 11.5, the thumb's
-    # spread 33, opposition 19, curl 12; handposes.from_knobs('open', ...))
-    'open': dict(thumb=dict(curl=(4.8, 11.9, 13.7), spread=33.3, oppose=19.1),
-                 index=dict(curl=-6.4, spread=11.5), middle=dict(curl=-6.4, spread=0.0),
-                 ring=dict(curl=-6.4, spread=11.5), little=dict(curl=-6.4, spread=22.9)),
+    # (open: the fingers flat (the curl cancels the rest's 4.45: hands3's rest4p) and fanned, the thumb as fitted to the
+    # hand sheet's open hand per row on that rest (round 7's poses2: spread 12.1, the thumb's spread 24.8, opposition
+    # 14.9, curl 0.8; the fit's own curl -18 hyperextends to chase the reach and isn't taken))
+    'open': dict(thumb=dict(curl=(0.33, 0.82, 0.94), spread=24.8, oppose=14.9),
+                 index=dict(curl=-4.45, spread=12.1), middle=dict(curl=-4.45, spread=0.0),
+                 ring=dict(curl=-4.45, spread=12.1), little=dict(curl=-4.45, spread=24.2)),
     'fist': dict(thumb=dict(curl=(15.0, 35.0, 40.0), spread=-10.0, oppose=55.0),
                  index=dict(curl=(85.0, 95.0, 60.0), spread=-2.0), middle=dict(curl=(85.0, 95.0, 60.0)),
                  ring=dict(curl=(85.0, 95.0, 60.0), spread=-2.0), little=dict(curl=(85.0, 95.0, 60.0), spread=-4.0)),
