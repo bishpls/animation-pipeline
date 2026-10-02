@@ -1,0 +1,10 @@
+{
+ "name": "hi_torn",
+ "why": "tool/hairident: a fresh torn-shadow known-bad (look_v5, the build the flag was raised on, is on no reachable machine): today's default with the hair's shading normals unsmoothed (hair.shape.style shade_blur 0.02, shade_close 0.03, lock_shading 1.0: tools/hairident/torn_spec.json): the cel shadow on the hair tears into stripes and patches along every lock, as look_v5's did",
+ "flag": "the torn hair shadow patches (look_v5, Michael 2026-09-29)",
+ "commit": null,
+ "source": "~/animation-pipeline-hairident/charkit/out/hi_torn",
+ "stored": "2026-10-01",
+ "bundle": "89b195bd2076c0af",
+ "qa_checks": 744
+}
