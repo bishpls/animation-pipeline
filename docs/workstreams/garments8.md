@@ -281,3 +281,10 @@ charkit/out/garments8/sweeps/l3/sweep.json (control = g8_c0):
    (0.000) but pushed neck_crease to FAIL (34.6): the collar's hide_under mask (reach/rim) with the new collar.
 3. Then the V (l2/l3's opening + panel cut: neck_v_front 0.73-0.77) and the puffs' dome (bow_front_bleed 0.158,
    sleeve_*_profile_L) as planned; the motion items are not this round's.
+
+### Landing step 1 (2026-10-01)
+- pipeline-3d 3144b1f6 (tool/hairident) merged in (939d63f4: the ledger and prompts unioned).
+- Pregate: PASS (0 moved, 0 blocking; b50310f6 into 3144b1f6).
+- Review page: charkit/out/garments8/review/index.html (tools/garments8/review.json; `python -m charkit review page
+  tools/garments8/review.json --out charkit/out/garments8/review`).
+- Box gate running: `remote gate tool/garments8 --into pipeline-3d` (log charkit/out/garments8/gate1.log).
