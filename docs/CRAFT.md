@@ -8,6 +8,26 @@ This is the working method for this repo. It distils three earlier projects (EMB
 2. **Author motion, timing and composition by hand.** Those are the craft the audience attributes to the maker.
 3. **One clock.** Picture, lyrics and sound read the same cue sheet (`assets/cues.json`), so every hit lands on its frame.
 4. **Look at everything.** You can't see motion by reading code. Render contact sheets, strips and crops, open them with the Read tool, and fix what you see. Then look again.
+5. **Let every shot conclude.** (Michael, 2026-10-02: "nearly every cut and transition is too fast. This is a common
+   pattern I've seen out of video production from you... it comes across as jarring and sloppy to human attention to not
+   allow a shot to breathe / conclude before whipping away to the next scene.") This is a recurring failure of ours, so it's
+   a measured rule:
+   - **A shot plays its action to its conclusion, then holds.** The hit lands *and* the victim's flight or reaction is
+     seen; the landing settles; the gag's punchline gets its reaction; the reveal is held after it's legible.
+   - **Cut on a completed action or a held pose,** never mid-motion or during the payoff. A match cut on action is a chosen
+     exception, not the default.
+   - **Minimums at 60 fps:**
+     - ≥ 0.75 s (45 frames) after an action's payoff before the cut;
+     - ≥ 1.0 s after a punchline, a reaction or a reveal;
+     - a card held ≥ 1.5 s once fully legible;
+     - shots ≥ ~1.5 s, except impact frames (≤ 8 frames) and a deliberate flurry (at most 3 short shots in a row, justified
+       in the cut's notes).
+   - **When the music or a section is too short for its shots to conclude, cut shots: never the conclusions.** Fewer,
+     complete shots beat more, clipped ones. Or extend the section by whole bars.
+   - **Measured, every draft:** each shot logs its payoff frame. A pacing audit (shot lengths, payoff-to-cut hold,
+     the flagged list, the median shot) runs before any draft goes to Michael, and its flags are fixed or justified.
+     Reference medians (the Special Movie's 1.37 s) describe other films; they are not targets.
+   - **Transitions too:** a cut away starts only after the outgoing shot's motion has resolved.
 
 ## 1. Pipeline
 
@@ -67,7 +87,7 @@ Code moves everything at once, on one curve, by one amount; that's what reads as
 - **Hook in the first second:** something visibly happens at frame 0, and the first sung word gets a visual event.
 - **Lyrics are motion graphics, not subtitles.** Each word prints on its sung syllable (from the song's word timestamps). The layout is part of the shot's composition: choose the lyric slot when you storyboard the shot, and keep it clear of action.
 - **Cut on bars;** put in-shot events on beats and syllables. Use the song's stops (bass drops out, a breakdown) for held moments: silence is a hit too.
-- **Stimulus layering** (pleometric): picture, type and ad-lib stamps are three channels, so if one loses the viewer another catches them. **Pattern interrupts:** change scale, colour field or framing every 2–4 s. **Recognition + novelty:** familiar symbols (a neon OPEN sign, an eye, a globe) seen in a new medium.
+- **Stimulus layering** (pleometric): picture, type and ad-lib stamps are three channels, so if one loses the viewer another catches them. **Pattern interrupts:** change scale, colour field or framing every 2–4 s, but never by cutting a shot before it concludes (§0.5); move within the shot instead. **Recognition + novelty:** familiar symbols (a neon OPEN sign, an eye, a globe) seen in a new medium.
 - **Loop the ending into the opening** where you can; replays count.
 
 ## 7. The review loop
