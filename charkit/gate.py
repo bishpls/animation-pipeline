@@ -171,6 +171,7 @@ def _build(wt, spec, out, args, record=True, procs=None, stop=None):
     if _threads():
         env.update({k: str(_threads()) for k in THREAD_VARS}, OMP_WAIT_POLICY='PASSIVE')
     env.update(_step_cache_env())
+    env['CHARKIT_QA_PROFILE'] = 'full'                  # (a gate's builds measure every part, whatever the caller's)
     t = time.time()
     # (no boards: nothing the gate reads draws from them, and the box's toon boards took 16 s a build)
     p = subprocess.Popen([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', '', '--no-blend'] + list(args),
@@ -226,6 +227,85 @@ def _cpu(out, key='cpu_seconds'):
 
 VENV_STEPS = ('outfit_draft', 'code_head', 'code_body', 'hair_select', 'geom_hair', 'pieces_hair', 'garments_geom')
 
+# Michael's budget rule (2026-10-01, docs/workstreams/incremental.md item 1): a candidate whose build CPU is more than 10%
+# over charkit/budget.json's total AND more than 5% over its baseline's blocks. Either alone doesn't: the relative rule
+# (CPU_LIMIT) can't see creep (each of 2026-10-01's merges added 3-15%: 577 -> 1310 s in a day), and an absolute budget
+# alone would block a branch for the box's load or someone else's creep. The merged tree's budget.json is read, so a merge
+# that adds cost on purpose raises the budget there, with its reason, in review.
+BUDGET_OVER = 1.10
+BASELINE_OVER = 1.05
+
+
+def cpu_speed():
+    """the factor from this box's CPU seconds to the build box's (CHARKIT_CPU_SPEED; 1.0 unset). Nothing sets it yet:
+    measured on one commit (2026-10-01), build2's CPU seconds were about 0.93x the build box's and render2's 1.35-1.65x
+    for its numpy and Blender work (its QA drawn on its L4), not remote.py's CPU_SPEED (the picker's per-core speed,
+    1.25 on build2); a factor per box waits for like-for-like measurements on idle boxes. The rule's baseline half
+    (same box, same gate) keeps the difference from blocking."""
+    try:
+        v = float(os.environ.get('CHARKIT_CPU_SPEED') or 1.0)
+    except ValueError:
+        v = 1.0
+    return v if v > 0 else 1.0
+
+
+def budget_basis(out, budget, speed=1.0):
+    """a build's CPU on the budget's basis (charkit/budget.json's doc) -> dict(seconds, raw, speed, counted [(stage, ran
+    s, counted s, why)]) or None (no CPU record): its CPU seconds (times speed: cpu_speed's factor to the build box's),
+    with each cached venv step it restored counted at the budget's `cold` cost for it (what running it costs: a gate's
+    baseline restores them from the shared step cache, a branch that changes one runs it), and `resolve` at the budget's
+    figure when it built produced references (their shared cache rebuilds once per key change, not a standing cost). A
+    build without phase records: its total, scaled."""
+    p = os.path.join(out, 'build_cpu.json')
+    try:
+        r = json.load(open(p))
+    except (OSError, ValueError):
+        r = None
+    raw = (r or {}).get('cpu_seconds')
+    if raw is None:
+        raw = _cpu(out)
+    if raw is None:
+        return None
+    cold = (budget or {}).get('cold') or {}
+    ph, rs = (r or {}).get('phases') or {}, (r or {}).get('restored') or {}
+    steps, made = rs.get('steps') or {}, rs.get('produced') or {}
+    keep, counted, add = float(raw), [], 0.0
+    for k in VENV_STEPS:
+        if steps.get(k) == 'restored' and k in ph and cold.get(k) is not None:
+            keep -= ph[k][1]
+            add += float(cold[k])
+            counted.append((k, round(ph[k][1], 1), float(cold[k]), 'restored: counted at its cold cost'))
+    if 'resolve' in ph and any(v == 'built' for v in made.values()) and cold.get('resolve') is not None:
+        keep -= ph['resolve'][1]
+        add += float(cold['resolve'])
+        counted.append(('resolve', round(ph['resolve'][1], 1), float(cold['resolve']),
+                        'built produced references (%s): counted as restored' % ', '.join(
+                            sorted(k for k, v in made.items() if v == 'built'))))
+        # (building the hull computes the head in-process, and code_head then reuses it: ~0 s; counted as it costs)
+        if 'code_head' in ph and steps.get('code_head') != 'restored' and cold.get('code_head') is not None:
+            keep -= ph['code_head'][1]
+            add += float(cold['code_head'])
+            counted.append(('code_head', round(ph['code_head'][1], 1), float(cold['code_head']),
+                            'the hull built in resolve computed the head it reused: counted at its cold cost'))
+    return dict(seconds=round(keep * speed + add, 1), raw=raw, speed=speed, counted=counted)
+
+
+def budget_rule(base_out, cand_out, budget, speed=1.0):
+    """Michael's budget rule on a gate's two builds -> dict(budget, cand, base, over_budget, over_base, block, basis
+    {base, cand}) or None (no budget total, or no candidate CPU record). over_*: the candidate's figure over the budget's
+    total and over the baseline's (both budget_basis); block when over_budget > BUDGET_OVER and over_base >
+    BASELINE_OVER. With no baseline record the baseline half can't be read: not blocked, said so."""
+    total = (budget or {}).get('total')
+    C = budget_basis(cand_out, budget, speed)
+    if not total or C is None:
+        return None
+    A = budget_basis(base_out, budget, speed) if base_out else None
+    ob = round(C['seconds'] / float(total), 3)
+    oa = round(C['seconds'] / A['seconds'], 3) if A and A['seconds'] else None
+    return dict(budget=float(total), cand=C['seconds'], base=A['seconds'] if A else None, over_budget=ob,
+                over_base=oa, block=bool(ob > BUDGET_OVER and oa is not None and oa > BASELINE_OVER),
+                limits=[BUDGET_OVER, BASELINE_OVER], basis=dict(cand=C, base=A), speed=speed)
+
 
 def like_for_like(base_out, cand_out):
     """the two builds' CPU over what both ran (the coordinator's fairness report, 2026-10-01: a baseline that restored
@@ -267,6 +347,15 @@ def like_for_like(base_out, cand_out):
         b -= B['phases']['resolve'][1]
     return dict(base=round(a, 1), cand=round(b, 1), ratio=round(b / a, 2) if a > 0 else None, excluded=excluded,
                 raw=[A['cpu_seconds'], B['cpu_seconds']])
+
+
+def qa_adapter(q):
+    """the adapter a qa.json's render drawing drew on (measured.draw.adapter, recorded since incremental round 1) ->
+    'NAME (TYPE)', or None (an older report, or nothing drawn)."""
+    a = (((q or {}).get('measured') or {}).get('draw') or {}).get('adapter')
+    if not a:
+        return None
+    return '%s (%s)' % (a.get('device'), 'CPU' if a.get('type') == 'CPU' else a.get('type') or a.get('backend'))
 
 
 def _closure_of(out):
@@ -417,8 +506,9 @@ def cross_qa(tree, bundle_dir, out):
     bundle rebased to where its build's folder is now (rebased_bundle) -> the report (qa.json's) or {'error': why}."""
     os.makedirs(out, exist_ok=True)
     bundle_dir = rebased_bundle(bundle_dir, os.path.join(out, 'rebased'))
+    # (every part, as the builds measured: a QA-only run defaults to the iterate profile, which leaves motion QA out)
     r = subprocess.run([PY, '-m', 'charkit', 'qa', bundle_dir, '--out', out, '--cache', 'off'], cwd=tree,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, env=dict(os.environ, CHARKIT_QA_PROFILE='full'))
     p = os.path.join(out, 'qa.json')
     if r.returncode or not os.path.exists(p):
         return {'error': 'exit %d: %s' % (r.returncode, (r.stdout + r.stderr)[-800:])}
@@ -927,6 +1017,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         with clock('compare'):
             qa_a = json.load(open(os.path.join(base_out, 'qa', 'qa.json')))
             qa_b = json.load(open(os.path.join(cand_q, 'qa', 'qa.json')))
+            # which wgpu adapter each build's QA drew on (a GPU or the CPU rasteriser: readings differ at its ties)
+            rep['qa_adapter'] = [qa_adapter(qa_a), qa_adapter(qa_b)]
             # the measurement steps the branch brings, as the merged tree registers them (this code's STEPS lacks the
             # branch's own)
             steps = history.load_steps(os.path.join(wc, 'charkit', 'history.py'))
@@ -1005,8 +1097,10 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             # merged tree's charkit/budget.json (a branch that adds cost raises it there, in review)
             try:
                 from . import profile as prof
-                rep['budget'] = prof.budget_rows(cand_out, base_out, prof.load_budget(
-                    os.path.join(wc, 'charkit', 'budget.json')))
+                bud = prof.load_budget(os.path.join(wc, 'charkit', 'budget.json'))
+                rep['budget'] = prof.budget_rows(cand_out, base_out, bud)
+                # Michael's blocking rule (BUDGET_OVER and BASELINE_OVER, both on the budget's basis)
+                rep['budget_rule'] = budget_rule(base_out, cand_out, bud, cpu_speed())
             except Exception as e:                      # (never the gate's failure)
                 rep.setdefault('notes', []).append("the budget wasn't read (%s: %s)" % (type(e).__name__, e))
         return _finish(rep, gdir, tag, clock, tests_f, tests_r, qa_a, qa_b)
@@ -1396,7 +1490,8 @@ def judge(rep, qa_a, qa_b):
     conflicting, a test failing, a build failing); a new FAIL (a check PASSing or WARNing on the baseline and FAILing
     on the candidate; a remeasured check is judged by its 2x2 instead); a flag check (charkit.registry.is_flag, on either
     side's qa.json) whose status or calibrated grade gets worse, or which goes; the 2x2's drops that end at FAIL under
-    that measure or are flag checks (not --accept'ed); the build's CPU over CPU_LIMIT x. The report: everything else,
+    that measure or are flag checks (not --accept'ed); the build's CPU over CPU_LIMIT x; the budget rule (budget_rule:
+    over BUDGET_OVER x charkit/budget.json and over BASELINE_OVER x the baseline). The report: everything else,
     by kind (warn: a check PASS -> WARN; new_failing: checks the branch adds that FAIL; flag_values and values: value
     moves, the biggest first; gone; new; improved; removed; remeasured; twobytwo; notes)."""
     from . import registry
@@ -1412,9 +1507,15 @@ def judge(rep, qa_a, qa_b):
         if st:
             R['notes'].append('the %s build found stale cache entries (made afresh, replaced): %s' % (
                 side.split('_')[0], '; '.join(l.split('CHARKIT_CACHE_STALE', 1)[1].strip()[:120] for l in st)))
+    br = rep.get('budget_rule')
+    if br and br.get('block'):
+        block.append({'kind': 'build CPU budget', 'budget': br['budget'], 'base': br['base'], 'cand': br['cand'],
+                      'over_budget': br['over_budget'], 'over_base': br['over_base']})
     over = [r for r in rep.get('budget') or () if r.get('flag')]
     if over:
-        R['notes'].append('build CPU past its budget (charkit/budget.json; reported, not blocking): ' + ', '.join(
+        R['notes'].append('build CPU past its budget (charkit/budget.json; per stage, reported; the total blocks only past '
+                          '%.0f%% over it and %.0f%% over the baseline): ' % (100 * (BUDGET_OVER - 1),
+                                                                             100 * (BASELINE_OVER - 1)) + ', '.join(
             '%s %.0f s > %.0f s (%.2fx%s)' % (r['stage'], r['cand'], r['budget'], r['ratio'],
                                               '' if r.get('base') is None else ', baseline %.0f s' % r['base'])
             for r in over))
@@ -1596,6 +1697,11 @@ def _why(b):
     if k == 'build CPU':
         return 'the build takes %.2fx the CPU time (%s -> %s s%s)' % (b['ratio'], b['base'], b['cand'],
                                                                      ', the stages both builds ran' if b.get('like') else '')
+    if k == 'build CPU budget':
+        return ('the build CPU is over its budget: %.0f s, %.2fx charkit/budget.json\'s %.0f s (blocks past %.2fx) and '
+                '%.2fx the baseline\'s %.0f s (past %.2fx); a merge that adds cost on purpose raises the budget there, '
+                'with its reason' % (b['cand'], b['over_budget'], b['budget'], BUDGET_OVER, b['over_base'],
+                                     b['base'], BASELINE_OVER))
     if k in PART_BLOCKS.values():
         return '%s: %s (%s%s; measured %s, declares %s)' % (k, b['part'], b['status'], ': ' + str(b['why'])[:200]
                                                            if b.get('why') else '', b.get('checks'), b.get('expected'))
@@ -1621,6 +1727,7 @@ def summary(rep, md=None):
                 counts={k: len(v) for k, v in (rep.get('report') or {}).items() if v},
                 build=dict(rep.get('build') or {}, base=_brief(rep.get('base_build')), cand=_brief(rep.get('cand_build'))),
                 cpu_seconds=rep.get('cpu_seconds'), cpu_ratio=rep.get('cpu_ratio'),
+                budget_rule={k: v for k, v in (rep.get('budget_rule') or {}).items() if k != 'basis'} or None,
                 tests=dict(n=len(t), failed=sorted(k for k, v in t.items() if v != 'ok'),
                            seconds=round(sum((rep.get('test_seconds') or {}).values()), 1)),
                 phases=rep.get('phases'), seconds=rep.get('seconds'), carried=rep.get('carried'), md=md)
@@ -1703,7 +1810,8 @@ def _write(rep, gdir, tag):
         for b in rep['blocking']:
             L.append('- ' + _why(b) + (' (flag: %s)' % b['flag'] if b.get('flag') else ''))
     else:
-        L.append('Nothing: no new FAIL, no flag-check regression, build CPU within %.1fx.' % CPU_LIMIT)
+        L.append('Nothing: no new FAIL, no flag-check regression, build CPU within %.1fx and within its budget.'
+                 % CPU_LIMIT)
     L.append('\n## Report (not blocking)\n')
     cell = lambda k: (lambda r: _cell(r.get(k)))
     num = lambda k, f='%+.4g': (lambda r: (f % r[k]) if r.get(k) is not None else '')
@@ -1824,9 +1932,28 @@ def _write(rep, gdir, tag):
                                          bb.get('threads') or ('uncapped' if not bb.get('cached') else 'cached'),
                                          cb.get('threads') or (rep.get('cpu_threads') or [None, None])[1] or
                                          'uncapped')))
+    qd = rep.get('qa_adapter') or [None, None]
+    if any(qd):
+        L.append('- the QA drew on: baseline %s, candidate %s%s' % (
+            qd[0] or 'unrecorded', qd[1] or 'unrecorded', '' if qd[0] == qd[1] or None in qd else
+            ' (DIFFERENT adapters: the render-drawn readings differ at the rasteriser\'s ties)'))
+    br = rep.get('budget_rule')
+    if br:
+        f1 = lambda x: '-' if x is None else '%.0f' % x
+        L.append('- the budget rule (blocks when the build is over %.2fx charkit/budget.json and over %.2fx its baseline; '
+                 'cached steps at their cold cost; CPU factor %.2f): candidate %s s, '
+                 '%.2fx the budget\'s %s s, %s the baseline\'s %s s: %s' % (
+                     BUDGET_OVER, BASELINE_OVER, br.get('speed') or 1.0, f1(br['cand']), br['over_budget'],
+                     f1(br['budget']), '%.2fx' % br['over_base'] if br.get('over_base') is not None else 'not read against',
+                     f1(br.get('base')), 'BLOCKS' if br.get('block') else 'within'))
+        for side in ('base', 'cand'):
+            for st, ran, cnt, why in ((br.get('basis') or {}).get(side) or {}).get('counted') or ():
+                L.append('  - %s: %s %s s counted as %s s (%s)' % ({'base': 'baseline', 'cand': 'candidate'}[side],
+                                                                    st, ran, cnt, why))
     if rep.get('budget'):
         f = lambda x: '-' if x is None else '%.0f' % x
-        L.append('\nBuild CPU against the budget (charkit/budget.json; REPORT ONLY, s):\n')
+        L.append('\nBuild CPU against the budget (charkit/budget.json; per stage REPORT ONLY, raw seconds on this box; '
+                 'the total blocks by the rule above):\n')
         L += _table(rep['budget'], [('stage', lambda r: r['stage']), ('budget', lambda r: f(r.get('budget'))),
                                     ('baseline', lambda r: f(r.get('base'))), ('candidate', lambda r: f(r.get('cand'))),
                                     ('candidate / budget', lambda r: '%.2fx' % r['ratio'] if r.get('ratio') is not None

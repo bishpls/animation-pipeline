@@ -129,6 +129,55 @@ def test_motion_declares_its_checks_per_loose_skirt():
     assert n == (2 * len(motionqa.POSES) if 'skirt' in (loose or ['skirt']) else 0), (n, loose)
 
 
+def test_a_qa_only_run_defaults_to_the_iterate_profile():
+    """`python -m charkit qa BUNDLE` (a QA-only run: an iteration) runs the iterate profile unless told otherwise
+    (Michael, 2026-10-01): motion QA left out, reported SKIPPED and announced; --profile full or CHARKIT_QA_PROFILE=full
+    keeps everything; a build's QA (qa3d.measure, not main) and a gate's crossed QA runs keep 'full'."""
+    import io, contextlib
+    from charkit import gate
+    seen = []
+    saved, env0 = qa3d.measure, os.environ.pop(qa3d.PROFILE_ENV, None)
+
+    def fake(bdir, out, mode='on', ref_image=None):
+        seen.append(qa3d.profile_of())
+        return {'summary': 'PASS'}
+    qa3d.measure = fake
+    try:
+        for args, env, want in ((['/nowhere/bundle'], None, 'iterate'), (['/nowhere/bundle', '--profile', 'full'], None,
+                                                                         'full'),
+                                (['/nowhere/bundle'], 'full', 'full'), (['/nowhere/bundle', '--profile', 'iterate'], None,
+                                                                        'iterate')):
+            os.environ.pop(qa3d.PROFILE_ENV, None)
+            if env:
+                os.environ[qa3d.PROFILE_ENV] = env
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                qa3d.main(args)
+            assert seen[-1] == want, (args, env, seen)
+            said = 'CHARKIT_QA_PROFILE iterate: motion skipped' in buf.getvalue()
+            assert said == (want == 'iterate'), buf.getvalue()
+        os.environ.pop(qa3d.PROFILE_ENV, None)
+        assert qa3d.profile_of() == 'full'                      # (a build's QA: qa3d.measure from charkit.cli)
+    finally:
+        qa3d.measure = saved
+        os.environ.pop(qa3d.PROFILE_ENV, None)
+        if env0 is not None:
+            os.environ[qa3d.PROFILE_ENV] = env0
+    # the gate's 2x2 runs `charkit qa` in each tree: with CHARKIT_QA_PROFILE=full, so motion is measured there too
+    got = {}
+
+    class R:
+        returncode, stdout, stderr = 1, '', 'stopped'
+    run0, rb0 = gate.subprocess.run, gate.rebased_bundle
+    gate.subprocess.run = lambda cmd, **kw: got.update(cmd=cmd, env=kw.get('env')) or R()
+    gate.rebased_bundle = lambda b, tmp: b
+    try:
+        gate.cross_qa(tempfile.mkdtemp(), '/nowhere/bundle', tempfile.mkdtemp())
+    finally:
+        gate.subprocess.run, gate.rebased_bundle = run0, rb0
+    assert got['cmd'][3] == 'qa' and got['env']['CHARKIT_QA_PROFILE'] == 'full', got
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

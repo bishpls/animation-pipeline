@@ -1,0 +1,142 @@
+# Incremental builds, round 1 (tool/incremental, 2026-10-01)
+
+Worktree `~/animation-pipeline-incr`, branch `tool/incremental` from pipeline-3d 348397e7. The brief:
+`~/animation-pipeline-3d/charkit/out/coord/brief_incremental.md` (gitignored; the parts used are copied below). Outputs:
+`charkit/out/incremental/`; harnesses that run on a box live in `tools/incremental/` (charkit/out isn't synced to the
+boxes).
+
+The coordinator (20:45, Michael, end of session): land items 1 (budget re-baseline + blocking rule, with a test), 3 (the
+iterate default) and the design doc through one gate. Item 2 (the QA's drawing on the GPU) lands only if its readings
+verify identical within this pass; otherwise the measured state and exact next steps go here and it stays off the
+default. Nothing in the landing may move a check reading (the day's production build and preview run after the merges).
+
+## State (read first when resuming)
+
+**Done; gated.** Gate K **PASS**: tool/incremental f76684c3 into pipeline-3d 3144b1f6 (`remote gate --code
+tool/incremental`, build2; report charkit/out/gate/gate_tool-incremental_f76684c3_into_3144b1f6.md): nothing blocks, no
+check moved, 111 test files pass; the 32 QA parts listed under "measuring code changed with no registered step" are
+manifest.produced's race fix reached through the QA's shared code (no check moved: report-only). Build CPU raw 1326 ->
+1645 s (the candidate rebuilt the produced references and ran the venv steps: their keys changed), like for like 1252
+-> 1147 s (0.92x); the budget rule: candidate 1484 s on its basis, 0.95x the budget's 1555, 0.91x the baseline's 1637:
+within. Pre-gate PASS (f76684c3, 0 moved). Earlier: gate PASS d86cde39 into 348397e7 (before the race fix; 109 test
+files, no check moved, like for like 0.91x, the budget rule 0.95x). Commits after f76684c3: notes and docs only.
+
+Box state: none changed by this round beyond its own copies' outputs (charkit/out/incremental on build and render2).
+
+**Readings:** this landing moves none (both gates: no check changed). The 5 adapter-dependent INFO checks
+(art_terminator_boots, face_shadow_3q, face_shadow_chin, face_shadow_neck_3q, hair_tone_edges) read differently on
+render2's L4 than on the CPU rasteriser, as they already did before this round whenever a gate or build landed on
+render2; the QA now records which adapter drew.
+
+**Left / next:** round 1b (the draw service: the GPU's saving without render2's slow cores), 1c (the QA's parts in
+parallel: wall), then rounds 2-6 of docs/INCREMENTAL.md. A per-box CPU factor for the budget (gate.cpu_speed) once
+like-for-like box measurements exist. CODEMAP not regenerated (new public names: gate.budget_basis, budget_rule,
+cpu_speed, qa_adapter; optimize.part_checks, confirm_profile; qarender.adapter_of; manifest._place): regenerate on
+integration.
+
+## The produced-reference race (the coordinator's item, 21:30)
+
+Two gates into 3144b1f6 (tool/hands2 ece8360e, tool/garments8) failed fail-fast at ~87 s: test_skirtqa `_design()` ->
+bodymeasure.piece_masks -> np.load: `BadZipFile: File is not a zip file` on outfit_masks.npz.
+- **Cause:** the producers wrote their files into the reference's folder as they went (outfit: np.savez_compressed to
+  the final path), and a reader that takes no lock (bodymeasure.piece_masks loads the file whenever it exists; a gate's
+  tests run in the candidate's worktree beside its build, which was producing the masks) read the half-written zip.
+  Not the shared cache: cache_store writes KEY.tmp-PID then renames, cache_restore copies to .tmp then os.replace with
+  the stamp last (both already atomic). The lock-free early return in produced() reads the stamp, which is written
+  after the files (except in verify mode, where the old stamp already matches: also covered by the fix).
+- **Reproduced:** test_produced_cache `test_a_reader_never_sees_a_half_written_reference` (a producer writes half its
+  npz, waits 1 s, writes the rest; a reader thread loads it whenever it exists): on the old code 80 of 90 loads
+  BadZipFile, the gates' error; with the fix 0, in a fresh copy and in a verify rebuild over an older version.
+- **Fix (manifest.produced, _place):** the producer writes into a staging folder beside the reference's
+  (FOLDER.produce-PID: its {out}, or hull.build's folder); when it ends each file is moved into place with os.replace
+  (a copy beside it then os.replace across file systems), the stamp after them; the staging folder removed in a
+  finally; _written skips another reference's staging folder (hair_split's sits inside hair_layers' folder). Every
+  reader sees the old file or the whole new one. The real outfit producer through it: test_outfit
+  `test_clawds_masks_against_the_truth` passes (cold, CHARKIT_PRODUCED_CACHE=off), no staging left behind.
+- Cost: manifest.produced is in every QA part's reach (codediff lists 32 parts, report-only, no 2x2 on unchanged
+  geometry), and its stamp and shared key change, so each copy rebuilds its produced references once.
+
+## Item 1: the budget's blocking rule (done)
+
+- gate.budget_rule: blocks when the candidate's figure is > 1.10 x budget.json `total` AND > 1.05 x its baseline's
+  figure. The figure (gate.budget_basis): the build's CPU with each cached venv step it restored counted at
+  budget.json `cold`, and `resolve` (plus code_head, which reuses the head the hull's build computed) at their cold
+  figures when it built the shared produced references. The merged tree's budget.json is read (a merge raises it in
+  review). The report: a line with both figures and what was counted, the per-stage table (report-only) under it.
+- Box speed: not scaled. Measured on one commit: build2's CPU seconds ~0.93x the build box's (gate 3's candidate 1455
+  vs bb 1554 on the basis), render2's 1.35-1.65x for numpy and Blender work (Blender 187 -> 251, hair_select 68 -> 113,
+  rom 155 -> 243), not remote.py's CPU_SPEED (the picker's 1.25 for build2). gate.cpu_speed reads CHARKIT_CPU_SPEED for
+  a measured factor later; nothing sets it. The baseline half (same box, same gate) keeps the difference from blocking.
+- Re-baseline (pipeline-3d 348397e7 = batch4 d5a916a7's tree): bb, the build box, `--cache off`: 1717.9 s CPU (1156.7
+  s wall); resolve built the produced references (225.9 s) and code_head reused the head (0.02 s); on the basis 1554 ->
+  total 1555. cold: code_head 55 (gate 3 51.5 on build2, br 59.9 on render2), code_body 4, hair_select 68,
+  pieces_hair 229, garments_geom 22, resolve 7 (br, produced restored). Per-stage figures ~15% over bb's (report only;
+  qa/rom added: 155 s, the second dearest QA part).
+- Test: test_gate `test_budget_rule_blocks_over_the_budget_and_the_baseline` (blocks over both; over the budget alone or
+  the baseline alone doesn't; restored steps and rebuilt references don't move the figure; the shipped budget's keys).
+
+## Item 3: the iterate profile as the default (done)
+
+- `python -m charkit qa BUNDLE`: 'iterate' unless --profile or CHARKIT_QA_PROFILE says otherwise; prints
+  `CHARKIT_QA_PROFILE iterate: motion skipped (reported SKIPPED; --profile full runs it)`; qa.json reports motion
+  SKIPPED 'skipped by profile iterate' and part_status skipped (infra5o's machinery).
+- optimize's confirm builds: `--profile iterate` unless confirm.profile / confirm.args say otherwise or an objective
+  term or keep pattern reads a motion check (then full); the skipped part's checks (the base build's record, the
+  prefix, the SKIPPED key) are left out of the comparison on both sides; confirm.json `profile`, `skipped`; logged.
+- Gates and full builds keep everything: gate._build sets CHARKIT_QA_PROFILE=full; gate.cross_qa (the 2x2's crossed
+  runs of `charkit qa`) too. A build's QA is qa3d.measure (not main): 'full' unless --profile.
+- Tests: test_denominators `test_a_qa_only_run_defaults_to_the_iterate_profile` (the four cases, the announcement,
+  the gate's crossed run's env), test_optimize `test_confirm_builds_run_the_iterate_profile_unless_a_term_reads_motion`.
+- Saving (infra5o, the QA-only pair): motion 24-31 s CPU per QA-only run (105 s on a loaded box).
+
+## Item 2: the QA's drawing on a GPU (measured; see below)
+
+Same code, same bundle (bb and br: 962 bundle arrays, 0 differ), the QA drawn on the build box's CPU rasteriser (bb)
+and on render2's L4 (br, the `auto` adapter there):
+- **Readings: 753 of 758 identical.** 5 differ, all INFO, no status or grade change: art_terminator_boots 5.41 ->
+  5.679 (grade FAIL both), face_shadow_3q 0.2825 -> 0.2824, face_shadow_chin 0.6234 -> 0.6231 (grade FAIL both),
+  face_shadow_neck_3q 0.0781 -> 0.0782, hair_tone_edges 0.0766 -> 0.0763. Same 77 frames drawn.
+- **CPU and wall** (QA, bb -> br): 981.6 -> 774.0 s CPU (-21%), 609 -> 719 s wall (+18%). The drawn parts: declared
+  207.8 -> 86.3, look 130.9 -> 31.8, artifacts 101.0 -> 16.5, hair_noise 70.3 -> 27.0, face_flags 61.2 -> 28.3, scalp
+  19.9 -> 10.8: 591 -> 201 s CPU (-66%) despite render2's slower cores. The numpy parts got slower on render2: rom
+  154.6 -> 242.7 (its draws aren't the cost), motion 31 -> 49, skirt 23 -> 37, sheet_body 26 -> 34, hands 19 -> 28.
+- Whole build: 1717.9 -> 1472.8 s CPU raw; on the budget's basis 1554 -> 1473 (-5%); wall 1157 -> 1194 s.
+- **Same box, side by side** (qa_r2: render2, br's bundle, lavapipe and the L4 at once): lavapipe's readings equal the
+  build box's (758 of 758: the CPU rasterisers agree across boxes); the L4's equal br's in-build L4 run (deterministic)
+  and differ from lavapipe in the same 5. QA CPU 1211.3 -> 855.7 s (-29%), wall 844 -> 799 s; the drawn parts 614 ->
+  208 s (-66%): declared 213.7 -> 87.2, look 135.3 -> 32.4, artifacts 93.2 -> 16.7, face_flags 74.2 -> 29.4,
+  hair_noise 71.3 -> 29.8, scalp 25.6 -> 12.4; rom 247.7 -> 243.8 (its cost isn't its drawing). (face_region,
+  sheet_body, skirt differ between the two runs by the design memo: the two processes share it on disk.)
+- **The 2x2 over two geometries** (qa_bv: the variant bv, body.shoulder.fall 0.1 -> 0.14 and the collar's v_depth
+  0.5 -> 0.42, which moves 42 checks): the CPU and L4 drawings differ in the same 5 INFO checks by the same amounts on
+  both geometries (the variant doesn't reach the boots, face or hair), 0 status changes either way; the 42 checks the
+  geometry moves move alike under both drawings (statuses agree). Same box: QA CPU 1124.8 -> 685.1 s (-39%), wall 790
+  -> 650 s. The L4 harness run equals bv's in-build L4 QA (0 differ).
+
+  | check | base, CPU | base, L4 | variant, CPU | variant, L4 |
+  | --- | --- | --- | --- | --- |
+  | art_terminator_boots | 5.41 INFO | 5.679 INFO | 5.41 INFO | 5.679 INFO |
+  | face_shadow_3q | 0.2825 INFO | 0.2824 INFO | 0.2825 INFO | 0.2824 INFO |
+  | face_shadow_chin | 0.6234 INFO | 0.6231 INFO | 0.6234 INFO | 0.6231 INFO |
+  | face_shadow_neck_3q | 0.0781 INFO | 0.0782 INFO | 0.0781 INFO | 0.0782 INFO |
+  | hair_tone_edges | 0.0766 INFO | 0.0763 INFO | 0.0766 INFO | 0.0763 INFO |
+- **Decision (mine, reported):** the default routing stays (the box picker's free-CPU rule; `remote --gpu build|gate`
+  takes a render box on request). Routing every build to render2 buys ~5% CPU and lengthens the QA's wall (render2's
+  cores 1.35-1.65x slower for numpy and Blender), on one 10-slot box. The saving needs the drawing split from the build
+  (a draw service on the GPU box: round 1b in docs/INCREMENTAL.md). No reading changes with this landing; the 5
+  adapter-dependent INFO checks are recorded per build (qa.json measured.draw.adapter) and named in the gate report.
+- Gates already land on render2 by the auto pick (8 of today's gates in the worktrees' job records), where `auto`
+  draws on the L4: those 5 INFO readings have depended on the box all along (within a gate both builds share a box).
+
+## The brief (copied)
+
+1. Budget blocking rule: re-baseline charkit/budget.json on today's default (1455 s measured against 1450), then block
+   when the build is >10% over budget.json AND >5% over its baseline; a test.
+2. QA drawing on a GPU box: readings identical (a gate pair, every check side by side); any moved reading is a remeasure
+   (charkit/steps/, the 2x2, flag statuses unchanged); checks that can't match stay on the CPU path; QA wall and CPU
+   before and after.
+3. `--profile iterate` the default for QA-only runs and sweep confirm builds; motion QA skipped explicitly and reported;
+   gates and full builds keep everything.
+4. docs/INCREMENTAL.md: Parts 1 and 2 (per-piece content-addressed stage graph, QA checks declaring reads, the local
+   piece studio, checkpoint gating with bisection, the three verification layers), grounded in infra5's profile and
+   today's cost, ending with lean follow-up rounds and their acceptance.
