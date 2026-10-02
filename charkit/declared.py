@@ -1875,6 +1875,11 @@ def evaluate_part(part, I, decls=None):
     return evaluate(ds, I) if ds else ({}, {})
 
 
+def _drawn_of(p):
+    """a piece's drawn mask name: a hand (HANDS) is drawn as the skin past its cuff (handqa), so its cuff's mask."""
+    return 'cuff_' + p.split('_')[1] if p in HANDS else p
+
+
 def expected(B, design, part='declared'):
     """the part's denominator (registry `checks`): its declarations per view (expand) that the design side says can be
     measured: the view among the design's figures, every piece in the outfit graph's piece map and drawn in that view
@@ -1889,7 +1894,7 @@ def expected(B, design, part='declared'):
     if got is None or 'why' in design.sheet_context():
         return 0                                        # (no design sheet or outfit masks: the part reports SKIPPED)
     masks, graph, _ = got
-    pm = dict(bodymeasure.piece_map(graph, B.spec), **{HAIR: True})
+    pm = dict(bodymeasure.piece_map(graph, B.spec), **{HAIR: True}, **{h: True for h in HANDS})
     dv = design.design_views()
     n = 0
     for name, view, d in expand(ds):
@@ -1899,7 +1904,7 @@ def expected(B, design, part='declared'):
         drawn = (d.get('params') or {}).get('drawn')
         if any(p not in pm for p in pieces):
             continue
-        if any(p != HAIR and '%s__%s' % (view, drawn or p) not in masks for p in pieces):
+        if any(p != HAIR and '%s__%s' % (view, drawn or _drawn_of(p)) not in masks for p in pieces):
             continue
         n += 1
     return n
