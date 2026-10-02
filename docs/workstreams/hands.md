@@ -699,3 +699,19 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
 - handsheet_open_span recalibrated: CALIBRATED (margin 0.939; fbaf1cdf). Merged pipeline-3d 3144b1f6 (488885d7;
   hairident, default off). **Gate RUNNING:** `remote gate tool/hands2 --into pipeline-3d` (log
   charkit/out/hands3/gate.log; if the follower dies, `remote attach` the job id in its first lines).
+
+### Gate (tool/hands2 ece8360e into pipeline-3d 3144b1f6, build2): **FAIL on an infrastructure race, nothing measured**
+Report charkit/out/gate/gate_tool-hands2_ece8360e_into_3144b1f6.md. The one blocker: test_skirtqa.py raised
+`BadZipFile` (87.5 s in) reading the produced outfit masks while the gate's builds were rewriting them beside the
+fail-fast tests (our cli.py changes the producer's code key, so outfit_masks is rebuilt in the gate's worktrees); the
+builds were stopped, so no QA was compared. tool/garments8's gate into the same head failed identically (its report in
+that worktree): a gate-infra race (tests reading a produced input mid-write), not the hand. Per the coordinator
+(something blocks: checkpoint and report, no further loop): reported, not retried.
+- Best reading meanwhile: pregate PASS (0 blocking); the after-build's QA (hands3_after / _q) against hands2's: the two
+  new FAILs (accepted by name), hand_shape L/R accepted readings, no other hand check to FAIL; parts' denominators ok.
+- **Next (exact):** once the race is fixed (or a retry: `python -m charkit remote gate tool/hands2 --into pipeline-3d`;
+  `--box build` may hit the produced cache of hands3_after_q's outfit masks if the code key matches), read the gate
+  under K; expect reported: hand_front_cleftpos_R and hand_profile_taper_L PASS -> WARN, skirt measures near the hands,
+  rom's finger rows (report-only), the new fingerlines FAILs (new checks: reported).
+- Deferred to the dexterity phase: the hands-only ink colour; the cuffless path (c3); the finger overlap > 0 for the 3q
+  slit; the pocket depth graded in the fit; the library's fist (tighter than drawn); option B (rest5) if Michael picks it.
