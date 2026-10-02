@@ -1,0 +1,90 @@
+{
+ "check": "body_shoulder_front_iou",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T18:06:16",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9888,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.9783,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.9928,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.9861,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9888,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.9784,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.9949,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.99,
+    "PASS"
+   ]
+  },
+  "min": 0.9783,
+  "max": 0.9949,
+  "spread": 0.0166,
+  "median": 0.9888
+ },
+ "known_bad": {
+  "name": "g5_base",
+  "value": 0.6742,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.8642,
+    0.8642,
+    0.8642,
+    0.8642,
+    0.8642
+   ],
+   "statuses": [
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN"
+   ],
+   "median": 0.8642,
+   "status": "WARN",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.9437,
+  "status": "PASS",
+  "margin": 0.638
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0166), g5_base reads 0.6742 FAIL, the floor voronoi_pieces WARN",
+ "build": "charkit/out/g6_c2",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 596.3
+}

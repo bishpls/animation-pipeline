@@ -1,0 +1,326 @@
+{
+ "base": "charkit/out/g7_c4",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "sheet_pieces",
+  "face_region"
+ ],
+ "set": {},
+ "optimize": {
+  "knobs": [
+   {
+    "path": "garments.sleeve_L.clear_body.gap",
+    "lo": 0.0,
+    "hi": 0.035,
+    "x0": 0.02
+   },
+   {
+    "path": "garments.sleeve_L.clear_body.from_t",
+    "lo": -0.4,
+    "hi": -0.25,
+    "x0": -0.3
+   },
+   {
+    "path": "garments.sleeve_L.clear_body.taper",
+    "lo": 0.02,
+    "hi": 0.15,
+    "x0": 0.05
+   },
+   {
+    "path": "garments.sleeve_L.clear_body.blur",
+    "lo": 0.5,
+    "hi": 2.5,
+    "x0": 1.2
+   },
+   {
+    "path": "garments.sleeve_L.bed.gap",
+    "lo": 0.0,
+    "hi": 0.03,
+    "x0": 0.01
+   },
+   {
+    "path": "garments.collar.side_depth",
+    "lo": 0.32,
+    "hi": 0.47,
+    "x0": 0.34
+   },
+   {
+    "path": "garments.collar.back_depth",
+    "lo": 0.44,
+    "hi": 0.52,
+    "x0": 0.47
+   },
+   {
+    "path": "garments.collar.rise",
+    "lo": 0.08,
+    "hi": 0.2,
+    "x0": 0.15
+   },
+   {
+    "path": "garments.collar.neck_drop",
+    "lo": 0.0,
+    "hi": 0.04,
+    "x0": 0.0
+   },
+   {
+    "path": "garments.collar.lift",
+    "lo": 0.0,
+    "hi": 0.015,
+    "x0": 0.005
+   },
+   {
+    "path": "garments.collar.v_half",
+    "lo": 32,
+    "hi": 48,
+    "x0": 40
+   },
+   {
+    "path": "garments.collar.hide_under.neck",
+    "lo": 0.0,
+    "hi": 0.12,
+    "x0": 0.08
+   }
+  ],
+  "objective": [
+   {
+    "check": "art_outline_neck",
+    "toward": "pass",
+    "weight": 4,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "art_outline_collar",
+    "toward": "pass",
+    "weight": 2,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "art_mirror_waist",
+    "toward": "pass",
+    "weight": 2,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "art_speckle_neck",
+    "toward": "pass",
+    "weight": 2,
+    "limits": [
+     1.5,
+     2.5
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "bow_front_bleed",
+    "toward": "pass",
+    "weight": 3,
+    "limits": [
+     0.03,
+     0.06
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "neck_v_front_skin",
+    "toward": "pass",
+    "weight": 1
+   },
+   {
+    "check": "collar_*_torn",
+    "toward": "pass",
+    "weight": 1,
+    "limits": [
+     0.004,
+     0.008
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "sleeve_*_spikes_*",
+    "toward": "pass",
+    "weight": 1
+   },
+   {
+    "check": "sleeve_*_profile_*",
+    "toward": "pass",
+    "weight": 1,
+    "limits": [
+     0.02,
+     0.04
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "sleeve_*_rough_*",
+    "toward": "pass",
+    "weight": 1,
+    "limits": [
+     0.007,
+     0.014
+    ],
+    "better": "lower"
+   },
+   {
+    "check": "piece_top",
+    "toward": "pass",
+    "field": "views.front",
+    "limits": [
+     0.749,
+     0.637
+    ],
+    "better": "higher",
+    "weight": 2
+   },
+   {
+    "check": "piece_top",
+    "toward": "pass",
+    "field": "views.three_quarter",
+    "limits": [
+     0.799,
+     0.679
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_top",
+    "toward": "pass",
+    "field": "views.back",
+    "limits": [
+     0.931,
+     0.791
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_top",
+    "toward": "pass",
+    "field": "views.profile",
+    "limits": [
+     0.635,
+     0.54
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "pass",
+    "field": "views.front",
+    "limits": [
+     0.948,
+     0.806
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "pass",
+    "field": "views.profile",
+    "limits": [
+     0.942,
+     0.801
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "pass",
+    "field": "views.back",
+    "limits": [
+     0.854,
+     0.726
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_R",
+    "toward": "pass",
+    "field": "views.front",
+    "limits": [
+     0.954,
+     0.811
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_sleeve_R",
+    "toward": "pass",
+    "field": "views.back",
+    "limits": [
+     0.862,
+     0.733
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_collar",
+    "toward": "pass",
+    "field": "views.front",
+    "limits": [
+     0.657,
+     0.558
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_collar",
+    "toward": "pass",
+    "field": "views.three_quarter",
+    "limits": [
+     0.467,
+     0.397
+    ],
+    "better": "higher",
+    "weight": 1
+   },
+   {
+    "check": "piece_collar",
+    "toward": "pass",
+    "field": "views.back",
+    "limits": [
+     0.927,
+     0.788
+    ],
+    "better": "higher",
+    "weight": 1
+   }
+  ],
+  "constraints": {
+   "guard": 0.25,
+   "flags": true,
+   "no_new_fail": true
+  },
+  "budget": {
+   "evals": 200,
+   "minutes": 100,
+   "generations": 20
+  },
+  "confirm": {
+   "top": 2
+  }
+ }
+}

@@ -1136,8 +1136,10 @@ class Evaluator:
         if getattr(self, '_char', (None,))[0] != ckey:                   # (their subdivision rides on the parts)
             self._char = (ckey, character_parts(A, hide, spec))
         parts = self._char[1] + hair + garm
-        return Geometry(spec, A, parts, target, align, timings=dict(assembly=round(t1 - t0, 3), how=how,
-                                                                    hair=round(t2 - t1, 3), garments=round(t3 - t2, 3)))
+        Gm = Geometry(spec, A, parts, target, align, timings=dict(assembly=round(t1 - t0, 3), how=how,
+                                                                  hair=round(t2 - t1, 3), garments=round(t3 - t2, 3)))
+        Gm.hide = hide                       # (the skin's vertices the garments hide: the sweep's re-mask reads it)
+        return Gm
 
     # ---- measuring
     def frame(self, G):

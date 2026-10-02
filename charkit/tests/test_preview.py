@@ -80,18 +80,25 @@ def test_previous_is_the_newest_ancestor_preview():
 def test_the_hook_runs_in_the_background_on_its_branch_only():
     d, g = _repo()
     log = os.path.join(d, 'charkit', 'out', 'previews', 'hook.log')
-    p = preview.hook('install', 'main', cwd=d, py='/bin/echo')
+    # (the hook's command waits for a file the test writes after the merge returned: a merge that waited for its hook
+    # would never return, so the order proves it was backgrounded, with no clock involved)
+    release = os.path.join(d, 'release')
+    py = os.path.join(d, 'fake_py')
+    open(py, 'w').write('#!/bin/sh\nn=0\nwhile [ ! -e %s ] && [ $n -lt 2400 ]; do sleep 0.05; n=$((n+1)); done\n'
+                        'echo "$@"\n' % release)
+    os.chmod(py, 0o755)
+    p = preview.hook('install', 'main', cwd=d, py=py)
     assert os.access(p, os.X_OK) and g('config', '--worktree', '--get', 'core.hooksPath') == os.path.dirname(p)
     assert preview.hook('status', cwd=d) == p
     g('checkout', '-qb', 'topic'); open(os.path.join(d, 't'), 'w').write('t'); g('add', 't'); g('commit', '-qm', 't')
     g('checkout', '-q', 'main')
-    t = time.time()
     g('merge', '-q', '--no-ff', '-m', 'merge topic', 'topic')        # the hook: backgrounded, the merge doesn't wait
-    assert time.time() - t < 5
-    for _ in range(50):
-        if os.path.exists(log) and open(log).read().strip():
-            break
-        time.sleep(0.1)
+    assert not (os.path.exists(log) and open(log).read().strip())      # (its command hasn't run yet: still waiting)
+    open(release, 'w').close()
+    t = time.time()
+    while not (os.path.exists(log) and open(log).read().strip()):
+        assert time.time() - t < 60, 'the hook never ran'
+        time.sleep(0.05)
     assert open(log).read().split() == ['-m', 'charkit', 'preview', '--tip', 'main']
     os.remove(log)
     g('checkout', '-q', 'topic'); g('merge', '-q', '--no-ff', '-m', 'back', 'main')      # another branch: nothing

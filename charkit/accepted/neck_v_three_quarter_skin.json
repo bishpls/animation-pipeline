@@ -1,0 +1,10 @@
+{
+ "check": "neck_v_three_quarter_skin",
+ "status": "FAIL",
+ "value": 0.5493,
+ "by": "Michael",
+ "why": "Michael, 2026-10-01: the joined shoulder on by default for motion testing; garment regressions accepted, to be recovered by garments round 8 from separated collar/lapel/top/bow references. Reading accepted: 0.5663 FAIL -> 0.5493 FAIL, the anti-gaming guard on it: piece_top front 0.749 -> 0.507 (-32%), three_quarter 0.799 -> 0.669 (-16%); piece_sleeve_L profile 0.942 -> 0.769 (-18%)",
+ "at": "2026-10-01T17:45:16",
+ "branch": "tool/garments4-shoulders",
+ "recorded_by": "tool/garments4-shoulders' agent (round 7), on the coordinator's relay of Michael's call"
+}

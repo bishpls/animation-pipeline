@@ -10,8 +10,10 @@ materials, and nothing here needs Blender. `python -m charkit build --qa blender
   ref        front silhouette overlap with the reference image (both cropped to their bounding boxes)
   scalp      pixels of scalp showing through the hair (the upper cranium and the back of the head, flagged), per view
   poke       share of garment pixels where the body shows through
-  hair_noise the hair's shading noise: tone edges per hair pixel (clean anime shadow shapes are low; noisy normals high),
-             on the hair drawn with its own toon materials, envelope normals and outline hull
+  hair_noise the hair's speckle: blobs under 0.002 L^2 standing out by half the hair's cel step, per L^2 of hair (the
+             flagged blotchy hair's light speckles; the design's lock-shaped shadows and shine marks read 4-6), on the
+             hair drawn with its own toon materials and outlines as the render draws them (hair_tone_edges, INFO: the
+             tone edges per hair pixel it measured before)
   mesh       open edges and loose parts per hair / garment object (information)
   face_shape the face's shape against the generated character's face (charkit/faceqa.py: the lower face's width, the chin,
              the profile, the cheek at three-quarter, depth from under the eyes; how much face the hair leaves showing) and
@@ -59,7 +61,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AZ = (0, 45, 90, 135, 180, 270)
 LIMITS = {                     # (pass at or better, warn at or better); else fail
     'shape_iou': (0.80, 0.65), 'shape_iou_hair': (0.75, 0.60), 'ref_iou': (0.85, 0.70),
-    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08), 'face_folds': (40, 300),
+    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (8.0, 12.0), 'face_folds': (40, 300),
     'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
     'viseme_gap': (0.010, 0.005), 'mouth_cover': (0.97, 0.90),
 }
@@ -377,7 +379,7 @@ def face_folds(A):
     return dict(rest=rest, keys=keys, total=rest + sum(keys.values()))
 
 
-@qa_part('face_folds', order=500)
+@qa_part('face_folds', order=500, checks=1)
 def folds(B, design=None, out=None):
     """the face_folds check on a bundle -> ({}, checks)."""
     from .character import base_of
@@ -1071,7 +1073,7 @@ def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE, az=0.0):
     return np.concatenate([np.where(a > 1e-6, img[..., :3] / np.maximum(a, 1e-6), 0), a], -1)
 
 
-@qa_part('eyes', order=700, prefix='eye_', table='eyes', skip_key='eye')
+@qa_part('eyes', order=700, prefix='eye_', table='eyes', skip_key='eye', checks=8)
 def eyes(B, design, out=None, ss=EYE_SS):
     """our eyes against the eye design (the generated head sheet's front eyes, or the design rig's eye layers;
     charkit.eyeqa), measured the same way at its scale -> (table, checks)."""
@@ -1119,7 +1121,7 @@ def sheet_measure(B, design, covers=True):
     return O, D, ppl, az3, C
 
 
-@qa_part('sheet', order=900, prefix='sheet_', table='sheet')
+@qa_part('sheet', order=900, prefix='sheet_', table='sheet', checks=12)
 def sheet(B, design, out=None, covers=True):
     """our face against the design's model sheet (charkit.sheetqa): the sheet measured at its scale (from the rig's
     front figure), ours z-buffered in class labels at the same scale and angles. -> (table, checks)."""
@@ -1136,7 +1138,7 @@ def sheet(B, design, out=None, covers=True):
     return table, C
 
 
-@qa_part('sheet_expr', order=1200, table='sheet_expr')
+@qa_part('sheet_expr', order=1200, table='sheet_expr', checks=12)
 def sheet_expressions(B, design, out=None):
     """the sheet's expression heads against the kit's expression library (charkit.exprqa) -> (table, checks)."""
     from . import exprqa
@@ -1154,7 +1156,7 @@ def sheet_expressions(B, design, out=None):
     return table, C
 
 
-@qa_part('sheet_body', order=1100, prefix='body_', table='sheet_body')
+@qa_part('sheet_body', order=1100, prefix='body_', table='sheet_body', checks=78)
 def sheet_body(B, design, out=None):
     """the whole character against the design's full figures (charkit.bodyqa): front, three-quarter, profile, back, each
     z-buffered at the sheet's scale from the same azimuth with a class per triangle, aligned on the eyes. -> (table,
@@ -1349,7 +1351,7 @@ def hair_tips(mask, ppl, prom=None):
     return int(((tip[1:] & ~tip[:-1]).sum()) + int(tip[0]))       # a flat tip's columns count once
 
 
-@qa_part('hair_pieces', order=1400, table='hair_pieces')
+@qa_part('hair_pieces', order=1400, table='hair_pieces', checks=15)
 def hair_pieces(B, design, out=None):
     """the hair's pieces (hair.shape.mode 'pieces': objects hair_NAME, charkit.geom.hairpieces) against the design's
     families: every visible surface z-buffered on the design's grids with each hair object labelled by its family,
@@ -1520,7 +1522,7 @@ PIECE_PASS, PIECE_WARN = 0.75, 0.5     # a piece's overlap (bodymeasure.iou_tol)
                                        # own figures, so a PASS asks for what they can show
 
 
-@qa_part('sheet_pieces', order=1500, prefix='piece_', table='sheet_pieces')
+@qa_part('sheet_pieces', order=1500, prefix='piece_', table='sheet_pieces', checks=32)
 def sheet_pieces(B, design, out=None):
     """the outfit piece by piece against the design's (the outfit's per-view piece masks, cut from the body sheet):
     every object z-buffered on the design's grids with its own index, so a piece shows only where nothing of ours is in
@@ -1624,7 +1626,7 @@ def drawn_low(graph, pid, share=0.25):
 PIECE3D_PASS, PIECE3D_WARN = 0.04, 0.08     # L: a piece's median reach to the design's in 3D (bodymeasure.piece_depths)
 
 
-@qa_part('pieces_3d', order=1600, prefix='piece3d_', table='pieces_3d')
+@qa_part('pieces_3d', order=1600, prefix='piece3d_', table='pieces_3d', checks=19)
 def pieces_3d(B, design, out=None):
     """the outfit piece by piece against the visual hull's pieces in 3D (the target's per-vertex pieces, carried in the
     bundle: bodymeasure.piece_depths): checks <piece id> valued by its median reach (L), with the 90th percentile, the
@@ -1711,7 +1713,7 @@ def pieces_picture(labels, names, masks, graph, spec, dv):
     return np.concatenate([np.pad(c, ((0, H - c.shape[0]), (0, 8), (0, 0)), constant_values=1.0) for c in cols], 1)
 
 
-@qa_part('sheet_palette', order=1300, prefix='palette_', table='sheet_palette')
+@qa_part('sheet_palette', order=1300, prefix='palette_', table='sheet_palette', checks=13)
 def sheet_palette(B, design, out=None):
     """the design's colours per class (the sheet's own pixels, charkit.paletteqa) against the flat tones our materials
     render unlit -> (table, checks)."""
@@ -1729,7 +1731,7 @@ def sheet_palette(B, design, out=None):
     return table, paletteqa.compare(O, D)
 
 
-@qa_part('sheet_figures', order=1000, prefix='figures_', table='sheet_figures')
+@qa_part('sheet_figures', order=1000, prefix='figures_', table='sheet_figures', checks=1)
 def sheet_figures(B, design, out=None):
     """what figure detection found on the sheet (charkit.sheetqa.detect_figures) against the spec's hand-typed head boxes
     -> (table, checks); overlay qa_sheet_figures.png."""
@@ -1753,7 +1755,7 @@ def sheet_figures(B, design, out=None):
 
 
 # --------------------------------------------------------------------------------------------------- face shape
-@qa_part('face_shape', order=1800, prefix='face_shape_', table='face_shape', keep='face_shape')
+@qa_part('face_shape', order=1800, prefix='face_shape_', table='face_shape', keep='face_shape', checks=8)
 def face_shape(B, design, out=None, covers=True, tcache=None):
     """our face against the generated character's (charkit.faceqa), from the bundle's meshes. -> (result, checks)."""
     from . import faceqa
@@ -1821,7 +1823,7 @@ def coverage(fr, items, az, ss=FIG_SS, sigma=FIG_FILTER):
     return _blur_down(m[..., None], ss, sigma)[..., 0] > 0.5
 
 
-@qa_part('shape', order=100, table='views', ref_image=True)
+@qa_part('shape', order=100, table='views', ref_image=True, checks=6)
 def shape(B, design, out=None, ref_image=None):
     """silhouette IoU against the generated shape per azimuth and height band, and the front against the reference
     image -> (views, checks)."""
@@ -2166,6 +2168,8 @@ def _to_shape(m, shape):
     return m[r][:, c]
 
 
+HAIR_NOISE_INK = 1              # hair_noise: a pixel within this many pixels of a drawn line's is the line's (the
+                                # render's film filter darkens the hair beside its lines: 0.02 at 1 px, nothing at 1.5)
 HAIR_NOISE_GROUPS = ('buns',)   # hair families whose tones are cut apart from the rest's (hair_noise): a block bun's
                                 # large flat faces moved the shared cuts, and with them the rest's tone edges
 
@@ -2194,47 +2198,154 @@ def tone_edges(lum, grp, min_px=50):
     return e, n
 
 
-@qa_part('hair_noise', order=400)
+def hair_noise_ink(ink, shape, ss=FIG_SS, reach=None):
+    """a picture's pixels the drawn lines take (hair_noise): ink (the measuring grid's, ss of its pixels to a picture's
+    pixel) -> per picture pixel of `shape`, any ink within `reach` pixels (HAIR_NOISE_INK) of it."""
+    from scipy.ndimage import maximum_filter
+    reach = HAIR_NOISE_INK if reach is None else reach
+    m = maximum_filter(ink, size=(2 * int(reach) + 1) * ss) if reach > 0 else ink
+    return _to_shape(m[ss // 2::ss, ss // 2::ss], shape)
+
+
+HAIR_SPECK = 0.002              # L^2: hair_noise's speckle is a blob under this (artifactqa.ISLAND, its tone islands) ...
+HAIR_SPECK_DL = 0.5             # ... standing out from the hair round it by at least this share of the hair's cel step
+HAIR_SPECK_EDGE = 2             # px: ... and not within this of the hair's silhouette (its anti-aliased fringe)
+
+
+def hair_cel_step(B, design=None):
+    """the hair's cel step (sRGB luminance, lit - shade): the design's hair palette (paletteqa's lit and shade on the
+    body sheet, as sheet_palette reads them), else our hair material's lit and shade."""
+    W_ = np.array([0.3, 0.59, 0.11])
+    try:
+        from . import paletteqa
+        design = design if design is not None else Design(B)
+        pal = design.memo(paletteqa.extract_views, design.design_views()).get('hair') or {}
+        lit, sh = np.asarray(pal['lit'], float), np.asarray(pal['shade'], float)
+        lit, sh = (lit / 255.0, sh / 255.0) if max(lit.max(), sh.max()) > 1.5 else (lit, sh)
+        return float(lit @ W_ - sh @ W_)
+    except Exception:
+        pass
+    for m in B.materials.values():
+        sd = (m or {}).get('shading') or {}
+        if (m or {}).get('kind') == 'toon3' and 'lit' in sd and 'shade' in sd:
+            return float(_srgb(np.asarray(sd['lit'], float)) @ W_ - _srgb(np.asarray(sd['shade'], float)) @ W_)
+    return 0.15
+
+
+def speckles(px, lab, ink, step, ppl, area=HAIR_SPECK, dl=HAIR_SPECK_DL, edge=HAIR_SPECK_EDGE):
+    """a hair picture's speckles: per tone group (lab: 0 none, else hair_noise_group's), the blobs of its luminance under
+    `area` L^2 (an area opening for the light ones, an area closing for the dark: whatever their shape or tone, anything
+    larger stays, as a lock's shadow does) standing out by dl x step or more from the hair round them, the ink and the
+    rest of the picture filled from the nearest hair pixel first (a line or the background makes no blob), and none
+    within `edge` px of the hair's silhouette. -> (blob mask, blobs counted, the hair's pixels)."""
+    from scipy import ndimage
+    from skimage.morphology import area_closing, area_opening
+    grp = np.where((px[..., 3] > 0.5) & (lab >= 1) & ~ink, lab, 0)
+    lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
+    A = max(1, int(round(area * ppl ** 2)))
+    inner = ndimage.binary_erosion(px[..., 3] > 0.5, iterations=int(edge), border_value=0)
+    sp = np.zeros(grp.shape, bool)
+    n_px, n_blobs = 0, 0
+    for g in np.unique(grp[grp > 0]):
+        a = grp == g
+        n_px += int(a.sum())
+        _, (iy, ix) = ndimage.distance_transform_edt(~a, return_indices=True)
+        f = lum[iy, ix]
+        s_ = ((f - area_opening(f, A, connectivity=2) > dl * step) |
+              (area_closing(f, A, connectivity=2) - f > dl * step)) & a & inner
+        sp |= s_
+        n_blobs += int(ndimage.label(s_, structure=np.ones((3, 3)))[1])
+    return sp, n_blobs, n_px
+
+
+@qa_part('hair_noise', order=400, checks=2)
 def hair_noise(B, design=None, out=None):
-    """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
-    drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
-    through the face), from 0, 90 and 180 degrees; each visible hair pixel's luminance cut into three tones at its
-    group's 33rd and 66th percentiles (the buns apart from the rest: tone_edges), the tone edges per visible hair
-    pixel."""
+    """the hair's speckle (round 4, tool/hairshell3: speckled shading, the flagged blotchy hull-era hair's light speckles
+    on the back and sides; the design's own lock-shaped cel shadows are not noise): the hair drawn with its own materials
+    and its outlines, as the render draws them (the ink between two locks, a drawn stroke, and the line's filtered edge
+    are the line's: hair_noise_ink), behind the rest of the character drawn alike, from 0, 90 and 180 degrees; per view
+    the hair's speckles (speckles: blobs under HAIR_SPECK L^2 standing out by half the hair's cel step, hair_cel_step)
+    per L^2 of visible hair, and the views' mean. hair_tone_edges (INFO) keeps the measure before it: tone edges per
+    hair pixel, the hair drawn without outlines."""
     hair = _visible(B, ('hair',))
     if not hair:
         return None, {}
+    step = hair_cel_step(B, design)
     fr = figure_frame(B, ss=FIG_SS)
-    vals, per = [], {}
+    ppl = float(B.assembly['L']) / (fr.pix * FIG_SS)
+    vals, per, share = [], {}, {}
+    for az, px, lab, ink in hair_noise_views(B, hair):
+        sp, nb, n = speckles(px, lab, ink, step, ppl)
+        vals.append(nb / max(1e-9, n / ppl ** 2))
+        per[az] = round(float(vals[-1]), 2)
+        share[az] = round(float(sp.sum()) / max(1, n), 5)
+        if out and az == 0:
+            from scipy import ndimage
+            a = (px[..., 3] > 0.5) & (lab >= 1)
+            pic = np.where(a[..., None], px[..., :3], 0.93)
+            pic[ndimage.binary_dilation(sp, iterations=2) & ~sp] = (1.0, 0.0, 0.0)
+            _save_rgb(os.path.join(out, 'qa_hair_front.png'), pic)
+    unsupported = sorted({m for o in hair for m in o.materials if m and (B.materials.get(m) or {}).get('kind') == 'other'})
+    v = float(np.mean(vals))
+    C = {'hair_noise': {'value': round(v, 2), 'per_view': per, 'share': share, 'step': round(step, 4),
+                        'status': _grade('hair_noise', v, False)}}
+    if unsupported:
+        C['hair_noise']['caution'] = 'drawn with flat tones for %s (a material the QA does not shade)' % ', '.join(unsupported)
+    te, te_per = hair_tone_edges(B, hair)
+    C['hair_tone_edges'] = {'value': round(te, 4), 'per_view': te_per, 'status': 'INFO',
+                            'note': "hair_noise's measure before round 4 (tone edges per hair pixel, the hair drawn "
+                                    "without outlines), kept as INFO for a release"}
+    return per, C
+
+
+def hair_tone_edges(B, hair):
+    """hair_noise's measure before round 4 (INFO): the hair drawn with its own materials, without its outlines, behind the
+    rest of the character, from 0, 90 and 180 degrees; tone edges per visible hair pixel (tone_edges), the views'
+    mean. -> (value, {az: value})."""
+    fr = figure_frame(B, ss=FIG_SS)
     surfs, groups = [], []
     for o in hair:
         for x in surfaces(B, o, outline=False):
             surfs.append(x); groups.append(hair_noise_group(o))
     occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
            for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
-    grp_of = np.array(groups + [-1] * len(occ) + [-1])             # per surface (and -1 for none)
+    grp_of = np.array(groups + [-1] * len(occ) + [-1])
+    vals, per = [], {}
     for az in (0, 90, 180):
         view = draw_view(B, surfs + occ, az, fr)
         px = draw_lit(B, view)
-        lab = _to_shape(grp_of[view['mesh']], px.shape[:2])
-        grp = np.where((px[..., 3] > 0.5) & (lab >= 1), lab, 0)
+        grp = np.where(px[..., 3] > 0.5, _to_shape(grp_of[view['mesh']], px.shape[:2]), 0)
+        grp = np.where(grp >= 1, grp, 0)
         lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
         e, n = tone_edges(lum, grp)
-        a = grp > 0
-        vals.append(float((e & a).sum()) / max(1, n))
-        per[az] = round(float(vals[-1]), 4)
-        if out and az == 0:
-            pic = np.where(a[..., None], px[..., :3], 0.93)
-            _save_rgb(os.path.join(out, 'qa_hair_front.png'), pic)
-    unsupported = sorted({m for o in hair for m in o.materials if m and (B.materials.get(m) or {}).get('kind') == 'other'})
-    v = float(np.mean(vals))
-    C = {'hair_noise': {'value': round(v, 4), 'per_view': per, 'status': _grade('hair_noise', v, False)}}
-    if unsupported:
-        C['hair_noise']['caution'] = 'drawn with flat tones for %s (a material the QA does not shade)' % ', '.join(unsupported)
-    return per, C
+        vals.append(float((e & (grp > 0)).sum()) / max(1, n))
+        per[az] = round(vals[-1], 4)
+    return float(np.mean(vals)), per
 
 
-@qa_part('scalp', order=200)
+def hair_noise_views(B, hair):
+    """hair_noise's pictures: per view (0, 90, 180 degrees) (az, the picture (RGBA), each pixel's tone group (0 none,
+    hair_noise_group's), the drawn lines' pixels (hair_noise_ink)): the character drawn as the render draws it, its
+    outlines included. (The calibration's stand-ins replace this: charkit.calib.hairnoise.)"""
+    fr = figure_frame(B, ss=FIG_SS)
+    surfs, groups = [], []
+    for o in hair:
+        for x in surfaces(B, o, outline=True):
+            surfs.append(x); groups.append(-1 if x['hull'] else hair_noise_group(o))
+    occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
+           for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=True)]
+    grp_of = np.array(groups + [-1] * len(occ) + [-1])             # per surface (and -1 for none)
+    ink_of = np.array([bool(x['hull']) for x in surfs + occ] + [False], float)
+    out = []
+    for az in (0, 90, 180):
+        view = draw_view(B, surfs + occ, az, fr)
+        px = draw_lit(B, view)
+        mesh = view['mesh']
+        out.append((az, px, _to_shape(grp_of[mesh], px.shape[:2]), hair_noise_ink(ink_of[mesh] > 0, px.shape[:2])))
+    return out
+
+
+@qa_part('scalp', order=200, checks=1)
 def scalp(B, design=None, out=None):
     """pixels of scalp showing through the hair: the skin's base polygons over the upper cranium and the back of the head
     drawn pure green (its outline off, as before), everything else as it renders, from 0, 90, 180 and 270 degrees; a
@@ -2278,7 +2389,7 @@ def scalp(B, design=None, out=None):
     return per, {'scalp_px': {'value': worst, 'per_view': per, 'status': _grade('scalp_px', worst, False)}}
 
 
-@qa_part('poke', order=300)
+@qa_part('poke', order=300, checks=1)
 def poke(B, design=None, out=None):
     """body vertices (the unmasked ones) lying just outside a garment's surface, where the garment is close: the body
     showing through it (3D, so legs seen below a skirt or an arm in front of it don't count). A short ray inward from
@@ -2327,7 +2438,7 @@ def poke(B, design=None, out=None):
     return None, {'poke_share': {'value': round(share, 4), 'per_garment': per_g, 'status': _grade('poke_share', share, False)}}
 
 
-@qa_part('mesh', order=600)
+@qa_part('mesh', order=600, checks=2)
 def mesh_info(B, design=None, out=None):
     """open edges and loose parts per hair and garment object's own mesh (information)."""
     mh = {}
@@ -2399,7 +2510,7 @@ def face_presets(B, ppl=200.0, data=None):
     return out
 
 
-@qa_part('face', order=1900, prefix='face_', table='face')
+@qa_part('face', order=1900, prefix='face_', table='face', checks=19)
 def face_part(B, design=None, out=None):
     """the face's expressions and mouth shapes (face()) as a part, with the open mouths' cover (mouth_cover) and the
     combined expressions against the template's targets (face_presets: face_preset_<name>, value the furthest feature
@@ -2424,7 +2535,7 @@ def face_part(B, design=None, out=None):
     return table, C
 
 
-@qa_part('eye_views', order=800, prefix='eye_', table='eye_views')
+@qa_part('eye_views', order=800, prefix='eye_', table='eye_views', checks=18)
 def eye_views(B, design=None, out=None):
     """each eye the head sheet draws, ours from the same azimuth (front, three-quarter, profile; charkit.eyeqa.views):
     where the iris sits in the opening, the front's pupil, the profile's edge and lash flick."""
@@ -2432,7 +2543,7 @@ def eye_views(B, design=None, out=None):
     return eyeqa.views(B, design, out)
 
 
-@qa_part('face_region', order=2000, table='face_region')
+@qa_part('face_region', order=2000, table='face_region', checks=26)
 def face_region(B, design=None, out=None):
     """the face's region on the assembled figure (charkit.faceregion): the eye's hollow, bowl and the cheek's lead, the
     eye's width in three-quarter and profile against the design's, the profile's edge from the chin to the chest and the
@@ -2441,7 +2552,7 @@ def face_region(B, design=None, out=None):
     return faceregion.measure(B)
 
 
-@qa_part('details', order=1700, table='details')
+@qa_part('details', order=1700, table='details', checks=35)
 def details(B, design=None, out=None):
     """the midriff's and the boots' details against the design (charkit.detailqa): the torso outline's steps and the
     top's junction with the band, the cream panel's edge; the boots' ankle, folds, heel, doubled lines, soles and
@@ -2450,7 +2561,7 @@ def details(B, design=None, out=None):
     return detailqa.measure(B, design, out)
 
 
-@qa_part('look', order=2100, table='look')
+@qa_part('look', order=2100, table='look', checks=12)
 def look(B, design=None, out=None):
     """the look's measures (charkit.lookqa): the face's shading noise, its shadows against the design's, the outlines'
     widths."""
@@ -2458,7 +2569,7 @@ def look(B, design=None, out=None):
     return lookqa.measure(B, design, out)
 
 
-@qa_part('skirt', order=2300, table='skirt')
+@qa_part('skirt', order=2300, table='skirt', checks=48)
 def skirt(B, design=None, out=None):
     """the skirt and the overskirt flaps against the design (charkit.skirtqa): the flaps' shape per view (IoU, width
     down their length, attach, hang angle, the profile's sweep, the clearance behind the leg), the stepped band's steps
@@ -2490,6 +2601,29 @@ def evaluate(B, parts=('shape', 'sheet_body', 'sheet_palette'), design=None, ref
     return checklib.authorize(out, design.ref().get('authority') or {})
 
 
+PROFILES = ('full', 'iterate')     # the QA's profiles: full (gates, full builds), iterate (QA-only and sweep iterations)
+PROFILE_ENV = 'CHARKIT_QA_PROFILE'
+
+
+def profile_of(profile=None):
+    """the QA profile in force: the argument, else CHARKIT_QA_PROFILE, else 'full' -> its name (ValueError: unknown)."""
+    p = profile or os.environ.get(PROFILE_ENV) or 'full'
+    if p not in PROFILES:
+        raise ValueError('QA profile %r: one of %s' % (p, ', '.join(PROFILES)))
+    return p
+
+
+def skipped_by(profile=None):
+    """the parts a QA profile leaves out (each part's registry skip_in) -> {name}: none under 'full'."""
+    p = profile_of(profile)
+    return set() if p == 'full' else {P.name for P in registry.parts() if p in P.skip_in}
+
+
+def measured_count(C):
+    """a part's checks that it measured (any status but SKIPPED): its count against its denominator."""
+    return sum(1 for v in (C or {}).values() if not (isinstance(v, dict) and v.get('status') == 'SKIPPED'))
+
+
 def _strip(x):
     """a part's table for the report (the measurement's own arrays and pictures left out)."""
     if isinstance(x, dict):
@@ -2497,8 +2631,12 @@ def _strip(x):
     return x
 
 
-def run(B, out, ref_image=None, mode='on', parts=None):
-    """every check on a bundle (a Bundle or its folder), the report and overlays into out -> the report (qa.json's)."""
+def run(B, out, ref_image=None, mode='on', parts=None, profile=None):
+    """every check on a bundle (a Bundle or its folder), the report and overlays into out -> the report (qa.json's).
+    profile: the QA profile (profile_of: 'iterate' leaves out the parts that declare it in skip_in, each reported
+    SKIPPED 'skipped by profile iterate'). Each part's status against its denominator (registry `checks`) is in
+    measured.part_status: {part: dict(status ok | short | crashed | skipped | undeclared, checks (measured), expected,
+    why)}; the merge gate blocks a candidate whose part crashed, fell short or was skipped."""
     from . import bundle as bundlelib, cache, trace
     if isinstance(B, str):
         B = bundlelib.load(B)
@@ -2513,8 +2651,19 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     t0, c0 = time.perf_counter(), time.process_time()
     timing = {}                     # per part: wall and CPU seconds (the process's, every thread: llvmpipe's included)
     owner = {}                      # per part: the checks it reported (the gate's measure-change check: charkit.codediff)
+    status = {}                     # per part: its status against its denominator (registry `checks`)
+    profile = profile_of(profile)
+    skip = skipped_by(profile)
     for P in registry.parts():
         if parts is not None and P.name not in parts:
+            continue
+        n_exp, why_exp = registry.expected(P, B, design)
+        if P.name in skip:
+            why = 'skipped by profile %s' % profile
+            rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': why}
+            owner[P.name] = [P.skip_key]
+            status[P.name] = dict(status='skipped', checks=0, expected=n_exp, why=why)
+            print('CHARKIT_QA_SKIPPED %s: %s' % (P.name, why), flush=True)
             continue
         args = (ref_image,) if P.ref_image else ()
         try:
@@ -2527,7 +2676,14 @@ def run(B, out, ref_image=None, mode='on', parts=None):
             import traceback; traceback.print_exc()
             rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
             owner[P.name] = [P.skip_key]
+            status[P.name] = dict(status='crashed', checks=0, expected=n_exp,
+                                  why='%s: %s' % (type(e).__name__, str(e)[:300]))
             continue
+        n = measured_count(C)
+        status[P.name] = dict(status='undeclared' if n_exp is None else 'short' if n < n_exp else 'ok', checks=n,
+                              expected=n_exp, **({'why': why_exp} if why_exp else {}))
+        if n_exp is not None and n < n_exp:
+            status[P.name]['why'] = 'measured %d of the %d checks it declares' % (n, n_exp)
         if P.table == 'views':
             rep['views'] = table
         elif P.table is not None and table is not None:
@@ -2543,6 +2699,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     from . import qarender
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
                        'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
+                       'part_status': status, 'profile': profile,
                        'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B),
                                     export=os.path.basename(qarender.export_of(B) or '') or None)}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
@@ -2553,10 +2710,12 @@ def run(B, out, ref_image=None, mode='on', parts=None):
 
 def main(args):
     """python -m charkit qa BUNDLE_DIR [--out QA_DIR] [--cache on|off|refresh|verify] [--trace TRACE.jsonl]
-                              [--draw numpy|render] [--threads N]
+                              [--draw numpy|render] [--threads N] [--profile full|iterate]
     the QA on a build's geometry bundle (default out: the build's qa folder); --trace appends its records to a trace
     (a build's own does it: python -m charkit build). --draw: the QA's drawing for this run (CHARKIT_QA_DRAW,
-    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS)."""
+    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS).
+    --profile iterate: an iteration's QA, the parts that declare it left out (motion QA's cloth solve), each reported
+    SKIPPED 'skipped by profile iterate' (CHARKIT_QA_PROFILE; profile_of)."""
     if not args or args[0] in ('-h', '--help'):
         print(main.__doc__); return
     from . import trace
@@ -2566,6 +2725,8 @@ def main(args):
         os.environ[qarender.ENV] = opt('--draw')
     if opt('--threads'):
         os.environ['LP_NUM_THREADS'] = str(int(opt('--threads')))
+    if opt('--profile'):
+        os.environ[PROFILE_ENV] = profile_of(opt('--profile'))
     bdir = os.path.abspath(args[0])
     out = os.path.abspath(opt('--out', os.path.join(os.path.dirname(bdir), 'qa')))
     tp = opt('--trace')

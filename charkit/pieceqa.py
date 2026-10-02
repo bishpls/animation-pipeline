@@ -960,7 +960,7 @@ def waist(O, names, masks, pm, ppl, dv=None):
     return T, C
 
 
-@qa_part('piece_details', order=1750, table='piece_details')
+@qa_part('piece_details', order=1750, table='piece_details', checks=59)
 def piece_details(B, design=None, out=None):
     """the outfit pieces' details against the design: the puff sleeves' spikes, outline and width along the arm and their
     stand-off from it (sleeve_closeup's cross-section); the waistband's edges, width and the jacket's overhang in

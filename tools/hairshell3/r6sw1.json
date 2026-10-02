@@ -1,0 +1,34 @@
+{
+ "base": "charkit/out/r6b_default",
+ "stage": "hair",
+ "objects": [
+  "hair_bangs",
+  "hair_side_lock_L",
+  "hair_side_lock_R",
+  "hair_upper_back",
+  "hair_lower_back",
+  "hair_bun_L",
+  "hair_bun_R",
+  "hair_ahoge",
+  "hair_flyaways"
+ ],
+ "parts": [
+  "artifacts",
+  "hair_noise",
+  "hair_flags",
+  "declared"
+ ],
+ "control": true,
+ "set": {},
+ "variants": {
+  "vertex": {
+   "hair.shape.pieces_opts.lock_shells.skin_clear": "vertex"
+  },
+  "narrow": {
+   "hair.shape.pieces_opts.lock_shells.skin_clear": "narrow"
+  },
+  "off": {
+   "hair.shape.pieces_opts.lock_shells.skin_clear": false
+  }
+ }
+}

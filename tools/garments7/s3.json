@@ -1,0 +1,73 @@
+{
+ "base": "charkit/out/g7_c4",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "face_region"
+ ],
+ "checks": [
+  "art_outline_neck",
+  "art_outline_collar",
+  "art_mirror_waist",
+  "art_speckle_neck",
+  "bow_front_bleed",
+  "neck_v_*",
+  "neck_crease",
+  "collar_*_torn",
+  "sleeve_*_spikes_*",
+  "sleeve_*_profile_*",
+  "sleeve_*_rough_*",
+  "shoulder_*"
+ ],
+ "variants": {
+  "opt1_best": {
+   "garments.sleeve_L.clear_body.gap": 0.0115,
+   "garments.sleeve_L.clear_body.from_t": -0.375,
+   "garments.sleeve_L.clear_body.dilate": 7,
+   "garments.sleeve_L.clear_body.blur": 1.3778,
+   "garments.sleeve_L.clear_body.taper": 0.056,
+   "garments.top.tuck.ease": 0.0341,
+   "garments.top.tuck.sink": -0.0096,
+   "garments.sleeve_L.bed.gap": 0.0122,
+   "garments.collar.side_depth": 0.3641,
+   "garments.collar.back_depth": 0.5048
+  },
+  "opt1_puff": {
+   "garments.sleeve_L.clear_body.gap": 0.0115,
+   "garments.sleeve_L.clear_body.from_t": -0.375,
+   "garments.sleeve_L.clear_body.dilate": 7,
+   "garments.sleeve_L.clear_body.blur": 1.3778,
+   "garments.sleeve_L.clear_body.taper": 0.056,
+   "garments.top.tuck.ease": 0.0341,
+   "garments.top.tuck.sink": -0.0096,
+   "garments.sleeve_L.bed.gap": 0.0122
+  }
+ },
+ "oat": {
+  "garments.collar.side_depth": [
+   0.4,
+   0.455
+  ],
+  "garments.collar.back_depth": [
+   0.51
+  ],
+  "garments.collar.rise": [
+   0.1,
+   0.2
+  ],
+  "garments.collar.neck_drop": [
+   0.02
+  ],
+  "garments.collar.lift": [
+   0.0,
+   0.012
+  ],
+  "garments.collar.v_half": [
+   34,
+   46
+  ]
+ }
+}

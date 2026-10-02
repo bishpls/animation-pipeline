@@ -353,8 +353,8 @@ def test_the_motion_calibration_nudges_every_move():
         got = [cm.nudge(m, hold) for m in calibrate.MOVES]
         assert len(got) == len(calibrate.MOVES) and all(len(g) == 1 for g in got)
     E = [e for e in calibrate.entries() if e['module'] == 'charkit.calib.motion']
-    assert {e['check'] for e in E} == {'motion_kick_skirt_inside', 'motion_kick_skirt_stretch',
-                                       'motion_squat_skirt_stretch'}           # (the squat's inside: ungraded, round 3)
+    # (the squat's inside: ungraded, round 3; the kick's inside: ungraded 2026-10-01, miscalibrated on the staircase skirt)
+    assert {e['check'] for e in E} == {'motion_kick_skirt_stretch', 'motion_squat_skirt_stretch'}
     assert all(e.get('baseline') == ['shuffled_weights'] for e in E) and 'shuffled_weights' in cm.Motion.generators
 
 

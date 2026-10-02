@@ -53,20 +53,27 @@ def test_slots_queue_and_release():
     assert len(procs.slot_holders()) == 2
     # a third taker in another process waits until one is released
     code = ('import sys, time; sys.path.insert(0, %r); from charkit import procs; procs.SLOTS_DIR = %r; '
-            't = time.time(); procs.acquire_slot("c", poll=0.1); print(round(time.time() - t, 1))'
+            'procs.acquire_slot("c", poll=0.1); print(time.time())'
             % (os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), procs.SLOTS_DIR))
     p = subprocess.Popen([sys.executable, '-c', code], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                          env=dict(os.environ))
-    time.sleep(1.0)
-    assert p.poll() is None                                       # still waiting
-    a.close()                                                     # release one
-    out, _ = p.communicate(timeout=10)
-    assert float(out.strip()) >= 0.9
-    # every slot taken is logged with its wait (the box's load sampler reads these); nothing is left waiting
+    # (the order of events, not elapsed seconds: the third taker is seen waiting, then a slot is released, then it
+    # has one; a loaded machine moves the times, not the order)
     import json
+    wd = os.path.join(procs.SLOTS_DIR, 'wait')
+    t = time.time()
+    while not (os.path.isdir(wd) and any(f.endswith('.json') for f in os.listdir(wd))):
+        assert time.time() - t < 60 and p.poll() is None, 'the third taker never waited'
+        time.sleep(0.02)
+    assert p.poll() is None                                       # still waiting
+    released = time.time()
+    a.close()                                                     # release one
+    out, _ = p.communicate(timeout=60)
+    assert float(out.strip()) >= released
+    # every slot taken is logged with its wait (the box's load sampler reads these); nothing is left waiting
     W = [json.loads(l) for l in open(os.path.join(procs.SLOTS_DIR, 'waits.jsonl'))]
     assert [w['label'] for w in W] == ['a', 'b', 'c'] and W[0]['why'] is None and W[2]['why'] == 'slots'
-    assert W[2]['waited'] >= 0.9 and W[0]['waited'] < 0.5 and not os.listdir(os.path.join(procs.SLOTS_DIR, 'wait'))
+    assert W[2]['waited'] > 0 and not os.listdir(wd)
     b.close()
     # run() records the pid and releases its slot afterwards
     d = tempfile.mkdtemp()
@@ -77,15 +84,17 @@ def test_slots_queue_and_release():
 
 def test_wait_ends_with_the_build():
     d = tempfile.mkdtemp()
-    p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(1.5)'])
+    release = os.path.join(d, 'release')                      # (the build runs until the test releases it: no race
+    p = subprocess.Popen([sys.executable, '-c', 'import os, time\nt = time.time()\n'     # against a timer)
+                          'while not os.path.exists(%r) and time.time() - t < 120:\n    time.sleep(0.02)' % release])
     import json
     json.dump({'pid': p.pid}, open(os.path.join(d, procs.PIDFILE), 'w'))
-    t = time.time()
     try:
         procs.wait([d, '--timeout', '1'])
         assert False, 'should time out'
     except SystemExit as e:
         assert e.code == 2
+    open(release, 'w').close()
     p.wait()
     procs.wait([d, '--timeout', '5'])                             # the pid is gone: a stale record ends the wait
     os.remove(os.path.join(d, procs.PIDFILE))

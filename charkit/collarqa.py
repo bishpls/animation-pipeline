@@ -202,7 +202,7 @@ def edge_touch(a, b):
 
 
 # ------------------------------------------------------------------------------------------------------------ the part
-@qa_part('collar_flags', order=1760, table='collar_flags')
+@qa_part('collar_flags', order=1760, table='collar_flags', checks=9)
 def collar_flags(B, design=None, out=None):
     """Michael's flags on the shoulders, the sailor collar and the bow (2026-09-30), calibrated checks: the back view's
     shoulder line, the collar's back panel and its lay, the bow's loops, its colour running into the jacket, its

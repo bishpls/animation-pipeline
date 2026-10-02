@@ -1,0 +1,21 @@
+{
+ "families": [
+  "side_locks"
+ ],
+ "groups": [
+  {
+   "family": "lower_back",
+   "view": "back",
+   "phi": [
+    100,
+    175
+   ],
+   "replace": false,
+   "opts": {
+    "prior_depth": 10.0,
+    "contain": 5.0,
+    "hug_free": 0.3
+   }
+  }
+ ]
+}

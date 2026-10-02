@@ -78,7 +78,12 @@ NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel'
              'opening', 'inside', 'outline', 'stripe', 'refine',
              # a shell bedded under the bow (garments.bed) and a piece's crease strokes (garments.with_ink): settings;
              # the skirt's front panel template (garments.skirt_hull's panel_shape: a table the sweep fits, as aline)
-             'bed', 'creases', 'panel_shape')
+             'bed', 'creases', 'panel_shape',
+             # a jacket's shoulder pad (garments.shoulder_pad: a lift table) and the template collar's stand and drape
+             # settings (tool/collar4)
+             'pad', 'stand', 'over_gap', 'over_reach', 'over_depth', 'over_cap', 'over_iters', 'keep_skin',
+             # the hull collar's flat lapels (garments.collar_hull's flat_front {a, fade}: settings) and its length table
+             'flat_front', 'front_length', 'lapel')
 
 # hair.shape (mesh / geom mode): knob -> (default, step, lo, hi, note)
 HAIR_SHAPE = {
