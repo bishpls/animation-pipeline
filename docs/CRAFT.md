@@ -28,6 +28,11 @@ This is the working method for this repo. It distils three earlier projects (EMB
      the flagged list, the median shot) runs before any draft goes to Michael, and its flags are fixed or justified.
      Reference medians (the Special Movie's 1.37 s) describe other films; they are not targets.
    - **Transitions too:** a cut away starts only after the outgoing shot's motion has resolved.
+   - **Never loop, repeat or stretch an action, or its sounds, to fill a slot.** Cover one action from several angles
+     instead (with a deterministic engine, replay the identical run with another camera), and cut across it with the
+     sound continuous from one take. Quick cuts across a single continuous action are the one place fast cutting is
+     right. (Michael, on a Beam charge stretched with repeated charge and fire sounds: "Rare case where the mid-shot
+     cuts NEEDED to be fast!")
    - **Audio concludes too** (Michael: "we also need to consider AUDIO of a shot, not just the animation landing and rest
      beats"). A voice line, hit cry, roar, announcer call or sound effect that starts in a shot plays out to its tail
      before the cut, or is deliberately carried under the next shot (a J/L-cut), never chopped. The audit checks every cut's
