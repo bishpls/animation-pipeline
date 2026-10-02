@@ -715,3 +715,6 @@ that worktree): a gate-infra race (tests reading a produced input mid-write), no
   rom's finger rows (report-only), the new fingerlines FAILs (new checks: reported).
 - Deferred to the dexterity phase: the hands-only ink colour; the cuffless path (c3); the finger overlap > 0 for the 3q
   slit; the pocket depth graded in the fit; the library's fist (tighter than drawn); option B (rest5) if Michael picks it.
+- **Coordinator (2026-10-01 night):** keep A (rest4p, built: inside Michael's accepted range; the middle finger's 6%
+  WARN reported, not blocking); B (rest5) stays here as the alternative. Re-gate on the build box (`remote --box build
+  gate tool/hands2 --into pipeline-3d`, log charkit/out/hands3/gate2.log); the infra agent fixes the race.
