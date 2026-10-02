@@ -126,6 +126,28 @@ def test_the_rest_key_is_the_identity():
     assert all(np.allclose(D[b], np.eye(4)) for b in sk.order)
 
 
+def test_the_frame_evaluates_the_exports_extra_nodes_when_the_rig_has_them():
+    sk = skeleton()
+
+    class Nodes:                                     # (rom.Rig.nodes's interface: deform(D) adds the extra nodes)
+        def deform(self, D):
+            D = dict(D)
+            D['leftElbowHalf'] = D['leftUpperArm'] @ np.eye(4)
+            return D
+
+    class Rig:
+        pass
+    rig = Rig()
+    rig.sk = sk
+    L = {'leftLowerArm': P.rotation((0, 1.0, 0), 40.0)}
+    assert 'leftElbowHalf' not in RV.deform(rig, L)              # (a codebase or export without them)
+    rig.nodes = None
+    assert 'leftElbowHalf' not in RV.deform(rig, L)
+    rig.nodes = Nodes()
+    D = RV.deform(rig, L)
+    assert 'leftElbowHalf' in D and np.allclose(D['leftLowerArm'], RV.compose(sk, L)['leftLowerArm'])
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

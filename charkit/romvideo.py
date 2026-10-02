@@ -46,7 +46,6 @@ VIEWS = (0, 35, 90)             # the boards' azimuths drawn side by side: front
 VIEW_NAMES = {0: 'front', 35: 'three-quarter', 90: 'profile', 180: 'back'}
 RES = (640, 800)                # px per view: the ROM boards' (rom.BOARD_RES)
 BAR = 96                        # px: the label bar over the views
-SHEET_SCALE = 0.4               # the contact sheet's views at this share of the video's
 SHEET_COLS = 4
 ENCODERS = (                    # tried in order (the first that encodes a test clip here): hardware or permissive first
     ('h264_nvenc', ['-preset', 'p5', '-rc', 'vbr', '-cq', '21', '-b:v', '0', '-profile:v', 'high']),
@@ -384,7 +383,7 @@ def _font(size):
         return ImageFont.load_default()
 
 
-def compose_frame(imgs, clip, n_clips, phase, w, t, k, nk, fonts, bg=(24, 24, 28), views=VIEWS):
+def compose_frame(imgs, clip, n_clips, phase, w, t, k, nk, fonts, bg=(24, 24, 28), views=VIEWS, frame=None):
     """the views side by side under a label bar: the clip's index and name, its group and phase, the pose's weight, a
     progress bar over the clip -> (H, W, 3) uint8."""
     from PIL import Image, ImageDraw
@@ -397,7 +396,7 @@ def compose_frame(imgs, clip, n_clips, phase, w, t, k, nk, fonts, bg=(24, 24, 28
     big, small = fonts
     d.text((16, 10), '%02d/%02d  %s' % (clip['index'], n_clips, clip['name']), fill=(245, 245, 245), font=big)
     ph = {'in': 'rest -> pose', 'hold': 'hold', 'out': 'pose -> rest'}[phase]
-    right = '%s   %s   w %.2f   t %.2f s' % (clip['group'], ph, w, t)
+    right = '%s   %s   w %.2f   t %.2f s' % (clip['group'], ph, w, t) + ('   frame %d' % frame if frame is not None else '')
     tw = d.textlength(right, font=small)
     d.text((W - tw - 16, 16), right, fill=(200, 200, 205), font=small)
     what = clip['what']
@@ -415,24 +414,45 @@ def compose_frame(imgs, clip, n_clips, phase, w, t, k, nk, fonts, bg=(24, 24, 28
     return np.asarray(im)
 
 
-def contact_sheet(holds, path, n_clips, views=VIEWS, scale=SHEET_SCALE, cols=SHEET_COLS, bg=(24, 24, 28)):
-    """each clip at its hold, every view, in a grid -> path."""
+def _extent(imgs, pad=12):
+    """the columns and rows any picture of imgs (same size) draws on, against its corner's background -> (x0, y0, x1,
+    y1) with pad px round it."""
+    h, w = imgs[0].shape[:2]
+    m = np.zeros((h, w), bool)
+    for a in imgs:
+        m |= np.abs(a.astype(np.int16) - a[0, 0].astype(np.int16)).max(-1) > 6
+    ys, xs = np.nonzero(m)
+    if not len(xs):
+        return 0, 0, w, h
+    return max(0, xs.min() - pad), max(0, ys.min() - pad), min(w, xs.max() + 1 + pad), min(h, ys.max() + 1 + pad)
+
+
+def contact_sheet(holds, path, n_clips, views=VIEWS, tile_h=360, cols=SHEET_COLS, bg=(24, 24, 28)):
+    """each clip at its hold, every view, in a grid -> path. Each view cut to the columns any clip draws on in it and
+    the rows any view draws on (one window per view for every clip: one scale, the views level), tile_h px tall."""
     from PIL import Image, ImageDraw
     if not holds:
         return None
-    h0, w0 = holds[0][1][0].shape[:2]
-    vw, vh = int(w0 * scale), int(h0 * scale)
+    box = [_extent([imgs[j] for _, imgs in holds]) for j in range(len(views))]
+    y0, y1 = min(b[1] for b in box), max(b[3] for b in box)          # (one row window: the views stand level)
+    box = [(b[0], y0, b[2], y1) for b in box]
+    k = tile_h / (y1 - y0)
+    vws = [int(round((b[2] - b[0]) * k)) for b in box]
     lab = 34
-    tw, th = vw * len(views), vh + lab
+    tw, th = sum(vws) + 4 * (len(views) - 1), tile_h + lab
     rows = (len(holds) + cols - 1) // cols
-    im = Image.new('RGB', (tw * cols + 8 * (cols - 1), th * rows + 8 * (rows - 1)), bg)
+    im = Image.new('RGB', (tw * cols + 10 * (cols - 1), th * rows + 10 * (rows - 1)), bg)
     d = ImageDraw.Draw(im)
     f = _font(18)
     for n, (clip, imgs) in enumerate(holds):
-        x, y = (n % cols) * (tw + 8), (n // cols) * (th + 8)
+        x, y = (n % cols) * (tw + 10), (n // cols) * (th + 10)
         for j, a in enumerate(imgs):
-            im.paste(Image.fromarray(a).resize((vw, vh), Image.LANCZOS), (x + j * vw, y + lab))
-        d.text((x + 6, y + 6), '%02d/%02d  %s  (%s)' % (clip['index'], n_clips, clip['name'], clip['group']),
+            b = box[j]
+            cut = Image.fromarray(a[b[1]:b[3], b[0]:b[2]])
+            im.paste(cut.resize((vws[j], int(round((b[3] - b[1]) * k))), Image.LANCZOS), (x, y + lab))
+            x += vws[j] + 4
+        x = (n % cols) * (tw + 10)
+        d.text((x + 6, y + 7), '%02d/%02d  %s  (%s)' % (clip['index'], n_clips, clip['name'], clip['group']),
                fill=(240, 240, 240), font=f)
     im.save(path, optimize=True)
     return path
@@ -589,7 +609,7 @@ def run(build, out=None, poses=None, clips=('rom', 'motionqa'), views=VIEWS, res
             if phase == 'hold' and not any(h[0] is c for h in holds):
                 holds.append((c, imgs))
             t = time.time()
-            fr = compose_frame(imgs, c, len(C), phase, w, k / fps, k, len(sch), fonts, views=views)
+            fr = compose_frame(imgs, c, len(C), phase, w, k / fps, k, len(sch), fonts, views=views, frame=nframe)
             tm['label'] += time.time() - t
             t = time.time()
             if E is not None and E.proc:
@@ -650,7 +670,7 @@ def page(rep, rom_json=None, log=print):
     out = rep['out']
     G = rom_grades(rep['build'], rom_json)
     hon = [f['feature'] for f in rep['features'] if f['honoured']]
-    off = [f['feature'] for f in rep['features'] if not f['honoured'] and f['carried'] not in ('none',)]
+    off = [f['feature'] for f in rep['features'] if not f['honoured'] and not f['carried'].startswith('none')]
     name = os.path.basename(rep['build'].rstrip('/'))
     spec = dict(
         title='Motion video check: %s' % name,
