@@ -294,3 +294,12 @@ charkit/out/garments8/sweeps/l3/sweep.json (control = g8_c0):
   34 s). Warmed the box's produced cache (`remote run --box build2 outfit score charkit/spec/clawd.json`), gate 2
   launched (log charkit/out/garments8/gate2.log). If it recurs: an infra item (the produced reference's write isn't
   atomic for a concurrent reader), not this branch's.
+- **Gate 2: PASS under K** (824daaf8 into 3144b1f6, build2; report
+  charkit/out/gate/gate_tool-garments8_824daaf8_into_3144b1f6.md). Nothing blocks. Reported: collar_three_quarter_truth
+  new at 0.559 FAIL; collar_front_truth 0.771 WARN; top_*_truth 0.753 / 0.659 / 0.800 / 0.861; the remeasured
+  neck_v_front 0.743 WARN -> 0.562 FAIL and 3q 0.549 -> 0.499 FAIL (the same geometry, the 2x2: the measure alone);
+  records: collar truth calibrated, top truth guards, neck_v calibrated. Build CPU like for like 0.96x (totals 1.16x
+  with restores differing); over the report-only budget 1534 > 1450 s. The declared part measures 61 against its
+  registered 53 (the gate: "raise its checks": an infra/registry count to bump, not done here). The 32-part
+  "measuring code changed" list is layerref.py entering every part's code closure through declared.py; no check moved.
+- The .env symlink removed (no more paid calls this round).
