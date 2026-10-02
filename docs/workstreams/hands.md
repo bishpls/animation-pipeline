@@ -666,3 +666,21 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
   QA-only twin charkit/out/hands3_after_q (build box; after_q.log). Then: calibrate 'fingerlines_*,handsheet_open_*'
   on the build box against hands3_after_q, the review page (charkit/out/hands3/review/page.json), the acceptance,
   pregate --box auto, gate.
+- **hands3_after_q's QA** (build box, rest4p, with pipeline-3d 348397e7's joined shoulder) against hands2's
+  (hands2_after_q; batch4's gate shows the joined shoulder moved hands2's hand checks by <= 0.0004):
+  hand_shape_L FAIL 0.488 -> FAIL 0.593 (front 0.761 -> 0.712, 3q 0.741 -> 0.774, profile 0.488 -> 0.593, back 0.736 ->
+  0.731); hand_shape_R WARN 0.656 -> WARN 0.724 (front 0.775 -> 0.735, 3q 0.656 -> 0.779, back 0.757 -> 0.724).
+  **Two new FAILs (they block under K):** hand_three_quarter_cleftpos_L PASS 0.008 -> FAIL -0.075 (the real render
+  parts the index and middle in 3q L: a slit, gaps 0.025, becomes the deepest pocket; the fit's template read gaps 0
+  there) and hand_profile_cleft_L WARN 0.525 -> FAIL 0.361 (the profile pocket's depth; the fit doesn't grade depth).
+  Moves: hand_front_cleftpos_R PASS -> WARN (-0.044), hand_profile_taper_L PASS -> WARN (-0.088); improved:
+  hand_three_quarter_cleft_L WARN -> PASS, 3q digits R WARN -> PASS, back L cleftpos 0.054 -> 0.040. New checks:
+  fingerlines front L FAIL 0.519, back L FAIL 0.563, front R WARN 0.476, back R PASS 0.381, 3q L PASS 0.27 (the paddle
+  read 0.72-0.83: the seams show partly); handsheet_open_span PASS +0.017, handsheet_open_fingers WARN +0.058 (middle).
+  Parts: hands 42/42, hand_sheet 10/10, declared 60 vs 47 (pipeline-3d's 55 vs 47 already; the hands' 5 now counted:
+  02063ef6).
+- Named acceptance recorded (a801ae2a): charkit/accepted/hand_shape_L.json (FAIL 0.5934), hand_shape_R.json (WARN
+  0.7241), Michael's call as relayed. **Not** recorded for the two new FAILs: Michael's call covers the front/back
+  shape, not the 3q cleft position or the profile cleft depth: the coordinator's / Michael's decision (accept by name,
+  or the dexterity phase fixes the seam: overlap > 0 closes the 3q slit, untested).
+- Running: calibrate (build box, calib.log), pregate --box auto (pregate.log), the boards build (after.log).
