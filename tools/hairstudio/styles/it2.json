@@ -1,0 +1,132 @@
+{
+ "note": "it2: coherent waves, fewer bigger clumps, fuller tips, calmer normals",
+ "front_band": 46,
+ "normals_lean": 0.85,
+ "clearance": 0.0,
+ "seed": 7,
+ "upper": {
+  "n": 20,
+  "split": 0.8,
+  "h": [
+   0.9,
+   0.97
+  ],
+  "jitter": 3,
+  "wave": 0.03,
+  "waves": 0.6,
+  "sway": 1.5,
+  "flick": 0.05,
+  "flick_up": 3,
+  "thick": 0.016,
+  "edge": [
+   [
+    0,
+    112
+   ],
+   [
+    0.45,
+    102
+   ],
+   [
+    0.75,
+    92
+   ],
+   [
+    1.0,
+    80
+   ]
+  ],
+  "curl": 0.5,
+  "phase_step": 0.1,
+  "tip_power": 1.1
+ },
+ "lower": {
+  "n": 13,
+  "al": 150,
+  "start_above_edge": 28,
+  "hem_extra": 2,
+  "split": 0.5,
+  "h": [
+   0.72,
+   1.0
+  ],
+  "jitter": 3,
+  "wave": 0.11,
+  "waves": 1.6,
+  "sway": 3.0,
+  "flick": 0.36,
+  "flick_up": 16,
+  "thick": 0.018,
+  "flick_from": 0.62,
+  "curl": 0.5,
+  "tier2": {
+   "n": 7,
+   "al": 132,
+   "frac": 0.55,
+   "h": [
+    0.92,
+    1.06
+   ],
+   "split": 0.35,
+   "jitter": 4,
+   "wave": 0.09,
+   "waves": 1.0,
+   "sway": 2.5,
+   "flick": 0.34,
+   "flick_up": 16,
+   "flick_from": 0.55,
+   "thick": 0.016,
+   "curl": 0.5,
+   "tip_power": 1.2,
+   "split_jitter": 0.03,
+   "phase_step": 0.1
+  },
+  "phase_step": 0.1,
+  "tip_power": 1.2,
+  "split_jitter": 0.03
+ },
+ "side": {
+  "band": [
+   112,
+   162
+  ],
+  "n": 3,
+  "th": [
+   38,
+   122
+  ],
+  "split": 0.5,
+  "h": [
+   0.95,
+   1.04
+  ],
+  "jitter": 4,
+  "wave": 0.1,
+  "waves": 1.0,
+  "sway": 3.0,
+  "flick": 0.38,
+  "flick_up": 14,
+  "thick": 0.016,
+  "flick_from": 0.6,
+  "curl": 0.5,
+  "phase_step": 0.1,
+  "tip_power": 1.2,
+  "split_jitter": 0.03
+ },
+ "bangs": {
+  "n": 7,
+  "th0": 4,
+  "tip_centre": 91,
+  "tip_slope": 0.22,
+  "h": [
+   0.98,
+   0.3
+  ],
+  "split": 0.55,
+  "jitter": 3,
+  "thick": 0.012,
+  "sweep": 6.0,
+  "curl": 0.5,
+  "phase_step": 0.1
+ }
+}
