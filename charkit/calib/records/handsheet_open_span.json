@@ -1,0 +1,132 @@
+{
+ "check": "handsheet_open_span",
+ "part": "hand_sheet",
+ "adapter": "HandSheet",
+ "module": "charkit.calib.handsheet",
+ "at": "2026-10-02T01:30:31",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hand_shape_L",
+  "hand_shape_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "comb_hand",
+  "value": -0.1757,
+  "status": "FAIL"
+ },
+ "floor": {
+  "wide_palm": {
+   "values": [
+    0.3039,
+    0.3583,
+    0.3084,
+    0.3084,
+    0.3401
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.3084,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "narrow_palm": {
+   "values": [
+    -0.2676,
+    -0.2268,
+    -0.263,
+    -0.263,
+    -0.2404
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.263,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "invariant": {
+  "thumb_only": {
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -0.0
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ]
+  }
+ },
+ "current": {
+  "value": 0.0173,
+  "status": "PASS",
+  "margin": 0.939
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), comb_hand reads -0.1757 FAIL, the floor wide_palm FAIL, narrow_palm FAIL",
+ "build": "charkit/out/hands3_after_q",
+ "generators": {
+  "wide_palm": "the sheet's open hand widened across the arm about its middle, 1.25-1.45x",
+  "narrow_palm": "the sheet's open hand narrowed across the arm about its middle, 0.6-0.8x",
+  "thumb_only": "the sheet's open hand's thumb alone turned 10-30 degrees about its root (toward the palm or away)"
+ },
+ "seconds": 37.8
+}

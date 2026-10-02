@@ -1,0 +1,10 @@
+{
+ "check": "hand_three_quarter_cleftpos_L",
+ "status": "FAIL",
+ "value": -0.075,
+ "by": "coordinator, under Michael's 2026-10-01 hands call",
+ "why": "Coordinator's decision under Michael's standing hands call (2026-10-01: accept the small loss; much more effort on the hand system in the motion/dexterity phase): hands3 is a net gain (hand_shape L/R up, the structure from the hand sheet's open hand). The real reason: in three-quarter the real render parts the index and middle fingers (a 0.025 slit, fingers held at overlap 0) where the fit's template read no gap, and the slit becomes the deepest pocket, read as the thumb's cleft. The fix belongs to the dexterity phase: finger overlap > 0 to close the slit (untested). Reading accepted: PASS 0.0078 -> FAIL -0.075.",
+ "at": "2026-10-01T21:20:17",
+ "branch": "tool/hands2",
+ "recorded_by": "tool/hands2's agent, on the coordinator's decision (2026-10-01)"
+}

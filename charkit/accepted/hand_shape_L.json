@@ -1,0 +1,10 @@
+{
+ "check": "hand_shape_L",
+ "status": "FAIL",
+ "value": 0.5934,
+ "by": "Michael",
+ "why": "Michael, 2026-10-01, relayed by the coordinator for tool/hands2 (hands3): the rest pose against the turnaround's front and back views sits ~5% under the comb (fit-scale 0.71-0.73 vs 0.76-0.77): inside the 15% guard; those views draw the hand narrow by convention, and the structure comes from the hand sheet's open hand (fixed landmark ratios). More hand work is deferred to the motion/dexterity phase. Reading accepted: FAIL 0.4876 -> FAIL 0.5934 (worst view profile 0.488 -> 0.593; front 0.761 -> 0.712, back 0.736 -> 0.731, three-quarter 0.741 -> 0.774).",
+ "at": "2026-10-01T21:19:19",
+ "branch": "tool/hands2",
+ "recorded_by": "tool/hands2's agent, on the coordinator's relay of Michael's call"
+}

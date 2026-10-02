@@ -36,14 +36,25 @@ DEFAULT = dict(
     taper=0.6,            # a finger's width at its tip over its knuckle's
     overlap=0.12,         # the share of a finger's width its neighbour overlaps (fingers held together: the drawn
                           # relaxed hand shows no background between them, 0-0.01 of its span at the tips)
+    tip_gap=None,         # L: the fingertips this far apart (None: overlapping as at the knuckles). A gap narrower than
+                          # the hand's line is filled by the neighbours' outline hulls: a drawn hairline between the
+                          # fingers from where they part to the tips (the design's 2-3 lines; round 6's seam gap)
     fingers=(0.93, 1.0, 0.95, 0.78),    # index, middle, ring, little: lengths over the middle's
     spread=0.0,           # degrees each finger fans out from the middle's line beyond the touching layout (- closer)
+    palm_len=None,        # L: the ratio mode's size (from_ratios: the reference's wrist line to the middle MCP); None: the
+                          # geometric knobs as given
+    wrist_offset=0.0,     # L: the reference's wrist line past the wrist joint (Clawd: the cuff's edge hides the crease)
+    ratios=None,          # the hand's structural ratios over the style profile's prior (hand_ratios)
+    segments=None, thumb_segments=None,    # a digit's segments (proximal : middle : distal), None: PHALANGES/THUMB_BONES
+    fan_index=0.0, fan_middle=0.0, fan_ring=0.0, fan_little=0.0,   # degrees each finger turns toward the thumb's side
+                          # beyond that (the sheet's open hand: index +14, ring -16, little -34 about the middle)
     curl=6.0,             # degrees each finger joint bends toward the palm at rest (the drawn relaxed hand)
     thumb_len=0.27,       # L: the thumb from its CMC to its tip
     thumb_w=0.05,         # L: its width at its MCP
     thumb_out=20.0,       # degrees the thumb opens from the hand's axis toward its side (radial; the drawn V cleft)
     thumb_down=15.0,      # degrees it turns toward the palm (opposition)
     thumb_base=0.06,      # L: its CMC from the wrist along the hand
+    thumb_across=0.3,     # its CMC across the palm toward the thumb's side, over the wrist's width
     yaw=40.0,             # degrees the back of the hand turns from her side toward the viewer, about the forearm
     bend=0.0,             # degrees the hand bends at the wrist toward the palm (flexion; - extension)
     dev=0.0,              # degrees it bends toward the little finger's side (ulnar deviation; - radial)
@@ -54,10 +65,12 @@ DEFAULT = dict(
 # (rest orientation A, Michael 2026-09-30: yaw and out stay the joint fit's; tool/hands2 refits the shape only)
 FIT_KNOBS = ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'taper', 'overlap', 'spread', 'curl', 'bend', 'dev',
              'thumb_base', 'thumb_len', 'thumb_w', 'thumb_out', 'thumb_down')
-BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.24), wrist_w=(0.07, 0.18),
-              palm_t=(0.04, 0.085), taper=(0.35, 0.9), overlap=(0.0, 0.35), spread=(-4.0, 8.0), curl=(0.0, 30.0),
+BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.30), wrist_w=(0.07, 0.18),
+              palm_t=(0.04, 0.085), taper=(0.35, 0.9), overlap=(-0.1, 0.35), spread=(-4.0, 8.0), curl=(-15.0, 30.0),
               thumb_len=(0.16, 0.46), thumb_w=(0.03, 0.085), thumb_out=(0.0, 60.0), thumb_down=(0.0, 60.0),
-              thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0))
+              thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0),
+              fan_index=(-10.0, 30.0), fan_middle=(-15.0, 15.0), fan_ring=(-30.0, 10.0), fan_little=(-50.0, 10.0),
+              thumb_across=(0.0, 0.6), tip_gap=(-0.01, 0.01), palm_len=(0.15, 0.4))
 FINGERS = ('index', 'middle', 'ring', 'little')
 PHALANGES = (0.45, 0.3, 0.25)         # a finger's proximal, intermediate and distal shares of its length
 THUMB_BONES = (0.36, 0.36, 0.28)      # the thumb's metacarpal, proximal and distal shares
@@ -67,6 +80,8 @@ DEPTH = 0.86                          # a finger's section: its dorsal-palmar de
 JOINT_BLEND = 0.8                     # a finger's weight eases across a knuckle over this share of its radius each side
 INSET = 0.04                          # L: a finger's tube starts this far inside the palm, behind its knuckle
 NTH = dict(palm=20, thumb=10, finger=10)
+SEAM_MAX = 0.005                      # L: a gap between touching fingers this narrow or less is a seam: the outline's hulls
+                                      # (~0.012 L a side at line 1) fill it with ink, a hairline (the QA's labels: < 1 px)
 WRIST_KEEP = 0.0                      # L: the arm's tube keeps its rows up to this past the wrist (under the cuff; the palm
                                       # starts 0.06 behind the wrist, inside it)
 UV_BAND = (0.25, 0.1, 0.5, 0.2)       # the hands' UV slots: this band (under the legs' slots, beside the feet's) in 12
@@ -76,13 +91,77 @@ SEGS = {'thumb': ('Metacarpal', 'Proximal', 'Distal')}
 MH = {'thumb': 1, 'index': 2, 'middle': 3, 'ring': 4, 'little': 5}
 
 
+RATIO_KEYS = ('span', 'wrist', 'thick', 'middle', 'index', 'ring', 'little', 'segments', 'taper', 'thumb_cmc', 'thumb',
+              'thumb_segments', 'thumb_w')
+
+
+def ratio_prior(style='anime'):
+    """the style profile's hand prior: {ratio: [default, lo, hi]} (charkit/styles: 'hand')."""
+    from . import styles
+    return {k: v for k, v in styles.load(style).get('hand', {}).items() if not k.startswith('_')}
+
+
+def hand_ratios(spec=None, style=None):
+    """the hand's structural ratios: the style profile's defaults, the spec's body.hand.ratios over them (an open hand's
+    landmarks: charkit.handsheet.sheet_ratios) -> {ratio: value}."""
+    style = style or (spec or {}).get('style') or 'anime'
+    pr = ratio_prior(style)
+    R = {k: (list(v) if k.endswith('segments') else v[0]) for k, v in pr.items()}   # (a segments' prior: the triple)
+    R.update((((spec or {}).get('body') or {}).get('hand') or {}).get('ratios') or {})
+    return R
+
+
+def from_ratios(R, palm_len, wrist_offset=0.0):
+    """the template's knobs from the hand's structural ratios (Michael, 2026-10-01: fixed ratios, poses only rotate
+    joints): R {ratio: value} (hand_ratios), palm_len (L: the reference's wrist line to the middle finger's MCP: the
+    size), wrist_offset (L: the reference's wrist line past the wrist joint: Clawd's is the cuff's edge, which hides the
+    wrist crease) -> {knob: value} over DEFAULT's (length, palm, palm_w, wrist_w, palm_t, taper, fingers, segments,
+    thumb_base, thumb_len, thumb_w, thumb_segments)."""
+    PL = float(palm_len)
+    mcp = wrist_offset + PL
+    span = R['span'] * PL
+    length = mcp + R['middle'] * PL
+    return dict(length=length, palm=mcp / length, palm_w=span, wrist_w=R['wrist'] * span, palm_t=R['thick'] * span,
+                taper=R['taper'], fingers=(R['index'], 1.0, R['ring'], R['little']), segments=list(R['segments']),
+                thumb_base=wrist_offset + R['thumb_cmc'] * PL, thumb_len=R['thumb'] * PL, thumb_w=R['thumb_w'] * PL,
+                thumb_segments=list(R['thumb_segments']))
+
+
 def params(spec=None, **over):
-    """the hand's knobs: DEFAULT, the spec's body.hand over it, then over."""
+    """the hand's knobs: DEFAULT, the spec's body.hand over it, then over; with body.hand.palm_len (the ratio mode:
+    the hand built from its structural ratios, from_ratios) the geometric knobs derived from hand_ratios(spec) at that
+    size (and over's own palm_len / ratios)."""
     P = dict(DEFAULT)
     P.update(((spec or {}).get('body') or {}).get('hand') or {})
     P.update(over)
+    if P.get('palm_len') is not None:
+        R = hand_ratios(spec)
+        R.update(P.get('ratios') or {})
+        P['ratios'] = R                                # (the full set: geometry() derives the knobs from it, live)
+        P = geometry(P)
     P['fingers'] = tuple(P['fingers'])
     return P
+
+
+def geometry(P):
+    """the knobs a hand is built from: in the ratio mode (palm_len set) the geometric knobs derived from P['ratios'] at
+    P['palm_len'] (from_ratios), so a fit moving palm_len or a ratio moves the hand (ratio2 moved palm_len to its bound
+    with no effect: the knobs had been derived once); else P as it is."""
+    if P.get('palm_len') is None or not P.get('ratios'):
+        return P
+    Q = dict(P)
+    Q.update(from_ratios(P['ratios'], P['palm_len'], P.get('wrist_offset', 0.0)))
+    Q['fingers'] = tuple(Q['fingers'])
+    return Q
+
+
+def _shares(seg, default):
+    """a digit's segment lengths as shares of its length: the ratios' triple (proximal : middle : distal) normalised,
+    else the default shares."""
+    if not seg:
+        return default
+    t = float(sum(seg))
+    return tuple(float(x) / t for x in seg)
 
 
 def _rot(axis, deg):
@@ -160,7 +239,8 @@ def layout(P):
     c0 = np.r_[0.0, -np.cumsum(pitch(w0))]                       # index .. little, radial +
     c0 -=0.5 * ((c0[0] + 0.5 * w0[0]) + (c0[-1] - 0.5 * w0[-1]))  # the span centred on the hand's axis
     w1 = w0 * P['taper']
-    c1 = np.r_[0.0, -np.cumsum(pitch(w1))]
+    g = P.get('tip_gap')
+    c1 = np.r_[0.0, -np.cumsum(pitch(w1) if g is None else 0.5 * (w1[:-1] + w1[1:]) + g)]
     c1 += c0[1] - c1[1]                                          # about the middle finger's line
     return w0, c0, c1
 
@@ -174,14 +254,15 @@ def digits(W, R, P):
     out = {}
     for i, name in enumerate(FINGERS):
         base = W + ex * palm_len * (1 - KNUCKLE_ARC[i]) + ey * c0[i] + ez * 0.12 * P['palm_t']
-        lens = [fl * P['fingers'][i] * s for s in PHALANGES]
+        lens = [fl * P['fingers'][i] * s for s in _shares(P.get('segments'), PHALANGES)]
         # toward its tip's place beside its neighbours (the tips converge on the middle's), plus the spread's fan
         conv = np.degrees(np.arctan2(c1[i] - c0[i], sum(lens)))
-        J, F = _chain(base, R, lens, [P['curl']] * 3, spread_deg=conv + P['spread'] * (1 - i))
+        fan = P.get('fan_' + name, 0.0)
+        J, F = _chain(base, R, lens, [P['curl']] * 3, spread_deg=conv + P['spread'] * (1 - i) + fan)
         out[name] = (J, F, (w0[i], w0[i] * P['taper']))
     # the thumb: from its CMC inside the palm's radial edge near the wrist, opened out (radial) and toward the palm
-    base = W + ex * P['thumb_base'] + ey * 0.3 * P['wrist_w'] - ez * 0.15 * P['palm_t']
-    lens = [P['thumb_len'] * s for s in THUMB_BONES]
+    base = W + ex * P['thumb_base'] + ey * P.get('thumb_across', 0.3) * P['wrist_w'] - ez * 0.15 * P['palm_t']
+    lens = [P['thumb_len'] * s for s in _shares(P.get('thumb_segments'), THUMB_BONES)]
     J, F = _chain(base, R, lens, [0.0, P['curl'] * 0.6, P['curl'] * 0.6], out_deg=P['thumb_out'],
                   down_deg=P['thumb_down'])
     out['thumb'] = (J, F, (P['thumb_w'] * 1.15, P['thumb_w'] * max(P['taper'], 0.7)))
@@ -284,6 +365,7 @@ def palm_rings(W, R, P, nth=NTH['palm']):
 def hand(J, side, P):
     """a hand at the arm chain's wrist -> dict(parts {name: (rings, W, bones)}, joints {MakeHuman name: point},
     frame (W, R))."""
+    P = geometry(P)
     W, R = frame(J, side, P)
     s_ = side
     D = digits(W, R, P)
@@ -305,7 +387,7 @@ def hand(J, side, P):
         for seg in range(3):
             joints['finger%d-%d.%s____head' % (k, seg + 1, L_)] = Jd[seg]
             joints['finger%d-%d.%s____tail' % (k, seg + 1, L_)] = Jd[seg + 1]
-    return dict(parts=parts, joints=joints, frame=(W, R), digits=D)
+    return dict(parts=parts, joints=joints, frame=(W, R), digits=D, side=side)
 
 
 def tube_mesh(rings):
@@ -347,6 +429,8 @@ STRUCT = 0.1     # the fit's weight on each structure measure at its PASS limit 
 STRUCT_CAP = 3.0 # a structure term's units are capped here (a FAIL either way; the deepest pocket can jump from one
                  # pocket to another as a knob moves, and an uncapped jump steers the search)
 FLOOR_W = 5.0    # the cost of each IoU point under a view's floor (Fit.floors: the guard's intent inside the fit)
+FAIL_COST = 2.0  # the cost of a graded structure term past its WARN limit (a FAIL: the gate's 'no new FAIL' inside the
+                 # fit; rest1 folded the thumb in for IoU and lost the three-quarter's cleft, 0.16 vs 0.62)
 
 
 class Fit:
@@ -361,6 +445,7 @@ class Fit:
         from .bodyqa import CLASS
         from .code_body import Hull, limb_joints, pose_arm, skeleton
         self.ctx = design.sheet_context()
+        self.design = design
         self.ppl, self.az3 = self.ctx['ppl'], self.ctx['az3']
         masks, graph, _ = bodymeasure.piece_masks(B.spec)
         dv = design.design_views()
@@ -378,7 +463,8 @@ class Fit:
                     continue
                 h = handqa.hand_mask(fg & (cls == CLASS['skin']), m[:cls.shape[0], :cls.shape[1]], self.ppl)
                 if h is not None:
-                    self.drawn[(v, s)] = dict(mask=h['mask'], reach=handqa.reach(h, self.ppl), u=h['u'],
+                    self.drawn[(v, s)] = dict(mask=h['mask'], reach=handqa.reach(h, self.ppl), u=h['u'], c=h['c'],
+                                              end=h['end'],
                                               W=handqa.bands_across(h, self.ppl, handqa.PROFILE_BANDS)[0],
                                               **self.structure(h))
         self.base = params(spec)
@@ -461,6 +547,8 @@ class Fit:
                     T = self.terms(d, self.structure(dict(mask=m, c=c, u=uf, end=0.0)), v, S) if m.sum() > 50 else {}
                     if structure:
                         cost += STRUCT * sum(min(t[2], STRUCT_CAP) for t in T.values())
+                        cost += FAIL_COST * sum(1 for k, t in T.items()
+                                                if k in handqa.LIMITS and t[2] * handqa.LIMITS[k][0] > _warn(k))
                     full['%s_%s' % (v, S)] = dict(iou=round(iou, 4), reach=round(r - d['reach'], 4),
                                                   terms={k: (None if a is None else round(a, 3),
                                                              None if b is None else round(b, 3), round(u, 2))
@@ -472,73 +560,131 @@ class Fit:
 
     def run(self, knobs=FIT_KNOBS, rounds=3, log=print, method='powell', workers=1, seed=0, maxiter=40, popsize=12,
             maxfev=400):
-        """Powell's method over the knobs within BOUNDS (scaled to their ranges), from the spec's knobs, `rounds` times
-        from the best so far; or method 'de': differential evolution over the box (scipy; `workers` processes, forked
-        with this fit), then Powell from its best -> (P, cost, per)."""
-        from scipy.optimize import minimize
-        P0 = dict(self.base)
-        lo = np.array([BOUNDS[k][0] for k in knobs])
-        hi = np.array([BOUNDS[k][1] for k in knobs])
-        x0 = (np.clip([P0[k] for k in knobs], lo, hi) - lo) / (hi - lo)
-        best = {'c': np.inf}
-        to_P = lambda x: dict(P0, **{k: float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1)) for i, k in enumerate(knobs)})
+        """search() over the knobs from the spec's -> (P, cost, per)."""
+        return search(self, knobs, rounds=rounds, log=log, method=method, workers=workers, seed=seed, maxiter=maxiter,
+                      popsize=popsize, maxfev=maxfev)
 
-        def f(x):
-            P = to_P(x)
-            c, per = self.score(P)
-            if c < best['c']:
-                best.update(c=c, P=P, per=per)
-            return c
-        c0 = f(x0)
-        log('start %.4f %s' % (c0, best['per']))
-        if method == 'de':
-            # (workers spawned, each building its own fit from self.src: a pool forked after this process has
-            # evaluated once hung on the old render box, fit2 at 110 min with no generation done)
-            from scipy.optimize import differential_evolution
-            global _DE
-            _DE = (self, to_P)
-            pool, gen = None, [0]
-            if workers > 1:
-                import multiprocessing as mp
-                for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS'):
-                    os.environ[k] = '1'
-                pool = mp.get_context('spawn').Pool(workers, initializer=_de_init,
-                                                    initargs=(self.src, self.floors, P0, list(knobs), lo, hi))
 
-            def progress(xk, convergence=None):
-                gen[0] += 1
-                c, per = self.score(to_P(xk))
-                log('de generation %d: best %.4f (convergence %.3f) iou %s' % (
-                    gen[0], c, convergence or 0.0, ' '.join('%s %.3f' % (k, v[0]) for k, v in per.items())))
-            try:
-                res = differential_evolution(_de_cost, [(0, 1)] * len(knobs), x0=x0, seed=seed, maxiter=maxiter,
-                                             popsize=popsize, tol=1e-4, polish=False, init='sobol',
-                                             workers=pool.map if pool else 1, callback=progress,
-                                             updating='deferred' if pool else 'immediate')
-            finally:
-                if pool:
-                    pool.close()
-            f(res.x)
-            log('de %.4f (%d evaluations) %s' % (best['c'], res.nfev, {k: round(best['P'][k], 4) for k in knobs}))
-        for r in range(rounds):
-            xs = (np.array([best['P'][k] for k in knobs]) - lo) / (hi - lo)
-            res = minimize(f, xs, method='Powell', bounds=[(0, 1)] * len(knobs),
-                           options=dict(xtol=0.01, ftol=1e-4, maxfev=maxfev))
-            log('round %d %.4f (%d evaluations) %s' % (r, best['c'], res.nfev,
-                                                        {k: round(best['P'][k], 4) for k in knobs}))
-        return best['P'], best['c'], best['per']
+def bounds_of(k):
+    """a knob's bounds: KNOB_BOUNDS, or a prefixed knob's ('open.curl': curl's)."""
+    return KNOB_BOUNDS[k] if k in KNOB_BOUNDS else KNOB_BOUNDS[k.split('.', 1)[1]]
+
+
+def get_knob(P, k):
+    """a knob's value; 'fingers.I' is the I-th of the fingers' lengths, 'ratios.NAME' a structural ratio; a prefixed knob ('open.curl') its own key, else
+    the unprefixed one's."""
+    if k.startswith('ratios.'):
+        return P['ratios'][k.split('.', 1)[1]]
+    if '.' in k and not k.startswith('fingers.'):
+        return P.get(k, P.get(k.split('.', 1)[1]))
+    if k.startswith('fingers.'):
+        return P['fingers'][int(k.split('.')[1])]
+    return P[k]
+
+
+def set_knob(P, k, v):
+    """P with knob k set (a copy of the fingers' tuple for 'fingers.I')."""
+    if k.startswith('ratios.'):              # a structural ratio (the ratio mode; geometry() derives the knobs): a copy
+        P['ratios'] = dict(P['ratios'], **{k.split('.', 1)[1]: v})
+        return P
+    if k.startswith('fingers.'):
+        f = list(P['fingers'])
+        f[int(k.split('.')[1])] = v
+        P['fingers'] = tuple(f)
+    else:
+        P[k] = v
+    return P
+
+
+KNOB_BOUNDS = dict(BOUNDS, **{'fingers.0': (0.75, 1.05), 'fingers.2': (0.75, 1.05), 'fingers.3': (0.6, 0.95),
+                              'view_turn_side': (-50.0, 50.0), 'view_turn_back': (-30.0, 30.0),
+                              'ratios.thumb': (0.9, 1.45)})
+
+
+def _to_P(P0, knobs, lo, hi, x):
+    P = dict(P0)
+    for i, k in enumerate(knobs):
+        set_knob(P, k, float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1)))
+    return P
+
+
+def search(fit, knobs, rounds=3, log=print, method='powell', workers=1, seed=0, maxiter=40, popsize=12, maxfev=400):
+    """Powell's method over the knobs within KNOB_BOUNDS (scaled to their ranges), from fit.base, `rounds` times from
+    the best so far; or method 'de': differential evolution over the box first (scipy; `workers` processes spawned,
+    each rebuilding the fit from fit.src = ('module:factory', args)), a progress line per generation. fit: .score(P)
+    -> (cost, per), .base, .floors, .src -> (P, cost, per)."""
+    from scipy.optimize import minimize
+    P0 = dict(fit.base)
+    lo = np.array([bounds_of(k)[0] for k in knobs])
+    hi = np.array([bounds_of(k)[1] for k in knobs])
+    x0 = (np.clip([get_knob(P0, k) for k in knobs], lo, hi) - lo) / (hi - lo)
+    best = {'c': np.inf}
+    to_P = lambda x: _to_P(P0, knobs, lo, hi, x)
+
+    def f(x):
+        P = to_P(x)
+        c, per = fit.score(P)
+        if c < best['c']:
+            best.update(c=c, P=P, per=per)
+        return c
+    c0 = f(x0)
+    log('start %.4f %s' % (c0, best['per']))
+    if method == 'de':
+        # (workers spawned, each building its own fit from fit.src: a pool forked after this process had evaluated
+        # once hung on the old render box, fit2 at 110 min with no generation done)
+        from scipy.optimize import differential_evolution
+        global _DE
+        _DE = (fit, to_P)
+        pool, gen = None, [0]
+        if workers > 1:
+            import multiprocessing as mp
+            for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS'):
+                os.environ[k] = '1'
+            pool = mp.get_context('spawn').Pool(workers, initializer=_de_init,
+                                                initargs=(fit.src, fit.floors, P0, list(knobs), lo, hi))
+
+        def progress(xk, convergence=None):
+            gen[0] += 1
+            c, per = fit.score(to_P(xk))
+            log('de generation %d: best %.4f (convergence %.3f) %s' % (
+                gen[0], c, convergence or 0.0, ' '.join('%s %s' % (k, v[0] if isinstance(v, tuple) else v)
+                                                        for k, v in per.items())))
+        try:
+            res = differential_evolution(_de_cost, [(0, 1)] * len(knobs), x0=x0, seed=seed, maxiter=maxiter,
+                                         popsize=popsize, tol=1e-4, polish=False, init='sobol',
+                                         workers=pool.map if pool else 1, callback=progress,
+                                         updating='deferred' if pool else 'immediate')
+        finally:
+            if pool:
+                pool.close()
+        f(res.x)
+        log('de %.4f (%d evaluations) %s' % (best['c'], res.nfev, {k: round(get_knob(best['P'], k), 4) for k in knobs}))
+    for r in range(rounds):
+        xs = (np.array([get_knob(best['P'], k) for k in knobs]) - lo) / (hi - lo)
+        res = minimize(f, xs, method='Powell', bounds=[(0, 1)] * len(knobs),
+                       options=dict(xtol=0.01, ftol=1e-4, maxfev=maxfev))
+        log('round %d %.4f (%d evaluations) %s' % (r, best['c'], res.nfev,
+                                                    {k: round(get_knob(best['P'], k), 4) for k in knobs}))
+    return best['P'], best['c'], best['per']
 
 
 _DE = None
 
 
+def _warn(k):
+    """a structure check's WARN limit (handqa.LIMITS: past it, FAIL)."""
+    from . import handqa
+    return handqa.LIMITS[k][1]
+
+
 def _de_init(src, floors, P0, knobs, lo, hi):
-    """a spawned worker's fit (src: _fit_for's arguments), its knobs' mapping as the parent's."""
+    """a spawned worker's fit (src: ('module:factory', args)), its knobs' mapping as the parent's."""
     global _DE
-    F, _ = _fit_for(*src)
+    import importlib
+    mod, name = src[0].split(':')
+    F = getattr(importlib.import_module(mod), name)(*src[1])
     F.floors = floors
-    _DE = (F, lambda x: dict(P0, **{k: float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1))
-                                    for i, k in enumerate(knobs)}))
+    _DE = (F, lambda x: _to_P(P0, knobs, lo, hi, x))
 
 
 def _de_cost(x):
@@ -557,8 +703,12 @@ def _fit_for(build, spec_path, over=None):
     hull = manifest.produced(B.spec, manifest.body_hull(B.spec))
     masks = manifest.produced(B.spec, 'outfit_masks')
     F = Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json'))
-    F.src = (build, spec_path, over)
+    F.src = ('charkit.code_hand:_fit_only', (build, spec_path, over))
     return F, spec
+
+
+def _fit_only(build, spec_path, over=None):
+    return _fit_for(build, spec_path, over)[0]
 
 
 def show(F, P, out):
@@ -598,6 +748,7 @@ def show(F, P, out):
 def main(args):
     """python -m charkit.code_hand fit --build B [--spec S | --write S] [--rounds N] [--over JSON] [--knobs a,b]
                                         [--png P] [--json J] [--floors JSON] [--method de --workers N --maxiter N]
+                                        [--bounds '{"curl": [-10, 12]}']
        python -m charkit.code_hand show --build B [--spec S] [--over JSON] --out PNG    (the template vs the drawn)"""
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     if not args or args[0] not in ('fit', 'show'):
@@ -616,6 +767,8 @@ def main(args):
     knobs = tuple(opt('--knobs').split(',')) if opt('--knobs') else FIT_KNOBS
     if opt('--floors'):
         F.floors = json.loads(opt('--floors'))
+    if opt('--bounds'):                     # {knob: [lo, hi]}: this run's bounds (ratio4 ran curl to its bound 30: shut)
+        KNOB_BOUNDS.update({k: tuple(v) for k, v in json.loads(opt('--bounds')).items()})
     P, c, per = F.run(knobs=knobs, rounds=int(opt('--rounds', 3)), log=lambda *a, **k: print(*a, flush=True),
                       method=opt('--method', 'powell'), workers=int(opt('--workers', 1)), seed=int(opt('--seed', 0)),
                       maxiter=int(opt('--maxiter', 40)), popsize=int(opt('--popsize', 12)),

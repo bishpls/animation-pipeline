@@ -1,0 +1,10 @@
+{
+ "check": "hand_profile_cleft_L",
+ "status": "FAIL",
+ "value": 0.3613,
+ "by": "coordinator, under Michael's 2026-10-01 hands call",
+ "why": "Coordinator's decision under Michael's standing hands call (2026-10-01: accept the small loss; much more effort on the hand system in the motion/dexterity phase): hands3 is a net gain (hand_shape L/R up, the structure from the hand sheet's open hand). The real reason: the hand fit grades where the profile's deepest pocket lies but not its depth, and the rest fitted to the turnaround left the profile pocket shallower than drawn (0.361 of the drawn depth). The fix belongs to the dexterity phase: grade the pocket depth in the fit. Reading accepted: WARN 0.5251 -> FAIL 0.3613.",
+ "at": "2026-10-01T21:20:17",
+ "branch": "tool/hands2",
+ "recorded_by": "tool/hands2's agent, on the coordinator's decision (2026-10-01)"
+}

@@ -63,6 +63,20 @@ def test_the_verdicts():
         'calibrated'
 
 
+def test_floors_either_side_of_the_design():
+    """a signed check graded on |ours - design| with floors on both sides of the design (handsheet_open_span: a wide
+    palm reads +0.31, a narrow -0.26): its margin is read on the distance from the design, not against the median of
+    the two floors' medians (which lands next to the design and read every build 'at the floor')."""
+    from charkit import calibrate as cal
+    C = lambda v, s: {'x': {'value': v, 'status': s}}
+    design = {(dx, dy): C(0.0, 'PASS') for dx, dy in ((0, 1), (1, 0), (0, -1), (-1, 0))}
+    floors = {'wide': [C(0.31, 'FAIL')] * 3, 'narrow': [C(-0.26, 'FAIL')] * 3}
+    r = cal.assess('x', {}, C(0.017, 'PASS'), C(-0.18, 'FAIL'), design, floors, {}, bad_name='comb')
+    assert r['verdict'] == 'calibrated' and r['current']['margin'] > 0.9, (r['verdict'], r['current'])
+    r = cal.assess('x', {}, C(0.2, 'PASS'), C(-0.18, 'FAIL'), design, floors, {}, bad_name='comb')
+    assert r['verdict'] == 'coarse', r['verdict']                 # a build near the floors' distance still reads coarse
+
+
 def test_the_gate_asks_new_and_remeasured_checks_for_records():
     qa_a = {'checks': {'old': {'value': 1, 'status': 'PASS'}, 'rem': {'value': 1, 'status': 'PASS'},
                        'rem2': {'value': 1, 'status': 'PASS'}}}
