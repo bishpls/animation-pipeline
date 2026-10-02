@@ -177,3 +177,29 @@ calibration records and the guard): collar_front/3q_truth >= 0.70 (Michael wants
   s 0.25-0.6) and cast_maps (the jaw's and hair's shadow baked on neck_w > 0 under the chin). To compare on g8_base vs
   g8_c0: qa_chin_shadow.png, qa_artifacts.png, and the faceshade inputs (the neck joints, rn, k).
 - Running: box build g8_c0 (the merged default, joined shoulder) -> charkit/out/g8_c0 (log build_g8_c0.log).
+
+## Step 2 plan for the next round (exact first steps; Michael 2026-10-01: wrap up, no fits or sweeps tonight)
+"Before" = g8_c0 (the merged default with the joined shoulder at the branch head; box build, fetched to
+charkit/out/g8_c0; its QA carries the truth checks). The g8_base build (pre-shoulder) is the old body's reference.
+1. Lapels from the collar truth (template first): in a garment set (tools/garments8/v/l0.json) set garments.collar.lapel
+   {mode project, smooth {grid 0.01, dilate 0.03, blur 0.02}, shoulder [0.40, -0.49], point [0.20, -0.80],
+   inner [0.0, -0.88], bottom_a 30, a 85} + flat_front {a 85, fade 15} (the values read off the truth above; round 7's
+   F0 stopped at -0.66). Screen with `python -m charkit sweep charkit/out/g8_c0 --stage garments --parts
+   declared,collar_flags,piece_details,artifacts,face_region,sheet_pieces --oat 'garments.collar.lapel.point=[...]'`
+   (the s5 check list: tools/garments7/s5.json; add collar_*_truth, neck_v_*, top_*_truth). Read collar_front/3q_truth
+   (goal >= 0.70; g8_c0's values first), neck_v_* (goal up from the base's), art_outline_neck (<= 1.5), bow_front_bleed,
+   collar_*_torn, piece_collar/piece_top per view (guard), neck_crease (the hide_under mask under the new collar).
+   tools/garments8/truthlab.py BUILD draws ours-without-the-bow against the truths (truth_collar.png, truth_top.png);
+   tools/garments8/vlab.py the V.
+2. The V: the jacket's opening table (garments.top.opening.half closes at z -0.72) must stay open to the V's point
+   (-0.88) with the lapels over its edges: extend the table under the knot after the lapels land; read neck_v_*.
+3. Then `sweep optimize` (charkit/optimize.py) on the lapel knobs (point, inner, shoulder, a, spread, off, smooth.*,
+   bottom_a) and the puffs' dome (sleeve_L/R.clear_body gap/from_t/dilate/blur/taper, top.tuck): objective toward pass
+   on collar_*_truth, neck_v_*, art_outline_neck/collar, collar_*_torn, bow_front_bleed, sleeve_*_profile_L,
+   top_*_truth, piece_top front (guard 0.15); confirm.spec = the base build's spec (round 7's trap: the confirm built
+   the default spec).
+4. The ROM garment items (romqa on the candidate builds): puffs into the arm at the raises (sleeve_body), sleeves through
+   the jacket (sleeve_top_L/R), the collar's head-turn strain (its weights copied from the body by nearest vertex carry
+   neck weight: a collar weights option leaving neck/head out, opt-in in clawd.json).
+5. Clear each acceptance in charkit/accepted/ as its check passes; review page (design | the new references | before
+   g8_c0 | after) with `python -m charkit review page`; pregate --box auto; gate.
