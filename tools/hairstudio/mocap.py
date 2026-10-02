@@ -195,7 +195,8 @@ def main(build, groom, clip_path, tag, views=(20.0, 200.0), ppl=110, ss=2, trim=
     hr = C.build_rig(A, M); C.collider(A, M); C.radial_collider(A, M)
     Hs = [f['head'] for f in frames]
     Cs = [f.get('upperChest', f.get('chest')) for f in frames]
-    sim = simulate_head(C, hr, Hs, Cs, fps)
+    caps, rad = arm_capsules(rig, frames) if ARMS else (None, None)
+    sim = simulate_head(C, hr, Hs, Cs, fps, caps, rad)
     t_ret = time.time() - t0
     meas = measure(rig, frames, sim, clip, trim, fps)
     json.dump(meas, open(os.path.join(C.OUTD, tag + '.measure.json'), 'w'), indent=1)
@@ -253,7 +254,50 @@ def main(build, groom, clip_path, tag, views=(20.0, 200.0), ppl=110, ss=2, trim=
                           mp4=mp4)))
 
 
-def simulate_head(C, rig, Hs, Cs, fps=24.0):
+ARM_R = dict(UpperArm=0.040, LowerArm=0.032, Hand=0.036)     # (capsule radii, m: the arms as the hair's colliders)
+ARMS = os.environ.get('MOCAP_ARMS', '1') == '1'
+
+
+def arm_capsules(rig, frames):
+    """the arms as capsules per frame: upper arm (shoulder->elbow), forearm (elbow->wrist), hand (wrist->past the
+    knuckles: the hand bone's length x2) -> (nf, 6, 2, 3) end points and (6,) radii."""
+    sk = rig.sk
+    segs, rad = [], []
+    for side in ('left', 'right'):
+        for b, nxt in (('UpperArm', 'LowerArm'), ('LowerArm', 'Hand'), ('Hand', None)):
+            segs.append((side + b, side + nxt if nxt else None)); rad.append(ARM_R[b])
+    out = np.zeros((len(frames), len(segs), 2, 3))
+    for f, D in enumerate(frames):
+        for i, (b, nxt) in enumerate(segs):
+            M = D[b]
+            a = M[:3, :3] @ sk.head[b] + M[:3, 3]
+            if nxt:
+                e = D[nxt][:3, :3] @ sk.head[nxt] + D[nxt][:3, 3]
+            else:
+                e = M[:3, :3] @ (sk.head[b] + 2.0 * (sk.tail[b] - sk.head[b])) + M[:3, 3]
+            out[f, i] = (a, e)
+    return out, np.array(rad)
+
+
+def capsule_push(X, caps, rad):
+    """chain nodes (not the roots) pushed out of the capsules -> X (in place), the deepest penetration (m)."""
+    P = X[:, 1:].reshape(-1, 3)
+    deepest = 0.0
+    for (a, b), r in zip(caps, rad):
+        ab = b - a; L2 = max(ab @ ab, 1e-12)
+        t = np.clip((P - a) @ ab / L2, 0, 1)
+        q = a + t[:, None] * ab
+        d = P - q; dn = np.linalg.norm(d, axis=1)
+        m = dn < r
+        if m.any():
+            deepest = max(deepest, float((r - dn[m]).max()))
+            n = d[m] / np.maximum(dn[m, None], 1e-9)
+            P[m] = q[m] + n * r
+    X[:, 1:] = P.reshape(X[:, 1:].shape)
+    return X, deepest
+
+
+def simulate_head(C, rig, Hs, Cs, fps=24.0, caps=None, rad=None):
     """clip.simulate_vrm's spring bones, driven by a full head transform per frame (4x4 world deformation) instead of
     the turn's yaw: the chains' rest shape carried by the head, the body proxy carried by the chest. -> per frame the
     chains' displacement from their head-carried rest, in the head's REST frame (so LBS by the head adds it back)."""
@@ -278,15 +322,16 @@ def simulate_head(C, rig, Hs, Cs, fps=24.0):
         # (linear blend of 4x4s between frames: fine at 4 substeps for these small per-frame rotations)
         return a * (1 - u) + b * u
     X = xf(Hs[0], R0); Xp = X.copy()
+    cap = lambda f, u: None if caps is None else (caps[f - 1] if f else caps[0]) * (1 - u) + caps[f] * u
     for _ in range(int(C.WARMUP * fps) * SUB):
-        X, Xp = step(C, X, Xp, Hs[0], Cs[0], R0, d0, L0, stiff, hold, grav, dt)
+        X, Xp = step(C, X, Xp, Hs[0], Cs[0], R0, d0, L0, stiff, hold, grav, dt, cap(0, 1), rad)
     out = []
     for f in range(nf):
         for sub in range(SUB):
             u = (sub + 1) / SUB
             Hm = lerpM(Hs[f - 1] if f else Hs[0], Hs[f], u)
             Cm = lerpM(Cs[f - 1] if f else Cs[0], Cs[f], u)
-            X, Xp = step(C, X, Xp, Hm, Cm, R0, d0, L0, stiff, hold, grav, dt)
+            X, Xp = step(C, X, Xp, Hm, Cm, R0, d0, L0, stiff, hold, grav, dt, cap(f, u), rad)
         T = xf(Hs[f], R0)
         Hinv = np.linalg.inv(Hs[f])
         out.append((X - T) @ Hinv[:3, :3].T)
@@ -336,6 +381,8 @@ def measure(rig, frames, sim, clip, trim, fps):
                  for h, la in (('leftHand', 'leftLowerArm'), ('rightHand', 'rightLowerArm')))
         near.append(dm)
     near = np.array(near)
+    caps, rad = arm_capsules(rig, frames)
+    pen = np.array([capsule_push(W[f].copy(), caps[f], rad)[1] for f in range(len(frames))])
     hz = np.array([pos(f, 'hips')[2] for f in range(len(frames))])
     return dict(frames=len(frames), fps=fps,
                 hair=dict(hf_share=round(float(np.mean(hfs)), 4), hf_share_max=round(float(np.max(hfs)), 4),
@@ -343,10 +390,12 @@ def measure(rig, frames, sim, clip, trim, fps):
                           tip_offset_max_cm=round(float(np.linalg.norm(tip, axis=2).max() * 100), 1)),
                 feet=slide,
                 hands_to_hair=dict(min_cm=round(float(near.min() * 100), 1), frames_under_3cm=int((near < 0.03).sum())),
+                arms_in_hair=dict(deepest_cm=round(float(pen.max() * 100), 2), frames_over_5mm=int((pen > 0.005).sum()),
+                                  arms_collide=ARMS),
                 hips_z=dict(min=round(float(hz.min()), 3), max=round(float(hz.max()), 3)))
 
 
-def step(C, X, Xp, H, Ch, R0, d0, L0, stiff, hold, grav, dt):
+def step(C, X, Xp, H, Ch, R0, d0, L0, stiff, hold, grav, dt, caps=None, rad=None):
     K = R0.shape[1]
     Rh = H[:3, :3]
     T = R0 @ Rh.T + H[:3, 3]
@@ -383,6 +432,8 @@ def step(C, X, Xp, H, Ch, R0, d0, L0, stiff, hold, grav, dt):
             q = flat[hm]; q[push] += n[push] * (0.02 - sd[push])[:, None]; flat[hm] = q
             Xh[:, 1:] = flat.reshape(Xh[:, 1:].shape)
             Xc = Xh @ H[:3, :3].T + H[:3, 3]
+    if caps is not None:                                 # the arms: capsules from the posed bones
+        Xc, _ = capsule_push(Xc, caps, rad)
     push = Xc - Xn
     Xp_new = X + push * C.INELASTIC
     if C.FRICTION:
