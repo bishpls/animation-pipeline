@@ -28,6 +28,12 @@ This is the working method for this repo. It distils three earlier projects (EMB
      the flagged list, the median shot) runs before any draft goes to Michael, and its flags are fixed or justified.
      Reference medians (the Special Movie's 1.37 s) describe other films; they are not targets.
    - **Transitions too:** a cut away starts only after the outgoing shot's motion has resolved.
+   - **Audio concludes too** (Michael: "we also need to consider AUDIO of a shot, not just the animation landing and rest
+     beats"). A voice line, hit cry, roar, announcer call or sound effect that starts in a shot plays out to its tail
+     before the cut, or is deliberately carried under the next shot (a J/L-cut), never chopped. The audit checks every cut's
+     outgoing audio: a sound that began in the shot and is still above −20 dB of its own peak at the cut is flagged.
+     Music must not drop out unintentionally either: a hard stop or silence in the score is a choice to justify, since
+     it reads as a dropout.
 
 ## 1. Pipeline
 

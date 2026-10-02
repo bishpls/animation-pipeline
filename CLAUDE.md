@@ -12,8 +12,10 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   to an illustrated end frame, and run it one request at a time (`tools/seedance.py`; see CRAFT §11).
 - **One clock:** the picture locks to `projects/<film>/assets/cues.json` (from `tools/audio_analyze.py`).
 - **Let every shot conclude** (`docs/CRAFT.md` §0.5): play the action to its payoff, then hold (≥ 0.75 s after an action's
-  payoff, ≥ 1 s after a punchline or reveal, cards ≥ 1.5 s once legible); cut on completed actions, never mid-motion. If a
-  section is too short, cut shots, not conclusions. Run the pacing audit on every draft before it goes to Michael.
+  payoff, ≥ 1 s after a punchline or reveal, cards ≥ 1.5 s once legible); cut on completed actions, never mid-motion. **Audio
+  concludes too:** voice lines, cries, roars and sound effects play out before the cut (or carry over deliberately). If a
+  section is too short, cut shots, not conclusions. Run the pacing audit, picture and audio, on every draft before it goes
+  to Michael.
 - **Look at your work:** render contact sheets, strips and crops, open them, and fix what you see. Then watch full-length
   passes. Verify any AI critic's claim at full resolution before acting on it.
 - **Measure, don't only look:** granular observability and tight feedback loops are the biggest unlock. The Melee work leans on
