@@ -696,3 +696,6 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
 - **pregate --box auto: PASS** (17 moved, 0 blocking; charkit/out/pregate/pregate_tool-hands2_43af5e1c_into_348397e7.md).
 - Review page: charkit/out/hands3/review/page/index.html (rendered on the build box: the page's inputs and builds pushed
   there; `build.sh push DIR REMOTE` nests a directory inside an existing REMOTE: un-nested by hand).
+- handsheet_open_span recalibrated: CALIBRATED (margin 0.939; fbaf1cdf). Merged pipeline-3d 3144b1f6 (488885d7;
+  hairident, default off). **Gate RUNNING:** `remote gate tool/hands2 --into pipeline-3d` (log
+  charkit/out/hands3/gate.log; if the follower dies, `remote attach` the job id in its first lines).
