@@ -730,3 +730,6 @@ calibrated; no guard finding (hand_shape views: front 0.761/0.775 -> 0.712/0.735
 0.740/0.657 -> 0.774/0.779, profile 0.488 -> 0.593); parts ok (declared 60 vs 52); measuring code changed with no
 detected moves (32 parts listed, 0 checks). Reported: hand_front_cleftpos_R and hand_profile_taper_L PASS -> WARN;
 fingerlines front L 0.519 / back L 0.563 FAIL (new checks); rom_hand_skirt 0.0065 -> 0.0085 INFO.
+- **cuff_R_front_size accepted by name** at WARN 0.101 (the coordinator, under Michael's 2026-10-01 hands call;
+  charkit/accepted/cuff_R_front_size.json). No re-gate: tool/hands2 goes into tonight's combined checkpoint gate
+  (`gate --batch` honours the member branches' records). **Round 7 done.**
