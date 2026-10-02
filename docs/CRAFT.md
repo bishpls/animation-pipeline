@@ -33,6 +33,11 @@ This is the working method for this repo. It distils three earlier projects (EMB
      sound continuous from one take. Quick cuts across a single continuous action are the one place fast cutting is
      right. (Michael, on a Beam charge stretched with repeated charge and fire sounds: "Rare case where the mid-shot
      cuts NEEDED to be fast!")
+   - **No emphasis where nothing happens.** Smash cuts, punch-ins, zooms, flashes and sound stabs are for real events
+     only (a hit, a reveal, a punchline). Where nothing is happening, hold the shot or move the camera steadily. (Michael:
+     a punch-in before a taunt was "extra emphasis when nothing is actually happening, and that could easily have been
+     one continuous take"; a music stab on a hit "sounds jarring and wrong. Scene plays fine without additional audio
+     emphasis.")
    - **Audio concludes too** (Michael: "we also need to consider AUDIO of a shot, not just the animation landing and rest
      beats"). A voice line, hit cry, roar, announcer call or sound effect that starts in a shot plays out to its tail
      before the cut, or is deliberately carried under the next shot (a J/L-cut), never chopped. The audit checks every cut's
