@@ -29,7 +29,7 @@
    "elbow": 2.18607
   },
   "source": "code",
-  "hand": {"length": 0.6847, "palm": 0.5175, "palm_w": 0.2811, "wrist_w": 0.1092, "palm_t": 0.0837, "taper": 0.4609, "overlap": -0.0172, "fingers": [0.9364101969972889, 1.0, 0.9791796067500631, 0.8115009076964009], "spread": -1.0599, "curl": 6.2618, "thumb_len": 0.3892, "thumb_w": 0.0822, "thumb_out": 14.1641, "thumb_down": 1.8665, "thumb_base": 0.093, "yaw": 61.8814, "bend": -2.2646, "dev": -0.841, "out": 5.5, "line": 1.0, "thumb_across": 0.4807, "fan_index": 0.0, "fan_middle": 0.0, "fan_ring": 0.0, "fan_little": 0.0, "tip_gap": null},
+  "hand": {"palm_len": 0.3116, "wrist_offset": 0.034, "overlap": 0.0, "tip_gap": null, "fan_index": 0.0, "fan_middle": 0.0, "fan_ring": 0.0, "fan_little": 0.0, "thumb_across": 0.3, "curl": 4.4536, "spread": 0.1343, "thumb_out": 12.2624, "thumb_down": 1.5718, "bend": -1.459, "dev": -2.2228, "yaw": 61.8814, "out": 5.5, "line": 1.0, "ratios": {"span": 0.9004, "wrist": 0.65, "thick": 0.35, "middle": 1.0958, "index": 0.9478, "ring": 0.932, "little": 0.8565, "segments": [1.0, 0.6, 0.45], "taper": 0.4429, "thumb_cmc": 0.0, "thumb": 1.3018, "thumb_segments": [1.0, 0.7, 0.55], "thumb_w": 0.233}},
   "arm": {"elbow_out": 3.9, "elbow_fwd": 0.7}
  },
  "head": {
