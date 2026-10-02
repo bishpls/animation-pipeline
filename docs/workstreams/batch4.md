@@ -29,6 +29,7 @@ is pushed.
 | --- | --- | --- | --- | --- |
 | 1 (coordinator) | 224ba8db | FAIL | 16 accepted records not applied (branch mismatch); artifacts 57/58 | `charkit/out/gate/gate_merge-batch4_224ba8db_into_ae865afc.md` |
 | 2 | b72b5bbf | FAIL | 1: the 2x2 couldn't measure `art_terminator_neck` (the old measure dropped it on the new geometry) | `charkit/out/gate/gate_merge-batch4_b72b5bbf_into_ae865afc.md` |
+| 3 | d5a916a7 | **PASS** | nothing (`art_terminator_neck` accepted; job gate-3d-1001-201211-1c8c) | `charkit/out/gate/gate_merge-batch4_d5a916a7_into_ae865afc.md` |
 
 Gate 2: the 16 acceptances apply through `--batch`; the parts' denominators are met; 109 test files pass; build CPU
 1627 -> 1457 s (0.90x; the 1450 s budget, report-only, 1.00x). Michael's standing call ("switch the joined shoulder and
@@ -37,7 +38,10 @@ accept the regression", relayed by the coordinator) covers `art_terminator_neck`
 unmeasured cell is covered by `--accept` only; the gate can't re-read a stored report with an extra accept, so gate 3 is
 cold with the same arguments).
 
-Gate 3: see the table's next row when it lands (job id in `charkit/out/gate/merge_batch4_3.log`).
+Gate 3 (cold, the gate's code from merge/batch4, the same arguments plus `art_terminator_neck` in `--accept`): PASS
+under K, nothing blocks (before K: FAIL); 16 acceptances applied through `--batch`; the parts' denominators met (only
+`declared`'s over-count reported); 109 test files pass; build CPU 1627 -> 1455 s (0.89x; the budget's 1450 s total,
+report-only). Ready for the coordinator's merge into pipeline-3d (ae865afc, unmoved). Later commits here are notes only.
 
 The full suite (`pytest charkit/tests`, one process): only the three known order-dependent failures (test_optimize qa
 stage, test_registry order, test_denominators every part declares; each passes alone). A run under `nice -n 10` also
