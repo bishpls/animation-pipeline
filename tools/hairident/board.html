@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hair identity board</title>
+<style>
+:root{--bg:#f6f5f2;--fg:#1d1d1f;--mut:#5b5b62;--card:#fff;--line:#d9d7d2;--acc:#0072B2;--ok:#009E73;--bad:#D55E00;--warn:#b07800}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1b1b1d;--fg:#ececec;--mut:#a8a8ad;--card:#26262a;--line:#3a3a40}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+main{padding:14px 16px 60px;max-width:1800px}
+h1{margin:0 0 10px;font-size:22px}h2{margin:28px 0 8px;font-size:18px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:10px}
+.summary{border:2px solid var(--acc)}
+.summary b.h{display:block;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+table{border-collapse:collapse;font-size:13px}td,th{padding:3px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-weight:600}.num{text-align:right;font-variant-numeric:tabular-nums}
+.ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}.warn{color:var(--warn);font-weight:600}.mut{color:var(--mut)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.tabs button{font:inherit;border:1px solid #b9b6af;background:var(--card);color:var(--fg);border-radius:6px;padding:3px 10px;cursor:pointer}
+.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+kbd{font:11px ui-monospace,Menlo,monospace;background:#eceae5;border:1px solid #cfccc5;border-bottom-width:2px;border-radius:4px;padding:0 4px;color:#222}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start}
+.grid{display:grid;grid-template-columns:110px repeat(4,minmax(0,1fr));gap:6px}
+.grid .rh{font-size:12px;color:var(--mut);align-self:center}
+.grid .ch{font-size:12px;font-weight:600;text-align:center}
+svg{display:block;width:100%;height:auto;background:#e6e4df;border-radius:4px}
+.lk path{fill-opacity:.55;stroke:#222;stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer}
+.lk.dim path{fill-opacity:.12;stroke-opacity:.25}
+.design .lk path{fill-opacity:.45;stroke-width:3}
+.lk.sel path{fill-opacity:.8;stroke:#000;stroke-width:3}
+.lk text,.mk text{font-weight:700;text-anchor:middle;dominant-baseline:central;pointer-events:none;paint-order:stroke;stroke:#fff;stroke-width:3px}
+.mk path{fill:none;stroke:#fff;stroke-width:2;stroke-dasharray:5 3;vector-effect:non-scaling-stroke}
+.mk.sel path{stroke:#000;stroke-width:3}
+.mk text{fill:#333}
+.hide{display:none}
+.panel{position:sticky;top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;max-height:92vh;overflow:auto}
+.panel h3{margin:0 0 6px;font-size:16px}
+.chip{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid #333;vertical-align:-1px;margin-right:4px}
+.locklist{display:flex;flex-wrap:wrap;gap:3px;margin:6px 0}
+.locklist span{min-width:24px;padding:1px 4px;border-radius:4px;border:1px solid #999;font-size:11px;text-align:center;cursor:pointer}
+.locklist span.on{outline:2px solid #000}
+.figrow{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:8px}
+figure{margin:0;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px;flex:0 0 auto}
+figure img{display:block;height:320px}figcaption{font-size:11px;color:var(--mut);max-width:260px;margin-top:3px}
+</style>
+</head>
+<body>
+<main>
+<h1>Clawd's hair: cross-view lock identity</h1>
+<div class="box summary" id="summary"></div>
+
+<h2>1-2. The locks across the views, lock by lock</h2>
+<div class="box mut">Each 3D lock has one number and one colour in every view. The <b>design</b> row shows the drawn targets the fit
+assigned to each lock; <b>ours</b> shows the build's locks z-buffered as the QA sees them. Dashed white outlines with <b>M</b>
+numbers are Michael's labels. Hover or click a lock, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through the locks,
+<kbd>B</kbd> switches the build, <kbd>M</kbd> shows or hides Michael's labels, <kbd>Esc</kbd> clears.</div>
+<div class="tabs" id="btabs"></div>
+<div class="wrap">
+  <div><div class="grid" id="grid"></div><div class="locklist" id="locklist"></div></div>
+  <div class="panel" id="panel"></div>
+</div>
+
+<h2>3. Held-out views</h2>
+<div class="box mut">The locks fitted on three views, the fourth assigned without a refit. Shown: the held-out projection of
+every lock (its number and colour from the held-out fit) over the design, and the links there against Michael's labels.</div>
+<div id="holdout"></div>
+
+<h2>4. Shadow edges</h2>
+<div class="box mut">The cel shadow edges to check by eye: the design, then each build and the known-bads at one scale.
+art_terminator_hair (under the hair's shape truth: the design 1.0) at six placements beside them.</div>
+<div id="shadows"></div>
+
+<h2>5. The guard: every hair piece's IoU per view</h2>
+<div id="guard"></div>
+</main>
+<script>
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+let D, B = 0, SEL = null, SHOWM = true;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function el(t, a, p) { const e = document.createElementNS(NS, t); for (const k in a || {}) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
+const path = rr => rr.map(q => 'M' + q.map(p => p[0] + ' ' + p[1]).join('L') + 'Z').join('');
+function centroid(rr) { let best = null, ba = -1; for (const q of rr) { let a = 0, cx = 0, cy = 0;
+  for (let i = 0; i < q.length; i++) { const [x0, y0] = q[i], [x1, y1] = q[(i + 1) % q.length]; const f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
+  if (Math.abs(a) > ba) { ba = Math.abs(a); best = [cx / (3 * a), cy / (3 * a)]; } } return best || [0, 0]; }
+const V = () => D.views;
+const VN = {front: 'Front', three_quarter: 'Three-quarter', profile: 'Profile', back: 'Back'};
+
+function cell(view, img, rings, kind) {
+  const [W, H] = D.design[view].size;
+  const s = el('svg', {viewBox: `0 0 ${W} ${H}`, class: kind});
+  el('image', {href: img, x: 0, y: 0, width: W, height: H}, s);
+  const b = D.builds[B];
+  for (const [k, rr] of Object.entries(rings || {})) {
+    const L = b.locks[k]; if (!L || !rr.length) continue;
+    const g = el('g', {class: 'lk', 'data-k': k}, s);
+    el('path', {d: path(rr), fill: L.colour, 'fill-rule': 'evenodd', stroke: kind === 'design' ? L.colour : '#222'}, g);
+    const [cx, cy] = centroid(rr); const t = el('text', {x: cx, y: cy, 'font-size': 13, fill: '#000'}, g); t.textContent = k;
+    g.addEventListener('mouseenter', () => highlight(k, false));
+    g.addEventListener('mouseleave', () => highlight(SEL, false));
+    g.addEventListener('click', () => select(k));
+  }
+  if (kind === 'design') {
+    const gm = el('g', {class: 'mlabels' + (SHOWM ? '' : ' hide')}, s);
+    for (const [n, m] of Object.entries(D.michael[view] || {})) {
+      const g = el('g', {class: 'mk', 'data-m': n}, gm);
+      if (m.rings) { el('path', {d: path(m.rings), 'fill-rule': 'evenodd'}, g); const [cx, cy] = centroid(m.rings);
+        const t = el('text', {x: cx + 10, y: cy - 10, 'font-size': 11}, g); t.textContent = 'M' + n; }
+      for (const p of m.points || []) { el('circle', {cx: p[0], cy: p[1], r: 6, fill: 'none', stroke: '#fff', 'stroke-width': 2}, g); }
+    }
+  }
+  return s;
+}
+function drawGrid() {
+  const g = $('grid'); g.innerHTML = '';
+  const b = D.builds[B];
+  g.appendChild(Object.assign(document.createElement('div'), {className: 'rh'}));
+  for (const v of V()) g.appendChild(Object.assign(document.createElement('div'), {className: 'ch', textContent: VN[v]}));
+  const rows = [['design', 'design (drawing) + the targets ' + b.label + ' assigned'], ['ours', 'ours: ' + b.label]];
+  for (const [kind, lab] of rows) {
+    g.appendChild(Object.assign(document.createElement('div'), {className: 'rh', textContent: lab}));
+    for (const v of V()) {
+      const c = document.createElement('div');
+      const bv = b.views[v];
+      c.appendChild(kind === 'design' ? cell(v, D.design[v].img, bv.drawn, 'design') : cell(v, bv.img, bv.ours, 'ours'));
+      g.appendChild(c);
+    }
+  }
+  const ll = $('locklist'); ll.innerHTML = '';
+  for (const [k, L] of Object.entries(b.locks)) {
+    const s = document.createElement('span'); s.textContent = k; s.style.background = L.colour; s.title = L.name;
+    if (!L.shell) s.style.opacity = .55;
+    s.onclick = () => select(k); s.dataset.k = k; ll.appendChild(s);
+  }
+  highlight(SEL, false); panel();
+}
+function highlight(k) {
+  document.querySelectorAll('#grid .lk').forEach(g => { const on = k != null && g.dataset.k == k;
+    g.classList.toggle('sel', on); g.classList.toggle('dim', k != null && !on); });
+  const L = k != null ? D.builds[B].locks[k] : null;
+  const items = new Set(((L && L.links) || []).map(x => String(x.number)));
+  document.querySelectorAll('#grid .mk').forEach(g => g.classList.toggle('sel', items.has(g.dataset.m)));
+  document.querySelectorAll('#locklist span').forEach(s => s.classList.toggle('on', s.dataset.k == k));
+}
+function select(k) { SEL = (SEL == k ? null : k); highlight(SEL); panel(); }
+const VERD = {right_pos: ['right', 'ok'], right_neg: ['right (not visible)', 'ok'], wrong: ['wrong', 'bad'], missing: ['missing', 'warn'], extra: ['extra', 'bad'], unmatched: ['unmatched', 'mut']};
+function panel() {
+  const b = D.builds[B]; const p = $('panel');
+  const c = b.counts || {};
+  let h = `<h3>${esc(b.label)}</h3><table>
+    <tr><td>locks in 2+ views</td><td class="num">${b.fitted_2plus ?? '-'} of ${b.n_shells}</td></tr>
+    <tr><td>Michael's links, positives</td><td class="num"><span class="ok">${c.right_pos || 0} right</span> / <span class="bad">${c.wrong || 0} wrong</span> / <span class="warn">${c.missing || 0} missing</span></td></tr>
+    <tr><td>not-visible links</td><td class="num">${c.right_neg || 0} right / ${c.extra || 0} extra</td></tr>
+    <tr><td>views no lock covers</td><td class="num">${c.unmatched || 0}</td></tr></table>`;
+  if (SEL == null) { h += '<p class="mut">Hover or click a lock (or press &rarr;).</p>'; p.innerHTML = h; return; }
+  const L = b.locks[SEL];
+  h += `<h3 style="margin-top:10px"><span class="chip" style="background:${L.colour}"></span>Lock ${SEL}: ${esc(L.name)}</h3>
+    <div class="mut">${esc(L.family)} &middot; ${L.shell ? 'a lock shell' : 'a wedge of the hull piece ' + esc(L.piece)}</div>`;
+  if (L.shell) {
+    h += '<table><tr><th>view</th><th>cost px</th><th>IoU</th><th>target</th></tr>';
+    for (const v of V()) { const a = (L.assign || {})[v];
+      h += `<tr><td>${VN[v]}</td><td class="num">${(L.cost || {})[v] ?? '-'}</td><td class="num">${(L.iou || {})[v] ?? '-'}</td><td>${a ? a.join('.') : (L.assoc && L.assoc[v] ? esc(L.assoc[v]) : '-')}</td></tr>`; }
+    h += '</table>';
+    if ((L.dropped || []).length) h += `<p class="bad">Joins dropped: ${L.dropped.map(v => VN[v]).join(', ')}</p>`;
+  }
+  const links = L.links || [];
+  h += '<h3 style="margin-top:10px">Michael\'s labels</h3>';
+  if (!links.length) h += '<p class="mut">No labelled lock: this lock covers none of his labelled home regions.</p>';
+  for (const x of links) {
+    h += `<div><b>M${x.number}</b> ${esc(x.title)} <span class="mut">(home covered ${Math.round(100 * x.cover)}%)</span><br>`;
+    h += Object.entries(x.views).map(([v, r]) => `${VN[v]}: <span class="${VERD[r][1]}">${VERD[r][0]}</span>`).join(' &middot; ') + '</div>';
+  }
+  p.innerHTML = h;
+}
+function step(d) { const ks = Object.keys(D.builds[B].locks); let i = SEL == null ? (d > 0 ? -1 : 0) : ks.indexOf(String(SEL));
+  i = (i + d + ks.length) % ks.length; SEL = ks[i]; highlight(SEL); panel(); }
+document.addEventListener('keydown', ev => {
+  if (ev.metaKey || ev.ctrlKey) return;
+  if (ev.key === 'ArrowRight' || ev.key === 'j') { ev.preventDefault(); step(1); }
+  else if (ev.key === 'ArrowLeft' || ev.key === 'k') { ev.preventDefault(); step(-1); }
+  else if (ev.key === 'b' || ev.key === 'B') { B = (B + 1) % D.builds.length; SEL = null; tabs(); drawGrid(); }
+  else if (ev.key === 'm' || ev.key === 'M') { SHOWM = !SHOWM; document.querySelectorAll('.mlabels').forEach(g => g.classList.toggle('hide', !SHOWM)); }
+  else if (ev.key === 'Escape') { SEL = null; highlight(null); panel(); }
+});
+function tabs() { const t = $('btabs'); t.innerHTML = '';
+  D.builds.forEach((b, i) => { const x = document.createElement('button'); x.textContent = b.label; x.className = i === B ? 'on' : '';
+    x.onclick = () => { B = i; SEL = null; tabs(); drawGrid(); }; t.appendChild(x); }); }
+
+function counts(c) { if (!c) return '-'; return `<span class="ok">${c.right_pos || 0}</span> / <span class="bad">${c.wrong || 0}</span> / <span class="warn">${c.missing || 0}</span> &middot; ${c.right_neg || 0} / ${c.extra || 0}`; }
+function holdout() {
+  const H = D.holdout; const box = $('holdout');
+  if (!H) { box.innerHTML = '<p class="mut">No held-out run.</p>'; return; }
+  let h = `<div class="box"><table><tr><th>view held out</th><th>in-fit links: right / wrong / missing &middot; not-visible right / extra</th><th>held-out links</th><th>locks assigned there</th><th>assigned IoU</th></tr>`;
+  for (const r of H.rows) h += `<tr><td>${VN[r.view]}</td><td>${counts(r.in_fit)}</td><td>${counts(r.held_out)}</td><td class="num">${r.assigned}</td><td class="num">${r.iou ?? '-'}</td></tr>`;
+  h += '</table></div><div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">';
+  box.innerHTML = h + '</div>';
+  const g = box.querySelector('.grid');
+  for (const v of V()) {
+    const c = document.createElement('div'); const [W, Hh] = D.design[v].size;
+    c.innerHTML = `<div class="ch">${VN[v]} held out</div>`;
+    const s = el('svg', {viewBox: `0 0 ${W} ${Hh}`}); el('image', {href: D.design[v].img, width: W, height: Hh}, s);
+    for (const [k, rr] of Object.entries((H.views || {})[v] || {})) {
+      const gg = el('g', {class: 'lk'}, s); const col = ['#E69F00','#56B4E9','#009E73','#F0E442','#0072B2','#D55E00','#CC79A7','#882255','#44AA99','#117733','#999933','#AA4499','#6699CC','#DDCC77','#332288','#88CCEE','#661100','#EE7733','#0077BB','#33BBEE'][(k - 1) % 20];
+      el('path', {d: path(rr), fill: col, 'fill-rule': 'evenodd'}, gg); const [cx, cy] = centroid(rr);
+      const t = el('text', {x: cx, y: cy, 'font-size': 12}, gg); t.textContent = k;
+    }
+    c.appendChild(s); g.appendChild(c);
+  }
+}
+function shadows() {
+  const S = D.shadows, box = $('shadows'); let h = '';
+  const t6 = S.term6 || {};
+  if (Object.keys(t6).length) {
+    h += '<div class="box"><table><tr><th>build</th><th>at the gate\'s placement</th><th>six placements: mean &plusmn; std</th><th>per view (six-placement mean)</th><th>peeks (placement / mean)</th></tr>';
+    for (const [k, r] of Object.entries(t6)) { const t = r.terminator_hair, p = r.peeks_hair;
+      h += `<tr><td>${esc(k)}</td><td class="num">${t.place}</td><td class="num">${t.mean} &plusmn; ${t.std}</td><td>${Object.entries(t.views).map(([v, x]) => VN[v] + ' ' + x).join(' &middot; ')}</td><td class="num">${p.place} / ${p.mean}</td></tr>`; }
+    h += '</table></div>';
+  }
+  for (const v of V()) {
+    h += `<h3>${VN[v]}</h3><div class="figrow">` + (S.rows[v] || []).map(f => `<figure><a href="${esc(f.src)}"><img src="${esc(f.src)}" loading="lazy"></a><figcaption>${f.cap}</figcaption></figure>`).join('') + '</div>';
+  }
+  box.innerHTML = h;
+}
+function guard() {
+  const G = D.guard, box = $('guard'); const labs = Object.keys(G); const base = labs[0];
+  const keys = []; for (const l of labs) for (const [f, vs] of Object.entries(G[l].iou || {})) for (const v of Object.keys(vs)) if (!keys.some(q => q[0] === f && q[1] === v)) keys.push([f, v]);
+  let h = `<div class="box"><table><tr><th>piece</th><th>view</th>${labs.map(l => `<th class="num">${esc(l)}</th>`).join('')}</tr>`;
+  for (const [f, v] of keys) {
+    const b0 = ((G[base].iou || {})[f] || {})[v];
+    h += `<tr><td>${f}</td><td>${VN[v] || v}</td>` + labs.map(l => { const x = ((G[l].iou || {})[f] || {})[v]; if (x == null) return '<td class="num">-</td>';
+      const d = b0 ? (x / b0 - 1) * 100 : 0; const cls = l !== base && d < -15 ? 'bad' : (l !== base && d < -8 ? 'warn' : '');
+      return `<td class="num ${cls}">${x.toFixed(3)}${l !== base ? ` <span class="mut">(${d >= 0 ? '+' : ''}${d.toFixed(0)}%)</span>` : ''}</td>`; }).join('') + '</tr>';
+  }
+  h += `</table><p class="mut">Percent against ${esc(base)}; red: down more than 15% (the anti-gaming guard's line), amber: more than 8%.</p></div>`;
+  h += `<div class="box"><table><tr><th>check</th>${labs.map(l => `<th class="num">${esc(l)}</th>`).join('')}</tr>`;
+  const cks = []; for (const l of labs) for (const k of Object.keys(G[l].checks || {})) if (!cks.includes(k)) cks.push(k);
+  for (const k of cks) h += `<tr><td>${k}</td>` + labs.map(l => { const c = (G[l].checks || {})[k]; if (!c) return '<td>-</td>';
+    const v = Array.isArray(c) ? c[0] : c.value, s = Array.isArray(c) ? c[1] : c.status;
+    return `<td class="num ${s === 'FAIL' ? 'bad' : (s === 'WARN' ? 'warn' : (s === 'PASS' ? 'ok' : ''))}">${typeof v === 'number' ? Math.round(v * 1000) / 1000 : esc(v)} ${esc((s || '').slice(0, 1))}</td>`; }).join('') + '</tr>';
+  box.innerHTML = h + '</table><p class="mut">The builds\' own QA. art_* of builds made before the shape-truth switch read the drawing with its clips: compare the six-placement table in section 4.</p></div>';
+}
+function summary() {
+  const S = D.summary || {}; let h = '';
+  h += `<b class="h">Recommended</b><div>${S.recommended || ''}</div><b class="h">Asked of Michael</b><ul style="margin:4px 0">${(S.asked || []).map(x => `<li>${x}</li>`).join('')}</ul><b class="h">Key numbers</b>`;
+  const N = S.numbers; if (N) h += `<table><tr>${N.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr>${N.rows.map(r => `<tr>${r.map((x, i) => `<td class="${i ? 'num' : ''}">${x}</td>`).join('')}</tr>`).join('')}</table>`;
+  if (S.notes) h += `<p class="mut">${S.notes}</p>`;
+  $('summary').innerHTML = h;
+}
+fetch('data.json').then(r => r.json()).then(j => { D = j; B = Math.max(0, D.builds.length - 1); summary(); tabs(); drawGrid(); holdout(); shadows(); guard(); })
+  .catch(e => { document.body.innerHTML = '<p style="padding:20px">Could not load data.json (' + esc(e.message) + '): serve this folder with python -m charkit label board DIR.</p>'; });
+</script>
+</body>
+</html>
