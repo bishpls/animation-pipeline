@@ -1,10 +1,11 @@
 """charkit.label: the labelling page's server saves every answer at once, resumes, and undoes (tool/hairident)."""
-import json, os, threading, urllib.request
+import json, os, sys, threading, urllib.error, urllib.request
 
 import numpy as np
 import pytest
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from charkit import label
 
 
@@ -142,3 +143,11 @@ def test_point_marks_and_asked_views(tmp_path):
         S.answer('i1', 'side', 'point', points=[])                 # a point answer needs its points
     with pytest.raises(ValueError):
         S.answer('i1', 'side', 'point', points=[[500, 5]])         # outside the picture (60 x 40)
+
+
+if __name__ == '__main__':
+    import pathlib, tempfile
+    for k, f in list(globals().items()):
+        if k.startswith('test_'):
+            f(pathlib.Path(tempfile.mkdtemp(prefix='label-test-')))
+            print(k, 'ok')

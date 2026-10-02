@@ -60,3 +60,10 @@ def test_ribbon_parameters_fitted_and_kept():
     assert (lk.slope, lk.curl) == (keep[3], keep[4])
     got = lk.shell()
     assert 'twist_slope_deg' in got['fit'] and 'curl_deg' in got['fit']
+
+
+if __name__ == '__main__':
+    for k, f in list(globals().items()):
+        if k.startswith('test_'):
+            f()
+            print(k, 'ok')
