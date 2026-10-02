@@ -27,6 +27,28 @@ Running (collect them):
 Next: the gate, `remote gate tool/incremental --into pipeline-3d --code tool/incremental` (gate.py changes: the budget
 rule and the 2x2's crossed QA runs at CHARKIT_QA_PROFILE=full are exercised only with this branch's gate code).
 
+## The produced-reference race (the coordinator's item, 21:30)
+
+Two gates into 3144b1f6 (tool/hands2 ece8360e, tool/garments8) failed fail-fast at ~87 s: test_skirtqa `_design()` ->
+bodymeasure.piece_masks -> np.load: `BadZipFile: File is not a zip file` on outfit_masks.npz.
+- **Cause:** the producers wrote their files into the reference's folder as they went (outfit: np.savez_compressed to
+  the final path), and a reader that takes no lock (bodymeasure.piece_masks loads the file whenever it exists; a gate's
+  tests run in the candidate's worktree beside its build, which was producing the masks) read the half-written zip.
+  Not the shared cache: cache_store writes KEY.tmp-PID then renames, cache_restore copies to .tmp then os.replace with
+  the stamp last (both already atomic). The lock-free early return in produced() reads the stamp, which is written
+  after the files (except in verify mode, where the old stamp already matches: also covered by the fix).
+- **Reproduced:** test_produced_cache `test_a_reader_never_sees_a_half_written_reference` (a producer writes half its
+  npz, waits 1 s, writes the rest; a reader thread loads it whenever it exists): on the old code 80 of 90 loads
+  BadZipFile, the gates' error; with the fix 0, in a fresh copy and in a verify rebuild over an older version.
+- **Fix (manifest.produced, _place):** the producer writes into a staging folder beside the reference's
+  (FOLDER.produce-PID: its {out}, or hull.build's folder); when it ends each file is moved into place with os.replace
+  (a copy beside it then os.replace across file systems), the stamp after them; the staging folder removed in a
+  finally; _written skips another reference's staging folder (hair_split's sits inside hair_layers' folder). Every
+  reader sees the old file or the whole new one. The real outfit producer through it: test_outfit
+  `test_clawds_masks_against_the_truth` passes (cold, CHARKIT_PRODUCED_CACHE=off), no staging left behind.
+- Cost: manifest.produced is in every QA part's reach (codediff lists 32 parts, report-only, no 2x2 on unchanged
+  geometry), and its stamp and shared key change, so each copy rebuilds its produced references once.
+
 ## Item 1: the budget's blocking rule (done)
 
 - gate.budget_rule: blocks when the candidate's figure is > 1.10 x budget.json `total` AND > 1.05 x its baseline's

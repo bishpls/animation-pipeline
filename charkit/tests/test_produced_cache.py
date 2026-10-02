@@ -356,6 +356,73 @@ def test_verify_makes_it_afresh_and_names_a_stale_entry():
         shutil.rmtree(d)
 
 
+def test_a_reader_never_sees_a_half_written_reference():
+    """the produced-reference race (2026-10-01: two gates into 3144b1f6 failed test_skirtqa with BadZipFile, reading
+    outfit_masks.npz while the candidate's build, in the same worktree, was producing it): a producer writes its {out}
+    files as it goes (np.savez_compressed to the final path), and a reader that doesn't take the reference's lock
+    (bodymeasure.piece_masks: a plain np.load whenever the file exists) read the half-written zip. Here the producer
+    writes half its npz, waits, writes the rest, while a reader loads it whenever it exists: every load must succeed
+    (the files appear whole: produced() runs the producer into a staging folder and moves each file into place with
+    os.replace, the stamp last). Twice: a fresh copy (nothing there yet) and a rebuild over an older version (the verify
+    path, where the old stamp already matches)."""
+    import threading, zipfile
+    import numpy as np
+    d = tempfile.mkdtemp(prefix='charkit-prace-')
+    folder = os.path.join(d, 'out', 'masks')
+    os.makedirs(folder)
+    out = os.path.join(folder, 'masks.npz')
+    code = ('import io, os, sys, time; import numpy as np; out = sys.argv[2]; b = io.BytesIO(); '
+            'np.savez(b, a=np.arange(200000) * float(sys.argv[3])); v = b.getvalue(); '
+            'f = open(os.path.join(out, "masks.npz"), "wb"); f.write(v[:len(v) // 2]); f.flush(); time.sleep(1.0); '
+            'f.write(v[len(v) // 2:]); f.close(); open(os.path.join(out, "masks.json"), "w").write("{}")')
+    M = {'name': 'r', 'references': {'masks': {
+        'kind': 'test', 'tracked': False, 'produced_by': 'charkit.fakeprod', 'path': out, 'reads_spec': ['name', 'k'],
+        'command': 'python -c %s {spec} {out} 1' % shlex.quote(code)}}}
+    mp = os.path.join(d, 'manifest.json')
+    json.dump(M, open(mp, 'w'))
+    env0 = os.environ.get('CHARKIT_PRODUCED_CACHE')
+    os.environ['CHARKIT_PRODUCED_CACHE'] = 'off'
+    FAKE['charkit.fakeprod'] = os.path.join(d, 'fakeprod.py')
+    open(FAKE['charkit.fakeprod'], 'w').write('def make():\n    return 1\n')
+    try:
+        for k, verify in ((1, False), (2, True)):
+            spec = {'name': 'r', 'k': k, 'ref': {'manifest': mp}}
+            bad, loads, stop = [], [0], threading.Event()
+
+            def read():
+                while not stop.is_set():
+                    if os.path.exists(out):
+                        try:
+                            np.load(out)['a']
+                            loads[0] += 1
+                        except (zipfile.BadZipFile, ValueError, EOFError, OSError, KeyError) as e:
+                            bad.append('%s: %s' % (type(e).__name__, e))
+                    time.sleep(0.01)
+            t = threading.Thread(target=read)
+            t.start()
+            if verify:
+                os.environ['CHARKIT_PRODUCED_VERIFY'] = '1'
+            try:
+                assert manifest.produced(spec, 'masks', log=QUIET) == out
+            finally:
+                os.environ.pop('CHARKIT_PRODUCED_VERIFY', None)
+                time.sleep(0.1)
+                stop.set()
+                t.join()
+            assert not bad, 'a reader saw a half-written reference (%d bad of %d loads): %s' % (len(bad), len(bad) + loads[0],
+                                                                                              bad[:3])
+            assert loads[0] > 0 and os.path.exists(out + '.stamp') and os.path.exists(os.path.join(folder, 'masks.json'))
+            # (nothing of the staging left behind, beside the folder or in it)
+            assert not [n for n in os.listdir(os.path.dirname(folder)) + os.listdir(folder) if '.produce-' in n], (
+                os.listdir(os.path.dirname(folder)), os.listdir(folder))
+    finally:
+        if env0 is None:
+            os.environ.pop('CHARKIT_PRODUCED_CACHE', None)
+        else:
+            os.environ['CHARKIT_PRODUCED_CACHE'] = env0
+        FAKE.pop('charkit.fakeprod', None)
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

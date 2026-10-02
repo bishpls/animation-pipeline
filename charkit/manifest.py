@@ -395,8 +395,39 @@ def _written(before, after, p):
     name = os.path.basename(p)
     own = {name + '.lock', name + '.spec.json'}
     out = {k for k, v in after.items() if before.get(k) != v and os.path.basename(k) not in own
-           and not k.endswith(('.tmp', '.lock'))}
+           and not k.endswith(('.tmp', '.lock')) and '.produce-' not in k}      # (another reference's staging)
     return sorted(out | {name + '.stamp', name + '.stamp.json'})
+
+
+STAGE = '.produce-'          # a producer's staging folder beside the reference's: FOLDER.produce-PID (produced(), _place)
+
+
+def _place(stage, d):
+    """every file a producer wrote into its staging folder moved into the reference's folder d, each by os.replace
+    (atomic: a reader sees the old file or the whole new one, never a half-written one; across file systems, a copy
+    beside it then os.replace) -> [rel], in the order placed. The produced-reference race (2026-10-01): producers wrote
+    their files as they went (np.savez_compressed to the final path), and a reader that takes no lock
+    (bodymeasure.piece_masks; a gate's tests run in the candidate's worktree beside its build) read a half-written
+    outfit_masks.npz: BadZipFile."""
+    import errno
+    moved = []
+    for top, dirs, fs in os.walk(stage):
+        dirs.sort()
+        for f in sorted(fs):
+            src = os.path.join(top, f)
+            rel = os.path.relpath(src, stage)
+            dst = os.path.join(d, rel)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            try:
+                os.replace(src, dst)
+            except OSError as e:
+                if e.errno != errno.EXDEV:
+                    raise
+                tmp = '%s.place-%d.tmp' % (dst, os.getpid())
+                shutil.copyfile(src, tmp)
+                os.replace(tmp, dst)
+            moved.append(rel)
+    return moved
 
 
 class _Damaged(Exception):
@@ -684,30 +715,40 @@ def produced(spec, rid, log=print):
             log('%s: %d files were hard-linked to another worktree; unshared before rebuilding' % (rid, n))
         before = _listing(d) if root else None
         t0 = time.time()
-        if r['produced_by'] == 'charkit.geom.hull':
-            from .geom import hull
-            with cache.ran() as ran_rec:                # (the code it ran: the stamp's and the entry's runtime record)
-                hull.build(json.loads(json.dumps(cut)), d, validate_views=False, page=False, **hull_args(r))
-        else:
-            import shlex, subprocess, sys, tempfile
-            rel = lambda x: os.path.relpath(x, ROOT) if x.startswith(ROOT + os.sep) else x
-            cmd = r['command'].replace('{spec}', rel(cut_path)).replace('{out}', rel(d))
-            args = shlex.split(cmd)
-            if args[0].startswith('python'):
-                args[0] = sys.executable
-            log('%s: %s' % (rid, cmd))
-            fd, rp = tempfile.mkstemp(prefix='charkit-ran-', suffix='.json')
-            os.close(fd)
-            try:                                        # (the producer's process records the code it ran: cli.main)
-                subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.DEVNULL,
-                               env=dict(os.environ, CHARKIT_RAN_OUT=rp))
-                try:
-                    ran_rec = json.load(open(rp))
-                except (OSError, ValueError):           # (not a charkit command: none of charkit's code ran in it)
-                    ran_rec = {} if '-m' not in args or 'charkit' not in args else \
-                        {'<unrecorded>': 'the charkit command wrote no record'}
-            finally:
-                os.remove(rp)
+        # the producer writes into a staging folder beside the reference's (its {out}); its files are moved into place
+        # whole when it ends (_place: os.replace each), the stamp after them: a reader that takes no lock never sees a
+        # half-written reference (the produced-reference race, 2026-10-01)
+        stage = '%s%s%d' % (d.rstrip(os.sep), STAGE, os.getpid())
+        shutil.rmtree(stage, ignore_errors=True)
+        os.makedirs(stage)
+        try:
+            if r['produced_by'] == 'charkit.geom.hull':
+                from .geom import hull
+                with cache.ran() as ran_rec:            # (the code it ran: the stamp's and the entry's runtime record)
+                    hull.build(json.loads(json.dumps(cut)), stage, validate_views=False, page=False, **hull_args(r))
+            else:
+                import shlex, subprocess, sys, tempfile
+                rel = lambda x: os.path.relpath(x, ROOT) if x.startswith(ROOT + os.sep) else x
+                cmd = r['command'].replace('{spec}', rel(cut_path)).replace('{out}', rel(stage))
+                args = shlex.split(cmd)
+                if args[0].startswith('python'):
+                    args[0] = sys.executable
+                log('%s: %s' % (rid, cmd))
+                fd, rp = tempfile.mkstemp(prefix='charkit-ran-', suffix='.json')
+                os.close(fd)
+                try:                                    # (the producer's process records the code it ran: cli.main)
+                    subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.DEVNULL,
+                                   env=dict(os.environ, CHARKIT_RAN_OUT=rp))
+                    try:
+                        ran_rec = json.load(open(rp))
+                    except (OSError, ValueError):       # (not a charkit command: none of charkit's code ran in it)
+                        ran_rec = {} if '-m' not in args or 'charkit' not in args else \
+                            {'<unrecorded>': 'the charkit command wrote no record'}
+                finally:
+                    os.remove(rp)
+            _place(stage, d)
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
         if old is not None and os.path.exists(p):
             same = cache.same_product(old, p)
             log('CHARKIT_CACHE_%s produced %s: %s' % ('VERIFIED' if same else 'STALE', rid, 'the same as %s' % (
