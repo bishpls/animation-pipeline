@@ -80,7 +80,7 @@ const t0 = Date.now();
 await setSize(sizeArg);
 await cdp('Page.enable'); await cdp('Runtime.enable');
 await cdp('Page.navigate', { url });
-await sleep(800); await evaluate("new Promise(r => { const f = () => (typeof S !== 'undefined' && S.T) ? r() : setTimeout(f, 50); f(); })"); await settle();
+await sleep(800); await evaluate("new Promise(r => { const f = () => ((typeof S !== 'undefined' && S.T) || (typeof D !== 'undefined' && D)) ? r() : setTimeout(f, 50); f(); })"); await settle();
 let n = 0;
 process.on('unhandledRejection', e => { console.error('FAILED:', e.message); try { chrome.kill(); } catch (_) { } process.exit(2); });
 for (const s of steps) {
@@ -97,7 +97,7 @@ for (const s of steps) {
   else if (s.wait) await sleep(s.wait);
   else if (s.eval) { const v = await evaluate(s.eval); log.push({ eval: s.eval, value: v }); console.log('eval', s.eval.slice(0, 60), '->', JSON.stringify(v)); }
   else if (s.size) { await setSize(s.size); await settle(); }
-  else if (s.reload) { await cdp('Page.reload'); await sleep(800); await evaluate("new Promise(r => { const f = () => (typeof S !== 'undefined' && S.T) ? r() : setTimeout(f, 50); f(); })"); await settle(); }
+  else if (s.reload) { await cdp('Page.reload'); await sleep(800); await evaluate("new Promise(r => { const f = () => ((typeof S !== 'undefined' && S.T) || (typeof D !== 'undefined' && D)) ? r() : setTimeout(f, 50); f(); })"); await settle(); }
   else if (s.note) console.log('--', s.note);
   if (!s.shot && !s.eval) log.push({ step: s, ms: Date.now() - t });
 }
