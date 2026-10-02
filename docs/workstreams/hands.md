@@ -629,3 +629,17 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
   rest3's angles with thumb_out 14 and the sheet's thumb 1.31 PL (rest4_start.json), knobs + `ratios.thumb` [1.0, 1.4]
   (code_hand: a structural ratio as a fit knob), bounds palm_len [0.29, 0.34], curl [-10, 12], spread [-3, 5],
   thumb_out [0, 35], thumb_down [0, 30], bend [-20, 10].
+- **rest4p chosen** (charkit/out/hands3/rest4p; written to the spec in the ratio mode, rest_final.json, 3f4d7a9c):
+  palm_len 0.3116, curl 4.45, spread 0.13, thumb_out 12.26, thumb_down 1.57, bend -1.46, dev -2.22; **the thumb's ratio
+  fitted 1.302 PL against the sheet's own reading 1.31** (an independent agreement; the prior's 1.0 left the cleft
+  FAILing). Fit-scale IoU front 0.708/0.724, 3q 0.806/0.803, profile 0.585, back 0.729/0.716; gaps 0; taper PASS;
+  cleftpos front 0.621/0.611 (drawn 0.644/0.639), 3q L 0.660 (0.622), back 0.613/0.607 (0.565/0.616: L WARN 0.048, as
+  hands2's 0.054), profile FAIL as before. rest4 (DE, cost 0.632) fixed the profile cleft (0.69 vs 0.736) but 3q R
+  0.675 and back L cleftpos 0.053 at the FAIL edge, thumb 1.38: not taken.
+- **Merged pipeline-3d 348397e7** (689f4108; batch4: the joined shoulder on): both specs conflicted on body.hand (taken
+  pipeline-3d's with hands3's hand: setknobs), declared.inputs(hands=, body=). The QA denominators: `hands` declares 42
+  (unchanged), `hand_sheet` now declares 2 + 2 x 4 poses = 10, fingerlines_* count in `declared`'s computed count.
+- **poses2 RUNNING** (build2, job handposes-hands-1001-203742-6ebe, charkit/out/hands3/poses2): open, relaxed, fist,
+  point fitted per row on the new rest. Then: POSES['open'] from it, `charkit handsheet ratios --over rest_final.json
+  --keys span,middle,index,ring,little,taper,thumb_w` (the thumb kept: the measure confounds its length and angle),
+  the build.
