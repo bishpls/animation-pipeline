@@ -107,6 +107,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `hand` | `code_hand` |
 | `history` | `history` |
 | `kill` | `procs` |
+| `label` | `label` |
 | `mouth` | `mouthlab` |
 | `outfit` | `outfit` |
 | `perceptual` | `perceptual` |
@@ -139,8 +140,8 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `art.py` | `art_speckle_neck` | artifacts | Art | look_v5 |
 | `art.py` | `art_outline_collar` | artifacts | Art | look_v5 |
 | `art.py` | `art_fragments_collar` | artifacts | Art | look_v5 |
-| `art.py` | `art_terminator_hair` | artifacts | Art | look_v5 |
-| `art.py` | `art_peeks_hair` | artifacts | Art | look_v5 |
+| `art.py` | `art_terminator_hair` | artifacts | Art | hi_torn |
+| `art.py` | `art_peeks_hair` | artifacts | Art | hi_gaps |
 | `art.py` | `art_mirror_self_boots` | artifacts | Art | body4b_render |
 | `art.py` | `art_*_boots` | artifacts | Art | body4b_render |
 | `art.py` | `art_mirror_waist` | artifacts | Art | body4b_render |
@@ -2149,6 +2150,22 @@ Isolated-piece checks (Michael, 2026-09-30; tool/pieceref, docs/workstreams/piec
 - `iso_pieces(B, design=None, out=None)`: rigid pieces alone against their isolated shape references (Michael, 2026-09-30).
 - `measure(B, design)`
 
+#### `charkit/label.py`
+
+Human labelling pages served locally (tool/hairident; Michael 2026-10-01: pages that ask him to label or confirm things save every answer on the click, resume where he left off, undo, keyboard first, the agent's proposal preselected).
+
+- `mask_polygons(mask, tol=SIMPLIFY_PX)`: a bool mask -> its outline as rings [[x, y], ...] (outer edges and holes alike: drawn even-odd), simplified to ...
+- `load_task(path)`: the task with its regions resolved to polygons (a mask's regions traced) -> dict (the page's /api/task).
+- `public_task(task)`: what the page gets: no local paths.
+- class `Store`: the answers file: every change written at once (a temporary file beside it, then os.replace), with its history.
+- `links(task, A)`: the answers as links: per item, per view, the regions it is (the home view's own, then each answered view's) -> ...
+- `progress(task, A)`
+- `make_server(task_path, port=8770, answers=None, tries=20)`: the page's server on 127.0.0.1 (the first free port from `port`) -> (server, store).
+- `serve(task_path, port=8770, open_page=True, answers=None)`
+- `status(task_path, answers=None)`
+- `serve_board(folder, port=8774, open_page=True)`: a read-only page folder (an analysis board: index.html and what it reads) served on 127.0.0.1, nothing outside ...
+- `main(args)`
+
 #### `charkit/layerref.py`
 
 Separated layer references checked against the turnaround before they are registered (Michael, 2026-10-01: wherever one piece covers another, a reference of the cover alone and of the covered layer WITHOUT it, as worn, in several views; docs/workstreams/layerrefs.md). A layer sheet is a generated picture; what it adds is what the turnaround can't show, ...
@@ -3703,6 +3720,18 @@ Mesh IO in plain numpy (PIL only to decode glTF textures), so the same readers r
 - `save_npz(m, path, meta=None, **extra)`: V, F and the set attributes (vc, vn, uv), plus `meta` (a JSON-able dict, stored as a string) and any extra arrays.
 - `load_npz(path, with_meta=False)`
 
+#### `charkit/geom/lockident.py`
+
+Cross-view lock identity (tool/hairident, docs/workstreams/hairident.md): which drawn lock in one view is which in the others, decided the way an animator works: each lock's 3D path decided once, projected into every view, matched to the drawn locks there, refitted, and again.
+
+- class `Scene`: the fit's surroundings for a build's context (lockshell.context's dict) and the shells' options.
+- `root_of(mask)`: a drawn lock's root end when nothing else says: its topmost pixel (the middle one of its top row).
+- `lock_picture(sc, fits, masks, path, rgb=None, k=2, pad=40)`: per view a crop round the drawn masks: the drawing (dimmed), the drawn mask outlined, its centreline (green), and ...
+- `centre_cost(Pp, D, o)`: a projected centreline (n, 2: col, row; root to tip) against a drawn one (k, 2) -> px, or inf when their heights ...
+- `height_cost(Pp, D, S, o)`: a projected centreline against a drawn one when the lock's depth is unknown: the tips' rows apart, half the ...
+- class `Ident`: the joint fit's state: locks (lockshell.Lock), their families and primary targets; per view the targets.
+- `build_shells(F, masks, views, hull_frame, L, ls_opts, log=print)`: lockshell.build_shells' product (dict(parts {family or group key: [part dicts]}, report, opts)) from the joint ...
+
 #### `charkit/geom/lockshell.py`
 
 Hair locks as their own shells (option B, Michael 2026-09-30; tool/hairshell, docs/workstreams/hairshell.md): each lock the drawing sections (charkit.hairsplit's locks, per view, with their roots, tips and layer ranks) built as a thick, tapered tube of its own, the way anime 3D hair is modelled, instead of a region painted on the visual hull's one shell.
@@ -3713,6 +3742,7 @@ Hair locks as their own shells (option B, Michael 2026-09-30; tool/hairshell, do
 - `bernstein_matrix(n, t)`
 - `snap(x, q)`: x rounded to multiples of q (a power of two: exact; charkit.geom.det.snap).
 - `frames(P, chart, twist=0.0, smooth=False)`: per centreline point: tangent t, thickness axis a (out of the chart's centre, square to t, turned by twist rad ...
+- `curl_tip(P, chart, curl, share=0.3)`: (tool/hairident) a lock's tip curled, as anime hem flicks hook: over the last `share` of the centreline's length ...
 - `tube(P, W, Tk, chart, twist=0.0, n_ring=10)`: a closed lens-section tube along P (root to tip): width W, thickness Tk per point.
 - `silhouette(V, T, view, az, hull_frame, shape)`: a mesh's silhouette on a view's design grid (its triangles filled) -> bool image.
 - `envelope_points(F, view, az, hull_frame, cols, rows, L)`: each pixel's ray (the view's camera: the viewer at e = (sin az, -cos az, 0)) cast onto the hair's envelope (the ...
@@ -4378,7 +4408,7 @@ Measurement steps, one file per measuring module (charkit/steps/<module>.py hold
 
 The measurement steps of the checks charkit/accqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/artifactqa.py` (33 measurement steps)
+#### `charkit/steps/artifactqa.py` (34 measurement steps)
 
 The measurement steps of the checks charkit/artifactqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 

@@ -54,6 +54,8 @@
     python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
     python -m charkit eyes BUILD_DIR [--against OTHER_BUILD] [--out DIR]     # the eyes and mouth against the design
     python -m charkit mouth BUILD_DIR [--against OTHER] [--boards DIR]         # the mouth keys and expressions measured
+    python -m charkit label serve TASK.json [--port N] | status TASK.json   # a labelling page (charkit/label.py): every
+                                                 # answer saved on the click (127.0.0.1 only), resume, undo
     python -m charkit script PATH [ARGS]     # a worktree script (a harness) run as `python PATH ARGS`: for `remote run`
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
@@ -1020,6 +1022,9 @@ def main(argv=None):
         from . import refs
         R = refs.measure(rest[0], float(rest[rest.index('--eye-x') + 1]) if '--eye-x' in rest else 0.168)
         json.dump(R, open(rest[1], 'w'), indent=1); print('wrote', rest[1])
+    elif cmd == 'label':
+        from . import label
+        raise SystemExit(label.main(rest))
     elif cmd == 'script':
         # a worktree script (a harness under tools/) with its arguments, as `python PATH ARGS` would run it: `remote run`
         # runs charkit commands only, so `remote run --fetch OUT script tools/x.py ...` runs a harness on the box

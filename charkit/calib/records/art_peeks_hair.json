@@ -3,53 +3,53 @@
  "part": "artifacts",
  "adapter": "Art",
  "module": "charkit.calib.art",
- "at": "2026-09-30T18:10:57",
+ "at": "2026-10-02T00:21:02",
  "better": null,
  "kind": "defect",
  "shape": [],
  "design": {
   "moves": {
    "+0,+1": [
-    null,
-    null
+    0,
+    "PASS"
    ],
    "+0,+2": [
-    null,
-    null
+    0,
+    "PASS"
    ],
    "+1,+0": [
-    null,
-    null
+    0,
+    "PASS"
    ],
    "+2,+0": [
-    null,
-    null
+    0,
+    "PASS"
    ],
    "+0,-1": [
-    null,
-    null
+    0,
+    "PASS"
    ],
    "+0,-2": [
-    null,
-    null
+    0,
+    "PASS"
    ],
    "-1,+0": [
-    null,
-    null
+    0,
+    "PASS"
    ],
    "-2,+0": [
-    null,
-    null
+    0,
+    "PASS"
    ]
   },
-  "min": null,
-  "max": null,
-  "spread": null,
-  "median": null
+  "min": 0,
+  "max": 0,
+  "spread": 0,
+  "median": 0.0
  },
  "known_bad": {
-  "name": "look_v5",
-  "value": 27,
+  "name": "hi_gaps",
+  "value": 29,
   "status": "FAIL"
  },
  "floor": {},
@@ -60,9 +60,9 @@
   "status": "FAIL",
   "margin": null
  },
- "verdict": "miscalibrated",
- "why": "the design reads none moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
- "build": "charkit/out/calib/cur_8b5ecae",
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0), hi_gaps reads 29 FAIL; a random stand-in fails it; shape guarded by NONE: name one",
+ "build": "charkit/out/hi_hull",
  "generators": {},
- "seconds": 101.8
+ "seconds": 224.4
 }
