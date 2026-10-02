@@ -2,6 +2,1560 @@
  "note": "the design turnarounds measured by charkit.artifactqa (head sheet at 400 px/L, body sheet at its own scale), a record per stamp (the outfit masks differ between specs); refresh with python -m charkit.artifactqa design BUNDLE_DIR (a bundle of each spec)",
  "records": [
   {
+   "stamp": "b7f5df42ed1c84dd",
+   "inputs": {
+    "face_sheet": "bf2e85f067120c0a",
+    "face_facing": -1,
+    "body_sheet": "e523aa3532b1092f",
+    "masks": "10b7db9e62cd18bb",
+    "pieces": "f443644a518f15c6",
+    "head_ppl": 400,
+    "code": "7fb703c1f48f1efc",
+    "hair_shape": "27e762b0f3b74945",
+    "eye_x": 0.168
+   },
+   "made": "2026-10-01",
+   "where": "arm64",
+   "spec": "clawd",
+   "head": {
+    "front": {
+     "hair": {
+      "outline": {
+       "len": 11.5564,
+       "corners": 5.452,
+       "kinks": 8.48,
+       "rms": 0.00322,
+       "n_corners": 63,
+       "n_kinks": 98
+      },
+      "terminator": {
+       "len": 12.2259,
+       "corners": 4.989,
+       "kinks": 2.536,
+       "rms": 0.00288,
+       "n_corners": 61,
+       "n_kinks": 31,
+       "islands": 4.81,
+       "n_islands": 7,
+       "area": 1.4559,
+       "shade": 0.3474
+      },
+      "fragments": {
+       "n": 115,
+       "area": 0.00559,
+       "slivers": 157,
+       "sliver_area": 0.00992,
+       "len": 11.556,
+       "per_L": 23.537
+      }
+     },
+     "face": {
+      "outline": {
+       "len": 3.7663,
+       "corners": 9.028,
+       "kinks": 13.541,
+       "rms": 0.00387,
+       "n_corners": 34,
+       "n_kinks": 51
+      },
+      "terminator": {
+       "len": 0.0194,
+       "corners": 0.0,
+       "kinks": 0.0,
+       "rms": 0.00434,
+       "n_corners": 0,
+       "n_kinks": 0,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.2874,
+       "shade": 0.0454
+      },
+      "fragments": {
+       "n": 21,
+       "area": 0.00702,
+       "slivers": 63,
+       "sliver_area": 0.00542,
+       "len": 3.766,
+       "per_L": 22.303
+      },
+      "speckle": {
+       "n": 36,
+       "per_L2": 155.47,
+       "area": 0.2316
+      }
+     },
+     "neck": {
+      "outline": {
+       "len": 2.3626,
+       "corners": 0.847,
+       "kinks": 2.116,
+       "rms": 0.0015,
+       "n_corners": 2,
+       "n_kinks": 5
+      },
+      "terminator": {
+       "len": 0.3725,
+       "corners": 5.369,
+       "kinks": 8.054,
+       "rms": 0.00365,
+       "n_corners": 2,
+       "n_kinks": 3,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.3234,
+       "shade": 0.1354
+      },
+      "fragments": {
+       "n": 20,
+       "area": 0.00076,
+       "slivers": 15,
+       "sliver_area": 0.00125,
+       "len": 2.363,
+       "per_L": 14.814
+      },
+      "speckle": {
+       "n": 10,
+       "per_L2": 32.65,
+       "area": 0.3063
+      }
+     }
+    },
+    "three_quarter": {
+     "hair": {
+      "outline": {
+       "len": 10.6725,
+       "corners": 4.872,
+       "kinks": 8.058,
+       "rms": 0.00318,
+       "n_corners": 52,
+       "n_kinks": 86
+      },
+      "terminator": {
+       "len": 11.7072,
+       "corners": 4.954,
+       "kinks": 2.733,
+       "rms": 0.0029,
+       "n_corners": 58,
+       "n_kinks": 32,
+       "islands": 1.4,
+       "n_islands": 2,
+       "area": 1.4236,
+       "shade": 0.351
+      },
+      "fragments": {
+       "n": 124,
+       "area": 0.00876,
+       "slivers": 99,
+       "sliver_area": 0.00601,
+       "len": 10.673,
+       "per_L": 20.895
+      }
+     },
+     "face": {
+      "outline": {
+       "len": 3.6123,
+       "corners": 8.582,
+       "kinks": 11.904,
+       "rms": 0.0039,
+       "n_corners": 31,
+       "n_kinks": 43
+      },
+      "terminator": {
+       "len": 0.0119,
+       "corners": 0.0,
+       "kinks": 0.0,
+       "rms": 0.00452,
+       "n_corners": 0,
+       "n_kinks": 0,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.2628,
+       "shade": 0.0411
+      },
+      "fragments": {
+       "n": 24,
+       "area": 0.00573,
+       "slivers": 64,
+       "sliver_area": 0.00511,
+       "len": 3.612,
+       "per_L": 24.361
+      },
+      "speckle": {
+       "n": 30,
+       "per_L2": 141.88,
+       "area": 0.2114
+      }
+     },
+     "neck": {
+      "outline": {
+       "len": 2.5671,
+       "corners": 0.779,
+       "kinks": 2.727,
+       "rms": 0.00185,
+       "n_corners": 2,
+       "n_kinks": 7
+      },
+      "terminator": {
+       "len": 0.3146,
+       "corners": 6.358,
+       "kinks": 9.537,
+       "rms": 0.00434,
+       "n_corners": 2,
+       "n_kinks": 3,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.2849,
+       "shade": 0.0951
+      },
+      "fragments": {
+       "n": 19,
+       "area": 0.00144,
+       "slivers": 13,
+       "sliver_area": 0.00061,
+       "len": 2.567,
+       "per_L": 12.465
+      },
+      "speckle": {
+       "n": 13,
+       "per_L2": 47.86,
+       "area": 0.2716
+      }
+     }
+    },
+    "profile": {
+     "hair": {
+      "outline": {
+       "len": 7.5083,
+       "corners": 4.129,
+       "kinks": 7.592,
+       "rms": 0.00307,
+       "n_corners": 31,
+       "n_kinks": 57
+      },
+      "terminator": {
+       "len": 9.0018,
+       "corners": 4.555,
+       "kinks": 3.444,
+       "rms": 0.00291,
+       "n_corners": 41,
+       "n_kinks": 31,
+       "islands": 2.4,
+       "n_islands": 3,
+       "area": 1.2478,
+       "shade": 0.3124
+      },
+      "fragments": {
+       "n": 84,
+       "area": 0.00558,
+       "slivers": 71,
+       "sliver_area": 0.00431,
+       "len": 7.508,
+       "per_L": 20.644
+      }
+     },
+     "face": {
+      "outline": {
+       "len": 3.1083,
+       "corners": 7.4,
+       "kinks": 12.547,
+       "rms": 0.00388,
+       "n_corners": 23,
+       "n_kinks": 39
+      },
+      "terminator": {
+       "len": 0.6844,
+       "corners": 4.384,
+       "kinks": 4.384,
+       "rms": 0.00289,
+       "n_corners": 3,
+       "n_kinks": 3,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.1831,
+       "shade": 0.2489
+      },
+      "fragments": {
+       "n": 20,
+       "area": 0.00339,
+       "slivers": 41,
+       "sliver_area": 0.00252,
+       "len": 3.108,
+       "per_L": 19.625
+      },
+      "speckle": {
+       "n": 26,
+       "per_L2": 176.87,
+       "area": 0.147
+      }
+     },
+     "neck": {
+      "outline": {
+       "len": 1.9123,
+       "corners": 2.092,
+       "kinks": 6.798,
+       "rms": 0.00249,
+       "n_corners": 4,
+       "n_kinks": 13
+      },
+      "terminator": {
+       "len": 0.4294,
+       "corners": 4.657,
+       "kinks": 6.986,
+       "rms": 0.00372,
+       "n_corners": 2,
+       "n_kinks": 3,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.1683,
+       "shade": 0.1458
+      },
+      "fragments": {
+       "n": 8,
+       "area": 0.00044,
+       "slivers": 15,
+       "sliver_area": 0.00106,
+       "len": 1.912,
+       "per_L": 12.027
+      },
+      "speckle": {
+       "n": 8,
+       "per_L2": 49.94,
+       "area": 0.1602
+      }
+     }
+    },
+    "back": {
+     "hair": {
+      "outline": {
+       "len": 8.2247,
+       "corners": 4.134,
+       "kinks": 6.687,
+       "rms": 0.00302,
+       "n_corners": 34,
+       "n_kinks": 55
+      },
+      "terminator": {
+       "len": 8.1205,
+       "corners": 3.202,
+       "kinks": 1.355,
+       "rms": 0.00261,
+       "n_corners": 26,
+       "n_kinks": 11,
+       "islands": 1.12,
+       "n_islands": 2,
+       "area": 1.787,
+       "shade": 0.2924
+      },
+      "fragments": {
+       "n": 139,
+       "area": 0.00498,
+       "slivers": 83,
+       "sliver_area": 0.00411,
+       "len": 8.225,
+       "per_L": 26.992
+      }
+     },
+     "neck": {
+      "outline": {
+       "len": 2.7685,
+       "corners": 2.167,
+       "kinks": 4.335,
+       "rms": 0.0023,
+       "n_corners": 6,
+       "n_kinks": 12
+      },
+      "terminator": {
+       "len": 0.5903,
+       "corners": 3.388,
+       "kinks": 5.082,
+       "rms": 0.0033,
+       "n_corners": 2,
+       "n_kinks": 3,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.2498,
+       "shade": 0.1047
+      },
+      "fragments": {
+       "n": 26,
+       "area": 0.00103,
+       "slivers": 12,
+       "sliver_area": 0.0004,
+       "len": 2.768,
+       "per_L": 13.726
+      },
+      "speckle": {
+       "n": 11,
+       "per_L2": 44.89,
+       "area": 0.2451
+      }
+     }
+    }
+   },
+   "body": {
+    "front": {
+     "collar": {
+      "outline": {
+       "len": 2.3818,
+       "corners": 0.84,
+       "kinks": 8.397,
+       "rms": 0.00303,
+       "n_corners": 2,
+       "n_kinks": 20
+      },
+      "terminator": {
+       "len": 0.9178,
+       "corners": 0.0,
+       "kinks": 0.0,
+       "rms": 0.00158,
+       "n_corners": 0,
+       "n_kinks": 0,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.0995,
+       "shade": 0.379
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 3,
+       "sliver_area": 0.00031,
+       "len": 2.382,
+       "per_L": 1.26
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 0.0
+      },
+      "bumps": {
+       "out": 0.0,
+       "in": 0.0
+      }
+     },
+     "bow": {
+      "outline": {
+       "len": 3.8332,
+       "corners": 4.957,
+       "kinks": 8.348,
+       "rms": 0.00288,
+       "n_corners": 19,
+       "n_kinks": 32
+      },
+      "terminator": {
+       "len": 0.8295,
+       "corners": 2.411,
+       "kinks": 2.411,
+       "rms": 0.00268,
+       "n_corners": 2,
+       "n_kinks": 2,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.3077,
+       "shade": 0.2018
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 5,
+       "sliver_area": 0.00038,
+       "len": 3.833,
+       "per_L": 1.304
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 0.0
+      },
+      "bumps": {
+       "out": 0.0,
+       "in": 0.0
+      }
+     },
+     "top": {
+      "outline": {
+       "len": 4.4602,
+       "corners": 0.673,
+       "kinks": 5.605,
+       "rms": 0.0025,
+       "n_corners": 3,
+       "n_kinks": 25
+      },
+      "terminator": {
+       "len": 1.6804,
+       "corners": 1.19,
+       "kinks": 5.356,
+       "rms": 0.00338,
+       "n_corners": 2,
+       "n_kinks": 9,
+       "islands": 0.0,
+       "n_islands": 0,
+       "area": 0.2467,
+       "shade": 0.7493
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 3,
+       "sliver_area": 0.00029,
+       "len": 4.46,
+       "per_L": 0.673
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 55.3
+      },
+      "bumps": {
+       "out": 78.3,
+       "in": 10.6
+      }
+     },
+     "skirt": {
+      "outline": {
+       "len": 6.1069,
+       "corners": 0.655,
+       "kinks": 4.421,
+       "rms": 0.00234,
+       "n_corners": 4,
+       "n_kinks": 27
+      },
+      "terminator": {
+       "len": 9.3166,
+       "corners": 0.215,
+       "kinks": 1.932,
+       "rms": 0.00171,
+       "n_corners": 2,
+       "n_kinks": 18,
+       "islands": 5.06,
+       "n_islands": 10,
+       "area": 1.9744,
+       "shade": 0.7875
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 3,
+       "sliver_area": 0.00022,
+       "len": 6.107,
+       "per_L": 0.491
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 57.3
+      },
+      "bumps": {
+       "out": 71.5,
+       "in": 112.8
+      }
+     },
+     "boots": {
+      "outline": {
+       "len": 9.2645,
+       "corners": 0.324,
+       "kinks": 3.778,
+       "rms": 0.00225,
+       "n_corners": 3,
+       "n_kinks": 35
+      },
+      "terminator": {
+       "len": 0.8091,
+       "corners": 0.0,
+       "kinks": 3.708,
+       "rms": 0.00238,
+       "n_corners": 0,
+       "n_kinks": 3,
+       "islands": 11.66,
+       "n_islands": 11,
+       "area": 0.9434,
+       "shade": 0.2831
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 2,
+       "sliver_area": 0.00018,
+       "len": 9.265,
+       "per_L": 0.216
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 51.9
+      },
+      "bumps": {
+       "out": 68.2,
+       "in": 33.7
+      },
+      "mirror_self": {
+       "asym": 0.0366,
+       "off": 0.01186
+      }
+     },
+     "sleeves": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 28.8
+      },
+      "bumps": {
+       "out": 34.7,
+       "in": 61.5
+      }
+     },
+     "flaps": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 55.7
+      },
+      "bumps": {
+       "out": 79.4,
+       "in": 75.8
+      }
+     },
+     "waist": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 3,
+       "turn": 57.3
+      },
+      "bumps": {
+       "out": 79.4,
+       "in": 112.8
+      },
+      "mirror": {
+       "asym": 0.0338,
+       "off": 0.01891
+      }
+     },
+     "lower": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 2,
+       "turn": 57.3
+      },
+      "band": {
+       "len": 5.8299,
+       "corners": 0.343,
+       "kinks": 8.233,
+       "rms": 0.00265,
+       "n_corners": 2,
+       "n_kinks": 48
+      },
+      "bumps": {
+       "out": 79.4,
+       "in": 112.8
+      }
+     },
+     "legs": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 33.8
+      },
+      "bumps": {
+       "out": 15.9,
+       "in": 15.8
+      }
+     }
+    },
+    "three_quarter": {
+     "collar": {
+      "outline": {
+       "len": 2.4051,
+       "corners": 4.158,
+       "kinks": 12.058,
+       "rms": 0.00327,
+       "n_corners": 10,
+       "n_kinks": 29
+      },
+      "terminator": {
+       "len": 0.959,
+       "corners": 0.0,
+       "kinks": 0.0,
+       "rms": 0.0015,
+       "n_corners": 0,
+       "n_kinks": 0,
+       "islands": 13.45,
+       "n_islands": 1,
+       "area": 0.0743,
+       "shade": 0.4276
+      },
+      "fragments": {
+       "n": 1,
+       "area": 0.00013,
+       "slivers": 5,
+       "sliver_area": 0.00051,
+       "len": 2.405,
+       "per_L": 2.495
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 0.0
+      },
+      "bumps": {
+       "out": 0.0,
+       "in": 0.0
+      }
+     },
+     "bow": {
+      "outline": {
+       "len": 3.9587,
+       "corners": 4.042,
+       "kinks": 11.367,
+       "rms": 0.00327,
+       "n_corners": 16,
+       "n_kinks": 45
+      },
+      "terminator": {
+       "len": 1.6487,
+       "corners": 1.82,
+       "kinks": 4.246,
+       "rms": 0.00299,
+       "n_corners": 3,
+       "n_kinks": 7,
+       "islands": 11.63,
+       "n_islands": 3,
+       "area": 0.2579,
+       "shade": 0.2612
+      },
+      "fragments": {
+       "n": 2,
+       "area": 0.00228,
+       "slivers": 8,
+       "sliver_area": 0.00069,
+       "len": 3.959,
+       "per_L": 2.526
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 0.0
+      },
+      "bumps": {
+       "out": 0.0,
+       "in": 0.0
+      }
+     },
+     "top": {
+      "outline": {
+       "len": 6.2263,
+       "corners": 1.285,
+       "kinks": 6.264,
+       "rms": 0.00278,
+       "n_corners": 8,
+       "n_kinks": 39
+      },
+      "terminator": {
+       "len": 3.3926,
+       "corners": 4.127,
+       "kinks": 6.485,
+       "rms": 0.00352,
+       "n_corners": 14,
+       "n_kinks": 22,
+       "islands": 1.79,
+       "n_islands": 1,
+       "area": 0.5576,
+       "shade": 0.8946
+      },
+      "fragments": {
+       "n": 3,
+       "area": 0.00135,
+       "slivers": 1,
+       "sliver_area": 7e-05,
+       "len": 6.226,
+       "per_L": 0.642
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 0.0
+      },
+      "bumps": {
+       "out": 0.0,
+       "in": 0.0
+      }
+     },
+     "skirt": {
+      "outline": {
+       "len": 6.4758,
+       "corners": 1.853,
+       "kinks": 6.177,
+       "rms": 0.00241,
+       "n_corners": 12,
+       "n_kinks": 40
+      },
+      "terminator": {
+       "len": 9.6301,
+       "corners": 0.935,
+       "kinks": 3.634,
+       "rms": 0.00225,
+       "n_corners": 9,
+       "n_kinks": 35,
+       "islands": 3.92,
+       "n_islands": 7,
+       "area": 1.7844,
+       "shade": 0.7702
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 2,
+       "sliver_area": 0.00022,
+       "len": 6.476,
+       "per_L": 0.309
+      },
+      "spikes": {
+       "n": 1,
+       "height": 0.0133,
+       "area": 0.00022
+      },
+      "points": {
+       "n": 1,
+       "turn": 68.6
+      },
+      "bumps": {
+       "out": 48.6,
+       "in": 89.1
+      }
+     },
+     "boots": {
+      "outline": {
+       "len": 9.3462,
+       "corners": 0.856,
+       "kinks": 4.922,
+       "rms": 0.00229,
+       "n_corners": 8,
+       "n_kinks": 46
+      },
+      "terminator": {
+       "len": 1.7525,
+       "corners": 0.0,
+       "kinks": 1.141,
+       "rms": 0.00209,
+       "n_corners": 0,
+       "n_kinks": 2,
+       "islands": 6.59,
+       "n_islands": 7,
+       "area": 1.063,
+       "shade": 0.3068
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 2,
+       "sliver_area": 0.00018,
+       "len": 9.346,
+       "per_L": 0.214
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 55.2
+      },
+      "bumps": {
+       "out": 64.2,
+       "in": 46.4
+      }
+     },
+     "sleeves": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 26.1
+      },
+      "bumps": {
+       "out": 36.0,
+       "in": 56.1
+      }
+     },
+     "flaps": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 2,
+       "turn": 61.5
+      },
+      "bumps": {
+       "out": 81.6,
+       "in": 73.9
+      }
+     },
+     "waist": {
+      "spikes": {
+       "n": 1,
+       "height": 0.0133,
+       "area": 0.00022
+      },
+      "points": {
+       "n": 3,
+       "turn": 68.6
+      },
+      "bumps": {
+       "out": 81.6,
+       "in": 89.1
+      }
+     },
+     "lower": {
+      "spikes": {
+       "n": 1,
+       "height": 0.0133,
+       "area": 0.00022
+      },
+      "points": {
+       "n": 3,
+       "turn": 68.6
+      },
+      "band": {
+       "len": 4.7013,
+       "corners": 0.425,
+       "kinks": 5.743,
+       "rms": 0.00261,
+       "n_corners": 2,
+       "n_kinks": 27
+      },
+      "bumps": {
+       "out": 81.6,
+       "in": 89.1
+      }
+     },
+     "legs": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 44.8
+      },
+      "bumps": {
+       "out": 88.4,
+       "in": 152.0
+      }
+     }
+    },
+    "profile": {
+     "collar": {
+      "outline": {
+       "len": 1.8561,
+       "corners": 10.776,
+       "kinks": 18.318,
+       "rms": 0.0034,
+       "n_corners": 20,
+       "n_kinks": 34
+      },
+      "terminator": {
+       "len": 0.8511,
+       "corners": 0.0,
+       "kinks": 0.0,
+       "rms": 0.0013,
+       "n_corners": 0,
+       "n_kinks": 0,
+       "islands": 108.31,
+       "n_islands": 5,
+       "area": 0.0462,
+       "shade": 0.464
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 4,
+       "sliver_area": 0.00038,
+       "len": 1.856,
+       "per_L": 2.155
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 81.5
+      },
+      "bumps": {
+       "out": 11.3,
+       "in": 0.0
+      }
+     },
+     "bow": {
+      "outline": {
+       "len": 1.8794,
+       "corners": 3.725,
+       "kinks": 14.366,
+       "rms": 0.00371,
+       "n_corners": 7,
+       "n_kinks": 27
+      },
+      "terminator": {
+       "len": 1.1774,
+       "corners": 0.0,
+       "kinks": 0.849,
+       "rms": 0.00168,
+       "n_corners": 0,
+       "n_kinks": 1,
+       "islands": 8.05,
+       "n_islands": 1,
+       "area": 0.1242,
+       "shade": 0.3122
+      },
+      "fragments": {
+       "n": 1,
+       "area": 0.00053,
+       "slivers": 6,
+       "sliver_area": 0.00078,
+       "len": 1.879,
+       "per_L": 3.725
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 71.6
+      },
+      "bumps": {
+       "out": 95.7,
+       "in": 106.2
+      }
+     },
+     "top": {
+      "outline": {
+       "len": 3.1714,
+       "corners": 0.315,
+       "kinks": 6.937,
+       "rms": 0.00264,
+       "n_corners": 1,
+       "n_kinks": 22
+      },
+      "terminator": {
+       "len": 4.2908,
+       "corners": 3.03,
+       "kinks": 3.962,
+       "rms": 0.0029,
+       "n_corners": 13,
+       "n_kinks": 17,
+       "islands": 68.57,
+       "n_islands": 24,
+       "area": 0.35,
+       "shade": 0.2382
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 1,
+       "sliver_area": 0.0002,
+       "len": 3.171,
+       "per_L": 0.315
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 59.3
+      },
+      "bumps": {
+       "out": 74.1,
+       "in": 30.0
+      }
+     },
+     "skirt": {
+      "outline": {
+       "len": 9.2071,
+       "corners": 1.412,
+       "kinks": 6.191,
+       "rms": 0.00248,
+       "n_corners": 13,
+       "n_kinks": 57
+      },
+      "terminator": {
+       "len": 6.7324,
+       "corners": 1.634,
+       "kinks": 2.971,
+       "rms": 0.0024,
+       "n_corners": 11,
+       "n_kinks": 20,
+       "islands": 13.09,
+       "n_islands": 19,
+       "area": 1.4513,
+       "shade": 0.8923
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 4,
+       "sliver_area": 0.00051,
+       "len": 9.207,
+       "per_L": 0.434
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 61.0
+      },
+      "bumps": {
+       "out": 67.7,
+       "in": 84.0
+      }
+     },
+     "boots": {
+      "outline": {
+       "len": 5.2384,
+       "corners": 1.909,
+       "kinks": 7.254,
+       "rms": 0.0024,
+       "n_corners": 10,
+       "n_kinks": 38
+      },
+      "terminator": {
+       "len": 0.9433,
+       "corners": 0.0,
+       "kinks": 4.241,
+       "rms": 0.00255,
+       "n_corners": 0,
+       "n_kinks": 4,
+       "islands": 17.43,
+       "n_islands": 11,
+       "area": 0.6312,
+       "shade": 0.3226
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 1,
+       "sliver_area": 9e-05,
+       "len": 5.238,
+       "per_L": 0.191
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 63.5
+      },
+      "bumps": {
+       "out": 73.1,
+       "in": 94.2
+      }
+     },
+     "sleeves": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 0.0
+      },
+      "bumps": {
+       "out": 0.0,
+       "in": 0.0
+      }
+     },
+     "flaps": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 65.4
+      },
+      "bumps": {
+       "out": 83.3,
+       "in": 62.6
+      }
+     },
+     "waist": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 3,
+       "turn": 65.4
+      },
+      "bumps": {
+       "out": 83.3,
+       "in": 84.0
+      }
+     },
+     "lower": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 2,
+       "turn": 65.4
+      },
+      "band": {
+       "len": 2.7565,
+       "corners": 0.726,
+       "kinks": 5.804,
+       "rms": 0.0029,
+       "n_corners": 2,
+       "n_kinks": 16
+      },
+      "bumps": {
+       "out": 83.3,
+       "in": 84.0
+      }
+     },
+     "legs": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 1,
+       "turn": 62.2
+      },
+      "bumps": {
+       "out": 13.2,
+       "in": 15.9
+      }
+     }
+    },
+    "back": {
+     "collar": {
+      "outline": {
+       "len": 2.4134,
+       "corners": 2.072,
+       "kinks": 8.287,
+       "rms": 0.00276,
+       "n_corners": 5,
+       "n_kinks": 20
+      },
+      "terminator": {
+       "len": 5.1867,
+       "corners": 0.0,
+       "kinks": 1.35,
+       "rms": 0.00159,
+       "n_corners": 0,
+       "n_kinks": 7,
+       "islands": 115.45,
+       "n_islands": 33,
+       "area": 0.2858,
+       "shade": 0.3141
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 0,
+       "sliver_area": 0.0,
+       "len": 2.413,
+       "per_L": 0.0
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 0.0
+      },
+      "bumps": {
+       "out": 0.0,
+       "in": 0.0
+      }
+     },
+     "top": {
+      "outline": {
+       "len": 5.17,
+       "corners": 0.193,
+       "kinks": 4.255,
+       "rms": 0.00191,
+       "n_corners": 1,
+       "n_kinks": 22
+      },
+      "terminator": {
+       "len": 3.9198,
+       "corners": 3.061,
+       "kinks": 5.357,
+       "rms": 0.00292,
+       "n_corners": 12,
+       "n_kinks": 21,
+       "islands": 3.84,
+       "n_islands": 3,
+       "area": 0.782,
+       "shade": 0.1733
+      },
+      "fragments": {
+       "n": 1,
+       "area": 7e-05,
+       "slivers": 0,
+       "sliver_area": 0.0,
+       "len": 5.17,
+       "per_L": 0.193
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 2,
+       "turn": 63.4
+      },
+      "bumps": {
+       "out": 78.0,
+       "in": 113.9
+      }
+     },
+     "skirt": {
+      "outline": {
+       "len": 6.6101,
+       "corners": 0.151,
+       "kinks": 4.387,
+       "rms": 0.00219,
+       "n_corners": 1,
+       "n_kinks": 29
+      },
+      "terminator": {
+       "len": 19.9676,
+       "corners": 1.703,
+       "kinks": 1.703,
+       "rms": 0.002,
+       "n_corners": 34,
+       "n_kinks": 34,
+       "islands": 82.68,
+       "n_islands": 176,
+       "area": 2.1286,
+       "shade": 0.1932
+      },
+      "fragments": {
+       "n": 0,
+       "area": 0.0,
+       "slivers": 0,
+       "sliver_area": 0.0,
+       "len": 6.61,
+       "per_L": 0.0
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 44.7
+      },
+      "bumps": {
+       "out": 72.8,
+       "in": 118.4
+      }
+     },
+     "boots": {
+      "outline": {
+       "len": 8.9858,
+       "corners": 0.445,
+       "kinks": 7.345,
+       "rms": 0.00282,
+       "n_corners": 4,
+       "n_kinks": 66
+      },
+      "terminator": {
+       "len": 0.7977,
+       "corners": 1.254,
+       "kinks": 3.761,
+       "rms": 0.00255,
+       "n_corners": 1,
+       "n_kinks": 3,
+       "islands": 7.51,
+       "n_islands": 7,
+       "area": 0.9319,
+       "shade": 0.4095
+      },
+      "fragments": {
+       "n": 1,
+       "area": 0.00124,
+       "slivers": 2,
+       "sliver_area": 0.00018,
+       "len": 8.986,
+       "per_L": 0.334
+      },
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 3,
+       "turn": 59.5
+      },
+      "bumps": {
+       "out": 72.8,
+       "in": 47.2
+      },
+      "mirror_self": {
+       "asym": 0.0467,
+       "off": 0.01508
+      }
+     },
+     "flaps": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 5,
+       "turn": 68.9
+      },
+      "bumps": {
+       "out": 82.8,
+       "in": 79.5
+      }
+     },
+     "waist": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 7,
+       "turn": 68.9
+      },
+      "bumps": {
+       "out": 82.8,
+       "in": 118.4
+      },
+      "mirror": {
+       "asym": 0.0133,
+       "off": 0.00793
+      }
+     },
+     "lower": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 5,
+       "turn": 68.9
+      },
+      "band": {
+       "len": 3.3036,
+       "corners": 0.908,
+       "kinks": 7.265,
+       "rms": 0.00275,
+       "n_corners": 3,
+       "n_kinks": 24
+      },
+      "bumps": {
+       "out": 82.8,
+       "in": 118.4
+      }
+     },
+     "legs": {
+      "spikes": {
+       "n": 0,
+       "height": 0.0,
+       "area": 0
+      },
+      "points": {
+       "n": 0,
+       "turn": 30.8
+      },
+      "bumps": {
+       "out": 19.4,
+       "in": 12.4
+      }
+     }
+    }
+   },
+   "chin": 0.3485,
+   "body_ppl": 212.47
+  },
+  {
    "stamp": "ca13a9fd6043b69f",
    "inputs": {
     "face_sheet": "bf2e85f067120c0a",

@@ -17,8 +17,13 @@ CALIBRATION = [
          shape=['piece_collar']),
     dict(check='art_fragments_collar', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect',
          shape=['piece_collar']),
-    dict(check='art_terminator_hair', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect', shape=[]),
-    dict(check='art_peeks_hair', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect', shape=[]),
+    # (tool/hairident: under the hair's shape truth (artifactqa.HAIR_SHAPE_TRUTH) the flag's own build look_v5 is on no
+    # reachable machine; hi_torn, today's default with the hair's shading normals unsmoothed, tears the cel shadow the
+    # same way, freshly built)
+    dict(check='art_terminator_hair', part='artifacts', adapter='Art', known_bad='hi_torn', kind='defect', shape=[]),
+    # (tool/hairident: look_v5 unreachable; hi_gaps, the pilot's shells without their overlap, shows the hair's own
+    # pieces in small bits between them, freshly built)
+    dict(check='art_peeks_hair', part='artifacts', adapter='Art', known_bad='hi_gaps', kind='defect', shape=[]),
     # (the probe boot_nudge: the right boot's piece masks moved 2 px up: the pair's own asymmetry, which a whole-sheet
     # move can't change)
     dict(check='art_mirror_self_boots', part='artifacts', adapter='Art', known_bad='body4b_render', kind='defect',

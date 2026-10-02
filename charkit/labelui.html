@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root{--bg:#f4f3f0;--fg:#1d1d1f;--mut:#5b5b62;--card:#fff;--line:#d9d7d2;
+ --home:#0072B2;--prop:#0072B2;--ok:#009E73;--uns:#CC79A7;--hid:#7a7a7a;--warn:#D55E00;--focus:#E69F00}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+header{background:var(--bg);padding:8px 16px 6px;border-bottom:1px solid var(--line)}
+.summary{background:var(--card);border:2px solid var(--home);border-radius:8px;padding:6px 12px;margin-bottom:6px;display:flex;gap:18px;align-items:flex-start;font-size:13px;line-height:1.3}
+.summary div{flex:1}.summary b{display:block;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.summary button{flex:none}
+#bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#prog{font-weight:700;font-size:18px;min-width:70px}
+.meter{flex:0 0 180px;height:8px;background:#e3e1dc;border-radius:4px;overflow:hidden}
+#meterfill{height:100%;background:var(--ok);width:0}
+#eta{color:var(--mut)}
+#saved{font-size:12px;color:var(--ok);min-width:150px}
+#saved.err{color:#fff;background:var(--warn);padding:2px 6px;border-radius:4px}
+button{font:inherit;border:1px solid #b9b6af;background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer}
+button:hover{background:#f0eee9}
+button kbd,.k{font:11px ui-monospace,Menlo,monospace;background:#eceae5;border:1px solid #cfccc5;border-bottom-width:2px;border-radius:4px;padding:0 4px;margin-left:3px}
+#strip{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.grp{display:flex;gap:3px;align-items:center}
+.grp span.gn{font-size:11px;color:var(--mut);margin-right:2px}
+.chipi{width:26px;height:22px;border:1px solid #bdbab3;border-radius:4px;background:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.chipi.done{background:#d8efe6;border-color:var(--ok)}
+.chipi.skipped{background:#eee;color:#888;text-decoration:line-through}
+.chipi.unsure::after{content:"?";position:absolute;right:-4px;top:-7px;font-size:10px;font-weight:700;color:var(--uns)}
+.chipi.cur{outline:2px solid var(--focus);outline-offset:1px;font-weight:700}
+main{padding:6px 16px 24px}
+#itemhead{display:flex;gap:4px 16px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
+#itemhead h2{margin:0;font-size:20px}
+#group{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+#ireason{color:var(--mut);margin:0;flex-basis:100%}
+#prompt{flex-basis:100%;font-weight:600;color:var(--warn)}
+#prompt:empty{display:none}
+#views{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.vcol{background:var(--card);border:2px solid var(--line);border-radius:8px;padding:6px;position:relative}
+.vcol.focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(230,159,0,.25)}
+.vcol.home{border-color:var(--home)}
+.vhead{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px;min-height:24px}
+.vname{font-weight:700}.vname small{font-weight:400;color:var(--mut)}
+.st{font-size:12px;padding:1px 7px;border-radius:10px;border:1px solid var(--line);white-space:nowrap}
+.st.home{background:var(--home);color:#fff;border-color:var(--home)}
+.st.pending{background:#fff7e6;border-color:var(--focus)}
+.st.accept,.st.fixed{background:var(--ok);color:#fff;border-color:var(--ok)}
+.st.hidden{background:var(--hid);color:#fff}
+.st.unsure{background:var(--uns);color:#fff}
+.st.pick{background:var(--warn);color:#fff}
+svg{display:block;width:100%;background:#ddd;border-radius:4px;user-select:none}
+svg.over{height:min(33vh,var(--colw,360px))}
+svg.close{margin-top:6px;height:min(25vh,var(--colw,360px))}
+.prop{font-size:12px;color:var(--mut);margin-top:4px;min-height:3em}
+.prop b{color:var(--fg)}
+.zoom{font-size:11px;color:var(--mut);margin-top:2px}
+.reg .hit{fill:transparent;stroke:none;pointer-events:all}
+.reg .halo{fill:none;stroke:rgba(255,255,255,0);stroke-width:0;vector-effect:non-scaling-stroke;pointer-events:none}
+.reg .ln{fill:none;stroke:rgba(0,0,0,.42);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+.reg.dimmed .ln{stroke:rgba(0,0,0,.18)}
+.reg.homeR .halo,.reg.propR .halo,.reg.okR .halo,.reg.unsR .halo{stroke:#fff;stroke-width:6.5}
+.reg.homeR .ln{stroke:var(--home);stroke-width:4}
+.reg.propR .ln{stroke:var(--prop);stroke-width:3.5;stroke-dasharray:7 4}
+.reg.okR .ln{stroke:var(--ok);stroke-width:4}
+.reg.unsR .ln{stroke:var(--uns);stroke-width:3.5;stroke-dasharray:3 3}
+.clickable .reg{cursor:pointer}
+.clickable .reg:hover .hit{fill:rgba(255,255,255,.3)}
+.pickable .reg:not(.okR):not(.propR):not(.unsR):not(.hov) .ln{stroke:rgba(255,255,255,.95);stroke-width:1.8}
+.pickable .reg:not(.okR):not(.propR):not(.unsR):not(.hov) .halo{stroke:rgba(0,0,0,.55);stroke-width:3.5}
+.reg.hov .hit{fill:rgba(255,255,255,.38)}
+.reg.hov .halo{stroke:#000;stroke-width:6}
+.reg.hov .ln{stroke:#fff;stroke-width:3;stroke-dasharray:none}
+.lab rect{fill:#fff;stroke:#333;vector-effect:non-scaling-stroke;stroke-width:1}
+.lab text{font-weight:700;fill:#111;dominant-baseline:central;text-anchor:middle;pointer-events:none}
+.lab{pointer-events:none}
+.lab.homeL rect{stroke:var(--home);stroke-width:2.5}
+.lab.propL rect{stroke:var(--prop);stroke-width:2.5;stroke-dasharray:4 2}
+.lab.okL rect{fill:var(--ok);stroke:#fff}.lab.okL text{fill:#fff}
+.lab.otherL rect{fill:rgba(255,255,255,.75);stroke:#999}.lab.otherL text{fill:#555;font-weight:600}
+.lab.letter rect{fill:rgba(0,0,0,.55);stroke:none}.lab.letter text{fill:#fff;font-weight:600}
+.reg.ctxR .halo{stroke:#fff;stroke-width:5}.reg.ctxR .ln{stroke:#555;stroke-width:3;stroke-dasharray:2 3}
+.lab.ctxL rect{fill:#eee;stroke:#555;stroke-dasharray:2 2}.lab.ctxL text{fill:#333}
+.pts circle.ptHalo{fill:none;stroke:#fff;stroke-width:3;vector-effect:non-scaling-stroke}
+.pts circle.ptOk{fill:rgba(0,158,115,.35);stroke:var(--ok);stroke-width:3;vector-effect:non-scaling-stroke}
+.pts circle.ptCtx{fill:rgba(80,80,80,.25);stroke:#555;stroke-width:2;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
+.pts{pointer-events:none}
+.vcol.context{opacity:.75}
+.hide{display:none}
+#final .box{background:var(--card);border:2px solid var(--ok);border-radius:8px;padding:12px 16px;max-width:900px}
+#final li{margin:3px 0}
+#final a{cursor:pointer;color:var(--home);text-decoration:underline}
+#help{position:fixed;right:16px;bottom:16px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;box-shadow:0 4px 20px rgba(0,0,0,.15);font-size:13px;z-index:9;max-width:420px}
+#help table{border-collapse:collapse}#help td{padding:2px 6px;vertical-align:top}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#222;color:#fff;padding:6px 12px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;z-index:10}
+#toast.on{opacity:.92}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1b1b1d;--fg:#ececec;--mut:#a8a8ad;--card:#26262a;--line:#3a3a40}
+ :root:not([data-theme="light"]) button{background:#2f2f34;color:var(--fg);border-color:#4a4a50}
+ :root:not([data-theme="light"]) .chipi{background:#2f2f34;color:var(--fg)}
+ :root:not([data-theme="light"]) .meter{background:#3a3a40}}
+</style>
+</head>
+<body>
+<header>
+  <div class="summary" id="summary">
+    <div><b>What's asked</b><span id="s_asked"></span></div>
+    <div style="flex:0 0 150px"><b>Time</b><span id="s_time"></span></div>
+    <div><b>Used for</b><span id="s_used"></span></div>
+    <button id="b_hidesum" title="hide this box">hide</button>
+  </div>
+  <div id="bar">
+    <span id="prog">0 / 0</span><div class="meter"><div id="meterfill"></div></div><span id="eta"></span>
+    <button id="b_back" title="previous lock">&larr; Back<kbd>&larr;</kbd></button>
+    <button id="b_accept" title="accept every proposal of this lock">Accept all<kbd>Enter</kbd></button>
+    <button id="b_skip">Skip<kbd>S</kbd></button>
+    <button id="b_next" title="next lock">Next<kbd>&rarr;</kbd></button>
+    <button id="b_undo">Undo<kbd>Z</kbd></button>
+    <button id="b_alt" class="hide">Picture<kbd>C</kbd></button>
+    <button id="b_final">Finish list</button>
+    <button id="b_help">Keys<kbd>?</kbd></button>
+    <span id="saved"></span>
+  </div>
+  <div id="strip"></div>
+</header>
+<main>
+  <section id="work">
+    <div id="itemhead"><span id="group"></span><h2 id="ititle"></h2><p id="ireason"></p><div id="prompt"></div></div>
+    <div id="views"></div>
+  </section>
+  <section id="final" class="hide"><div class="box" id="finalbox"></div></section>
+</main>
+<div id="help" class="hide"></div>
+<div id="toast"></div>
+<script>
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const S = {T: null, A: null, idx: 0, focus: null, pick: false, alt: null, shownAt: 0, active: 0, lastAct: 0,
+           itemSecs: 0, busy: false, regs: {}, numbers: {}, letters: {}, hoverItems: null, final: false};
+const IDLE = 60;                       // s: a gap longer than this between inputs isn't counted as time on the lock
+const $ = id => document.getElementById(id);
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag);
+  for (const k in attrs || {}) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function h(tag, cls, parent, text) { const e = document.createElement(tag); if (cls) e.className = cls;
+  if (text != null) e.textContent = text; if (parent) parent.appendChild(e); return e; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                          body: JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 1600); }
+function saved(ok, msg) { const s = $('saved');
+  if (ok) { s.className = ''; s.textContent = 'saved ✓ ' + new Date().toLocaleTimeString(); }
+  else { s.className = 'err'; s.textContent = 'NOT saved: ' + msg; } }
+
+// ---------------------------------------------------------------------------------------------------- the model
+const item = () => S.T.items[S.idx];
+const viewIds = () => S.T.views.map(v => v.id);
+const others = it => it.ask ? it.ask.slice() : viewIds().filter(v => v !== it.home.view);   // the views asked
+const isContext = (it, v) => v !== it.home.view && !others(it).includes(v);                 // shown, not asked
+const rec = it => (S.A.items[it.id] || {views: {}, status: 'open', seconds: 0});
+const statusOf = it => rec(it).status || 'open';
+function regionsFor(it, v) {         // the regions an item is in a view: home, its answer, else the proposal
+  if (v === it.home.view) return {kind: 'home', regions: it.home.regions};
+  if (isContext(it, v)) { const c = (it.context || {})[v] || {}; return {kind: 'context', regions: c.regions || [], points: c.points || []}; }
+  const a = rec(it).views[v];
+  if (a) return {kind: a.verdict, regions: a.verdict === 'hidden' || a.verdict === 'unsure' ? (a.verdict === 'unsure' ? (a.regions || []) : []) : a.regions,
+                 points: a.points || []};
+  const p = (it.proposals || {})[v];
+  return {kind: 'proposal', regions: p ? (p.regions || []) : []};
+}
+function computeNumbers() {           // every region linked to an item (home or proposal) shows the item's number
+  const num = {}, let_ = {};
+  for (const v of viewIds()) { num[v] = {}; let_[v] = {}; }
+  for (const it of S.T.items) {
+    for (const r of it.home.regions) (num[it.home.view][r] = num[it.home.view][r] || []).push(it.number);
+    for (const [v, p] of Object.entries(it.proposals || {}))
+      for (const r of p.regions || []) (num[v][r] = num[v][r] || []).push(it.number);
+  }
+  for (const v of viewIds()) {         // the rest: letters, top to bottom, left to right
+    const rest = (S.T.regions[v] || []).filter(r => !num[v][r.id]).sort((a, b) =>
+      (Math.round(a.anchor[1] / 40) - Math.round(b.anchor[1] / 40)) || (a.anchor[0] - b.anchor[0]));
+    rest.forEach((r, i) => { let s = '', k = i; do { s = String.fromCharCode(97 + k % 26) + s; k = Math.floor(k / 26) - 1; } while (k >= 0); let_[v][r.id] = s; });
+  }
+  S.numbers = num; S.letters = let_;
+}
+
+// ---------------------------------------------------------------------------------------------------- building
+function ringPath(rings) { return rings.map(q => 'M' + q.map(p => p[0] + ' ' + p[1]).join('L') + 'Z').join(''); }
+function buildViews() {
+  const box = $('views'); box.innerHTML = '';
+  for (const v of S.T.views) {
+    const col = h('div', 'vcol', box); col.dataset.view = v.id;
+    const hd = h('div', 'vhead', col);
+    const nm = h('span', 'vname', hd); nm.innerHTML = esc(v.name || v.id) + ' <small>[' + (viewIds().indexOf(v.id) + 1) + ']</small>';
+    h('span', 'st', hd).dataset.role = 'st';
+    const [W, H] = v.size;
+    const mk = cls => { const s = el('svg', {viewBox: `0 0 ${W} ${H}`, class: cls, preserveAspectRatio: 'xMidYMid meet'}, col);
+      const img = el('image', {href: v.src, x: 0, y: 0, width: W, height: H}, s); img.dataset.role = 'img';
+      el('g', {class: 'regs'}, s); el('g', {class: 'labs'}, s); el('g', {class: 'pts'}, s); return s; };
+    const over = mk('over'); const pr = h('div', 'prop', col); pr.dataset.role = 'prop';
+    const close = mk('close'); const zm = h('div', 'zoom', col); zm.dataset.role = 'zoom';
+    S.regs[v.id] = {};
+    for (const svg of [over, close]) {
+      const g = svg.querySelector('.regs'), lg = svg.querySelector('.labs');
+      for (const r of S.T.regions[v.id] || []) {
+        const d = ringPath(r.rings);
+        const rg = el('g', {class: 'reg', 'data-rid': r.id}, g);
+        el('path', {d, class: 'hit', 'fill-rule': 'evenodd'}, rg);
+        el('path', {d, class: 'halo'}, rg); el('path', {d, class: 'ln'}, rg);
+        const t = el('title', {}, rg); t.textContent = (r.label || r.id) + (r.info ? ' — ' + r.info : '');
+        const lab = el('g', {class: 'lab'}, lg); el('rect', {}, lab); el('text', {}, lab);
+        const o = S.regs[v.id][r.id] = S.regs[v.id][r.id] || {r, gs: [], labs: []};
+        o.gs.push(rg); o.labs.push(lab);
+        rg.addEventListener('mouseenter', () => hover(v.id, r.id));
+        rg.addEventListener('mouseleave', () => hover(null));
+        rg.addEventListener('click', ev => clickRegion(v.id, r.id, ev));
+      }
+      svg.addEventListener('click', ev => {
+        // a point mark: in point mode anywhere, in pick mode where no region is (the lock is there, unsegmented)
+        if (v.id === S.focus && (S.pointMode || (S.pick && (ev.target.tagName === 'svg' || ev.target.tagName === 'image')))) {
+          ev.stopPropagation(); return markPoint(v.id, svg, ev); }
+        if (ev.target.tagName === 'svg' || ev.target.tagName === 'image') setFocus(v.id); }, true);
+    }
+    col.addEventListener('mousedown', () => { const it = item(); if (v.id !== it.home.view && !isContext(it, v.id)) setFocus(v.id, true); });
+  }
+}
+function buildStrip() {
+  const st = $('strip'); st.innerHTML = ''; let g = null, gn = null;
+  S.T.items.forEach((it, i) => {
+    if (it.group !== gn) { gn = it.group; g = h('div', 'grp', st); h('span', 'gn', g, gn || ''); }
+    const c = h('div', 'chipi', g, String(it.number)); c.dataset.i = i; c.title = it.title || it.id;
+    c.addEventListener('click', () => go(i));
+  });
+}
+
+// ---------------------------------------------------------------------------------------------------- drawing
+function labelText(v, rid, it) {
+  const nums = S.numbers[v][rid];
+  return nums ? nums.join('/') : (S.letters[v][rid] || '');
+}
+function setLab(lab, text, cls, x, y, fs) {
+  lab.setAttribute('class', 'lab ' + cls);
+  const t = lab.querySelector('text'), rc = lab.querySelector('rect');
+  t.textContent = text; t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('font-size', fs);
+  const w = Math.max(fs * 1.25, fs * 0.62 * text.length + fs * 0.6), hh = fs * 1.3;
+  rc.setAttribute('x', x - w / 2); rc.setAttribute('y', y - hh / 2); rc.setAttribute('width', w); rc.setAttribute('height', hh);
+  rc.setAttribute('rx', fs * 0.25);
+}
+function svgScale(svg) { const vb = svg.viewBox.baseVal;
+  return Math.min((svg.clientWidth || 300) / vb.width, (svg.clientHeight || svg.clientWidth || 300) / vb.height); }
+function closeBox(v, it) {
+  const view = S.T.views.find(q => q.id === v); const [W, H] = view.size;
+  const rf = regionsFor(it, v);
+  if (rf.points && rf.points.length) {                 // a point answer: round its points
+    const xs = rf.points.map(q => q[0]), ys = rf.points.map(q => q[1]);
+    return fitBox([Math.min(...xs) - 30, Math.min(...ys) - 30, Math.max(...xs) + 30, Math.max(...ys) + 30], W, H);
+  }
+  let rs = rf.regions;
+  if ((!rs || !rs.length) && v !== it.home.view) { const p = (it.proposals || {})[v]; if (p && p.where) return fitBox(p.where, W, H); }
+  if (!rs || !rs.length) rs = [];
+  const bb = rs.map(id => (S.regs[v][id] || {}).r).filter(Boolean).map(r => r.bbox);
+  if (!bb.length) {                  // nothing to show: the home lock's box, mirrored to this view's frame if needed
+    const hb = it.home.regions.map(id => S.regs[it.home.view][id].r.bbox);
+    return fitBox([Math.min(...hb.map(b => b[0])), Math.min(...hb.map(b => b[1])), Math.max(...hb.map(b => b[2])), Math.max(...hb.map(b => b[3]))], W, H);
+  }
+  return fitBox([Math.min(...bb.map(b => b[0])), Math.min(...bb.map(b => b[1])), Math.max(...bb.map(b => b[2])), Math.max(...bb.map(b => b[3]))], W, H);
+}
+function fitBox(b, W, H) {
+  let [x0, y0, x1, y1] = b; const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  let s = Math.max(x1 - x0, y1 - y0) * 1.35; s = Math.max(s, Math.min(W, H) * 0.30); s = Math.min(s, Math.min(W, H));
+  let bx = Math.min(Math.max(cx - s / 2, 0), W - s), by = Math.min(Math.max(cy - s / 2, 0), H - s);
+  return [bx, by, s, s];
+}
+function draw() {
+  const it = item(); const home = it.home.view;
+  const hovered = S.hoverItems;
+  for (const v of viewIds()) {
+    const col = document.querySelector(`.vcol[data-view="${v}"]`);
+    col.classList.toggle('home', v === home); col.classList.toggle('focus', v === S.focus && v !== home);
+    const svgs = col.querySelectorAll('svg');
+    const pickable = v !== home && v === S.focus && S.pick;
+    svgs.forEach(s => { s.classList.toggle('pickable', pickable); s.classList.toggle('clickable', v !== home); });
+    // the current item's regions in this view
+    const cur = regionsFor(it, v), set = new Set(cur.regions || []);
+    const kindCls = v === home ? 'homeR' : ({accept: 'okR', fixed: 'okR', unsure: 'unsR', proposal: 'propR', context: 'ctxR'}[cur.kind] || '');
+    const labCls = v === home ? 'homeL' : ({accept: 'okL', fixed: 'okL', unsure: 'propL', proposal: 'propL', context: 'ctxL'}[cur.kind] || 'otherL');
+    col.classList.toggle('context', isContext(it, v));
+    // the hovered lock's regions here
+    const hov = new Set();
+    if (hovered) for (const j of hovered) { const q = S.T.items[j]; for (const r of regionsFor(q, v).regions || []) hov.add(r); }
+    if (S.hoverRegion && S.hoverRegion[0] === v) hov.add(S.hoverRegion[1]);
+    const box = closeBox(v, it);
+    svgs[1].setAttribute('viewBox', box.join(' '));
+    const W = S.T.views.find(q => q.id === v).size[0];
+    col.querySelector('[data-role=zoom]').textContent = 'close-up ×' + (W / box[2]).toFixed(1);
+    const sc = [svgScale(svgs[0]), svgScale(svgs[1])];
+    svgs.forEach((s_, k) => {                         // the point marks (an answer's, or the context's)
+      const g = s_.querySelector('.pts'); g.innerHTML = '';
+      for (const pt of cur.points || []) {
+        const r = 7 / sc[k];
+        el('circle', {cx: pt[0], cy: pt[1], r: r * 1.5, class: 'ptHalo'}, g);
+        el('circle', {cx: pt[0], cy: pt[1], r: r, class: cur.kind === 'context' ? 'ptCtx' : 'ptOk'}, g);
+        const lab = el('g', {}, g); el('rect', {}, lab); el('text', {}, lab);
+        setLab(lab, String(it.number) + (cur.kind === 'context' ? '' : '✓'), cur.kind === 'context' ? 'ctxL' : 'okL', pt[0] + 2.4 * r, pt[1] - 2.4 * r, (k === 0 ? 12 : 13) / sc[k]);
+      }
+    });
+    for (const [rid, o] of Object.entries(S.regs[v])) {
+      const mine = set.has(rid);
+      o.gs.forEach(g => { g.setAttribute('class', 'reg' + (mine ? ' ' + kindCls : '') + (hov.has(rid) ? ' hov' : '')); });
+      const txt = labelText(v, rid, it);
+      const isNum = !!S.numbers[v][rid];
+      o.labs.forEach((lab, k) => {
+        const fs = (k === 0 ? 12 : 13) / sc[k];
+        let cls, text = txt;
+        if (mine) { cls = labCls; text = String(it.number) + (cur.kind === 'proposal' ? '?' : (cur.kind === 'unsure' ? '?' : (v === home || cur.kind === 'context' ? '' : '✓'))); }
+        else if (isNum) cls = 'otherL';
+        else cls = 'letter';
+        const show = mine || hov.has(rid) || (isNum && k === 0) || k === 1 || (pickable && k === 0);
+        if (!show || !text) { lab.setAttribute('class', 'lab hide'); return; }
+        setLab(lab, text, cls, o.r.anchor[0], o.r.anchor[1], fs);
+      });
+    }
+    // the view's status chip and the proposal's line
+    const st = col.querySelector('[data-role=st]'), pr = col.querySelector('[data-role=prop]');
+    const p = (it.proposals || {})[v]; const a = rec(it).views[v];
+    if (v === home) { st.className = 'st home'; st.textContent = 'lock ' + it.number + ' here'; pr.innerHTML = '<b>Home view.</b> ' + esc(it.title || ''); }
+    else if (isContext(it, v)) { const c = (it.context || {})[v] || {}; st.className = 'st'; st.textContent = 'not asked';
+      pr.innerHTML = '<b>Not asked here.</b> ' + esc(c.note || ''); }
+    else {
+      if (S.pointMode && v === S.focus) { st.className = 'st pick'; st.textContent = 'click where it is'; }
+      else if (S.pick && v === S.focus) { st.className = 'st pick'; st.textContent = 'click the right lock'; }
+      else if (!a) { st.className = 'st pending'; st.textContent = p && !(p.regions || []).length ? 'proposed: not visible' : 'proposed: lock ' + it.number + '?'; }
+      else { st.className = 'st ' + (a.verdict === 'point' ? 'accept' : a.verdict); st.textContent = {accept: 'accepted', fixed: 'picked ' + a.regions.map(r => labelText(v, r)).join('+'), hidden: 'not visible', unsure: 'unsure', point: 'marked ' + (a.points || []).length + ' point' + ((a.points || []).length > 1 ? 's' : '')}[a.verdict]; }
+      if (p) {
+        const where = (p.regions && p.regions.length) ? 'lock <b>' + it.number + '?</b> (dashed)' : '<b>not visible here</b>';
+        pr.innerHTML = 'Proposed: ' + where + ' &middot; ' + (p.confidence != null ? 'confidence ' + p.confidence.toFixed(2) : 'your earlier answer') + '<br>' + esc(p.reason || '');
+      } else pr.innerHTML = 'No proposal: pick the lock, or H.';
+    }
+    const img = S.T.views.find(q => q.id === v);
+    const href = S.alt && img.alts[S.alt] ? img.alts[S.alt] : img.src;
+    svgs.forEach(s => { const im = s.querySelector('image'); if (im.getAttribute('href') !== href) im.setAttribute('href', href); });
+  }
+  // header
+  $('group').textContent = (it.group || '') + ' · ' + groupPos(it);
+  $('ititle').textContent = 'Lock ' + it.number + (it.title ? ' · ' + it.title : '');
+  $('ireason').textContent = it.reason ? 'Why these proposals: ' + it.reason : '';
+  $('prompt').textContent = S.pointMode ? 'Click where lock ' + it.number + ' is in ' + vname(S.focus) + ' (shift-click adds more points; Esc cancels).'
+    : S.pick ? 'Click the right lock in ' + vname(S.focus) + ' (shift-click adds a second region; a click where no region is marks a point; Esc cancels; H: not visible).'
+    : (statusOf(it) === 'skipped' ? 'Skipped. Answer any view to take it up again.' : '');
+  drawProgress();
+}
+function vname(v) { const q = S.T.views.find(x => x.id === v); return q ? (q.name || q.id) : v; }
+function groupPos(it) { const g = S.T.items.filter(q => q.group === it.group); return (g.indexOf(it) + 1) + ' of ' + g.length + ' in this group'; }
+function drawProgress() {
+  const n = S.T.items.length, st = S.T.items.map(statusOf);
+  const done = st.filter(s => s === 'done').length, sk = st.filter(s => s === 'skipped').length;
+  $('prog').textContent = (done + sk) + ' / ' + n;
+  $('meterfill').style.width = (100 * (done + sk) / n) + '%';
+  const secs = S.T.items.filter(it => statusOf(it) === 'done').map(it => rec(it).seconds || 0).filter(s => s > 0).sort((a, b) => a - b);
+  // seconds a lock: the answered locks' median, held toward the task's own estimate while there are few of them
+  const prior = S.T.summary && S.T.summary.minutes ? 60 * S.T.summary.minutes / n : 45;
+  const med = secs.length ? secs[Math.floor(secs.length / 2)] : prior;
+  const per = (med * secs.length + prior * 2) / (secs.length + 2);
+  const left = st.filter(s => s === 'open').length;
+  $('eta').textContent = left ? 'about ' + Math.max(1, Math.round(left * per / 60)) + ' min left (' + Math.round(per) + ' s a lock)' : 'all answered';
+  document.querySelectorAll('.chipi').forEach(c => { const it = S.T.items[+c.dataset.i]; const s = statusOf(it);
+    c.className = 'chipi ' + s + (+c.dataset.i === S.idx && !S.final ? ' cur' : '') +
+      (Object.values(rec(it).views).some(a => a.verdict === 'unsure') ? ' unsure' : ''); });
+}
+
+// ---------------------------------------------------------------------------------------------------- time
+function activity() { const now = performance.now() / 1000; const gap = now - S.lastAct;
+  if (S.lastAct && gap < IDLE) S.active += gap; S.lastAct = now; }
+function seconds() { activity(); return S.itemSecs + S.active; }
+
+// ---------------------------------------------------------------------------------------------------- actions
+async function send(path, body, after) {
+  if (S.busy) return; S.busy = true;
+  try { const j = await api(path, body); S.A = j.answers; saved(true); if (after) after(j); }
+  catch (e) { saved(false, e.message); toast('Not saved: ' + e.message); }
+  finally { S.busy = false; draw(); }
+}
+function nextFocus(it) {
+  // the next unanswered view after the focused one (in the views' order); from the first when nothing is focused here
+  const os = others(it); const ans = rec(it).views;
+  const i = os.indexOf(S.focus);
+  for (let k = 0; k < os.length; k++) { const v = os[(i < 0 ? k : i + 1 + k) % os.length]; if (!ans[v]) return v; }
+  return null;
+}
+function afterAnswer() {
+  const it = item(); S.pick = false; S.pointMode = false;
+  const nf = nextFocus(it);
+  if (nf) { S.focus = nf; draw(); return; }
+  if (statusOf(it) === 'done') setTimeout(() => goNextOpen(), 380);
+}
+function answer(verdict, regions) {
+  const it = item(), v = S.focus;
+  if (!v || v === it.home.view) return;
+  if (verdict === 'accept' && !(it.proposals || {})[v]) { toast('No proposal in ' + vname(v) + ': pick the lock (N) or H'); return; }
+  send('/api/answer', {item: it.id, view: v, verdict, regions, seconds: seconds()}, afterAnswer);
+}
+function acceptAll() { const it = item();
+  send('/api/accept_all', {item: it.id, seconds: seconds()}, () => { if (statusOf(it) === 'done') setTimeout(goNextOpen, 300); else afterAnswer(); }); }
+function skip() { const it = item(); send('/api/skip', {item: it.id, seconds: seconds()}, () => goNextOpen(true)); }
+function undo() { send('/api/undo', {}, j => { if (j.touched) { const i = S.T.items.findIndex(q => q.id === j.touched);
+  if (i >= 0 && i !== S.idx) go(i, true); toast('Undone: lock ' + S.T.items[i].number); S.final = false; showFinal(false); } else toast('Nothing to undo'); }); }
+function clickRegion(v, rid, ev) {
+  const it = item(); if (v === it.home.view || isContext(it, v) || S.final) return;
+  if (S.pointMode && v === S.focus) return;          // the svg's own handler marks the point
+  S.focus = v;
+  const a = rec(it).views[v]; const p = (it.proposals || {})[v];
+  let regions = [rid];
+  if (ev.shiftKey && a && a.regions && a.regions.length) { const s = new Set(a.regions); s.has(rid) ? s.delete(rid) : s.add(rid); regions = [...s]; }
+  const same = p && p.regions && regions.length === p.regions.length && regions.every(r => p.regions.includes(r));
+  if (!regions.length) { send('/api/clear', {item: it.id, view: v, seconds: seconds()}); return; }
+  const verdict = same ? 'accept' : 'fixed';
+  // shift-click keeps the focus here (adding regions); a plain click moves on
+  send('/api/answer', {item: it.id, view: v, verdict, regions, seconds: seconds()}, ev.shiftKey ? () => { S.pick = false; } : afterAnswer);
+}
+function markPoint(v, svg, ev) {
+  const it = item(); if (v === it.home.view || isContext(it, v) || S.final) return;
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+  const a = rec(it).views[v];
+  const pts = (ev.shiftKey && a && a.verdict === 'point') ? (a.points || []).concat([[q.x, q.y]]) : [[q.x, q.y]];
+  send('/api/answer', {item: it.id, view: v, verdict: 'point', points: pts, seconds: seconds()},
+       ev.shiftKey ? () => {} : () => { S.pointMode = false; afterAnswer(); });
+}
+function setFocus(v, quiet) { const it = item(); if (v === it.home.view) return; if (S.focus !== v) S.pick = false; S.focus = v; if (!quiet) draw(); else draw(); }
+function hover(v, rid) {
+  if (!v) { S.hoverItems = null; S.hoverRegion = null; draw(); return; }
+  const its = [];
+  S.T.items.forEach((q, j) => { if ((regionsFor(q, v).regions || []).includes(rid)) its.push(j); });
+  S.hoverItems = its; S.hoverRegion = [v, rid]; draw();
+}
+function go(i, quiet) {
+  if (i < 0 || i >= S.T.items.length) return;
+  const prev = item(); const secs = seconds();
+  S.idx = i; S.pick = false; S.final = false; showFinal(false);
+  const it = item(); S.itemSecs = rec(it).seconds || 0; S.active = 0; S.lastAct = performance.now() / 1000;
+  S.focus = null; S.focus = nextFocus(it) || others(it)[0];
+  api('/api/cursor', {item: it.id, prev: prev.id, seconds: secs}).then(j => { S.A = j.answers; drawProgress(); }).catch(e => saved(false, e.message));
+  draw();
+}
+function goNextOpen(fromSkip) {
+  const n = S.T.items.length;
+  for (let k = 1; k <= n; k++) { const j = (S.idx + k) % n; if (statusOf(S.T.items[j]) === 'open') return go(j); }
+  showFinal(true);
+}
+function showFinal(on) {
+  S.final = on; $('work').classList.toggle('hide', on); $('final').classList.toggle('hide', !on);
+  if (!on) return;
+  const its = S.T.items; const uns = [], sk = [], open = [];
+  for (const it of its) { const r = rec(it); if (r.status === 'skipped') sk.push(it); else if (r.status !== 'done') open.push(it);
+    for (const [v, a] of Object.entries(r.views || {})) if (a.verdict === 'unsure') uns.push([it, v]); }
+  const done = its.filter(it => statusOf(it) === 'done').length;
+  const link = it => `<a data-i="${its.indexOf(it)}">lock ${it.number}</a> ${esc(it.title || '')}`;
+  let html_ = `<h2>${open.length ? 'Not finished yet' : 'Thank you: every lock answered'}</h2>
+    <p>${done} of ${its.length} locks answered, ${sk.length} skipped. Every answer is already saved in <code>${esc(S.T.answers_file)}</code>; nothing to download.</p>`;
+  html_ += '<h3>Unsure (' + uns.length + ')</h3><ul>' + (uns.map(([it, v]) => '<li>' + link(it) + ' &mdash; ' + esc(vname(v)) + '</li>').join('') || '<li>none</li>') + '</ul>';
+  html_ += '<h3>Skipped (' + sk.length + ')</h3><ul>' + (sk.map(it => '<li>' + link(it) + '</li>').join('') || '<li>none</li>') + '</ul>';
+  if (open.length) html_ += '<h3>Still open (' + open.length + ')</h3><ul>' + open.map(it => '<li>' + link(it) + '</li>').join('') + '</ul>';
+  html_ += '<p>Click a lock to revise it, or press <span class="k">&larr;</span> to go back.</p>';
+  $('finalbox').innerHTML = html_;
+  $('finalbox').querySelectorAll('a[data-i]').forEach(a => a.addEventListener('click', () => go(+a.dataset.i)));
+  drawProgress();
+}
+function helpHtml() {
+  return `<b>Keys</b> (the mouse works for all of them)<table>
+  <tr><td><span class="k">Enter</span></td><td>accept every proposal of this lock, next lock</td></tr>
+  <tr><td><span class="k">Y</span></td><td>the focused view's proposal is right</td></tr>
+  <tr><td><span class="k">N</span></td><td>it's wrong: click the right lock there (shift-click adds a second region)</td></tr>
+  <tr><td><span class="k">P</span></td><td>it's there but no region covers it: click on the picture where it is (shift-click adds points)</td></tr>
+  <tr><td><span class="k">H</span></td><td>not visible in the focused view</td></tr>
+  <tr><td><span class="k">U</span></td><td>unsure in the focused view</td></tr>
+  <tr><td><span class="k">S</span></td><td>skip this lock</td></tr>
+  <tr><td><span class="k">Tab</span> <span class="k">1</span>-<span class="k">4</span></td><td>focus another view (or click it)</td></tr>
+  <tr><td><span class="k">&larr;</span> <span class="k">Backspace</span> / <span class="k">&rarr;</span></td><td>previous / next lock (to revise)</td></tr>
+  <tr><td><span class="k">Z</span></td><td>undo the last answer</td></tr>
+  <tr><td><span class="k">C</span></td><td>switch the picture (when the task has another)</td></tr>
+  <tr><td><span class="k">Esc</span></td><td>cancel picking</td></tr></table>
+  <p style="margin:6px 0 0">Outlines: <b style="color:var(--home)">solid blue</b> this lock in its home view; <b style="color:var(--prop)">dashed blue, "7?"</b> the proposed match;
+  <b style="color:var(--ok)">solid green, "7&#10003;"</b> your answer. Numbers are the locks; letters are other regions. Hover a lock to see it in every view.</p>`;
+}
+
+// ---------------------------------------------------------------------------------------------------- keys
+document.addEventListener('keydown', ev => {
+  if (ev.metaKey && ev.key.toLowerCase() === 'z' || ev.ctrlKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); return undo(); }
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  activity();
+  const k = ev.key;
+  if (k === '?') { $('help').classList.toggle('hide'); return; }
+  if (k === 'Escape') { S.pick = false; S.pointMode = false; $('help').classList.add('hide'); draw(); return; }
+  if (S.final) { if (k === 'ArrowLeft' || k === 'Backspace') { ev.preventDefault(); go(S.T.items.length - 1); } return; }
+  const it = item();
+  switch (k.length === 1 ? k.toLowerCase() : k) {
+    case 'Enter': ev.preventDefault(); acceptAll(); break;
+    case 'y': answer('accept'); break;
+    case 'n': if (S.focus) { S.pick = true; S.pointMode = false; draw(); } break;
+    case 'p': if (S.focus) { S.pointMode = true; S.pick = false; draw(); } break;
+    case 'h': answer('hidden'); break;
+    case 'u': answer('unsure'); break;
+    case 's': skip(); break;
+    case 'z': undo(); break;
+    case 'c': if (S.altKeys.length) { const i = S.altKeys.indexOf(S.alt); S.alt = i + 1 < S.altKeys.length ? S.altKeys[i + 1] : null; toast('Picture: ' + (S.alt || 'the drawing')); draw(); } break;
+    case 'ArrowLeft': case 'Backspace': ev.preventDefault(); go(S.idx - 1); break;
+    case 'ArrowRight': ev.preventDefault(); go(S.idx + 1); break;
+    case 'Tab': { ev.preventDefault(); const os = others(it); const i = os.indexOf(S.focus);
+      S.focus = os[(i + (ev.shiftKey ? os.length - 1 : 1)) % os.length]; S.pick = false; draw(); break; }
+    default:
+      if (/^[1-9]$/.test(k)) { const v = viewIds()[+k - 1]; if (v && v !== it.home.view) { S.focus = v; S.pick = false; draw(); } }
+  }
+});
+document.addEventListener('mousemove', () => activity(), {passive: true});
+window.addEventListener('resize', () => draw());
+
+// ---------------------------------------------------------------------------------------------------- start
+async function start() {
+  const [T, R] = await Promise.all([api('/api/task'), api('/api/answers')]);
+  S.T = T; S.A = R.answers;
+  document.title = T.title || document.title;
+  const sm = T.summary || {};
+  $('s_asked').textContent = sm.asked || ''; $('s_used').textContent = sm.used_for || '';
+  $('s_time').textContent = (sm.minutes ? 'about ' + sm.minutes + ' min' : '') + ' for ' + T.items.length + ' locks';
+  S.altKeys = [...new Set(T.views.flatMap(v => Object.keys(v.alts || {})))];
+  if (S.altKeys.length) { $('b_alt').classList.remove('hide'); $('b_alt').title = 'pictures: the drawing, ' + S.altKeys.join(', '); }
+  $('help').innerHTML = helpHtml();
+  computeNumbers(); buildViews(); buildStrip();
+  const i = Math.max(0, T.items.findIndex(q => q.id === R.resume));
+  S.idx = i; const it = item(); S.itemSecs = rec(it).seconds || 0; S.lastAct = performance.now() / 1000;
+  S.focus = null; S.focus = nextFocus(it) || others(it)[0];
+  draw();
+  if (T.items.every(q => statusOf(q) !== 'open')) showFinal(true);
+  else if (Object.keys(S.A.items).length) toast('Resumed at lock ' + it.number);
+  requestAnimationFrame(() => draw());
+}
+$('b_hidesum').onclick = () => $('summary').classList.add('hide');
+$('b_back').onclick = () => go(S.idx - 1);
+$('b_next').onclick = () => go(S.idx + 1);
+$('b_accept').onclick = () => acceptAll();
+$('b_skip').onclick = () => skip();
+$('b_undo').onclick = () => undo();
+$('b_final').onclick = () => showFinal(!S.final);
+$('b_help').onclick = () => $('help').classList.toggle('hide');
+$('b_alt').onclick = () => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'c'}));
+start().catch(e => { document.body.innerHTML = '<p style="padding:20px;color:#b00">Could not load the task: ' + esc(e.message) + '. Is the server (python -m charkit label serve) running?</p>'; });
+</script>
+</body>
+</html>
