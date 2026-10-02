@@ -2700,7 +2700,7 @@ def run(B, out, ref_image=None, mode='on', parts=None, profile=None):
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
                        'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
                        'part_status': status, 'profile': profile,
-                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B),
+                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B), adapter=qarender.adapter_of(B),
                                     export=os.path.basename(qarender.export_of(B) or '') or None)}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     if mode != 'off':

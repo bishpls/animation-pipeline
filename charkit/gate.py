@@ -349,6 +349,15 @@ def like_for_like(base_out, cand_out):
                 raw=[A['cpu_seconds'], B['cpu_seconds']])
 
 
+def qa_adapter(q):
+    """the adapter a qa.json's render drawing drew on (measured.draw.adapter, recorded since incremental round 1) ->
+    'NAME (TYPE)', or None (an older report, or nothing drawn)."""
+    a = (((q or {}).get('measured') or {}).get('draw') or {}).get('adapter')
+    if not a:
+        return None
+    return '%s (%s)' % (a.get('device'), 'CPU' if a.get('type') == 'CPU' else a.get('type') or a.get('backend'))
+
+
 def _closure_of(out):
     p = os.path.join(out, 'closure.json')
     return json.load(open(p)) if os.path.exists(p) else None
@@ -1008,6 +1017,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         with clock('compare'):
             qa_a = json.load(open(os.path.join(base_out, 'qa', 'qa.json')))
             qa_b = json.load(open(os.path.join(cand_q, 'qa', 'qa.json')))
+            # which wgpu adapter each build's QA drew on (a GPU or the CPU rasteriser: readings differ at its ties)
+            rep['qa_adapter'] = [qa_adapter(qa_a), qa_adapter(qa_b)]
             # the measurement steps the branch brings, as the merged tree registers them (this code's STEPS lacks the
             # branch's own)
             steps = history.load_steps(os.path.join(wc, 'charkit', 'history.py'))
@@ -1921,6 +1932,11 @@ def _write(rep, gdir, tag):
                                          bb.get('threads') or ('uncapped' if not bb.get('cached') else 'cached'),
                                          cb.get('threads') or (rep.get('cpu_threads') or [None, None])[1] or
                                          'uncapped')))
+    qd = rep.get('qa_adapter') or [None, None]
+    if any(qd):
+        L.append('- the QA drew on: baseline %s, candidate %s%s' % (
+            qd[0] or 'unrecorded', qd[1] or 'unrecorded', '' if qd[0] == qd[1] or None in qd else
+            ' (DIFFERENT adapters: the render-drawn readings differ at the rasteriser\'s ties)'))
     br = rep.get('budget_rule')
     if br:
         f1 = lambda x: '-' if x is None else '%.0f' % x
