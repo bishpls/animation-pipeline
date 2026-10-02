@@ -718,3 +718,15 @@ that worktree): a gate-infra race (tests reading a produced input mid-write), no
 - **Coordinator (2026-10-01 night):** keep A (rest4p, built: inside Michael's accepted range; the middle finger's 6%
   WARN reported, not blocking); B (rest5) stays here as the alternative. Re-gate on the build box (`remote --box build
   gate tool/hands2 --into pipeline-3d`, log charkit/out/hands3/gate2.log); the infra agent fixes the race.
+
+### Gate 2 (tool/hands2 218fd8da into pipeline-3d 3144b1f6, build box): **FAIL, one flag check by 0.001 over its line**
+Report charkit/out/gate/gate_tool-hands2_218fd8da_into_3144b1f6.md. The race didn't recur. **The one blocker:**
+flag check cuff_R_front_size 0.099 PASS -> 0.101 WARN (PASS within 0.10; the cuffs flag, Michael 2026-09-30): the right
+cuff's front area moved 0.002 with the new hand at the cuff's edge (the hand meets the cuff differently; the left
+cuff's sizes moved +0.001..+0.011 within PASS). Not fixed (coordinator: no further loop): an acceptance at the named
+reading (`gate --accept-fail cuff_R_front_size --status WARN --value 0.101`) is Michael's / the coordinator's call.
+Everything else passes K: CPU 0.98x (1600 -> 1608 s); the two new FAILs accepted by name; 7 calibration records
+calibrated; no guard finding (hand_shape views: front 0.761/0.775 -> 0.712/0.735, back 0.736/0.757 -> 0.731/0.724, 3q
+0.740/0.657 -> 0.774/0.779, profile 0.488 -> 0.593); parts ok (declared 60 vs 52); measuring code changed with no
+detected moves (32 parts listed, 0 checks). Reported: hand_front_cleftpos_R and hand_profile_taper_L PASS -> WARN;
+fingerlines front L 0.519 / back L 0.563 FAIL (new checks); rom_hand_skirt 0.0065 -> 0.0085 INFO.
