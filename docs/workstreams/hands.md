@@ -619,3 +619,13 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
 - **rest3** (build box, job hand-hands-1001-194909-df46, charkit/out/hands3/rest3, log rest3.log): Powell only from
   ratio_start4, knobs palm_len, curl [-10, 12], spread, thumb_out, thumb_down, bend; overlap 0, dev -2.22 fixed; floors
   hands2's QA views x 0.93 (charkit/out/hands3/floors_rest3.json).
+- **rest3 landed** (cost 2.60 -> 2.18): palm_len 0.3166, curl 2.53, spread 0.58, thumb_out 9.45, thumb_down 2.93, bend
+  -11.47; IoU front 0.703/0.722, 3q 0.779/0.706, profile 0.609, back 0.713/0.708; gaps 0-0.014 PASS, taper PASS; but
+  **cleftpos still FAIL front L/R, back L/R** (the pocket jumps: 0.96-0.97 L, 0.013-0.017 R vs drawn 0.57-0.64). The
+  prior thumb (1.0 PL = 0.31 L from the cuff's edge) ends ~0.35 L past the wrist; hands2's (PASS) ended ~0.445 L. The
+  sheet's own reading is 1.31 PL (from the wrist line, flagged > the prior's 1.15): the fit_ratios loop's 1.907 was the
+  measure confounding length with angle, not the sheet.
+- **rest4 / rest4p RUNNING** (build box; charkit/out/hands3/rest4 DE 25 x 70 + Powell, rest4p Powell only): from
+  rest3's angles with thumb_out 14 and the sheet's thumb 1.31 PL (rest4_start.json), knobs + `ratios.thumb` [1.0, 1.4]
+  (code_hand: a structural ratio as a fit knob), bounds palm_len [0.29, 0.34], curl [-10, 12], spread [-3, 5],
+  thumb_out [0, 35], thumb_down [0, 30], bend [-20, 10].
