@@ -1,0 +1,173 @@
+{
+ "title": "garments4 round 5: the body's shoulder, joined (the garments don't hold on it yet)",
+ "summary": {
+  "recommended": "Keep the joined shoulder for the body, but don't switch it on until the garments are refit to it. Against the base body sheet the bare shoulder's silhouette error falls from about 0.2 L to 0.030 L (front outer edge rms 0.21 -> 0.019; shoulder point (0.585, -0.588) vs the sheet's (0.585, -0.595)). One closed surface, and both 90 deg raises deform cleanly with the joint at the deltoid's centre. Switched on, the jacket, puffs and collar (fitted round the old body) break under K: piece_top front 0.75 -> 0.31, neck_crease 12.7 -> 81, art_outline_collar / art_outline_neck PASS -> WARN, bow_front_bleed PASS -> FAIL.",
+  "asked": [
+   "The rig's shoulder joint moved 0.18 L up the arm's line to the deltoid's centre. The 2D rig's joint sits 0.16 L lower, and with it a raised arm folds the deltoid. The puffs and the shells stay placed on the arm's old root. Keep the moved joint? yes / no",
+   "The neck-to-shoulder join. The sheet's bare shoulder top (|x| 0.3-0.4) sits at our neck cut's height, so reaching it turns the slender head neck into the shoulder within 0.03 L (neck_crease 12.7 -> 81). A: flare the head's neck above the cut (the face workstream), keeping the shoulder at the sheet's height. B: lower our shoulder top about 0.05-0.07 L (it's under the hair in every view; crease 21-24, but the silhouette score goes 0.03 -> 0.10 as tried). C: re-measure neck_crease so a trapezius fillet doesn't read as a crease. A / B / C",
+   "The garments on the new body: refit the puffs to contain the deltoid (their inner front grown where the bridge meets them), walk the collar on the new shoulder (its lengths refit), and bed the jacket under the collar's back flap, rather than slimming the body to fit the old garments? yes / no"
+  ],
+  "numbers": {
+   "columns": [
+    "measure",
+    "old body (pipeline-3d e9cb156)",
+    "joined shoulder (candidate b184f019)"
+   ],
+   "rows": [
+    [
+     "bare shoulder vs base_body_turnaround: score (mean rms, L)",
+     "~0.2",
+     "0.030"
+    ],
+    [
+     "  front outer edge rms / top line rms (L)",
+     "0.21 / 0.24",
+     "0.019 / 0.042"
+    ],
+    [
+     "  shoulder point (sheet: 0.585, -0.595)",
+     "none (the arm tube's cap corner 0.74, -0.86)",
+     "(0.585, -0.588)"
+    ],
+    [
+     "  armpit z (sheet -1.01)",
+     "-0.85",
+     "-1.047"
+    ],
+    [
+     "topology: arms joined to the torso",
+     "no (capped tubes)",
+     "yes (one closed surface; only the neck ring open)"
+    ],
+    [
+     "posed 90 deg side: strain p95 / folded / inside the torso / volume",
+     "rigid tubes",
+     "1.77 / 0.1% / none / +0.6%"
+    ],
+    [
+     "posed 90 deg forward: same",
+     "arm 0.04 L into the torso (27 vertices)",
+     "1.91 / 2.7% / none / -0.7%"
+    ],
+    [
+     "piece_top F / 3q / B (guard)",
+     "0.749 / 0.800 / 0.931",
+     "0.311 / 0.577 / 0.743"
+    ],
+    [
+     "piece_sleeve_L / _R front (guard)",
+     "0.948 / 0.954",
+     "0.740 / 0.678"
+    ],
+    [
+     "neck_crease",
+     "12.7 PASS",
+     "81 FAIL"
+    ],
+    [
+     "art_outline_collar / art_outline_neck (flags)",
+     "1.44 PASS / 1.47 PASS",
+     "4.67 WARN / 4.93 WARN"
+    ],
+    [
+     "bow_front_bleed (flag)",
+     "0 PASS",
+     "0.155 FAIL"
+    ],
+    [
+     "shoulder_front_dip / _tilt (the garments' shoulder line)",
+     "0.052 FAIL / 0.203 FAIL",
+     "0 PASS / 0.109 WARN"
+    ]
+   ]
+  }
+ },
+ "builds": [
+  {
+   "label": "old body (g5_base_r2: pipeline-3d e9cb156's default)",
+   "path": "charkit/out/g5_base_r2"
+  },
+  {
+   "label": "joined shoulder on (g5_c1)",
+   "path": "charkit/out/g5_c1"
+  }
+ ],
+ "views": [
+  "front",
+  "three_quarter",
+  "profile",
+  "back"
+ ],
+ "regions": [
+  "collar"
+ ],
+ "checks": [
+  "shoulder_*",
+  "neck_crease*",
+  "art_outline_collar",
+  "art_outline_neck",
+  "bow_front_bleed",
+  "piece_top",
+  "piece_sleeve_*",
+  "collar_*_torn",
+  "collar_back_*",
+  "sleeve_*_spikes_*"
+ ],
+ "notes": [
+  "The body (charkit/code_body.py, body.shoulder.socket): a hole in the torso's side from the shoulder's top to the armpit, a bridge of edge loops from its rim to the arm's ring (a cubic per column, leaving the torso lifted off it, arriving along the arm), the arm's columns matched to the rim's. The clavicle is weighted round the rim and the upper arm eases in over the bridge's outer half. Tests: charkit/tests/test_shoulder_join.py.",
+  "Measured against base_body_turnaround (the body in a plain bodysuit): tools/garments5/shm.py, tools/garments5/bodyj.py. Declared checks for the bare body against the sheet are drafted (ref 'base_body', family side_line: tools/garments5/drafts/bodyshoulder.json) and not yet calibrated: they'd FAIL on the old body, so they land with the switch.",
+  "The garments' fallout, located: the jacket over the new deltoid stands in front of the puffs' inner front (ours-only jacket 0.038 -> 0.136 L^2 at |x| 0.4-0.6, z -0.6..-0.9) and comes up through the collar's back flap; skin shows above the jacket's neck cut at the shoulder tops; the hull collar walks a fixed surface length out along the new level shoulder.",
+  "The neck join: reaching 0.08-0.10 L further with the join at the sides takes the crease 88 -> 21-24 but pulls the shoulder's top in (score 0.03 -> 0.10). The sheet's trapezius flare is above our cut, in the head's neck.",
+  "A defect to fix with the next round: at the shoulder's top the bridge's first loops overlap the torso's top rows near the neck (the jagged arm-labelled band at x 0.15-0.3, z -0.55 in the before/after figure): the top columns leave the torso lifted 65 deg and rise over it. A lower top lift or the rim's top edge further out."
+ ],
+ "figures": [
+  {
+   "title": "The old body against the base body sheet",
+   "text": "grey/tan: the sheet's body (hair orange); lines: our skin alone (dotted: arm). No deltoid, the arm a capped tube from z -0.86.",
+   "height": 300,
+   "images": [
+    {
+     "path": "tools/garments5/review/body_old_vs_sheet.png",
+     "caption": "old body (g4_v1 = default) vs the sheet"
+    }
+   ]
+  },
+  {
+   "title": "The joined shoulder against the sheet, and posed",
+   "text": "rows: old body, joined shoulder; columns: front, profile, back against the sheet; the side raise seen from the front; the forward raise from the side (rest dashed, arm red)",
+   "height": 520,
+   "images": [
+    {
+     "path": "tools/garments5/review/before_after.png",
+     "caption": "tools/garments5/bodyj.py, run j6"
+    }
+   ]
+  },
+  {
+   "title": "The rig's pivot",
+   "text": "the joined shoulder posed with the joint 0.12 / 0.18 / 0.24 L up the arm's line",
+   "height": 520,
+   "images": [
+    {
+     "path": "tools/garments5/review/pivots.png",
+     "caption": "run j4"
+    }
+   ]
+  },
+  {
+   "title": "The garments on the new body",
+   "text": "left: old body; right: joined shoulder (front, three-quarter): skin above the jacket at the shoulder tops, the collar walked out along the shoulder",
+   "height": 450,
+   "images": [
+    {
+     "path": "tools/garments5/review/shoulders_render.png",
+     "caption": "qa_sheet_body crops"
+    },
+    {
+     "path": "tools/garments5/review/garment_labels.png",
+     "caption": "our piece labels: the jacket (light orange) in front of the puffs"
+    }
+   ]
+  }
+ ]
+}

@@ -3,7 +3,7 @@
  "part": "motion",
  "adapter": "Motion",
  "module": "charkit.calib.motion",
- "at": "2026-09-30T22:27:15",
+ "at": "2026-10-01T21:55:54",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -12,56 +12,56 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.06995,
+    0.07827,
     "PASS"
    ],
    "+0,+2": [
-    0.05743,
+    0.07436,
     "PASS"
    ],
    "+1,+0": [
-    0.06266,
+    0.0783,
     "PASS"
    ],
    "+2,+0": [
-    0.06366,
+    0.07801,
     "PASS"
    ],
    "+0,-1": [
-    0.05582,
+    0.07133,
     "PASS"
    ],
    "+0,-2": [
-    0.06449,
+    0.0835,
     "PASS"
    ],
    "-1,+0": [
-    0.06086,
+    0.07406,
     "PASS"
    ],
    "-2,+0": [
-    0.0653,
+    0.07628,
     "PASS"
    ]
   },
-  "min": 0.05582,
-  "max": 0.06995,
-  "spread": 0.0141,
-  "median": 0.06316
+  "min": 0.07133,
+  "max": 0.0835,
+  "spread": 0.0122,
+  "median": 0.07714499999999999
  },
  "known_bad": {
   "name": "motion_skinned",
-  "value": 1.99369,
+  "value": 2.14672,
   "status": "FAIL"
  },
  "floor": {
   "shuffled_weights": {
    "values": [
-    48.06236,
-    47.02635,
-    45.54816,
-    46.96669,
-    47.60238
+    55.16178,
+    55.30491,
+    56.17925,
+    56.74667,
+    60.01369
    ],
    "statuses": [
     "FAIL",
@@ -70,7 +70,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 47.02635,
+   "median": 56.17925,
    "status": "FAIL",
    "passing": 0
   }
@@ -78,15 +78,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.06346,
+  "value": 0.07957,
   "status": "PASS",
   "margin": 1.0
  },
  "verdict": "calibrated",
- "why": "a defect detector: the design passes every move (spread 0.0141), motion_skinned reads 1.99369 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
- "build": "charkit/out/hands_b4",
+ "why": "a defect detector: the design passes every move (spread 0.0122), motion_skinned reads 2.14672 FAIL; a random stand-in fails it; shape guarded by piece_skirt",
+ "build": "charkit/out/g7_c7",
  "generators": {
   "shuffled_weights": "the skirt skinned with its weights shuffled among its vertices (a random rig)"
  },
- "seconds": 217.9
+ "seconds": 656.7
 }

@@ -1,0 +1,10 @@
+{
+ "name": "g5_base",
+ "why": "the body without a shoulder: the torso a tube fitted to the costume's silhouette (the visual hull), the arms capped tubes beside it starting 0.36 L under the neck (pipeline-3d e9cb156's default; against base_body_turnaround the bare shoulder line sits 0.14-0.40 L low at |x| 0.3-0.6 and the outer edge is the torso's vertical side, 0.23 L inside the drawn deltoid at z -0.7)",
+ "flag": "the body has no real shoulder (Michael, 2026-10-01: the torso's top fitted to the costume's silhouette, the arms capped tubes beside it)",
+ "commit": "e9cb156",
+ "source": "~/animation-pipeline-garments4/charkit/out/g5_base",
+ "stored": "2026-10-01",
+ "bundle": "746c3022b94b37b2",
+ "qa_checks": 648
+}

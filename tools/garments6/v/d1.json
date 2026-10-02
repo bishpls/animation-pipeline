@@ -1,0 +1,162 @@
+{
+ "base": "charkit/out/g6_c0",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "face_region",
+  "sheet_pieces"
+ ],
+ "checks": [
+  "shoulder_*",
+  "collar_*",
+  "art_outline_collar",
+  "art_outline_neck",
+  "art_fragments_collar",
+  "neck_v_*",
+  "neck_crease",
+  "sleeve_*",
+  "bow_front_bleed",
+  "piece_top",
+  "piece_collar",
+  "piece_sleeve_*",
+  "piece_bow",
+  "body_*_iou_skin",
+  "art_bumps_top",
+  "art_points_top",
+  "art_fragments_neck"
+ ],
+ "variants": {
+  "tk": {
+   "garments.top.tuck": {
+    "under": [
+     "sleeve_L",
+     "sleeve_R"
+    ],
+    "margin": 0.02
+   }
+  },
+  "c25": {
+   "garments.sleeve_L.clear_body": {
+    "gap": 0.025,
+    "parts": [
+     "shoulder",
+     "arm"
+    ],
+    "inner": 0
+   }
+  },
+  "tk_c25": {
+   "garments.top.tuck": {
+    "under": [
+     "sleeve_L",
+     "sleeve_R"
+    ],
+    "margin": 0.02
+   },
+   "garments.sleeve_L.clear_body": {
+    "gap": 0.025,
+    "parts": [
+     "shoulder",
+     "arm"
+    ],
+    "inner": 0
+   }
+  },
+  "tk_c35": {
+   "garments.top.tuck": {
+    "under": [
+     "sleeve_L",
+     "sleeve_R"
+    ],
+    "margin": 0.02
+   },
+   "garments.sleeve_L.clear_body": {
+    "gap": 0.035,
+    "parts": [
+     "shoulder",
+     "arm"
+    ],
+    "inner": 0
+   }
+  },
+  "tk0_c25": {
+   "garments.top.tuck": {
+    "under": [
+     "sleeve_L",
+     "sleeve_R"
+    ],
+    "margin": 0.0
+   },
+   "garments.sleeve_L.clear_body": {
+    "gap": 0.025,
+    "parts": [
+     "shoulder",
+     "arm"
+    ],
+    "inner": 0
+   }
+  },
+  "nk20": {
+   "garments.top.cuts": [
+    [
+     "hips",
+     0.0,
+     "above",
+     0.1
+    ],
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04,
+     0.2
+    ]
+   ]
+  },
+  "tk_c25_nk20": {
+   "garments.top.tuck": {
+    "under": [
+     "sleeve_L",
+     "sleeve_R"
+    ],
+    "margin": 0.02
+   },
+   "garments.sleeve_L.clear_body": {
+    "gap": 0.025,
+    "parts": [
+     "shoulder",
+     "arm"
+    ],
+    "inner": 0
+   },
+   "garments.top.cuts": [
+    [
+     "hips",
+     0.0,
+     "above",
+     0.1
+    ],
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04,
+     0.2
+    ]
+   ]
+  }
+ },
+ "boards": {
+  "az": [
+   0,
+   35,
+   90,
+   180
+  ],
+  "crop": "sleeve_L",
+  "pad": 0.35
+ }
+}

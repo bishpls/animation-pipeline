@@ -18,82 +18,124 @@ def _env(slots_dir, n, **kw):
     return e
 
 
-# a holder: takes a slot at its priority, runs ROWS rows of SECS each with a yield point between them, and prints when
-# it got the slot, each yield and when it ended (times since T0)
+# a holder: takes a slot at its priority and logs each event to a shared file, one append each (O_APPEND: the file's
+# order is the events' order across processes): GOT, YIELD (it gave its slot to a waiting gate between rows and has one
+# again), END. It runs rows until STOP exists (or `rows` rows when STOP is '-'), with a yield point between them. The
+# tests read the ORDER of events, never elapsed seconds (2026-10-01: wall-clock bounds broke on a loaded box)
 HOLDER = r'''
-import sys, time
+import os, sys, time
 from charkit import procs
-t0, rows, secs, prio = float(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]), int(sys.argv[4])
-s = procs.acquire_slot(sys.argv[5], poll=0.05, prio=prio)
-print('GOT %.2f' % (time.time() - t0), flush=True)
-for i in range(rows):
-    gave = s.yield_point(poll=0.05, log=lambda m: None)
-    if gave:
-        print('YIELD %.2f %.2f' % (time.time() - t0, gave), flush=True)
-    time.sleep(secs)
+log, label, prio, rows, stop = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5]
+def ev(what):
+    fd = os.open(log, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    os.write(fd, ('%s %s\n' % (what, label)).encode())
+    os.close(fd)
+s = procs.acquire_slot(label, poll=0.05, prio=prio)
+ev('GOT')
+i = 0
+while (os.path.exists(stop) is False) if stop != '-' else i < rows:
+    if s.yield_point(poll=0.05, log=lambda m: None):
+        ev('YIELD')
+    time.sleep(0.05)
+    i += 1
 s.close()
-print('END %.2f' % (time.time() - t0), flush=True)
+ev('END')
 '''
 
 
-def _holder(env, t0, rows, secs, prio, label):
-    return subprocess.Popen([sys.executable, '-c', HOLDER, str(t0), str(rows), str(secs), str(prio), label], env=env,
+def _holder(env, log, label, prio, rows=1, stop='-'):
+    return subprocess.Popen([sys.executable, '-c', HOLDER, log, label, str(prio), str(rows), stop], env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
-def _read(p):
-    out, err = p.communicate(timeout=60)
+def _done(p):
+    _, err = p.communicate(timeout=120)
     assert p.returncode == 0, err[-800:]
-    got = {}
-    for line in out.split('\n'):
-        if line:
-            k, *v = line.split()
-            got.setdefault(k, []).append([float(x) for x in v])
-    return got
 
 
-def _gate_latency(n_slots, n_workers, rows, secs, yield_on, gate_at=0.6):
-    """n_workers background holders fill n_slots; a gate asks for a slot at gate_at s -> (its wait in s, the workers'
-    outputs)."""
+def _events(log):
+    return [tuple(l.split(' ', 1)) for l in open(log).read().splitlines()]
+
+
+def _until(cond, what, limit=60.0):
+    """wait for a condition (a deadline only against a hang: nothing is judged by how long it took)."""
+    t = time.time()
+    while not cond():
+        assert time.time() - t < limit, 'never happened: ' + what
+        time.sleep(0.02)
+
+
+def _waiting(d, label):
+    """is a holder labelled so waiting for a slot (its wait record, procs.acquire_slot)?"""
+    for f in os.listdir(os.path.join(d, 'wait')) if os.path.isdir(os.path.join(d, 'wait')) else ():
+        if f.endswith('.json'):
+            try:
+                if json.load(open(os.path.join(d, 'wait', f))).get('label') == label:
+                    return True
+            except (OSError, ValueError):
+                pass
+    return False
+
+
+def _gate_among_workers(yield_on):
+    """2 slots held by 2 background workers that run until told to stop; a gate asks for a slot once both hold theirs
+    -> the event log. With yielding, the gate can only get a slot from a worker between rows (they never end before
+    it does); without, only once a worker ends (the test stops them once the gate is seen waiting)."""
     d = tempfile.mkdtemp(prefix='slotprio-')
-    env = _env(d, n_slots, **({} if yield_on else {'CHARKIT_SLOT_YIELD': '0'}))
-    t0 = time.time()
-    W = [_holder(env, t0, rows, secs, procs.PRIO['low'], 'optimize %d' % i) for i in range(n_workers)]
-    time.sleep(gate_at)
-    G = _holder(env, t0, 1, 0.5, procs.PRIO['gate'], 'gate build')
-    g = _read(G)
-    w = [_read(p) for p in W]
-    return g['GOT'][0][0] - gate_at, w
+    log, stop = os.path.join(d, 'events'), os.path.join(d, 'stop')
+    env = _env(d, 2, **({} if yield_on else {'CHARKIT_SLOT_YIELD': '0'}))
+    W = [_holder(env, log, 'optimize %d' % i, procs.PRIO['low'], stop=stop) for i in range(2)]
+    _until(lambda: os.path.exists(log) and sum(e[0] == 'GOT' for e in _events(log)) == 2, 'both workers hold a slot')
+    G = _holder(env, log, 'gate build', procs.PRIO['gate'])
+    if yield_on:
+        _done(G)                                       # (a worker gives its slot between rows)
+        open(stop, 'w').close()
+    else:
+        _until(lambda: _waiting(d, 'gate build'), 'the gate waits for a slot')
+        open(stop, 'w').close()                        # (only a worker's end frees a slot)
+        _done(G)
+    for p in W:
+        _done(p)
+    return _events(log)
 
 
 def test_a_background_holder_gives_its_slot_to_a_gate_between_rows():
-    """2 slots held by 2 optimize-like workers (12 rows of 0.25 s each, 3 s): a gate arriving at 0.6 s waited for a
-    worker to finish everything before (2.4 s); now one worker gives way at its next row (<= 0.25 s + a poll), one
-    only, and every row still runs."""
-    wait_off, w_off = _gate_latency(2, 2, 12, 0.25, yield_on=False)
-    wait_on, w_on = _gate_latency(2, 2, 12, 0.25, yield_on=True)
-    print('gate wait: %.2f s without yielding, %.2f s with' % (wait_off, wait_on))
-    assert wait_off > 2.0, wait_off
-    assert wait_on < 0.6, wait_on
-    yields = sum(len(x.get('YIELD', [])) for x in w_on)
-    assert yields == 1, w_on                                          # one holder per waiting gate
-    assert all('END' in x for x in w_on) and not any('YIELD' in x for x in w_off)
+    """2 slots held by 2 optimize-like workers: without yielding, a gate gets a slot only after a worker ends; with
+    it, one worker (one only) gives way at its next row, the gate runs and ends, the worker takes a slot again behind
+    it, and both workers run on to their end. Read from the order of events."""
+    off = _gate_among_workers(False)
+    on = _gate_among_workers(True)
+    print('without yielding:', off, '\nwith:', on)
+    pos = lambda E, what, label: E.index((what, label))
+    assert not any(w == 'YIELD' for w, _ in off)
+    first_end = min(pos(off, 'END', 'optimize %d' % i) for i in range(2))
+    assert pos(off, 'GOT', 'gate build') > first_end, off
+    ys = [l for w, l in on if w == 'YIELD']
+    assert len(ys) == 1, on                                            # one holder per waiting gate
+    g0, g1, y = pos(on, 'GOT', 'gate build'), pos(on, 'END', 'gate build'), pos(on, 'YIELD', ys[0])
+    assert g0 < g1 < y < pos(on, 'END', ys[0]), on                     # it gave, the gate ran, it has a slot again
+    assert all(pos(on, 'END', 'optimize %d' % i) > g0 for i in range(2)), on     # (no worker had ended: a yield)
 
 
 def test_a_free_slot_goes_to_a_waiting_gate_first():
     """one slot, held by a background holder; a gate and then a normal build wait for it. When it frees, the gate
-    takes it (the normal build was asking too, and before this it was a race), then the build."""
+    takes it (the normal build was asking too, and before this it was a race), then the build. Read from the order
+    of events."""
     d = tempfile.mkdtemp(prefix='slotprio-')
+    log, stop = os.path.join(d, 'events'), os.path.join(d, 'stop')
     env = _env(d, 1, CHARKIT_SLOT_YIELD='0')
-    t0 = time.time()
-    L = _holder(env, t0, 1, 1.5, procs.PRIO['low'], 'sweep')
-    time.sleep(0.3)
-    G = _holder(env, t0, 1, 0.6, procs.PRIO['gate'], 'gate build')
-    time.sleep(0.3)
-    N = _holder(env, t0, 1, 0.3, procs.PRIO['normal'], 'build')
-    l, g, n = _read(L), _read(G), _read(N)
-    assert g['GOT'][0][0] < n['GOT'][0][0], (g, n)
-    assert g['GOT'][0][0] >= l['END'][0][0] - 0.05 and n['GOT'][0][0] >= g['END'][0][0] - 0.05, (l, g, n)
+    L = _holder(env, log, 'sweep', procs.PRIO['low'], stop=stop)
+    _until(lambda: os.path.exists(log) and ('GOT', 'sweep') in _events(log), 'the sweep holds the slot')
+    G = _holder(env, log, 'gate build', procs.PRIO['gate'], rows=3)
+    _until(lambda: _waiting(d, 'gate build'), 'the gate waits')
+    N = _holder(env, log, 'build', procs.PRIO['normal'], rows=3)
+    _until(lambda: _waiting(d, 'build'), 'the build waits')
+    open(stop, 'w').close()
+    for p in (L, G, N):
+        _done(p)
+    E = _events(log)
+    assert E == [('GOT', 'sweep'), ('END', 'sweep'), ('GOT', 'gate build'), ('END', 'gate build'), ('GOT', 'build'),
+                 ('END', 'build')], E
     W = [json.loads(x) for x in open(os.path.join(d, 'waits.jsonl'))]
     why = {w['label']: w['why'] for w in W}
     assert why['gate build'] == 'slots' and why['build'] in ('gate', 'slots'), W
@@ -154,8 +196,8 @@ def test_the_optimize_pool_moves_a_yielded_row_to_another_worker():
             finally:
                 procs.SLOTS_DIR = sd
             time.sleep(0.5)
-            gate.append(_holder(_env(os.path.join(d, 'slots'), 2), time.time(), 1, 1.0, procs.PRIO['gate'],
-                                'gate build'))
+            gate.append(_holder(_env(os.path.join(d, 'slots'), 2), os.path.join(d, 'events'), 'gate build',
+                                procs.PRIO['gate'], rows=20))
         import threading
         th = threading.Thread(target=arrive, daemon=True)
         th.start()
@@ -163,7 +205,8 @@ def test_the_optimize_pool_moves_a_yielded_row_to_another_worker():
         R = op.Run(decl, os.path.join(d, 'pool'), workers=2, log=logs.append, inproc=False)
         o = R.run(confirm=False)
         th.join(30)
-        g = _read(gate[0])
+        _done(gate[0])
+        g = _events(os.path.join(d, 'events'))
     finally:
         for k, v in saved.items():
             os.environ.pop(k, None)
@@ -173,7 +216,7 @@ def test_the_optimize_pool_moves_a_yielded_row_to_another_worker():
     assert sorted((h['name'], h['f']) for h in R1.H) == sorted((h['name'], h['f']) for h in R.H)
     assert any('gave its build slot to a waiting gate' in str(m) for m in logs), logs
     assert any('has a slot again' in str(m) for m in logs), logs
-    assert 'GOT' in g and o['workers'] == 2
+    assert ('GOT', 'gate build') in g and o['workers'] == 2
 
 
 if __name__ == '__main__':

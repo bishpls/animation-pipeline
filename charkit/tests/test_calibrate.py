@@ -178,6 +178,72 @@ def test_an_accepted_flag_regression_covers_its_reading_only():
     assert gate.judge(dict(rep, accepted=calibrate.accepted(d)), qa_a, qa_b)[0] == 'FAIL'
 
 
+def test_a_batch_merge_takes_its_branches_acceptances():
+    """a batch merge (the integrator's merge/batch4: several workstreams at once) is gated as its own branch; a record
+    names the workstream's branch, and covers the batch's gate only when the gate lists that branch (--batch). A flag
+    check's acceptance still pins its reading there."""
+    from charkit import registry
+    assert calibrate.covers({'branch': 'tool/a'}, 'merge/b', ['tool/a', 'tool/c'])
+    assert not calibrate.covers({'branch': 'tool/a'}, 'merge/b')
+    assert not calibrate.covers({'branch': 'tool/a'}, 'merge/b', ['tool/c'])
+    assert calibrate.covers({'branch': 'tool/a'}, 'tool/a', ['tool/c'])
+    assert calibrate.covers({}, 'merge/b') is False and calibrate.covers({'check': 'c'}, 'merge/b')
+    qa_a = {'checks': {'c': {'value': 0.1, 'status': 'PASS'},
+                       'f': {'value': 1.4, 'status': 'PASS', registry.FLAG: 'a flag'}}}
+    qa_b = {'checks': {'c': {'value': 0.5, 'status': 'FAIL'},
+                       'f': {'value': 3.47, 'status': 'WARN', registry.FLAG: 'a flag'}}}
+    rep = {'hard': [], 'branch': 'merge/b', 'qa': gate.compare_qa(qa_a, qa_b), 'guard': []}
+    d = tempfile.mkdtemp()
+    calibrate.accept('c', by='Michael', why='the joined shoulder', value=0.5, branch='tool/a', root=d)
+    calibrate.accept('f', by='Michael', why='the lapels', value=3.47, status='WARN', branch='tool/a', root=d)
+    acc = calibrate.accepted(d)
+    v, block, _ = gate.judge(dict(rep, accepted=acc), qa_a, qa_b)
+    assert v == 'FAIL' and {b['check'] for b in block} == {'c', 'f'}            # another branch's records
+    v, block, R = gate.judge(dict(rep, accepted=acc, batch=['tool/x', 'tool/a']), qa_a, qa_b)
+    assert v == 'PASS' and {r['check'] for r in R['accepted']} == {'c', 'f'}, block
+    assert {r['accepted']['branch'] for r in R['accepted']} == {'tool/a'}
+    # the flag check's acceptance pins its reading in a batch too: a further move isn't covered
+    qa_c = {'checks': dict(qa_b['checks'], f={'value': 4.2, 'status': 'WARN', registry.FLAG: 'a flag'})}
+    rep_c = dict(rep, qa=gate.compare_qa(qa_a, qa_c), accepted=acc, batch=['tool/a'])
+    v, block, _ = gate.judge(rep_c, qa_a, qa_c)
+    assert v == 'FAIL' and [b['check'] for b in block] == ['f']
+    # the report names the batch and the record's branch
+    md = os.path.join(d, 'gate_merge-b_abc_into_def.md')
+    rep2 = dict(rep, tip='abc', into='pipeline-3d', head='def', spec='charkit/spec/clawd.json', t='now',
+                batch=['tool/x', 'tool/a'], accepted=acc)
+    rep2['verdict'], rep2['blocking'], rep2['report'] = gate.judge(rep2, qa_a, qa_b)
+    gate._write(rep2, d, 'merge-b_abc')
+    text = open(md).read()
+    assert 'A batch merge of tool/x, tool/a' in text and '| tool/a |' in text, text[:600]
+    assert json.load(open(md[:-3] + '.summary.json'))['batch'] == ['tool/x', 'tool/a']
+
+
+def test_the_gate_cli_passes_the_batch(monkeypatch=None):
+    """`gate BRANCH --batch A,B` reaches gate(batch=[A, B]); `remote gate` passes --batch through to the box's gate."""
+    got = {}
+
+    def fake(branch, **kw):
+        got.update(kw, branch=branch)
+        return {'verdict': 'PASS'}
+    old = gate.gate
+    gate.gate = fake
+    try:
+        try:
+            gate.main(['merge/b', '--into', 'pipeline-3d', '--accept', 'x,y', '--batch', 'tool/a,tool/c'])
+        except SystemExit as e:
+            assert e.code == 0
+    finally:
+        gate.gate = old
+    assert got['branch'] == 'merge/b' and got['batch'] == ['tool/a', 'tool/c'] and got['accept'] == ['x', 'y']
+    from charkit import remote
+    more = remote.gate_passthrough(['merge/b', '--into', 'pipeline-3d', '--code', 'merge/b', '--args', '--cache refresh',
+                                    '--batch', 'tool/a,tool/c', '--accept', 'x,y'])
+    assert more == " --args '--cache refresh' --accept x,y --batch tool/a,tool/c", more
+    import shlex
+    sent = shlex.split('charkit gate merge/b --into pipeline-3d' + more)
+    assert sent[sent.index('--batch') + 1] == 'tool/a,tool/c' and '--code' not in sent
+
+
 def test_the_stand_ins():
     from charkit.calib import labels
     a = np.zeros((20, 20), int) - 1

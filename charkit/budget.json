@@ -1,0 +1,25 @@
+{
+ "doc": "The default build's CPU budget, seconds (infra round 5, task 2; REPORT ONLY: what blocks under policy K is Michael's call). Gate conditions: charkit/spec/clawd.json, threads capped at 4, --boards '' --no-blend; the venv steps (venv/*) are what a cold build pays, a gate's builds mostly restore them from the shared step cache. Set from the round's measured profile (docs/workstreams/infra5o.md, charkit profile) with about 10-15% headroom. The merge gate reports each stage's CPU, baseline and candidate, against these (charkit/profile.py budget_rows) and flags WARN past them. A branch that adds cost on purpose raises the number here, with a reason in its notes, so the change is reviewed.",
+ "measured": {
+  "gate baselines 2026-10-01 (total CPU s)": {"25b1936 (09-30 evening)": 577, "e9cb156a": 1122, "25ff0f25": 1310},
+  "cold builds (charkit/out/infra5)": {"b0 (60c0f1a4)": 1790, "b1": 1735}
+ },
+ "total": 1450,
+ "stages": {
+  "qa/*": 1150,
+  "blender/*": 230,
+  "venv/*": 500,
+  "qa/declared": 320,
+  "qa/look": 210,
+  "qa/artifacts": 160,
+  "qa/face_flags": 100,
+  "qa/motion": 130,
+  "qa/face_region": 60,
+  "qa/skirt": 50,
+  "blender/character": 75,
+  "blender/look_export": 70,
+  "venv/pieces_hair": 280,
+  "venv/hair_select": 110,
+  "venv/code_head": 90
+ }
+}

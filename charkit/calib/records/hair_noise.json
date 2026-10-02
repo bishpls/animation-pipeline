@@ -3,7 +3,7 @@
  "part": "hair_noise",
  "adapter": "HairNoise",
  "module": "charkit.calib.hairnoise",
- "at": "2026-10-01T08:00:46",
+ "at": "2026-10-01T18:34:43",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -88,16 +88,16 @@
   "voronoi_tones"
  ],
  "current": {
-  "value": 4.46,
+  "value": 4.4,
   "status": "PASS",
-  "margin": 1.068
+  "margin": 1.074
  },
  "verdict": "calibrated",
  "why": "a defect detector: the design passes every move (spread 2.05), ck7_blotchy reads 32.61 FAIL; a random stand-in fails it; shape guarded by hair_piece_bangs, hair_piece_side_locks, hair_piece_upper_back, hair_piece_lower_back",
- "build": "charkit/out/r4_hull",
+ "build": "charkit/out/r5_hull",
  "generators": {
   "speckle": "the design's hair with random blots (radius 1-2 px, 6% of the hair), each a random hair pixel's colour",
   "voronoi_tones": "the design's hair cut into random cells, as many as its tone regions, each a random hair pixel's colour"
  },
- "seconds": 73.3
+ "seconds": 60.1
 }

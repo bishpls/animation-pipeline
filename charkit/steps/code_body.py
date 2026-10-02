@@ -10,4 +10,9 @@ MEASUREMENT_STEPS = [
      "parts weighted on the finger bones, the arm's tube cut at the wrist, the joints from the template)"),
     ('motion_*', 'c8c4991', "the code body's arm pose (body.arm: code_body.pose_arm on the arm's chain before its "
      "sections are measured)"),
+    # tool/garments4-shoulders: the measure itself is unchanged (the gate, be6aae1a into 27a4b6c3: the motion skirt
+    # checks read the same on both geometries); the rig and skin it rebuilds now have the joined shoulder ON by default
+    ('motion_*', '0f23cacb', "the code body's rig rebuilt with the joined shoulder (body.shoulder: the socket's bridge "
+     "joining the arm to the torso and its weights; body.neck_flare: code_base.flare_neck, the head's neck flared over "
+     "the cut), switched on in Clawd's spec"),
 ]

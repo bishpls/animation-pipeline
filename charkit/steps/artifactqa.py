@@ -59,4 +59,9 @@ MEASUREMENT_STEPS = [
      "art_terminator_hair 2.178 -> 3.211 (the design's kinks per L front / three-quarter / profile 3.74 / 4.35 / 5.92 "
      "-> 2.54 / 2.73 / 3.44, ours 8.15 / 7.90 / 4.88 -> 8.06 / 8.78 / 5.20; its grade WARN -> FAIL), "
      "art_outline_hair 0.756 -> 0.564, art_peeks_hair 18 -> 16, art_fragments_hair unchanged"),
+    # merge/batch4: a region drawn in one tone keeps its terminator check (the artifacts part's denominator)
+    ('art_terminator_neck', '99232882', "kept when ours is one tone (its terminator under MIN_TERM, 0.05 L, in every "
+     "view) where the design has a terminator: INFO with no value and why, where the check was dropped with no reason "
+     "(the part then measured 57 of its 58; the joined shoulder lit the neck under the chin). Any region read in one "
+     "tone is kept so; on Clawd only the neck reads so"),
 ]

@@ -1,6 +1,6 @@
 # Hair, step 2: the B lock-shell pilot (tool/hairshell, round 2: tool/hairshell2)
 
-State: **round 4: the default switched** (Michael's yes; see "## The default switch" at the end; round 4's own gate PASS under K; review page `charkit/out/hairshell3/review/index.html`; see "# Round 4" at the end). Round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
+State: **round 4 closed; the default switch reverted** (Michael, 2026-10-01: the cross-view identity round changes the hair first; see "## Handoff to the identity round" at the end; round 4's own gate PASS under K; review page `charkit/out/hairshell3/review/index.html`; see "# Round 4" at the end). Round 3 stopped at a checkpoint (coordinator's wrap-up, weekly capacity; tool/hairshell3; see "# Round 3" at the end: no real build, no gate this round). Round 2 done (gate PASS; see "Round 2 result"). Round 1 (below) as it was. Worktree `~/animation-pipeline-hairshell`, branch `tool/hairshell` from tool/hairsplit
 `db2ca2d` (the lock splitter, gate PASS; it merges into pipeline-3d separately).
 
 ## The brief (Michael, 2026-09-30, via the coordinator)
@@ -898,3 +898,51 @@ flaky, for the infra queue); (2) **hair_strokes_profile_dir 15.5 P -> 24.5 W** a
 placement A (the clips seated on the build's hair: acc_crab_profile_flow 1.8 -> 7.0): before the crab (gate 3) it read
 14.6 -> 16.9 P with the same shells. Also: art_terminator_hair 2.134 W -> 1.303 P, acc_star_back_shown 19 -> 0.
 Diagnosis builds: r8_hull, r8_default (render2, boards, merged head).
+
+
+## Handoff to the identity round (2026-10-01, the coordinator's stop)
+Michael: stop the default switch (the identity refactor will change the shells); the switch is reverted (charkit/spec/
+clawd.json and its alias = pipeline-3d's: no lock_shells, no hair.shape.style), every option stays opt-in. Merged
+pipeline-3d 241f0547 (tool/rom, tool/hairtruth: the hair checks against the no-clips shape truth; steps conflict in
+charkit/steps/qa3d.py resolved keeping both); hair_noise's record refreshed on it (CALIBRATED, unchanged legs).
+
+**What the identity round starts from (tool/hairshell3):**
+- The pilot spec: `tools/hairshell3/c1_pilot.json` (lock_shells: side_locks; the back's left hem flicks phi [100, 175]
+  laid over, opts prior_depth 10, contain 5, hug_free 0.3), with `tools/hairshell3/ell100.json` as hair.shape.style
+  (shade_ellipsoid 1.0, tool/hairstrokes' normals); a candidate spec = `python tools/hairshell3/mkspec.py OUT.json
+  'hair.shape.pieces_opts.lock_shells=@tools/hairshell3/c1_pilot.json' 'hair.shape.style=@tools/hairshell3/ell100.json'`.
+  The whole-hem variant `tools/hairshell3/c2_ext.json` (+ the bangs laid over their wedges).
+- **Its numbers** (real build r5_c1e on pipeline-3d 9be5b320 vs r5_hull): art_terminator_hair 2.370 W -> 1.303 P; six
+  placements 2.173 -> **1.417** (back view 1.87 -> 1.77); hair_back_lines 0.928 W -> **0.584**; hair_back_hem 3 W -> **2
+  P**; 52-lock truth 0.352 -> **0.405** (side locks 0.379 -> 0.580); lock lines 3q 0.290 -> 0.312, profile 0.172 ->
+  0.205; side locks IoU F/P 0.529/0.474 -> 0.598/0.573. Still losing: art_peeks_hair 17 -> 18-19, the lower back's
+  profile 0.664 -> 0.610 (-8%), scalp_px 4 -> 65 (W), body_profile_iou_skin 0.724 -> 0.69 (W).
+- **Code that stays (opt-in, default off unless noted):** lockshell det fit (bit-identical across machines);
+  `det_join_nfev` 60 (trial joins capped; an accepted capped one refitted in full; 17 of 17 shells bit-identical, the fit
+  661 -> 252 s CPU) and frames' plain-float transport (both on whenever shells are); `skin_clear 'vertex'` (on for shells:
+  every vertex held gap off the skin; f20.1 cut 0.040 L into the temple; 'narrow' and 'ring' the alternatives);
+  `hug_free`, groups[].opts, widen_back, over_tone, shade_at; hair_noise as the speckle measure (default QA; records,
+  the named acceptance of its 2x2 in charkit/accepted/hair_noise.json); `charkit script PATH` (box harness runner).
+- **The strokes-direction issue on shells:** hair_strokes_profile_dir (tool/hairstrokes' flag) moves with how the side
+  shells are cleared of the skin: no clearance 16.9 P, per-vertex clearance 16.9 P, ring push 22.8 W (f20.1's sections
+  moved 0.055 L, the profile strokes projected onto it land elsewhere); after merging the crab placement A (27a4b6c3:
+  the clips seated on the build's hair, so the crab sits on the shells) the per-vertex default read 15.5 -> **24.5 W**
+  (gate 5). Undiagnosed (the r8 builds were stopped): the crab over the side shells in profile, or the strokes'
+  projection. f20.1 itself (joined front + three-quarter, 0.29 L wide, twist at its -46 deg bound) is the lock to look at
+  first: identity will decide its views.
+- **Measurement harness** (tools/hairshell3/, box-runnable via `charkit script`): term6.py / term6p.py (six placements),
+  kinkattr.py (each terminator kink's pieces), compview.py, famconf.py (a family's per-view confusion), flickoff.py,
+  piecemix.py, profile_fit.py, capcheck.py (bit-identity), r5_launch.sh (build + six placements), r5_locks.sh (the
+  52-lock truth), swfull.py (a sweep with its six placements). Remember: the sweep's penetration and folds read the base
+  build's raw arrays; measure them from each row's pieces.
+- **Infra notes:** the gate's CPU rule compares a cached baseline with a cold candidate when the merge changes what the
+  early steps read (re-gate 4: 1.61x; cold-cold 0.99x / 1.10x): gate with `--args "--cache refresh"`; test_slotprio is
+  timing-flaky under the gate's test load; `remote run` now picks a box (name `--box build` for a build living there);
+  the laptop's python3 fails TLS on bucket pulls (CHARKIT_PY=venv python).
+
+## Final gate (round 4, after the revert): PASS under K
+tool/hairshell3 af582dcd into pipeline-3d ae865afc, both sides cold (`--args "--cache refresh"`, `--accept hair_noise`
+not needed: the geometry is the same, no 2x2 drop), `charkit/out/gate/gate_tool-hairshell3_af582dcd_into_ae865afc.md`:
+nothing blocks; hair_noise remeasured 0.0765 W -> 4.82 P (record CALIBRATED), hair_tone_edges new INFO (0.0765);
+measuring code changed with no step reported for parts that read qa3d.LIMITS / lockshell (nothing moved); 107 test
+files pass (test_slotprio too); build CPU 1627.0 -> 1641.1 s (1.01x). Pregate (box) PASS, 0 moved. No jobs running.

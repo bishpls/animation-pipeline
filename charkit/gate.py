@@ -3,7 +3,8 @@ branch moves: throwaway worktrees at the integration head take the baseline and,
 candidate; the tests run, each side is built when it has to be, and the two builds' QA and traces are compared.
 
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--accept PATTERN,...] [--keep]
-                                  [--build]
+                                  [--build] [--batch BRANCH,...]
+        # --batch: BRANCH is a batch merge of these workstream branches; their recorded acceptances apply
     python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
     python -m charkit gate --accept-fail CHECK --by NAME --why TEXT [--branch BRANCH] [--value V] [--status S]
         # the coordinator records Michael's acceptance of a named new FAIL (charkit/accepted/CHECK.json: commit it on
@@ -39,7 +40,9 @@ The verdict: Michael's policy K (2026-09-30). The merge is blocked (FAIL) only b
     registry `shape`, per view) drops by more than 15% in a view.
 A new FAIL (or a guard block) Michael has accepted by name (charkit/accepted/CHECK.json, `gate --accept-fail`) is
 reported with who, when and why instead; so is a flag check's regression he accepted at a named reading (`--status`,
-`--value`: the candidate's status that one, its value within ACCEPT_TOL of it).
+`--value`: the candidate's status that one, its value within ACCEPT_TOL of it). A record covers a gate of the branch it
+names; a batch merge (the integrator's branch merging several workstreams) names them with --batch, and their records
+cover it too (rep['batch']; calibrate.covers).
 Everything else (a PASS going WARN, a value moving, a check going or new, the 2x2's drops short of those) is reported,
 not enforced: the report's "Report" section and its summary (REPORT.summary.json: the verdict, what blocks, and each
 reported move, for the integrator's morning report). PASS otherwise.
@@ -54,7 +57,7 @@ the gate's phases (each with its start and length, the builds' own steps), the t
 A gate's builds run with their thread pools capped (THREAD_VARS, _threads(): 4 on the 32-core box) and OpenMP's waits
 passive: the same wall time, a third of the CPU, bit-identical outputs, and a CPU figure the box's load doesn't inflate.
 """
-import concurrent.futures, contextlib, fnmatch, glob, json, os, shlex, shutil, signal, subprocess, sys, tempfile, \
+import concurrent.futures, contextlib, fnmatch, glob, json, os, re, shlex, shutil, signal, subprocess, sys, tempfile, \
     threading, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -111,10 +114,12 @@ def _test_jobs():
     return int(v) if v else max(1, min(8, (os.cpu_count() or 2) // 4))
 
 
-def _tests(wt, jobs=None, logs=None, only=None):
+def _tests(wt, jobs=None, logs=None, only=None, on_fail=None):
     """every charkit/tests/test_*.py (only: those names), JOBS at a time -> ({file: 'ok' or its output's tail}, {file:
     seconds}). logs: a folder; each test file's input closure is recorded there as NAME.log (CHARKIT_CLOSURE;
-    charkit/closure.py), so a later target's changes can be tested against what each test read (`gate --carry`)."""
+    charkit/closure.py), so a later target's changes can be tested against what each test read (`gate --carry`).
+    on_fail(name): called the moment a test file fails (the gate's fail-fast: its builds stop); the rest still run, so
+    the report names every failing file."""
     files = sorted(t for t in glob.glob(os.path.join(wt, 'charkit', 'tests', 'test_*.py'))
                    if only is None or os.path.basename(t) in only)
 
@@ -122,6 +127,8 @@ def _tests(wt, jobs=None, logs=None, only=None):
         t0 = time.time()
         env = dict(os.environ, CHARKIT_CLOSURE=os.path.join(logs, os.path.basename(t) + '.log')) if logs else None
         r = subprocess.run([PY, t], cwd=wt, capture_output=True, text=True, env=env)
+        if r.returncode and on_fail is not None:
+            on_fail(os.path.basename(t))
         return os.path.basename(t), 'ok' if r.returncode == 0 else (r.stdout + r.stderr)[-600:], round(time.time() - t0, 1)
     with concurrent.futures.ThreadPoolExecutor(jobs or _test_jobs()) as ex:
         got = list(ex.map(one, files))
@@ -145,12 +152,13 @@ def _step_cache_env():
     return {'CHARKIT_STEP_CACHE': os.path.abspath(os.path.expanduser(v)), 'CHARKIT_STEP_DEPTH': 'all'}
 
 
-def _build(wt, spec, out, args, record=True, procs=None):
+def _build(wt, spec, out, args, record=True, procs=None, stop=None):
     """a build of the tree in wt into out -> {ok, seconds, cpu, log (its output's tail), steps ({step: seconds}: its
     CHARKIT_PHASE lines), cache (its CHARKIT_CACHE and CHARKIT_PRODUCED lines), killed}. Its CPU seconds (it and
     everything it waited for: Blender, the QA's venv; os.wait4, so the tests running beside it don't count) go to
     OUT/cpu_seconds.json: wall time moves with the box's load, and gates run side by side. record: its input closure to
-    OUT/closure.json (charkit/closure.py). procs: a list the running build's Popen is added to (to stop it)."""
+    OUT/closure.json (charkit/closure.py). procs: a list the running build's Popen is added to (to stop it). stop: an
+    Event; set (a test failed while the build was starting), the build is stopped as soon as it has started."""
     from . import closure
     os.makedirs(out, exist_ok=True)
     log = os.path.join(out, 'closure.log')
@@ -168,8 +176,11 @@ def _build(wt, spec, out, args, record=True, procs=None):
     p = subprocess.Popen([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', '', '--no-blend'] + list(args),
                          cwd=wt, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env,
                          start_new_session=True)
+    p.label = os.path.basename(out)
     if procs is not None:
         procs.append(p)
+    if stop is not None and stop.is_set():
+        _stop([p])
     lines = list(p.stdout)
     _, status, ru = os.wait4(p.pid, 0)
     p.returncode = os.waitstatus_to_exitcode(status)
@@ -211,6 +222,51 @@ def _cpu(out, key='cpu_seconds'):
     """a build's CPU seconds (key 'threads': its thread cap, None uncapped or from before the caps)."""
     p = os.path.join(out, 'cpu_seconds.json')
     return json.load(open(p)).get(key) if os.path.exists(p) else None
+
+
+VENV_STEPS = ('outfit_draft', 'code_head', 'code_body', 'hair_select', 'geom_hair', 'pieces_hair', 'garments_geom')
+
+
+def like_for_like(base_out, cand_out):
+    """the two builds' CPU over what both ran (the coordinator's fairness report, 2026-10-01: a baseline that restored
+    the venv steps against a candidate that ran them cold read 871 -> 1406 s, 1.61x, where cold against cold was ~1.04x):
+    each build's phases (build_cpu.json, cli._phases) and what it restored (`restored`: the venv steps, file_step's
+    hits; the produced references, manifest.produced) -> dict(base, cand, ratio, excluded [(phase, why)], raw [base,
+    cand]), or None when either build predates the record (the totals are compared then). A venv step counts when both
+    ran it; `resolve` (the produced references made or restored, the design measured) when both built the same
+    references; Blender, the QA and the rest always (a gate's worktrees are fresh: both run them); the CPU outside the
+    phases (the slot's wait, imports) on both sides as it is."""
+    def rec(o):
+        p = os.path.join(o, 'build_cpu.json')
+        try:
+            r = json.load(open(p))
+        except (OSError, ValueError):
+            return None
+        return r if r.get('phases') and 'restored' in r else None
+    A, B = rec(base_out), rec(cand_out)
+    if A is None or B is None:
+        return None
+    excluded, a, b = [], A['cpu_seconds'], B['cpu_seconds']
+    sa, sb = (A['restored'].get('steps') or {}), (B['restored'].get('steps') or {})
+    for k in VENV_STEPS:
+        if k not in A['phases'] or k not in B['phases']:
+            continue
+        ra, rb = sa.get(k), sb.get(k)
+        if ra is None and rb is None:
+            continue                                    # (not a cached step in this spec: both did the same)
+        if ra != rb or ra == 'restored':
+            excluded.append((k, 'the baseline %s it, the candidate %s it' % (ra or 'skipped', rb or 'skipped')))
+            a -= A['phases'][k][1]
+            b -= B['phases'][k][1]
+    pa, pb = A['restored'].get('produced') or {}, B['restored'].get('produced') or {}
+    built = lambda P: sorted(k for k, v in P.items() if v == 'built')
+    if built(pa) != built(pb) and 'resolve' in A['phases'] and 'resolve' in B['phases']:
+        excluded.append(('resolve', 'produced references built: baseline %s, candidate %s' % (
+            ', '.join(built(pa)) or 'none', ', '.join(built(pb)) or 'none')))
+        a -= A['phases']['resolve'][1]
+        b -= B['phases']['resolve'][1]
+    return dict(base=round(a, 1), cand=round(b, 1), ratio=round(b / a, 2) if a > 0 else None, excluded=excluded,
+                raw=[A['cpu_seconds'], B['cpu_seconds']])
 
 
 def _closure_of(out):
@@ -613,7 +669,7 @@ def _cand_reference(gdir, tip, suffix, opts, head, wc):
 
 
 def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=False, accept=(), force_build=False,
-         parallel=None):
+         parallel=None, batch=()):
     from . import closure, history, trace
     clock = Clock()
     head = _git('rev-parse', '--short', into).stdout.strip()
@@ -631,13 +687,36 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         v = os.environ.get('CHARKIT_GATE_PARALLEL')
         parallel = (os.cpu_count() or 1) >= 16 if v is None else v != '0'
     rep = {'branch': branch, 'tip': tip, 'into': into, 'head': head, 'spec': spec, 'args': list(args),
-           'suffix': suffix, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'accept': list(accept), 'policy': 'K',
+           'suffix': suffix, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'accept': list(accept), 'batch': list(batch),
+           'policy': 'K',
            'hard': [], 'phases': clock.rows, 'build': {}, 'parallel': parallel}
     if _free_gb(tempfile.gettempdir()) < 5:
         raise SystemExit('gate: only %.1f GB free on disk; free some before gating' % _free_gb(tempfile.gettempdir()))
     os.makedirs(gdir, exist_ok=True)
     wts, running = [], []
     ex = concurrent.futures.ThreadPoolExecutor(4)
+    # fail fast (infra round 5): the moment a test file fails, the builds running beside the tests stop and none
+    # starts; the gate reports the failing tests (the rest still run) a few minutes in instead of after both builds
+    failed = threading.Event()
+
+    def on_fail(name):
+        if not failed.is_set():
+            # (the record before the event: the gate's thread wakes on the event and reports from it)
+            rep['failfast'] = {'test': name, 'at': round(time.time() - clock.t0, 1),
+                               'stopped': [getattr(p, 'label', '?') for p in running if p.poll() is None]}
+            failed.set()
+            _stop(running)
+
+    def tests_failed():
+        """the gate ends on a failing test: the builds it stopped are reported as stopped, the tests as they ran"""
+        ff = rep.get('failfast') or {}
+        rep['build']['candidate'] = rep['build'].get('candidate') or 'stopped'
+        rep['build']['why'] = 'a test failed (%s, %s s into the gate): the builds were stopped%s' % (
+            ff.get('test'), ff.get('at'), ' (%s)' % ', '.join(ff['stopped']) if ff.get('stopped') else '')
+        for side in ('base_build', 'cand_build'):
+            rep.setdefault(side, {'ok': True, 'skipped': True, 'stopped': 'a test failed'})
+        return _finish(rep, gdir, tag, clock, tests_f, tests_r)
+    tests_f = tests_r = None
     try:
         with clock('setup', 'the baseline and candidate worktrees at %s' % head):
             wb = _worktree(head, spec, 'base')
@@ -661,8 +740,11 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
 
         def tests():
             logs = tempfile.mkdtemp(prefix='charkit-gate-tests-')
-            with clock('tests', '%d at a time' % _test_jobs()):
-                r = _tests(wc, logs=logs)
+            with clock('tests', '%d at a time' % _test_jobs()) as ph:
+                r = _tests(wc, logs=logs, on_fail=on_fail)
+                if failed.is_set():
+                    ph['note'] += '; %s failed at %s s: the builds stopped' % (rep['failfast']['test'],
+                                                                             rep['failfast']['at'])
             rep['closures']['tests'] = _tests_closures(logs, wc)
             shutil.rmtree(logs, ignore_errors=True)
             return r
@@ -684,12 +766,23 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             rep['build']['carried_from'] = os.path.basename(cref[0])
 
         def build(side, wt, out, **kw):
+            if failed.is_set():                         # (fail-fast: a test failed; nothing more builds)
+                return dict(ok=False, killed=True, seconds=0.0, cpu=0.0, steps={}, cache=[], log='', threads=None,
+                            not_started=True)
+            a = cand_args if side == 'candidate' else list(args) + (
+                # (CHARKIT_GATE_VERIFY_BASE=1: the baseline's shared steps and produced references made afresh and
+                # compared with what a restore would give, CHARKIT_CACHE_STALE where they differ; off by default: the
+                # entries carry the code they ran and a restore checks it, cache.ran)
+                ['--cache', 'verify'] if os.environ.get('CHARKIT_GATE_VERIFY_BASE') == '1' else [])
             with clock('%s build' % side) as ph:
-                r = _build(wt, spec, out, cand_args if side == 'candidate' else args, procs=running, **kw)
-                ph['note'] = 'CPU %s s%s' % (r['cpu'], ', stopped' if r['killed'] else '')
+                r = _build(wt, spec, out, a, procs=running, stop=failed, **kw)
+                ph['note'] = 'CPU %s s%s' % (r['cpu'], ', stopped' + (' (a test failed)' if failed.is_set() else '')
+                                             if r['killed'] else '')
                 return r
         # the tests: beside the builds on a machine with the cores for them, else first, on their own
         tests_f, tests_r = (ex.submit(tests), None) if parallel else (None, tests())
+        if failed.is_set():                             # (the tests first, on their own: they failed, nothing builds)
+            return tests_failed()
         # the baseline: cached per integration commit, spec and options, or an earlier one standing for it; built under
         # its own lock, so gates running in parallel into one commit build it once and the others wait and reuse it
         import fcntl
@@ -712,8 +805,16 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             it (wait), taken from that one."""
             try:
                 if wait:
-                    with clock('baseline lock', 'another gate was building this baseline'):
-                        fcntl.flock(lock, fcntl.LOCK_EX)
+                    with clock('baseline lock', 'another gate was building this baseline') as ph:
+                        while True:                     # (polled, so a failing test ends the wait: fail-fast)
+                            try:
+                                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                                break
+                            except BlockingIOError:
+                                if failed.wait(1.0):
+                                    ph['note'] += '; given up: a test failed'
+                                    return dict(ok=False, killed=True, seconds=0.0, cpu=0.0, steps={}, cache=[],
+                                                log='', threads=None, not_started=True)
                     bb = settle()
                     if bb:
                         return dict(bb, waited=True)
@@ -758,6 +859,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         if why and (base_f is None or (parallel and not guess)):
             cand_f = start_cand()
         base_r = base_f.result() if base_f is not None else None
+        if failed.is_set():
+            return tests_failed()
         if base_r is not None and base_r.get('cached'):
             rep['base_build'], base_r = base_r, None
             C = _closure_of(base_out)
@@ -797,6 +900,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             if why and cand_f is None:
                 cand_f = start_cand()
         cand_r = cand_f.result() if cand_f is not None else None
+        if failed.is_set():
+            return tests_failed()
         if cand_r is not None and cand_r['killed'] and not why:
             cand_r = None                               # stopped: the baseline's closure showed it the same build
             rep['build']['stopped'] = True
@@ -858,6 +963,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             if ga == gb:
                 # the same geometry: every move of these checks is the measure's (judged as usual: nothing registered)
                 rep['unregistered']['checks'] = sorted(r['check'] for r in rep['qa'] if r['check'] in owned)
+        if failed.is_set():
+            return tests_failed()
         if (stepped or (meas and owned)) and ga != gb:
             with clock('2x2', 'both QA codes on both bundles'):
                 # each tree's produced references first: a tree that didn't build (a cached baseline's, a carried
@@ -893,6 +1000,15 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             rep['blender_seconds'] = ends
             rep['cpu_seconds'] = [_cpu(base_out), _cpu(cand_out)]
             rep['cpu_threads'] = [_cpu(base_out, 'threads'), _cpu(cand_out, 'threads')]
+            rep['cpu_like'] = like_for_like(base_out, cand_out)
+            # the absolute budget (infra round 5; REPORT ONLY): each budgeted stage's CPU, both builds, against the
+            # merged tree's charkit/budget.json (a branch that adds cost raises it there, in review)
+            try:
+                from . import profile as prof
+                rep['budget'] = prof.budget_rows(cand_out, base_out, prof.load_budget(
+                    os.path.join(wc, 'charkit', 'budget.json')))
+            except Exception as e:                      # (never the gate's failure)
+                rep.setdefault('notes', []).append("the budget wasn't read (%s: %s)" % (type(e).__name__, e))
         return _finish(rep, gdir, tag, clock, tests_f, tests_r, qa_a, qa_b)
     finally:
         _stop(running)
@@ -1228,6 +1344,53 @@ def _accepted_reading(a, cand):
 ACCEPT_TOL = 0.01       # relative: a recorded acceptance of a flag check's regression covers its value to this
 
 
+PART_BLOCKS = {'crashed': 'a QA part crashed', 'short': 'a QA part measured fewer checks than it declares',
+               'skipped': 'a QA part was left out (a profile) in a gate build'}
+CRASH = re.compile(r'^[A-Za-z_][\w.]*(Error|Exception|Interrupt|Exit)\b')
+
+
+def part_status(q):
+    """a QA's per-part status against the parts' denominators (qa.json's measured.part_status, qa3d.run), or for a QA
+    from before it, what its checks show: a part whose only entry is its SKIPPED key with an exception's text crashed
+    -> {part: dict(status, checks, expected, why)}."""
+    m = (q or {}).get('measured') or {}
+    if m.get('part_status'):
+        return m['part_status']
+    out = {}
+    for part, ks in (m.get('part_checks') or {}).items():
+        c = ((q or {}).get('checks') or {}).get(ks[0]) if len(ks) == 1 else None
+        if c and c.get('status') == 'SKIPPED' and CRASH.match(str(c.get('why') or '')):
+            out[part] = dict(status='crashed', checks=0, expected=None, why=c['why'], read='its SKIPPED entry')
+    return out
+
+
+def part_findings(qa_a, qa_b, accept=()):
+    """the declared denominators (infra round 5) -> (block, report): the candidate's QA parts that crashed, measured
+    fewer checks than they declare, or were left out by a QA profile block (a crashing part used to read as its checks
+    'gone': motion QA went unmeasured for hours after 0d53cb8), unless --accept names `part:NAME`; the baseline's own
+    and the candidate's undeclared or over-count parts are reported."""
+    A, Bs = part_status(qa_a), part_status(qa_b)
+    block, rep = [], []
+    for part, st in sorted(Bs.items()):
+        s0 = (A.get(part) or {}).get('status')
+        row = dict(part=part, status=st['status'], checks=st.get('checks'), expected=st.get('expected'),
+                   why=st.get('why'), base=s0)
+        if st['status'] in PART_BLOCKS:
+            if any(fnmatch.fnmatchcase('part:' + part, a) for a in accept):
+                rep.append(dict(row, note='accepted (--accept part:%s)' % part))
+            else:
+                block.append(dict(row, kind=PART_BLOCKS[st['status']]))
+        elif st['status'] == 'undeclared':
+            rep.append(dict(row, note='the part declares no count (registry `checks`)'))
+        elif st.get('expected') is not None and (st.get('checks') or 0) > st['expected']:
+            rep.append(dict(row, note='measures %d, declares %d: raise its `checks`' % (st['checks'], st['expected'])))
+    for part, st in sorted(A.items()):
+        if st['status'] in PART_BLOCKS and part not in {r['part'] for r in block}:
+            rep.append(dict(part=part, status=st['status'], checks=st.get('checks'), expected=st.get('expected'),
+                            why=st.get('why'), side='baseline', note='on the baseline'))
+    return block, rep
+
+
 def judge(rep, qa_a, qa_b):
     """Michael's policy K on a gate's comparison -> (verdict, blocking, report). Blocking: rep['hard'] (the merge
     conflicting, a test failing, a build failing); a new FAIL (a check PASSing or WARNing on the baseline and FAILing
@@ -1241,8 +1404,24 @@ def judge(rep, qa_a, qa_b):
     is_flag = lambda k: registry.is_flag(ca.get(k)) or registry.is_flag(cb.get(k))
     block = [dict(h) for h in rep.get('hard') or ()]
     R = {k: [] for k in ('warn', 'new_failing', 'flag_values', 'values', 'gone', 'new', 'improved', 'removed',
-                         'remeasured', 'unregistered', 'twobytwo', 'accepted', 'calibration', 'shapes', 'notes')}
+                         'remeasured', 'unregistered', 'twobytwo', 'accepted', 'calibration', 'shapes', 'parts',
+                         'notes')}
     R['notes'] += list(rep.get('notes') or ())
+    for side in ('base_build', 'cand_build'):           # (a shared cache entry found stale while the build verified it)
+        st = [l for l in (rep.get(side) or {}).get('cache') or () if 'CHARKIT_CACHE_STALE' in l]
+        if st:
+            R['notes'].append('the %s build found stale cache entries (made afresh, replaced): %s' % (
+                side.split('_')[0], '; '.join(l.split('CHARKIT_CACHE_STALE', 1)[1].strip()[:120] for l in st)))
+    over = [r for r in rep.get('budget') or () if r.get('flag')]
+    if over:
+        R['notes'].append('build CPU past its budget (charkit/budget.json; reported, not blocking): ' + ', '.join(
+            '%s %.0f s > %.0f s (%.2fx%s)' % (r['stage'], r['cand'], r['budget'], r['ratio'],
+                                              '' if r.get('base') is None else ', baseline %.0f s' % r['base'])
+            for r in over))
+    if qa_b is not None:
+        pb, pr = part_findings(qa_a, qa_b, rep.get('accept') or ())
+        block += pb
+        R['parts'] += pr
     # a QA part whose measuring code changed with no registered step (charkit.codediff): its checks' moves are judged
     # as any others (nothing is relaxed), and on changed geometry the 2x2 scores them under each measure too
     ur = rep.get('unregistered') or {}
@@ -1344,9 +1523,9 @@ def judge(rep, qa_a, qa_b):
         keep = []
         for b in block:
             a = acc.get(b.get('check'))
-            if b.get('kind') in ('new FAIL', 'anti-gaming guard') and calibrate.covers(a, rep.get('branch')) or \
-                    b.get('kind') == 'flag check regressed' and calibrate.covers(a, rep.get('branch')) and \
-                    _accepted_reading(a, b.get('cand')):
+            cov = calibrate.covers(a, rep.get('branch'), rep.get('batch') or ())
+            if b.get('kind') in ('new FAIL', 'anti-gaming guard') and cov or \
+                    b.get('kind') == 'flag check regressed' and cov and _accepted_reading(a, b.get('cand')):
                 R['accepted'].append(dict(b, accepted={k: a.get(k) for k in ('by', 'at', 'why', 'value', 'branch',
                                                                               'recorded_by')}))
             else:
@@ -1354,6 +1533,15 @@ def judge(rep, qa_a, qa_b):
         block = keep
     ca_, cb_ = (rep.get('cpu_seconds') or [None, None])[:2]
     ta, tb_ = (rep.get('cpu_threads') or [None, None])[:2]
+    like = rep.get('cpu_like')
+    if like and like.get('ratio') is not None:
+        # (like for like: the stages both builds ran; the totals and what was left out are reported)
+        if like['excluded']:
+            R['notes'].append('build CPU compared like for like: %.0f -> %.0f s (%.2fx), the totals %.0f -> %.0f s (%.2fx) '
+                              'less %s' % (like['base'], like['cand'], like['ratio'], ca_ or 0, cb_ or 0,
+                                           (cb_ / ca_) if ca_ and cb_ else 0, '; '.join(
+                                               '%s (%s)' % e for e in like['excluded'])))
+        ca_, cb_ = like['base'], like['cand']
     if ca_ and cb_:
         rep['cpu_ratio'] = round(cb_ / ca_, 2)
         if ta != tb_:
@@ -1361,7 +1549,8 @@ def judge(rep, qa_a, qa_b):
                               '%s), and an uncapped build burns CPU spinning as the box gets busier' % (
                                   rep['cpu_ratio'], ca_, cb_, ta or 'uncapped', tb_ or 'uncapped'))
         elif cb_ > CPU_LIMIT * ca_:
-            block.append({'kind': 'build CPU', 'base': ca_, 'cand': cb_, 'ratio': rep['cpu_ratio']})
+            block.append({'kind': 'build CPU', 'base': ca_, 'cand': cb_, 'ratio': rep['cpu_ratio'],
+                          'like': bool(like and like.get('ratio') is not None)})
     elif (rep.get('cand_build') or {}).get('skipped'):
         rep['cpu_ratio'] = None
     elif rep.get('qa') is not None:
@@ -1405,7 +1594,11 @@ def _why(b):
         a, z = (b['from'], b['to']) if 'from' in b else (b.get('base'), b.get('cand'))
         return '%s: %s %s -> %s' % (k, b['check'], _cell(a), _cell(z))
     if k == 'build CPU':
-        return 'the build takes %.2fx the CPU time (%s -> %s s)' % (b['ratio'], b['base'], b['cand'])
+        return 'the build takes %.2fx the CPU time (%s -> %s s%s)' % (b['ratio'], b['base'], b['cand'],
+                                                                     ', the stages both builds ran' if b.get('like') else '')
+    if k in PART_BLOCKS.values():
+        return '%s: %s (%s%s; measured %s, declares %s)' % (k, b['part'], b['status'], ': ' + str(b['why'])[:200]
+                                                           if b.get('why') else '', b.get('checks'), b.get('expected'))
     if b.get('files'):
         return '%s: %s' % (k, ', '.join(b['files'][:12]))
     return k
@@ -1422,8 +1615,8 @@ def summary(rep, md=None):
     """the machine-readable summary (REPORT.summary.json): the verdict under K, what blocks, the report by kind."""
     t = rep.get('tests') or {}
     return dict(branch=rep['branch'], tip=rep['tip'], into=rep['into'], head=rep['head'], spec=rep['spec'],
-                t=rep['t'], policy='K', verdict=rep['verdict'], verdict_pre_k=rep.get('verdict_pre_k'),
-                why=rep.get('why'), blocking=rep.get('blocking') or [],
+                batch=rep.get('batch') or [], t=rep['t'], policy='K', verdict=rep['verdict'],
+                verdict_pre_k=rep.get('verdict_pre_k'), why=rep.get('why'), blocking=rep.get('blocking') or [],
                 report={k: v for k, v in (rep.get('report') or {}).items() if v},
                 counts={k: len(v) for k, v in (rep.get('report') or {}).items() if v},
                 build=dict(rep.get('build') or {}, base=_brief(rep.get('base_build')), cand=_brief(rep.get('cand_build'))),
@@ -1501,6 +1694,8 @@ def _write(rep, gdir, tag):
     if rep.get('verdict_pre_k') and rep['verdict_pre_k'] != rep['verdict']:
         line += ' (Before K: %s.)' % rep['verdict_pre_k']
     L.append('\n' + line)
+    if rep.get('batch'):
+        L.append('\nA batch merge of %s: their recorded acceptances (charkit/accepted/) apply.' % ', '.join(rep['batch']))
     if rep.get('why'):
         L.append('\n' + rep['why'])
     L.append('\n## Blocking (policy K)\n')
@@ -1523,7 +1718,8 @@ def _write(rep, gdir, tag):
                        ('twobytwo', "The 2x2's drops (not blocking)"),
                        ('accepted', "Accepted by name (Michael's call, recorded in charkit/accepted/)"),
                        ('calibration', 'Calibration records of the new and remeasured checks (charkit/calib/records)'),
-                       ('shapes', "The pieces' shape beside the checks that moved (the anti-gaming guard's evidence)")):
+                       ('shapes', "The pieces' shape beside the checks that moved (the anti-gaming guard's evidence)"),
+                       ('parts', 'QA parts against their declared counts (registry `checks`)')):
         rows = R.get(key) or []
         if not rows:
             continue
@@ -1531,6 +1727,7 @@ def _write(rep, gdir, tag):
         if key == 'accepted':
             L += _table(rows, [('check', lambda r: r['check']), ('what', lambda r: r.get('kind')),
                                ('candidate', lambda r: _cell(r.get('cand') or r.get('to'))),
+                               ('branch', lambda r: r['accepted'].get('branch') or '-'),
                                ('by', lambda r: r['accepted'].get('by')), ('when', lambda r: r['accepted'].get('at')),
                                ('why', lambda r: r['accepted'].get('why'))])
             L.append('')
@@ -1547,6 +1744,13 @@ def _write(rep, gdir, tag):
                                ('per view, base -> candidate', lambda r: '; '.join(
                                    '%s %s -> %s%s' % (v, f(a), f(b), ' (%+.0f%%)' % (100 * (b - a) / a) if a and b is
                                                       not None else '') for v, (a, b) in r['views'].items()))])
+            L.append('')
+            continue
+        if key == 'parts':
+            L += _table(rows, [('QA part', lambda r: r['part']), ('status', lambda r: r['status']),
+                               ('measured', lambda r: r.get('checks')), ('declared', lambda r: r.get('expected')),
+                               ('baseline', lambda r: r.get('base') or ''), ('note', lambda r: (r.get('note') or '') + (
+                                   ': ' + str(r['why'])[:120] if r.get('why') else ''))])
             L.append('')
             continue
         if key == 'unregistered':
@@ -1620,6 +1824,18 @@ def _write(rep, gdir, tag):
                                          bb.get('threads') or ('uncapped' if not bb.get('cached') else 'cached'),
                                          cb.get('threads') or (rep.get('cpu_threads') or [None, None])[1] or
                                          'uncapped')))
+    if rep.get('budget'):
+        f = lambda x: '-' if x is None else '%.0f' % x
+        L.append('\nBuild CPU against the budget (charkit/budget.json; REPORT ONLY, s):\n')
+        L += _table(rep['budget'], [('stage', lambda r: r['stage']), ('budget', lambda r: f(r.get('budget'))),
+                                    ('baseline', lambda r: f(r.get('base'))), ('candidate', lambda r: f(r.get('cand'))),
+                                    ('candidate / budget', lambda r: '%.2fx' % r['ratio'] if r.get('ratio') is not None
+                                     else ''), ('', lambda r: r.get('flag') or '')])
+    lk = rep.get('cpu_like')
+    if lk and lk.get('ratio') is not None:
+        L.append('- build CPU like for like (the stages both builds ran; what policy K reads): %s s -> %s s (%.2fx)%s' % (
+            lk['base'], lk['cand'], lk['ratio'], '; left out: ' + '; '.join('%s (%s)' % e for e in lk['excluded'])
+            if lk['excluded'] else ''))
     L.append('\n## Phases\n')
     L += _table(rep.get('phases') or [], [('phase', lambda r: r['phase']), ('start (s)', lambda r: r['start']),
                                           ('seconds', lambda r: r['seconds']), ('note', lambda r: r.get('note', ''))])
@@ -1710,5 +1926,6 @@ def main(args):
         return
     rep = gate(args[0], into=opt('--into', 'HEAD'), spec=opt('--spec', 'charkit/spec/clawd.json'),
                args=shlex.split(opt('--args', '')), keep='--keep' in args,
-               accept=[a for a in opt('--accept', '').split(',') if a], force_build='--build' in args)
+               accept=[a for a in opt('--accept', '').split(',') if a], force_build='--build' in args,
+               batch=[b for b in opt('--batch', '').split(',') if b])
     raise SystemExit(0 if rep['verdict'] != 'FAIL' else 1)

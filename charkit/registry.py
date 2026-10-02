@@ -16,6 +16,14 @@ QA parts. A venv QA part is a function (B, design, out, ...) -> (table, checks),
   table     the key its table is reported under in qa.json ('views': the report's views; None: not reported)
   ref_image the part takes the spec's reference image as a fourth argument
   skip_key  the check reported SKIPPED when the part raises (default: its name)
+  checks    its denominator (infra round 5: a crashing part read as 'skipped' and motion QA went unmeasured for hours):
+            how many checks it measures (status other than SKIPPED) on a spec it applies to: an int (the default
+            spec's count; a branch that removes checks lowers it in the same commit) or a function (B, design) -> int
+            (a count the spec implies: motion's per loose garment). qa3d.run records each part's status (ok, short,
+            crashed, skipped by a profile) and count against it (qa.json's measured.part_status); the merge gate
+            blocks a candidate whose part crashed or measured fewer
+  skip_in   the QA profiles that leave the part out (qa3d.PROFILES: 'iterate', the QA-only and sweep iterations;
+            motion QA's cloth solve): reported 'skipped by profile', never silently; a gate's builds run 'full'
 
 parts() imports every charkit module that registers one (found by the `@qa_part(` decorator at the start
 of a line, nothing else imported) and returns them in order.
@@ -47,13 +55,13 @@ PART_MARK = re.compile(r'^@(?:registry\.)?qa_part\(', re.M)
 SKIP_DIRS = {'out', 'tests', '__pycache__'}
 
 FLAG = 'flag'                   # a check's qa.json key: the flag of Michael's it was built from (see above)
-Part = collections.namedtuple('Part', 'name fn prefix table order ref_image keep skip_key')
+Part = collections.namedtuple('Part', 'name fn prefix table order ref_image keep skip_key checks skip_in')
 _PARTS = {}
 _found = False
 
 
 # ------------------------------------------------------------------------------------------------------------ QA parts
-def qa_part(name, order, prefix='', table=None, ref_image=False, keep=None, skip_key=None):
+def qa_part(name, order, prefix='', table=None, ref_image=False, keep=None, skip_key=None, checks=None, skip_in=()):
     """register the decorated function as the QA part `name` (see the module's docstring). -> the function."""
     def deco(fn):
         old = _PARTS.get(name)
@@ -63,9 +71,23 @@ def qa_part(name, order, prefix='', table=None, ref_image=False, keep=None, skip
         clash = [p.name for p in _PARTS.values() if p.order == order and p.name != name]
         if clash:
             raise ValueError('QA part %r: order %s is taken by %s' % (name, order, clash[0]))
-        _PARTS[name] = Part(name, fn, prefix, table, order, ref_image, keep, skip_key or name)
+        _PARTS[name] = Part(name, fn, prefix, table, order, ref_image, keep, skip_key or name, checks, tuple(skip_in))
         return fn
     return deco
+
+
+def expected(P, B=None, design=None):
+    """a part's denominator on a bundle: its `checks` (an int, or the function's count) -> int, or None when it
+    declares none (or its function raised: the reason in the second value) -> (n or None, why or None)."""
+    c = P.checks
+    if c is None:
+        return None, 'declares no count'
+    if callable(c):
+        try:
+            return int(c(B, design)), None
+        except Exception as e:                          # (its own fault, reported: the part may still have run)
+            return None, 'its count raised %s: %s' % (type(e).__name__, e)
+    return int(c), None
 
 
 def flag_check(c, why):

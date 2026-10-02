@@ -1,13 +1,14 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--boards-renderer eevee|toon]
-                                     [--no-blend] [--no-fit] [--no-qa] [--vrm] [--no-look]
+                                     [--no-blend] [--no-fit] [--no-qa] [--vrm] [--no-look] [--profile full|iterate]
                                      [--base code|anime|makehuman] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
                                      [--cache on|off|refresh|stages|verify] [--no-cache] [--no-worker]
     python -m charkit qa OUT/bundle [--out OUT/qa] [--cache on|off|refresh]   # the QA on a build's geometry bundle
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl] [--no-time]  # a build's state log, or what changed
+    python -m charkit profile BUILD [--vs OTHER] | qa BUNDLE [--parts ..]   # a build's wall and CPU by stage (charkit/profile.py)
     python -m charkit worker start | stop | status                  # a live Blender that takes build jobs
     python -m charkit cache [info | clear]                          # the build cache (charkit/out/.cache)
     python -m charkit gate BRANCH [--into REF] [--args "--base anime"] # what merging BRANCH would do, measured first
@@ -83,6 +84,8 @@ have restored (CHARKIT_CACHE_STALE). The geom hair cut is cached the same way, v
 The QA (docs/CHARKIT.md §4): Blender builds and exports the geometry bundle (out/bundle, charkit/bundle.py); the venv
 measures it (charkit/qa3d.py, numba z-buffers, no Blender): out/qa/qa.json and the overlays, each QA part cached on what
 it read of the bundle and its code. --qa blender runs the old Blender-side pass instead (charkit/qa3d_blender.py).
+--profile iterate (an iteration build: the QA profile qa3d.PROFILES) leaves out the parts that declare it (motion QA's
+cloth solve, ~100 s of CPU), each reported SKIPPED 'skipped by profile iterate'; gates and full builds run 'full'.
 
 The build worker (charkit/worker.py): `worker start` keeps one Blender running with charkit loaded; build sends its job
 there when it runs (a clean scene and freshly imported code per job) and starts a fresh Blender otherwise or with
@@ -296,17 +299,25 @@ def _build(args):
     print('CHARKIT_THREADS %s' % (os.environ.get('NUMBA_NUM_THREADS') or 'uncapped'), flush=True)
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
+    if opt('--profile'):                        # (the QA's profile: iterate leaves out motion QA, reported as skipped)
+        from . import qa3d
+        os.environ[qa3d.PROFILE_ENV] = qa3d.profile_of(opt('--profile'))
+        print('CHARKIT_QA_PROFILE %s' % os.environ[qa3d.PROFILE_ENV], flush=True)
     from . import cache
     n = cache.unshare(out)                      # the build rewrites its outputs: not through links to another worktree
     if n:
         print('build: %d files in %s were hard-linked elsewhere; unshared' % (n, out))
     phase = _phases()
+    if opt('--cache') == 'verify':              # (the produced references are made afresh and compared too)
+        os.environ['CHARKIT_PRODUCED_VERIFY'] = '1'
     with phase('resolve'):                      # the references produced, the design measured, the knobs fitted
         spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args, base=opt('--base'))
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
+    if mode in ('off', 'verify'):               # (the venv's design-side memo too: a cold build is cold through)
+        os.environ['CHARKIT_CACHE'] = 'off'
     for step in (outfit_draft, code_head, code_body, hair_select, geom_hair, pieces_hair, garments_geom):
         with phase(step.__name__):
             spec = step(spec, resolved, out, mode)
@@ -358,36 +369,52 @@ def _build(args):
         except ValueError:
             pass
     history.append(out, name, note)
-    _cpu_line(out, t_build)
+    _cpu_line(out, t_build, phase.rows)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
 
 
-def _cpu_line(out, t0):
+def _cpu_line(out, t0, phases=None):
     """the build's CPU seconds (this process and the children it waited for: its Blender; a worker's jobs aren't
     counted), wall seconds and thread cap: CHARKIT_BUILD_CPU on stdout and OUT/build_cpu.json, so any build (not only
-    a gate's) says what it cost the machine."""
-    import resource, time
-    a, b = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
-    rec = {'cpu_seconds': round(a.ru_utime + a.ru_stime + b.ru_utime + b.ru_stime, 1),
+    a gate's) says what it cost the machine. phases: {step: [wall, cpu]} (the build's _phases), kept in the file only."""
+    import time
+    rec = {'cpu_seconds': round(_rusage_cpu(), 1),
            'wall_seconds': round(time.time() - t0, 1), 'threads': os.environ.get('NUMBA_NUM_THREADS') or None,
            'slot': 'build' if os.environ.get('CHARKIT_SLOT_HELD') else 'blender'}
-    json.dump(rec, open(os.path.join(out, 'build_cpu.json'), 'w'))
     print('CHARKIT_BUILD_CPU %s' % json.dumps(rec), flush=True)
+    if phases:
+        rec['phases'] = phases
+        # (what this build restored rather than ran: the gate compares CPU like for like, gate.like_for_like)
+        from . import cache, manifest
+        rec['restored'] = {'steps': {k: ('restored' if v == 'hit' else 'ran') for k, v in cache.STEP_RESULTS.items()},
+                           'produced': dict(manifest.PRODUCED_RESULTS)}
+    json.dump(rec, open(os.path.join(out, 'build_cpu.json'), 'w'))
+
+
+def _rusage_cpu():
+    """CPU seconds so far of this process (every thread) and the children it has waited for (the build's Blender)."""
+    import resource
+    a, b = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
+    return a.ru_utime + a.ru_stime + b.ru_utime + b.ru_stime
 
 
 def _phases():
     """a timer for the build's steps: `with phase(NAME):` prints CHARKIT_PHASE NAME SECONDS when the step ends (the merge
-    gate reports them: charkit/gate.py)."""
+    gate reports them: charkit/gate.py), and keeps each step's wall and CPU seconds in phase.rows ({name: [wall, cpu]}:
+    this process and the children it waited for), which build_cpu.json carries (charkit.profile's per-stage table)."""
     import contextlib, time
+    rows = {}
 
     @contextlib.contextmanager
     def phase(name):
-        t = time.time()
+        t, c = time.time(), _rusage_cpu()
         try:
             yield
         finally:
+            rows[name] = [round(time.time() - t, 2), round(_rusage_cpu() - c, 2)]
             print('CHARKIT_PHASE %s %.1f' % (name, time.time() - t), flush=True)
+    phase.rows = rows
     return phase
 
 
@@ -506,7 +533,7 @@ def code_head(spec, resolved, out, mode='on'):
         r = cache.file_step('code_head', run, [code_head], key, gdir, inputs=imgs,
                             modules=('charkit.code_base', 'charkit.geom.headfit', 'charkit.geom.hull', 'charkit.mouth',
                                      'charkit.faceregion'),
-                            name_key=spec['name'], refresh=mode == 'refresh')
+                            name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE code_head', r)
     spec['head_code'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -542,7 +569,7 @@ def code_body(spec, resolved, out, mode='on'):
                             modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.geom.hullshell',
                                      'charkit.code_hand'),
                             name_key=spec['name'],
-                            refresh=mode == 'refresh')
+                            refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE code_body', r)
     spec['body_code'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -587,7 +614,7 @@ def geom_hair(spec, resolved, out, mode='on'):
     else:
         r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir,
                             inputs=_glb_inputs(shape['glb']) + ([spec['head_code']] if spec.get('head_code') else []),
-                            modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
+                            modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path
     if shape.get('facial'):
@@ -631,7 +658,7 @@ def hair_select(spec, resolved, out, mode='on'):
         r = cache.file_step('hair_select', run, [hair_select], key, gdir, inputs=ins + _glb_inputs(shape['glb']),
                             modules=('charkit.bodyeval', 'charkit.geomstage', 'charkit.character', 'charkit.code_base',
                                      'charkit.code_body', 'charkit.geom.bvh', 'charkit.geom.parts', 'charkit.target3d',
-                                     'charkit.scene'), name_key=spec['name'], refresh=mode == 'refresh')
+                                     'charkit.scene'), name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE hair_select', r)
     shape['selection'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -731,7 +758,7 @@ def pieces_hair(spec, resolved, out, mode='on'):
                                          ('charkit.geom.hairink', 'charkit.inkfit', 'charkit.hairflagqa',
                                           'charkit.hairlayers', 'charkit.bodyqa', 'charkit.sheetqa')
                                          if strokes_in else ()), name_key=spec['name'],
-                            refresh=mode == 'refresh')
+                            refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE pieces_hair', r)
     shape['pieces'] = pdir
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -771,7 +798,7 @@ def garments_geom(spec, resolved, out, mode='on'):
                             inputs=ins + (_glb_inputs(glb) if glb else []),
                             modules=('charkit.geomstage', 'charkit.garments', 'charkit.character', 'charkit.code_base',
                                      'charkit.code_body', 'charkit.geom.loft', 'charkit.scene'),
-                            name_key=spec['name'], refresh=mode == 'refresh')
+                            name_key=spec['name'], refresh=mode == 'refresh', verify=mode == 'verify')
         print('CHARKIT_CACHE garments_geom', r)
     spec['garments_geom'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
@@ -831,7 +858,8 @@ def figures(args):
         print('wrote', mp)
 
 
-CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep', 'accfit')
+CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains', 'sweep', 'accfit',
+          'profile')
 
 
 def _cap(args):
@@ -862,6 +890,9 @@ def main(argv=None):
     elif cmd == 'trace':
         from . import trace
         trace.main(rest)
+    elif cmd == 'profile':
+        from . import profile
+        raise SystemExit(profile.main(rest))
     elif cmd == 'export':
         export(rest)
     elif cmd == 'bodyeval':
