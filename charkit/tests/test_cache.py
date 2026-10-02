@@ -132,9 +132,12 @@ def test_step_closure_is_depth_limited():
     deep = cache.code_units(cli.code_head, modules=('charkit.cache',))
     near = cache.code_units(cli.code_head, modules=('charkit.cache',), depth=cache.STEP_DEPTH)
     mods = lambda u: {k.split(':')[0] for k in u}
-    # (followed definition by definition, the step doesn't reach the QA at any depth: 10 files, 2026-09-30)
-    assert 'charkit/qa3d.py' not in mods(deep) and mods(near) <= mods(deep)
-    assert 'charkit/code_base.py' in mods(near) and len(mods(deep)) < 30
+    # (followed definition by definition: 10 files on 2026-09-30, when head_sections' runtime imports of headfit and
+    # refcheck were invisible to the walk; followed since 2026-10-01, the head step reaches what they run, the design
+    # side's measures in faceregion and qa3d included: 43 files, still not the QA's parts)
+    assert 'charkit/geom/headfit.py' in mods(deep) and mods(near) <= mods(deep)
+    assert 'charkit/code_base.py' in mods(near) and len(mods(deep)) < 60
+    assert not {'charkit/declared.py', 'charkit/lookqa.py', 'charkit/artifactqa.py', 'charkit/gate.py'} & mods(deep)
 
 
 def test_file_memo():
@@ -348,6 +351,117 @@ def test_blender_restore():
     r = subprocess.run([BLENDER, '-b', '--factory-startup', '--python', os.path.abspath(__file__)], capture_output=True,
                        text=True, timeout=600)
     assert 'CHARKIT_TEST_OK' in r.stdout, (r.stdout + r.stderr)[-3000:]
+
+
+def test_the_walk_follows_an_import_made_by_a_call():
+    """`m = importlib.import_module('charkit.x')` and `__import__('charkit.x', fromlist=[..]).f` bind and are followed
+    like import statements (2026-10-01: code_base.head_sections' runtime headfit import kept the hull's shared-cache
+    key blind to headfit, and a gate restored a stale baseline hull). A computed name isn't followed."""
+    import tempfile, textwrap
+    root = tempfile.mkdtemp()
+    kit = os.path.join(root, 'charkit')
+    os.makedirs(os.path.join(kit, 'geom'))
+    for f, src in {'__init__.py': '', 'geom/__init__.py': '',
+                   'geom/fitter.py': 'def fit(x):\n    return x + 1\n\ndef unused():\n    return 0\n',
+                   'other.py': 'VALUE = 3\n\ndef f():\n    return VALUE\n',
+                   'stage.py': textwrap.dedent("""
+                       import importlib
+                       mod = importlib.import_module('charkit.other')
+
+                       def run(x):
+                           fitter = importlib.import_module('charkit.geom.fitter')
+                           return fitter.fit(x)
+
+                       def run2():
+                           return __import__('charkit.other', fromlist=['f']).f()
+
+                       def run3(name):
+                           return importlib.import_module('charkit.' + name)
+
+                       def run4():
+                           return mod.f()
+                       """)}.items():
+        open(os.path.join(kit, f), 'w').write(src)
+    with cache.code_tree(root):
+        u = cache.code_units(starts=[('charkit.stage', 'run')])
+        assert 'charkit/geom/fitter.py:fit' in u and 'charkit/geom/fitter.py:unused' not in u, sorted(u)
+        assert 'charkit/other.py:f' in cache.code_units(starts=[('charkit.stage', 'run2')])
+        assert 'charkit/other.py:f' in cache.code_units(starts=[('charkit.stage', 'run4')])     # (a top-level one)
+        u3 = cache.code_units(starts=[('charkit.stage', 'run3')])
+        assert not any(k.startswith('charkit/geom/') for k in u3), sorted(u3)
+    # the real case: the hull's code reaches what head_sections imports at run time
+    from charkit import code_base
+    assert any(k.startswith('charkit/geom/headfit.py:assemble') for k in cache.code_units(code_base.head_sections))
+
+
+_RAN_RUN = r'''
+import os, sys
+sys.path.insert(0, sys.argv[1])
+from charkit import cache
+gdir = os.path.join(sys.argv[2], 'geom')
+os.makedirs(gdir, exist_ok=True)
+
+def run():
+    open(os.path.join(gdir, 'made.txt'), 'w').write(cache.digest([1, 2]))    # (charkit code the step runs)
+
+print(cache.file_step('t_ran', run, [cache.venv_env], {'k': 1}, gdir, verify=len(sys.argv) > 3))
+'''
+
+
+def test_a_venv_step_entry_is_checked_against_the_code_it_ran():
+    """the runtime record (cache.ran: what a step's code ran, which a key's static walk can miss): stored with the
+    entry; a lookup whose recorded definition differs now is a miss, the entry replaced (2026-10-01: a baseline hull
+    restored by a key blind to headfit). Tampering with the record stands in for the code changing."""
+    import glob
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    tmp = tempfile.mkdtemp()
+    env = dict(os.environ, CHARKIT_STEP_CACHE=os.path.join(tmp, 'steps'), CHARKIT_CLOSURE='')
+    run = lambda b: subprocess.run([sys.executable, '-c', _RAN_RUN, root, os.path.join(tmp, b)], capture_output=True,
+                                   text=True, env=env, cwd=tmp).stdout.split('\n')[0]
+    assert run('a').startswith('miss') and run('b') == 'hit'
+    mf, = glob.glob(os.path.join(tmp, 'steps', 'venv', 't_ran', '*', '*', 'manifest.json'))
+    E = json.load(open(mf))
+    assert 'charkit/cache.py:digest' in E['ran'], E['ran']
+    E['ran']['charkit/cache.py:digest'] = 'older code'
+    json.dump(E, open(mf, 'w'))
+    got = run('c')
+    assert got.startswith('miss: code it ran changed: charkit/cache.py:digest'), got
+    assert run('d') == 'hit'                            # (the entry replaced by the fresh run's)
+    # --cache verify: the step runs and its products are compared with the entry a lookup would restore
+    verify = lambda b: subprocess.run([sys.executable, '-c', _RAN_RUN, root, os.path.join(tmp, b), 'verify'],
+                                      capture_output=True, text=True, env=env, cwd=tmp).stdout.split('\n')
+    assert verify('e')[0] == 'verified'
+    made, = glob.glob(os.path.join(tmp, 'steps', 'venv', 't_ran', '*', '*', 'files', 'made.txt'))
+    open(made, 'w').write('what older code made')
+    got = verify('f')
+    assert got[0].startswith('CHARKIT_CACHE_STALE step t_ran: made.txt') and got[1] == 'stale: made.txt', got
+    assert run('g') == 'hit' and open(os.path.join(tmp, 'g', 'geom', 'made.txt')).read() == cache.digest([1, 2])
+    assert cache.ran_changed(None) == '<unrecorded>' and cache.ran_changed({}) is None
+    with cache.ran() as R:
+        cache.digest(3)
+        with cache.ran() as inner:                      # (nested: the inner can't record, and says so)
+            pass
+    assert 'charkit/cache.py:digest' in R and '<unrecorded>' in inner
+
+
+def test_a_produced_entry_made_by_other_code_is_a_miss():
+    """the produced references' shared cache: an entry whose recorded code differs from this checkout's (or that has
+    no record: made before it) is dropped and rebuilt, not restored."""
+    from charkit import manifest
+    tmp = tempfile.mkdtemp()
+    e = os.path.join(tmp, 'hull', 'KEY')
+    os.makedirs(e)
+    json.dump({'key': 'KEY', 'ran': {'charkit/cache.py:digest': 'older code'}}, open(os.path.join(e, 'entry.json'), 'w'))
+    assert 'the code it ran changed (charkit/cache.py:digest)' in manifest._ran_stale(tmp, 'hull', 'KEY')
+    assert not os.path.exists(e)
+    os.makedirs(e)
+    json.dump({'key': 'KEY'}, open(os.path.join(e, 'entry.json'), 'w'))
+    assert 'no record' in manifest._ran_stale(tmp, 'hull', 'KEY')
+    os.makedirs(e)
+    with cache.ran() as R:
+        cache.digest(4)
+    json.dump({'key': 'KEY', 'ran': R}, open(os.path.join(e, 'entry.json'), 'w'))
+    assert manifest._ran_stale(tmp, 'hull', 'KEY') is None and os.path.exists(e)
 
 
 if __name__ == '__main__':

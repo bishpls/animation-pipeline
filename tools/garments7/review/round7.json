@@ -1,0 +1,204 @@
+{
+ "title": "garments4 round 7: the joined shoulder on by default, the garments refit (regressions accepted)",
+ "summary": {
+  "recommended": "Merge with the joined shoulder ON by default (Michael's call, 2026-10-01: motion testing on the default body), as candidate g7_c7, and recover the garments in round 8 from separated references. The bare shoulder now matches the base body sheet (body_shoulder front/back IoU 0.674 -> 0.944 / 0.948; the shoulder line's dip and tilt FAIL -> PASS), and both 90-degree raises with the garments on stay clean (skin out of the puff at most 17 vertices, 0.025 L; the old body 18). Accepted regressions: art_outline_neck 1.47 -> 10.3, art_outline_collar 1.44 -> 3.47, bow_front_bleed 0 -> 0.147, the collar's torn edges, the sleeve's profile, piece_top front 0.749 -> 0.507 (-32%). Gate (c8d30430 into 27a4b6c3): the 15 garment regressions accepted by name; 5 blockers left, all the motion QA's remeasure bookkeeping (the 2x2's old measure can't read the joined body; the new measure reads the motion skirt checks identically on both geometries) and one stale motion record (motion_kick_skirt_inside, miscalibrated on today's skirt upstream): the coordinator's call.",
+  "asked": [
+   "Nothing for Michael: informational (his decision of 2026-10-01 is applied). For the coordinator: accept the motion skirt checks' unmeasured 2x2 cells (motion_*_skirt_*: the new measure reads them the same on both geometries) and decide motion_kick_skirt_inside's record (miscalibrated on today's skirt: pipeline-3d itself reads 0.0071 WARN), or not?"
+  ],
+  "numbers": {
+   "columns": [
+    "check",
+    "old body (pipeline-3d default)",
+    "joined shoulder, garments refit (g7_c7: the new default)"
+   ],
+   "rows": [
+    [
+     "body_shoulder front / back IoU vs the base body sheet",
+     "0.674 / 0.674 FAIL",
+     "0.944 / 0.948 PASS"
+    ],
+    [
+     "body_shoulder front side (L)",
+     "0.254 FAIL",
+     "0.014 PASS"
+    ],
+    [
+     "shoulder_front_dip / back_dip / front_tilt",
+     "FAIL / FAIL / FAIL",
+     "PASS / PASS / PASS"
+    ],
+    [
+     "piece_top IoU front / 3q",
+     "0.749 / 0.799",
+     "0.507 / 0.669 (accepted)"
+    ],
+    [
+     "piece_sleeve_L IoU front / profile",
+     "0.948 / 0.942",
+     "0.941 / 0.769 (accepted)"
+    ],
+    [
+     "piece_collar IoU front / 3q",
+     "0.657 / 0.467",
+     "0.905 / 0.531"
+    ],
+    [
+     "art_outline_neck (flag; corners per L, ratio to the design)",
+     "1.47 PASS",
+     "10.3 WARN (accepted)"
+    ],
+    [
+     "art_outline_collar (flag)",
+     "1.44 PASS",
+     "3.47 WARN (accepted)"
+    ],
+    [
+     "bow_front_bleed (flag)",
+     "0.0 PASS",
+     "0.147 FAIL (accepted)"
+    ],
+    [
+     "collar torn back / front / profile",
+     "PASS / PASS / PASS",
+     "FAIL / FAIL / FAIL (accepted)"
+    ],
+    [
+     "sleeve profile_L / 3q profile_L",
+     "0.031 W / 0.016 P",
+     "0.114 F / 0.062 F (accepted)"
+    ],
+    [
+     "art_mirror_waist / art_speckle_neck (flags)",
+     "0.75 / 0.98 PASS",
+     "1.06 / 1.06 PASS"
+    ],
+    [
+     "neck_crease",
+     "12.7 PASS",
+     "24.2 WARN"
+    ],
+    [
+     "raises with the garments on: skin out of the puff (side / forward)",
+     "18 / 0 verts",
+     "3 / 17 verts, <= 0.025 L"
+    ]
+   ]
+  }
+ },
+ "builds": [
+  {
+   "label": "old body (g7_base: pipeline-3d's default spec)",
+   "path": "charkit/out/g7_base"
+  },
+  {
+   "label": "g7_c4 (gi: the neck fixes)",
+   "path": "charkit/out/g7_c4"
+  },
+  {
+   "label": "g7_c7 (the new default: gi + gj)",
+   "path": "charkit/out/g7_c7"
+  }
+ ],
+ "regions": [
+  "bow"
+ ],
+ "checks": [
+  "body_shoulder_*",
+  "body_axilla_*",
+  "shoulder_*",
+  "piece_top",
+  "piece_sleeve_L",
+  "piece_sleeve_R",
+  "piece_collar",
+  "art_outline_neck",
+  "art_outline_collar",
+  "art_mirror_waist",
+  "art_speckle_neck",
+  "bow_front_bleed",
+  "collar_*_torn",
+  "sleeve_*_profile_*",
+  "sleeve_*_spikes_*",
+  "neck_crease",
+  "neck_v_*"
+ ],
+ "notes": [
+  "Gate 4 (cold; charkit/out/gate/gate_tool-garments4-shoulders_1ffdc9a5_into_241f0547.md): FAIL under K on one blocker, motion_kick_skirt_inside's refreshed record reading miscalibrated on today's skirt (upstream drift: pipeline-3d's own build reads 0.0071 WARN). Accepted by name and reported: the 15 garment items and rom_weights_stray; the motion skirt 2x2 cells accepted. rom_shoulder_open 0.38 -> 0 and rom_shoulder_torso 0.048 -> 0 (FAIL -> PASS). Build CPU 1.01x; 107 test files pass.",
+  "Gate 3 (charkit/out/gate/gate_tool-garments4-shoulders_c8d30430_into_27a4b6c3.md): FAIL under K, 5 blockers, none the garments': the 2x2 couldn't run the old measure on the new geometry for motion_kick/squat_skirt_inside/stretch (pipeline-3d's motion code reads no skirt values on the joined body; the new measure: the same values on both geometries, 0.0071 W / 0.0796 P / 0.0171 I / 0.1338 P), and motion_kick_skirt_inside's record not refreshed (MISCALIBRATED on today's skirt). The 15 garment regressions are accepted by name (charkit/accepted/); build CPU 1.02x; 104 test files pass.",
+  "What round 7 fixed and measured: the skin strip on the shoulder (the radial neck cut's front plane reached 59 deg round the neck: bridge skin showing front 0.024 -> 0.0009 L^2); the V's notch (the throat's faces read as the back by the opening's front test: jacket vertices in the V 29 -> 0); art_speckle_neck and art_mirror_waist back to PASS; the body-shoulder checks calibrated (8 CALIBRATED; the axilla ships at WARN 0.038 / 0.047).",
+  "Tooling: the sweep's garments stage now re-masks the skin per row (validated against a real build: neck_crease 40 vs 40.0, art_outline_neck 11.8 vs 12.2), so changes to what the garments hide can be screened; a trap found in sweep optimize: its confirm builds charkit/spec/clawd.json unless confirm.spec is set (opt1's confirm built the old body).",
+  "Why the gate needs acceptances: on the joined shoulder the hull-conformed lapels crumple at the neck (art_outline_neck needs about one corner; the best of 230 optimizer evaluations and ~45 sweep rows reached 5.8), and the puffs' dome doesn't hold the bridge's top (the jacket shows over it: piece_top front 0.51 at best). The flat lapels (smoothed height field, decoupled V) are clean bands but not yet shaped right (collar 3q IoU 0.21-0.36, bleed 0.15-0.18): round 8, from separated references."
+ ],
+ "figures": [
+  {
+   "title": "The neck outline (art_outline_neck's own overlay: green outline, red corners)",
+   "text": "Old body: one corner. c4 / c7: the lapel tips crossing the neck's base, the jacket's V edge between the lapels and the V, the shoulder sliver.",
+   "height": 420,
+   "images": [
+    {
+     "path": "charkit/out/garments7/neckover_c4.png",
+     "caption": "old body | g7_c4"
+    },
+    {
+     "path": "charkit/out/garments7/neckover_c7.png",
+     "caption": "old body | g7_c7"
+    }
+   ]
+  },
+  {
+   "title": "Collar and puffs close up",
+   "text": "design | old body | g7_c7.",
+   "height": 420,
+   "images": [
+    {
+     "path": "charkit/out/garments7/look_c7_front.png",
+     "caption": "front, three-quarter"
+    },
+    {
+     "path": "charkit/out/garments7/look_c7_back.png",
+     "caption": "back, profile"
+    },
+    {
+     "path": "charkit/out/garments7/look_c7_sleeve.png",
+     "caption": "the left puff"
+    }
+   ]
+  },
+  {
+   "title": "The raises with the garments on (posed.py: the side raise from the front and back, the forward raise from the side)",
+   "text": "g7_c7: side raise skin out 3 verts / 0.021 L, forward 17 / 0.025 L; jacket strain p95 1.17 / 1.13; puff p95 2.09 / 2.36, folded 1.3% / 4.3%. A wedge of skin shows at the armpit under the puff's lower edge when raised (round 8).",
+   "height": 260,
+   "images": [
+    {
+     "path": "charkit/out/garments7/posed_c7.png",
+     "caption": "g7_c7"
+    },
+    {
+     "path": "charkit/out/garments7/posed_base.png",
+     "caption": "old body"
+    }
+   ]
+  },
+  {
+   "title": "Why piece_top falls: the puffs' dome vs the jacket over the bridge",
+   "text": "Sections through the shoulder (x = 0.3 / 0.45 / 0.55; z = -0.55 / -0.65 / -0.75): at z -0.55 the puff's dome is a small ring while the jacket over the bridge spans y -0.1..0.27.",
+   "height": 260,
+   "images": [
+    {
+     "path": "charkit/out/garments7/xsec_c4.png",
+     "caption": "g7_c4"
+    }
+   ]
+  },
+  {
+   "title": "The flat lapels for round 8 (opt-in, not on)",
+   "text": "The collar alone: as built (the hull's lapels, crumpled) | the smooth projected lapels with the V's point apart from the outer edge's low end.",
+   "height": 420,
+   "images": [
+    {
+     "path": "charkit/out/garments7/lapelview3.png",
+     "caption": "lapelview: front and three-quarter"
+    }
+   ]
+  }
+ ]
+}

@@ -116,6 +116,32 @@ def test_checks_grade_the_worst_view_against_a_floored_design():
     assert A.grade(1.0, 'outline') == 'PASS'
 
 
+def test_a_region_in_one_tone_keeps_its_terminator_check():
+    """ours drawn in one tone where the design has a terminator (merge/batch4: the joined shoulder lit the neck under
+    the chin, its terminator 0.043 L long against the base's 0.12-0.49): the check stays, INFO with no value and why,
+    so the part measures what it declares; a region ours doesn't draw at all is still left out."""
+    from charkit import qa3d
+    t = lambda n, k=0.0: {'terminator': {'len': n, 'kinks': k}, 'outline': {'corners': 1.0, 'len': 1.0}}
+    design = {'head': {v: {'neck': t(0.4, 8.0)} for v in A.VIEWS}}
+    ours = {'head': {'front': {'neck': t(0.0429, 23.3)}, 'three_quarter': {'neck': t(0.0431)},
+                     'profile': {'neck': t(0.0)}}}
+    C = A.checks(ours, design)
+    c = C['terminator_neck']
+    assert c['status'] == 'INFO' and c['value'] is None and 'one tone' in c['why'], c
+    assert c['len'] == {'front': 0.0429, 'three_quarter': 0.0431, 'profile': 0.0} and 'grade' not in c
+    assert qa3d.measured_count({'terminator_neck': c}) == 1
+    # (one view with a terminator: graded as before)
+    ours['head']['profile']['neck'] = t(0.3, 1.0)
+    c = A.checks(ours, design)['terminator_neck']
+    assert c['value'] == 0.125 and c['ratio'] == {'profile': 0.125} and c['grade'] == 'PASS'
+    # a region ours doesn't draw: no check (the part falls short of what it declares and the gate says so)
+    assert 'terminator_neck' not in A.checks({'head': {}}, design)
+    # nor when the design itself has no terminator there
+    flat = {'head': {v: {'neck': t(0.01)} for v in A.VIEWS}}
+    ours['head']['profile']['neck'] = t(0.0)
+    assert 'terminator_neck' not in A.checks(ours, flat)
+
+
 def test_the_stored_design_measures_are_whole():
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'refs', 'clawd', A.DESIGN_FILE)
     recs = A._records(json.load(open(p)))

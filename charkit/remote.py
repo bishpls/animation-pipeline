@@ -5,12 +5,13 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
     python -m charkit remote build SPEC [build args]     sync, build there, fetch its --out
     python -m charkit remote tune SPEC [tune args]       sync, tune there, fetch its --out
     python -m charkit remote gate BRANCH --into BASE [--spec SPEC] [--args ARGS] [--accept PATTERN,...] [--build]
-                              [--code REF] [--keep-older]
+                              [--code REF] [--keep-older] [--batch BRANCH,...]
                                                          the gate there, in a clone kept current by git bundles, its
                                                          report fetched into charkit/out/gate (SPEC a path on the box).
                                                          It stops the branch's older gate still running (same spec;
                                                          --keep-older doesn't). --code REF: the gate's own code from REF,
-                                                         not BASE's (to try a change to the gate itself)
+                                                         not BASE's (to try a change to the gate itself). --batch: BRANCH
+                                                         is a batch merge of these (their acceptances apply)
     python -m charkit remote run [--fetch DIR] CMD...    anything, in the synced copy (DIR fetched back when it ends)
     python -m charkit remote jobs [--days N] [--silences] every box's jobs: running, finished (N days, default 1), lost.
                                                          A running job with no output for its limit (20 min; a gate 45,
@@ -102,6 +103,16 @@ def _portable_spec(path):
 
 def _opt(args, k, d=None):
     return args[args.index(k) + 1] if k in args else d
+
+
+GATE_OPTS = ('--spec', '--args', '--accept', '--batch')     # `remote gate`'s options the box's `charkit gate` takes
+
+
+def gate_passthrough(args):
+    """the options `remote gate` passes through to the box's `charkit gate` (GATE_OPTS with their values, quoted for
+    its shell; --build) -> ' --spec S --accept A,B ...'."""
+    more = ''.join(' %s %s' % (k, shlex.quote(_opt(args, k))) for k in GATE_OPTS if k in args)
+    return more + (' --build' if '--build' in args else '')
 
 
 def up():
@@ -243,8 +254,7 @@ def gate(args):
              '{ [ ! -f %(b)s ] || git -C repo fetch -q -f %(b)s "refs/heads/*:refs/gates/%(gid)s/*"; } && rm -f %(b)s && '
              'git clone -q --shared --no-checkout /srv/work/repo %(G)s'
              % dict(b=boxed, gid=gid, G=G))
-    more = ''.join(' %s %s' % (k, q(_opt(args, k))) for k in ('--spec', '--args', '--accept') if k in args)
-    more += ' --build' if '--build' in args else ''
+    more = gate_passthrough(args)
     # a killed gate (remote kill: SIGTERM to its processes) still removes its clone, its inputs and its temporary
     # files (its worktrees and the builds' scratch live under G.tmp)
     step = ('rc=1; cleanup() { cd /srv/work && rm -rf %(G)s %(G)s.log %(G)s.tmp; }; '

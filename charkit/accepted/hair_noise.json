@@ -1,0 +1,10 @@
+{
+ "check": "hair_noise",
+ "status": "FAIL",
+ "value": 0.0808,
+ "by": "Michael (2026-10-01, via the coordinator)",
+ "why": "superseded by the speckle remeasure (Michael's yes, 2026-10-01); the old tone-edge measure fails the design itself (0.216). The 2x2 of the default switch: the old measure 0.0748 WARN -> 0.0808 FAIL on the pilot shells' geometry; the speckle measure 4.81 -> 4.4 PASS",
+ "at": "2026-10-01T13:54:13",
+ "branch": "tool/hairshell3",
+ "recorded_by": "coordinator"
+}

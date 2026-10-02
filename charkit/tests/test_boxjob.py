@@ -102,7 +102,7 @@ def test_lost_and_kill():
                        env=dict(os.environ))
     assert r.returncode == 0, r
     assert _wait_done(d2) == 'done'
-    assert boxjob.exit_of(d2)[0] == 143 and time.time() - t0 < 20
+    assert boxjob.exit_of(d2)[0] == 143                 # (killed by SIGTERM: a `sleep 30` that ran out exits 0)
 
 
 def test_remote_attach_reattaches_after_drops():

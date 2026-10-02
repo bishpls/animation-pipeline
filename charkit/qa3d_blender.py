@@ -769,7 +769,8 @@ def run(S, out, ref_image=None):
             e2 = (np.abs(np.diff(q, axis=0)) > 0) & a[1:] & a[:-1]
             vals.append((e.sum() + e2.sum()) / max(1, a.sum()))
         v = float(np.mean(vals))
-        rep['checks']['hair_noise'] = {'value': round(v, 4), 'status': _grade('hair_noise', v, False)}
+        # (hair_noise is a speckle measure since round 4, charkit.qa3d: this pass's tone edges are its old measure)
+        rep['checks']['hair_tone_edges'] = {'value': round(v, 4), 'status': 'INFO'}
     # --- face folds: the skin round the openings at rest and under the keys
     from .character import base_of
     ff = face_folds(A)

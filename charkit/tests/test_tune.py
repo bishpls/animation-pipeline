@@ -15,12 +15,13 @@ def qa(**kw):
 def test_severity_and_score():
     assert checks.severity('sheet_width', 1.05) == 0                     # |0.05| inside the 0.08 pass limit
     assert abs(checks.severity('sheet_width', 0.85) - 1.0) < 1e-9        # at the 0.15 fail limit: one warn band
-    assert checks.severity('hair_noise', 0.02) == 0 and abs(checks.severity('hair_noise', 0.12) - 2.0) < 1e-9
+    # (hair_noise a speckle measure since round 4, tool/hairshell3: limits 8 / 12 blobs per L^2)
+    assert checks.severity('hair_noise', 4.0) == 0 and abs(checks.severity('hair_noise', 16.0) - 2.0) < 1e-9
     assert checks.severity('shape_iou', 0.5) > 1                         # higher is better
     assert checks.severity('sheet_shown_front', 0.5) < checks.severity('sheet_shown_front', 0.4)   # warn-only: worse still shows
     assert checks.severity('no_such_check', None, 'FAIL') == 1.5         # graded by status alone
     assert checks.severity('sheet_width.d75', 0.85) == checks.severity('sheet_width', 0.85)
-    q = qa(sheet_width=(0.85, 'WARN'), hair_noise=(0.12, 'FAIL'), mesh=(None, 'INFO'))
+    q = qa(sheet_width=(0.85, 'WARN'), hair_noise=(16.0, 'FAIL'), mesh=(None, 'INFO'))
     assert abs(checks.score(q) - 3.0) < 1e-9
     assert checks.score(qa(face_folds=(99999, 'FAIL'))) == checks.CAP     # one wild check is capped
     # a check measured against a reference that isn't its measure's authority counts a quarter

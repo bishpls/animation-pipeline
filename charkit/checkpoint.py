@@ -27,7 +27,7 @@ KEY_CHECKS = [                                                     # (check, wha
     ('body_front_iou', 'front silhouette IoU'), ('body_profile_iou', 'profile silhouette IoU'),
     ('body_front_top', 'top of the head (buns), L'), ('body_front_boot', 'boot top, L'), ('body_front_feet', 'feet, L'),
     ('body_front_skirt_width', 'skirt width, front'), ('body_back_skirt_width', 'skirt width, back'),
-    ('hair_noise', 'hair shading noise'), ('face_folds', 'face mesh folds'), ('poke_share', 'skin through clothes'),
+    ('hair_noise', 'hair speckle'), ('face_folds', 'face mesh folds'), ('poke_share', 'skin through clothes'),
 ]
 
 

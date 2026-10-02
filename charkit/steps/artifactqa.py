@@ -52,4 +52,9 @@ MEASUREMENT_STEPS = [
     ('art_*_bow', 'a17ec74c', "the bow's crease strokes read as lines by the QA's render drawing (qarender mapped the "
      "export's ink primitives to the cloth)"),
     ('art_*_skirt', 'a17ec74c', "the skirt panel's crease strokes read as lines by the QA's render drawing"),
+    # merge/batch4: a region drawn in one tone keeps its terminator check (the artifacts part's denominator)
+    ('art_terminator_neck', '99232882', "kept when ours is one tone (its terminator under MIN_TERM, 0.05 L, in every "
+     "view) where the design has a terminator: INFO with no value and why, where the check was dropped with no reason "
+     "(the part then measured 57 of its 58; the joined shoulder lit the neck under the chin). Any region read in one "
+     "tone is kept so; on Clawd only the neck reads so"),
 ]

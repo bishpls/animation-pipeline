@@ -1,0 +1,10 @@
+{
+ "name": "g4_cuffs2",
+ "why": "the shoulders still misshapen (Michael 2026-10-01): a 0.04-0.07 L dip between the collar and the puff in front and back, the front line 0.03 L low and sloped; the back collar a rounded flap (pipeline-3d after the cuffs milestone)",
+ "flag": null,
+ "commit": null,
+ "source": "~/animation-pipeline-garments4/charkit/out/g4_cuffs2",
+ "stored": "2026-10-01",
+ "bundle": "d88d7cdb9e483f15",
+ "qa_checks": 631
+}

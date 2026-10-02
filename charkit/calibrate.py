@@ -666,9 +666,15 @@ def accept(check, by, why, value=None, status='FAIL', branch=None, recorded_by='
     return rec
 
 
-def covers(rec, branch=None):
-    """does an acceptance record cover this gate (its branch, when it names one)?"""
-    return bool(rec) and (not rec.get('branch') or not branch or rec['branch'] == branch)
+def covers(rec, branch=None, batch=()):
+    """does an acceptance record cover this gate? A record naming no branch covers any gate; one naming a branch
+    covers a gate of that branch, or of a batch merge that lists it (batch: `gate --batch BRANCH,...`, the
+    coordinator's integration branch merging several workstreams at once, whose records name the workstream's branch,
+    never the batch's: merge/batch4's gate read tool/garments4-shoulders' records as another branch's)."""
+    if not rec:
+        return False
+    b = rec.get('branch')
+    return not b or not branch or b == branch or b in (batch or ())
 
 
 # ------------------------------------------------------------------------------------------------------------ the CLI

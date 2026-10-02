@@ -1,0 +1,195 @@
+{
+ "base": "charkit/out/g6_c2",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "sheet_pieces"
+ ],
+ "set": {
+  "garments.collar.symmetric": true,
+  "garments.sleeve_L.clear_body": {
+   "gap": 0.02,
+   "parts": [
+    "shoulder",
+    "arm"
+   ],
+   "inner": 0,
+   "smooth": 0,
+   "from_t": -0.3,
+   "dilate": 5,
+   "blur": 1.2,
+   "taper": 0.05
+  }
+ },
+ "optimize": {
+  "knobs": [
+   {
+    "path": "garments.sleeve_L.clear_body.gap",
+    "lo": 0.0,
+    "hi": 0.04,
+    "x0": 0.02
+   },
+   {
+    "path": "garments.sleeve_L.clear_body.from_t",
+    "lo": -0.38,
+    "hi": -0.12,
+    "x0": -0.3
+   },
+   {
+    "path": "garments.sleeve_L.clear_body.dilate",
+    "lo": 1,
+    "hi": 7,
+    "int": true,
+    "x0": 5
+   },
+   {
+    "path": "garments.sleeve_L.clear_body.blur",
+    "lo": 0.5,
+    "hi": 2.5,
+    "x0": 1.2
+   },
+   {
+    "path": "garments.sleeve_L.clear_body.taper",
+    "lo": 0.02,
+    "hi": 0.15,
+    "x0": 0.05
+   },
+   {
+    "path": "garments.top.tuck.ease",
+    "lo": 0.005,
+    "hi": 0.05,
+    "x0": 0.02
+   },
+   {
+    "path": "garments.top.tuck.sink",
+    "lo": -0.02,
+    "hi": 0.004,
+    "x0": -0.004
+   },
+   {
+    "path": "garments.sleeve_L.bed.gap",
+    "lo": 0.0,
+    "hi": 0.03,
+    "x0": 0.01
+   },
+   {
+    "path": "garments.collar.side_depth",
+    "lo": 0.32,
+    "hi": 0.46,
+    "x0": 0.34
+   },
+   {
+    "path": "garments.collar.back_depth",
+    "lo": 0.44,
+    "hi": 0.52,
+    "x0": 0.47
+   }
+  ],
+  "objective": [
+   {
+    "check": "piece_top",
+    "toward": "target",
+    "field": "views.front",
+    "target": 0.75,
+    "scale": 0.1,
+    "weight": 2
+   },
+   {
+    "check": "piece_top",
+    "toward": "target",
+    "field": "views.three_quarter",
+    "target": 0.8,
+    "scale": 0.1
+   },
+   {
+    "check": "piece_top",
+    "toward": "target",
+    "field": "views.back",
+    "target": 0.93,
+    "scale": 0.1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "target",
+    "field": "views.front",
+    "target": 0.95,
+    "scale": 0.1
+   },
+   {
+    "check": "piece_sleeve_L",
+    "toward": "target",
+    "field": "views.profile",
+    "target": 0.94,
+    "scale": 0.1
+   },
+   {
+    "check": "piece_sleeve_R",
+    "toward": "target",
+    "field": "views.front",
+    "target": 0.95,
+    "scale": 0.1
+   },
+   {
+    "check": "piece_collar",
+    "toward": "target",
+    "field": "views.front",
+    "target": 0.85,
+    "scale": 0.1
+   },
+   {
+    "check": "piece_collar",
+    "toward": "target",
+    "field": "views.back",
+    "target": 0.93,
+    "scale": 0.1
+   },
+   {
+    "check": "sleeve_*_spikes_*",
+    "toward": "pass"
+   },
+   {
+    "check": "sleeve_*_profile_*",
+    "toward": "pass"
+   },
+   {
+    "check": "sleeve_*_rough_*",
+    "toward": "pass"
+   },
+   {
+    "check": "bow_front_bleed",
+    "toward": "pass",
+    "weight": 3
+   },
+   {
+    "check": "collar_*_torn",
+    "toward": "pass"
+   },
+   {
+    "check": "art_outline_collar",
+    "toward": "pass",
+    "weight": 2
+   },
+   {
+    "check": "art_mirror_waist",
+    "toward": "pass",
+    "weight": 2
+   }
+  ],
+  "constraints": {
+   "guard": 0.15,
+   "flags": true,
+   "no_new_fail": true
+  },
+  "budget": {
+   "evals": 220,
+   "minutes": 100,
+   "generations": 16
+  },
+  "confirm": {
+   "top": 2
+  }
+ }
+}

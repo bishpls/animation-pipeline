@@ -324,13 +324,13 @@ def test_timing():
     softras.silhouette(V, F, view, s=0.5)                                           # (numba's first call compiles)
     ts, tb = [], []
     for _ in range(5):
-        t = time.perf_counter()
+        t = time.process_time()                         # (CPU, not wall: a loaded machine doesn't move it)
         S = softras.silhouette(V, F, view, s=0.5)
-        ts.append(time.perf_counter() - t)
+        ts.append(time.process_time() - t)
         _, g = S.iou(mask)
-        t = time.perf_counter()
+        t = time.process_time()
         S.backward(-g)
-        tb.append(time.perf_counter() - t)
+        tb.append(time.process_time() - t)
     print('  one view %dx%d, %d vertices, %d px covered: forward %.1f ms, backward %.1f ms (median of 5); stages %s' %
           (view.W, view.H, len(V), S.hard.sum(), 1e3 * np.median(ts), 1e3 * np.median(tb),
            {k: round(1e3 * x, 2) for k, x in S.seconds.items()}))

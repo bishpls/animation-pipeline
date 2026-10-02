@@ -1,0 +1,11 @@
+{
+ "garments.sleeve_L.clear_body.gap": 0.0115,
+ "garments.sleeve_L.clear_body.from_t": -0.375,
+ "garments.sleeve_L.clear_body.dilate": 7,
+ "garments.sleeve_L.clear_body.blur": 1.3778,
+ "garments.sleeve_L.clear_body.taper": 0.056,
+ "garments.top.tuck.ease": 0.0341,
+ "garments.top.tuck.sink": -0.0096,
+ "garments.sleeve_L.bed.gap": 0.0122,
+ "garments.collar.back_depth": 0.51
+}

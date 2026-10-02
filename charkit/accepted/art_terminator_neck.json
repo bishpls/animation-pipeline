@@ -1,0 +1,10 @@
+{
+ "check": "art_terminator_neck",
+ "status": "INFO",
+ "value": null,
+ "by": "Michael",
+ "why": "Michael, 2026-10-01: switch the joined shoulder on and accept the regression. The joined shoulder leaves the neck lit under the chin (the neck's shade share 0.24 -> 0.02 front, 0.25 -> 0.03 three-quarter; its terminator 0.043 L against the 0.05 L the detector needs), so ours is one tone where the design draws the chin shadow in all four views: art_terminator_neck reads INFO with no value (99232882), and the old measure, which dropped the check, can't read the new geometry (the 2x2's old-measure cell). To be recovered by garments round 8, the joined shoulder's owner. Reading accepted: 0.0 INFO -> None INFO",
+ "at": "2026-10-01T20:11:28",
+ "branch": "merge/batch4",
+ "recorded_by": "batch4's agent, on the coordinator's relay of Michael's call"
+}
