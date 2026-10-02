@@ -675,6 +675,11 @@ def test_budget_rule_blocks_over_the_budget_and_the_baseline(tmp_path=None):
     same = build('same', 1315.0, dict(resolve=250.0, code_head=60.0, pieces_hair=200.0, blender=180.0, qa=620.0),
                  {'code_head': 'ran', 'pieces_hair': 'ran'}, {'hull': 'built'})
     assert gate.budget_basis(same, budget)['seconds'] == 1070.0
+    # building the hull in resolve computes the head, which code_head then reuses (~0 s): counted at its cold cost
+    reuse = build('reuse', 1255.0, dict(resolve=250.0, code_head=0.02, pieces_hair=200.0, blender=180.0, qa=620.0),
+                  {'code_head': 'ran', 'pieces_hair': 'ran'}, {'hull': 'built'})
+    R_ = gate.budget_basis(reuse, budget)
+    assert R_['seconds'] == 1070.0 and [c[0] for c in R_['counted']] == ['resolve', 'code_head'], R_
     r = gate.budget_rule(base, same, budget)
     assert not r['block'] and r['over_budget'] == 1.07, r
     # the QA 120 s dearer (1188: 1.19x the budget, 1.11x the baseline): blocks
@@ -708,8 +713,8 @@ def test_budget_rule_blocks_over_the_budget_and_the_baseline(tmp_path=None):
                                                                          'resolve')), S
 
 
-def test_remote_gate_passes_the_box_speed():
-    """`remote gate` runs `charkit gate` with the box's CPU_SPEED (its env file), which gate.cpu_speed reads."""
+def test_the_cpu_factor_reads_the_environment():
+    """gate.cpu_speed: CHARKIT_CPU_SPEED (a measured factor from a box's CPU seconds to the build box's), 1.0 unset."""
     os.environ.pop('CHARKIT_CPU_SPEED', None)
     assert gate.cpu_speed() == 1.0
     os.environ['CHARKIT_CPU_SPEED'] = '1.25'
@@ -717,8 +722,6 @@ def test_remote_gate_passes_the_box_speed():
         assert gate.cpu_speed() == 1.25
     finally:
         os.environ.pop('CHARKIT_CPU_SPEED')
-    src = open(os.path.join(os.path.dirname(gate.__file__), 'remote.py')).read()
-    assert 'CHARKIT_CPU_SPEED=%(speed)s python -m charkit gate' in src and 'speed=q(_speed())' in src
 
 
 if __name__ == '__main__':

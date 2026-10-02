@@ -237,8 +237,11 @@ BASELINE_OVER = 1.05
 
 
 def cpu_speed():
-    """this box's per-core speed against the build box's (CHARKIT_CPU_SPEED: `remote gate` passes the box's measured
-    CPU_SPEED from its env file, 1.25 on build2), 1.0 when unknown: the budget is in build-box seconds."""
+    """the factor from this box's CPU seconds to the build box's (CHARKIT_CPU_SPEED; 1.0 unset). Nothing sets it yet:
+    measured on one commit (2026-10-01), build2's CPU seconds were about 0.93x the build box's and render2's 1.35-1.65x
+    for its numpy and Blender work (its QA drawn on its L4), not remote.py's CPU_SPEED (the picker's per-core speed,
+    1.25 on build2); a factor per box waits for like-for-like measurements on idle boxes. The rule's baseline half
+    (same box, same gate) keeps the difference from blocking."""
     try:
         v = float(os.environ.get('CHARKIT_CPU_SPEED') or 1.0)
     except ValueError:
@@ -248,7 +251,7 @@ def cpu_speed():
 
 def budget_basis(out, budget, speed=1.0):
     """a build's CPU on the budget's basis (charkit/budget.json's doc) -> dict(seconds, raw, speed, counted [(stage, ran
-    s, counted s, why)]) or None (no CPU record): its CPU seconds in build-box seconds (times the box's per-core speed),
+    s, counted s, why)]) or None (no CPU record): its CPU seconds (times speed: cpu_speed's factor to the build box's),
     with each cached venv step it restored counted at the budget's `cold` cost for it (what running it costs: a gate's
     baseline restores them from the shared step cache, a branch that changes one runs it), and `resolve` at the budget's
     figure when it built produced references (their shared cache rebuilds once per key change, not a standing cost). A
@@ -278,6 +281,12 @@ def budget_basis(out, budget, speed=1.0):
         counted.append(('resolve', round(ph['resolve'][1], 1), float(cold['resolve']),
                         'built produced references (%s): counted as restored' % ', '.join(
                             sorted(k for k, v in made.items() if v == 'built'))))
+        # (building the hull computes the head in-process, and code_head then reuses it: ~0 s; counted as it costs)
+        if 'code_head' in ph and steps.get('code_head') != 'restored' and cold.get('code_head') is not None:
+            keep -= ph['code_head'][1]
+            add += float(cold['code_head'])
+            counted.append(('code_head', round(ph['code_head'][1], 1), float(cold['code_head']),
+                            'the hull built in resolve computed the head it reused: counted at its cold cost'))
     return dict(seconds=round(keep * speed + add, 1), raw=raw, speed=speed, counted=counted)
 
 
@@ -1916,7 +1925,7 @@ def _write(rep, gdir, tag):
     if br:
         f1 = lambda x: '-' if x is None else '%.0f' % x
         L.append('- the budget rule (blocks when the build is over %.2fx charkit/budget.json and over %.2fx its baseline; '
-                 'both in build-box seconds, the box\'s speed %.2f, cached steps at their cold cost): candidate %s s, '
+                 'cached steps at their cold cost; CPU factor %.2f): candidate %s s, '
                  '%.2fx the budget\'s %s s, %s the baseline\'s %s s: %s' % (
                      BUDGET_OVER, BASELINE_OVER, br.get('speed') or 1.0, f1(br['cand']), br['over_budget'],
                      f1(br['budget']), '%.2fx' % br['over_base'] if br.get('over_base') is not None else 'not read against',
