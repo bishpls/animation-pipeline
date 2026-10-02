@@ -140,10 +140,18 @@ def run(build, out, cfg, T, holdout=False, pilot=False, log=print):
             ms = masks_of(idt2)
             sc_ = score(ms, T, views=[hv])
             ious = []
+            parts = [lk.shell() for lk in idt2.locks]
             for i, t in A.items():
                 lk = idt2.locks[i]
-                part = lk.shell()
-                ious.append(sc2.iou(lk, part, {hv: t['mask']})[hv])
+                ious.append(sc2.iou(lk, parts[i], {hv: t['mask']})[hv])
+            # the held-out projection: every lock's shell z-buffered in the held-out view among the scene's occluders
+            # (the board draws it over the design), with the targets it was assigned there
+            shape = sc2.S['views'][hv]['img'].shape
+            lab = ls.visible(parts, ctx, hv, sc2.az(hv), shape)
+            np.savez_compressed(os.path.join(out, 'holdout_%s.npz' % hv), lab=lab.astype(np.int16),
+                                names=np.array([lk.name for lk in idt2.locks]),
+                                assigned=np.array([[i, t['id'][0], t['id'][1]] for i, t in A.items()] or
+                                                  np.zeros((0, 3)), int))
             res['holdout'][hv] = dict(score=sc_['counts'].get(hv), assigned=len(A),
                                       iou_mean=round(float(np.mean(ious)), 3) if ious else None,
                                       in_fit=rep['score']['counts'].get(hv))
