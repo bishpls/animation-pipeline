@@ -1,0 +1,10 @@
+{
+ "check": "cuff_R_front_size",
+ "status": "WARN",
+ "value": 0.101,
+ "by": "coordinator, under Michael's 2026-10-01 hands call",
+ "why": "Coordinator's decision under Michael's standing hands call (2026-10-01: accept the small loss; much more effort on the hand system in the motion/dexterity phase): hands3's new hand meets the right cuff at its edge, a 0.002 move of the cuff's front area just over the 0.10 line (the left cuff's sizes moved +0.001..+0.011 within PASS). Reading accepted: PASS 0.099 -> WARN 0.101 (gate tool/hands2 218fd8da into pipeline-3d 3144b1f6).",
+ "at": "2026-10-01T22:07:24",
+ "branch": "tool/hands2",
+ "recorded_by": "tool/hands2's agent, on the coordinator's decision (2026-10-01)"
+}
