@@ -408,7 +408,14 @@ def assess(check, e, cur, bad, design, floors, probes, bad_name=None, invariant=
     better = e.get('better') or (('higher' if dm > fl else 'lower') if _num(dm) and _num(fl) and dm != fl else None)
     rec['better'] = better
     margin = None
-    if _num(v) and _num(fl) and _num(dm) and dm != fl:
+    fms = [f['median'] for f in rec['floor'].values() if _num(f['median'])]
+    if _num(v) and _num(dm) and any(x > dm for x in fms) and any(x < dm for x in fms):
+        # floors on both sides of the design (a signed check graded on |ours - design|: handsheet_open_span's wide and
+        # narrow palms): the median of their medians lands near the design, so the margin is read on the distance from
+        # the design instead (1 at the design, 0 at the floors' median distance)
+        fd = _median([abs(x - dm) for x in fms])
+        margin = round(1.0 - abs(v - dm) / fd, 3) if fd else None
+    elif _num(v) and _num(fl) and _num(dm) and dm != fl:
         margin = round((v - fl) / (dm - fl), 3)
     rec['current'] = dict(value=v, status=s, margin=margin)
     rec['verdict'], rec['why'] = verdict(rec)

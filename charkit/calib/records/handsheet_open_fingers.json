@@ -1,0 +1,112 @@
+{
+ "check": "handsheet_open_fingers",
+ "part": "hand_sheet",
+ "adapter": "HandSheet",
+ "module": "charkit.calib.handsheet",
+ "at": "2026-10-02T01:18:52",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "hand_shape_L",
+  "hand_shape_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "comb_hand",
+  "value": 0.109,
+  "status": "FAIL"
+ },
+ "floor": {
+  "long_palm": {
+   "values": [
+    -0.4413,
+    0.5831,
+    -0.4524,
+    -0.4524,
+    0.5334
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.4413,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "invariant": {
+  "thumb_only": {
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    -0.0096,
+    -0.0031
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ]
+  }
+ },
+ "current": {
+  "value": 0.0578,
+  "status": "WARN",
+  "margin": 1.131
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), comb_hand reads 0.109 FAIL, the floor long_palm FAIL",
+ "build": "charkit/out/hands3_after_q",
+ "generators": {
+  "long_palm": "the sheet's open hand's palm lengthened along the arm above its MCP line, 1.2-1.45x, the fingers carried down unchanged",
+  "thumb_only": "the sheet's open hand's thumb alone turned 10-30 degrees about its root (toward the palm or away)"
+ },
+ "seconds": 44.2
+}
