@@ -230,3 +230,23 @@ charkit/out/g8_c0; its QA carries the truth checks). The g8_base build (pre-shou
 | piece_collar f/3q/p/b | 0.657 / 0.467 / 0.027 / 0.928 | 0.905 / 0.532 / 0.103 / 0.890 |
 - Running: sweep l1 (tools/garments8/l1.json: the truth-read lapel template T0 and 9 OAT variants) on build2 ->
   charkit/out/garments8/sweeps/l1 (log charkit/out/garments8/sweep_l1.log).
+
+### The collar's two measures reconciled (coordinator: audit before hill-climbing)
+l1's T0 (the truth-read lapels): collar_front_truth 0.771 -> 0.863 while piece_collar front (the in-context guard)
+0.90 -> 0.75. tools/garments8/recon.py, recon2.py, stripe_check.py (charkit/out/garments8/recon/: recon2_T0.png,
+truth_vs_hand.png, recon2.json):
+- (c) no: the separated reference agrees with the turnaround where both see the collar: the truth vs the hand-checked
+  outfit_truth's collar outside the bow reads 0.688 / 0.746 only because the truth's collar includes the drawn ink
+  lines (the stripe's edges, the collar's outline, the bow's outline just outside its mask) that the hand truth leaves
+  unscored (truth_vs_hand.png: every disagreement is a 1-2 px line); the truth puts 12-18 px on the drawn skin.
+- (a) no: the guard's design side (the produced outfit_masks' collar) is the hand truth's (IoU 0.993 front, 0.873 3q).
+- (b) minor: ours on the drawn bow 121 / 238 px (12-14% of ours-only, front / 3q); the bows' IoU 0.77 / 0.68 in every row.
+- What it is: a real lapel error both measures see. T0's lapels' inner edges cut into the drawn V's skin near the
+  neck (ours on drawn skin: front 91 -> 239 px, 3q 469 -> 475; the truth has 12-18 px there) and onto the drawn lines;
+  the truth check still rises because T0's lapels now continue under the bow to the V's point (truth only: the guard
+  can't see under the bow). So: fix the inner edge (the collar's V near the neck: v_half / the inner edge's top), not
+  the measures.
+- Sweep l2 (the V on lapels B = T0 + off 0.025 + inner [0.02, -0.82]): the panel cut to -0.88 + the jacket open along
+  the truth's V (B_V): neck_v_front 0.558 -> 0.717, 3q 0.523 -> 0.531, top_front_truth 0.773 -> 0.796, piece_top front
+  0.56 -> 0.59; but art_outline_neck 7.4 -> 9.3 and neck_crease 24.2 W -> 34.6 F on B (lapels off 0.025 + inner -0.82;
+  28.2 W with off 0.015): neck_crease is an existing check: a regression to FAIL blocks.
