@@ -1,0 +1,265 @@
+{
+ "title": "garments round 8: separated collar, lapel and top references as shape truths",
+ "summary": {
+  "recommended": "Land step 1: the separated references and the shape-truth checks. The top without the collar and bow (top_layers) passes its refcheck in every view (iou_dc 0.965-0.996). The collar alone (collar_ghost) passes in front, three-quarter and back, but not profile (0.656). The new checks are calibrated. Hold the lapel rebuild: the truth-read flat lapels lift the collar truth in front (0.771 -> 0.89-0.91) and open the V (0.56 -> 0.77), but every row drops the in-context collar in three-quarter and profile by 17-27% and makes collar_three_quarter_torn FAIL.",
+  "asked": [
+   "nothing: informational (the next round starts on the three-quarter lapels; the notes hold the plan)"
+  ],
+  "numbers": {
+   "columns": [
+    "measure",
+    "before (g8_c0, joined shoulder)",
+    "best lapel row (vh58_V, not landed)"
+   ],
+   "rows": [
+    [
+     "collar truth front / 3q (new, goal >= 0.70)",
+     "0.771 / 0.559",
+     "0.876 / 0.522"
+    ],
+    [
+     "V skin front / 3q (remeasured to the V's point)",
+     "0.562 / 0.498",
+     "0.772 / 0.587"
+    ],
+    [
+     "piece_collar 3q / profile (the guard)",
+     "0.53 / 0.10",
+     "0.44 / 0.08 (-17% / -22%)"
+    ],
+    [
+     "collar_three_quarter_torn",
+     "0.001 W",
+     "0.012 F"
+    ],
+    [
+     "art_outline_neck",
+     "11.2",
+     "7.3"
+    ],
+    [
+     "neck_crease",
+     "24.2 W",
+     "13.7 P"
+    ]
+   ]
+  }
+ },
+ "notes": [
+  "Separated references generated in 4 paid calls at n=2 (ledger), refchecked against the turnaround before registering. top_layers (the top without the collar and bow) passes in every view. collar_ghost (the collar alone, ghost-mannequin) passes in front, three-quarter and back; its profile isn't registered. The collar drawn on the bare base body fails (0.60 / 0.68 / 0.39 / 0.97): drawn over a different layer, it spreads over the bare shoulders. The bow ghosts and the existing bow_closeup fail. The bow covers everything and nothing covers it, so the turnaround is its own shape truth.",
+  "Shape truths are in the manifest (shape_truth, beside the hair's): the collar and lapels without the bow, the bodice panel, the top without the collar and bow, the V's skin, and the collar alone. New checks: collar_{front,three_quarter}_truth (calibrated: the flagged bunched lapels fail at 0.617 / 0.514; the design moved reads >= 0.927) and top_{view}_truth (guards). Remeasured: neck_v_*_skin, against the V's truth with ours drawn without the bow, down to the V's point.",
+  "The collar's two measures, reconciled. The truth agrees with the turnaround wherever both see the collar; the only differences are 1-2 px ink lines. The guard reads the drawn collar (0.993 against the hand truth). The bows match at 0.77 / 0.68. The truth-read lapels' inner edges cut into the drawn V's skin near the neck, and both measures see that. The truth still rises because the lapels now continue under the bow.",
+  "art_terminator_neck: the chin shadow is intact (face_shadow_chin 0.69 -> 0.62; under the board light the neck's shadow share is 0.13 / 0.15 / 0.14, against the design's 0.13-0.16). Only the artifact detector's numpy neck window turned one tone; its acceptance record is amended."
+ ],
+ "tables": [
+  {
+   "title": "Refchecks (iou_dc per view, tolerance 0.80)",
+   "columns": [
+    "sheet",
+    "front",
+    "three-quarter",
+    "profile",
+    "back",
+    "verdict"
+   ],
+   "rows": [
+    [
+     "top_layers take 1",
+     "0.974",
+     "0.992",
+     "0.965",
+     "0.996",
+     [
+      "registered",
+      "PASS"
+     ]
+    ],
+    [
+     "collar_ghost take 2",
+     "0.926",
+     "0.949",
+     [
+      "0.656",
+      "FAIL"
+     ],
+     "0.964",
+     [
+      "front, 3q, back registered",
+      "PASS"
+     ]
+    ],
+    [
+     "collar on the bare base body (take 1)",
+     "0.600",
+     "0.675",
+     "0.390",
+     "0.966",
+     [
+      "not registered",
+      "FAIL"
+     ]
+    ],
+    [
+     "bow ghost (best take)",
+     "0.955 (outside 0.035)",
+     "0.933 (outside 0.056)",
+     "0.820",
+     "hidden",
+     [
+      "not registered",
+      "FAIL"
+     ]
+    ],
+    [
+     "bow_closeup (existing)",
+     "0.810",
+     "0.776",
+     "0.665",
+     "-",
+     [
+      "FAIL",
+      "FAIL"
+     ]
+    ]
+   ]
+  },
+  {
+   "title": "Lapel sweep l3 (v_half), against g8_c0",
+   "columns": [
+    "row",
+    "collar truth f/3q",
+    "V f/3q",
+    "guard worst",
+    "new FAIL"
+   ],
+   "rows": [
+    [
+     "vh40_V",
+     "0.892 / 0.509",
+     "0.725 / 0.512",
+     "3q -25%, p -27%",
+     "collar_three_quarter_torn"
+    ],
+    [
+     "vh46_V",
+     "0.907 / 0.529",
+     "0.735 / 0.558",
+     "3q -20%, p -24%",
+     "3q torn, neck_crease"
+    ],
+    [
+     "vh52_V",
+     "0.901 / 0.532",
+     "0.757 / 0.582",
+     "3q -17%, p -23%",
+     "3q torn, neck_crease"
+    ],
+    [
+     "vh58_V",
+     "0.876 / 0.522",
+     "0.772 / 0.587",
+     "3q -17%, p -22%",
+     "collar_three_quarter_torn"
+    ]
+   ]
+  }
+ ],
+ "figures": [
+  {
+   "title": "The design and the new references (torso, per view)",
+   "text": "Rows: the turnaround; bodice_layers (no bow); the collar on the bare base body x2 (not registered); top_layers x2 (take 1 registered).",
+   "height": 900,
+   "images": [
+    {
+     "path": "charkit/out/garments8/look/torso_compare.png",
+     "caption": "turnaround | bodice_layers | collar_alone 1, 2 | top_layers 1, 2"
+    }
+   ]
+  },
+  {
+   "title": "The ghost sheets: the collar alone (2 takes) and the bow alone (2 takes)",
+   "height": 600,
+   "images": [
+    {
+     "path": "charkit/out/garments8/look/ghosts.png",
+     "caption": "collar_ghost 1, 2; bow_ghost 1, 2 (drawn 2.3x, ~200 px lower: registered by fit)"
+    }
+   ]
+  },
+  {
+   "title": "Refcheck overlays",
+   "text": "Grey: both. Red: the sheet only, over something the turnaround shows. Blue: the turnaround only. Green: what the cover hides on the turnaround.",
+   "height": 220,
+   "images": [
+    {
+     "path": "charkit/out/garments8/look/ov_top_layers_1.png",
+     "caption": "top_layers take 1 (kind top): 0.974 / 0.992 / 0.965 / 0.996"
+    },
+    {
+     "path": "charkit/out/garments8/look/ov_collar_ghost_2.png",
+     "caption": "collar_ghost take 2: 0.926 / 0.949 / 0.656 / 0.964"
+    },
+    {
+     "path": "charkit/out/garments8/look/ov_collar_alone_1b.png",
+     "caption": "the collar on the bare body: spreads over the bare shoulders"
+    }
+   ]
+  },
+  {
+   "title": "The shape truths cut from the sheets (layerref.layer_pieces)",
+   "height": 240,
+   "images": [
+    {
+     "path": "charkit/out/garments8/look/seg_bodice.png",
+     "caption": "bodice_layers: collar (yellow), top (orange), bodice panel (blue)"
+    },
+    {
+     "path": "charkit/out/garments8/look/seg_top.png",
+     "caption": "top_layers: top, bodice panel"
+    }
+   ]
+  },
+  {
+   "title": "Before (g8_c0): ours drawn the truth's way against the truths",
+   "height": 220,
+   "images": [
+    {
+     "path": "charkit/out/garments8/truthlab/g8_c0/truth_collar.png",
+     "caption": "the collar without the bow: front 0.771, 3q 0.559 (grey both, red ours, blue truth)"
+    },
+    {
+     "path": "charkit/out/garments8/truthlab/g8_c0/truth_top.png",
+     "caption": "the top without the collar and bow: 0.753 / 0.659 / 0.800 / 0.861"
+    },
+    {
+     "path": "charkit/out/garments8/look/v_g8_c0.png",
+     "caption": "the V without the bow: front 0.562, 3q 0.498 (blue: the truth's V that ours closes)"
+    }
+   ]
+  },
+  {
+   "title": "The collar's two measures, reconciled (T0 lapels)",
+   "height": 260,
+   "images": [
+    {
+     "path": "charkit/out/garments8/recon/recon2_T0.png",
+     "caption": "in context: red ours only, orange ours on the drawn bow, blue drawn only; green the drawn bow, purple ours"
+    },
+    {
+     "path": "charkit/out/garments8/recon/truth_vs_hand.png",
+     "caption": "the truth (red) against the hand-checked collar (blue) outside the bow: the differences are the ink lines"
+    }
+   ]
+  },
+  {
+   "title": "The neck's chin shadow (before: old body; after: joined shoulder)",
+   "height": 330,
+   "images": [
+    {
+     "path": "charkit/out/garments8/neck/both_qa_chin_shadow.png",
+     "caption": "qa_chin_shadow: g8_base (top), g8_c0 (bottom)"
+    }
+   ]
+  }
+ ]
+}
