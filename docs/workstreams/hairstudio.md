@@ -76,3 +76,22 @@ close to the native case for anime 3D. The palette is locked to the costume; eve
 - Hair colour against the costume: Michael's call.
 - Port I4 into the build: a hair stage that replaces the hull-cut pieces, then the VRM export with the hair's spring
   chains.
+
+## Mocap on the rig (2026-10-02)
+
+`mocap.py BUILD GROOM CLIP.npz TAG [--trim N] [--face] [--measure-only]` puts a canonical SOMA-77 clip
+(`projects/clawd3d/refs/{mocap,bones}/*.clip.npz`) on the build's VRM humanoid in numpy, on the laptop. It uses the
+clawd3d calibration for every bone except the feet and toes, which take the source rotation as-is: Clawd's heeled boot
+puts the foot bone 65° down, and aiming it along the source's 21° tipped the foot 44° toe-up. The export's skin weights
+are carried onto the bundle meshes (k=8 inverse-distance blend). The groom's spring chains are driven by the head's full
+transform, with a body proxy that rides the chest and the head mesh in the head's frame. The figure is grounded by the
+planted ankles.
+
+`measure()` reports hair buzz above 6 Hz, tip swing, foot slide while planted, the joint angles below the knee, the
+planted ankle's height, the hands' closest approach to the hair chains and the hips' range. It runs in about 3 s.
+`curtsy_page.py` builds `clips/curtsy.html`.
+
+The first two clips are the studio curtsy (BONES-SEED; credit "Motion Data by Bones Studio") and the video curtsy
+(GEM-X, trimmed by 16 frames past a ~220° settling spin, then turned to face the camera). Hair buzz is 0.1–0.2%; foot
+slide is 0.24 mm/frame (studio) and 1.3 mm/frame (video). Not simulated yet: the skirt (it's skinned to the legs) and
+the arms as hair colliders.
