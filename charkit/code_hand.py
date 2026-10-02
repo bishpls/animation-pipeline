@@ -571,8 +571,10 @@ def bounds_of(k):
 
 
 def get_knob(P, k):
-    """a knob's value; 'fingers.I' is the I-th of the fingers' lengths; a prefixed knob ('open.curl') its own key, else
+    """a knob's value; 'fingers.I' is the I-th of the fingers' lengths, 'ratios.NAME' a structural ratio; a prefixed knob ('open.curl') its own key, else
     the unprefixed one's."""
+    if k.startswith('ratios.'):
+        return P['ratios'][k.split('.', 1)[1]]
     if '.' in k and not k.startswith('fingers.'):
         return P.get(k, P.get(k.split('.', 1)[1]))
     if k.startswith('fingers.'):
@@ -582,6 +584,9 @@ def get_knob(P, k):
 
 def set_knob(P, k, v):
     """P with knob k set (a copy of the fingers' tuple for 'fingers.I')."""
+    if k.startswith('ratios.'):              # a structural ratio (the ratio mode; geometry() derives the knobs): a copy
+        P['ratios'] = dict(P['ratios'], **{k.split('.', 1)[1]: v})
+        return P
     if k.startswith('fingers.'):
         f = list(P['fingers'])
         f[int(k.split('.')[1])] = v
@@ -592,7 +597,8 @@ def set_knob(P, k, v):
 
 
 KNOB_BOUNDS = dict(BOUNDS, **{'fingers.0': (0.75, 1.05), 'fingers.2': (0.75, 1.05), 'fingers.3': (0.6, 0.95),
-                              'view_turn_side': (-50.0, 50.0), 'view_turn_back': (-30.0, 30.0)})
+                              'view_turn_side': (-50.0, 50.0), 'view_turn_back': (-30.0, 30.0),
+                              'ratios.thumb': (0.9, 1.45)})
 
 
 def _to_P(P0, knobs, lo, hi, x):

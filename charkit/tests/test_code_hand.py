@@ -146,6 +146,17 @@ def test_ratio_mode_is_live():
     assert abs(G['palm_w'] - P['ratios']['span'] * 0.3) < 1e-9 and abs(G['palm'] * G['length'] - (0.034 + 0.3)) < 1e-9
 
 
+def test_ratio_knob_is_live_and_copied():
+    """a structural ratio as a fit knob ('ratios.thumb'): it moves the built hand, and the start's ratios stay as they
+    were (the fit's candidates share the start dict)."""
+    spec = json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')))
+    P0 = ch.params(spec, palm_len=0.3, wrist_offset=0.034)
+    t0 = P0['ratios']['thumb']
+    P = ch.set_knob(dict(P0), 'ratios.thumb', t0 * 1.3)
+    assert P0['ratios']['thumb'] == t0 and abs(ch.get_knob(P, 'ratios.thumb') - t0 * 1.3) < 1e-12
+    assert abs(ch.geometry(P)['thumb_len'] - ch.geometry(P0)['thumb_len'] * 1.3) < 1e-9
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
