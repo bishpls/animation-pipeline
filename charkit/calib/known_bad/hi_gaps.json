@@ -1,0 +1,10 @@
+{
+ "name": "hi_gaps",
+ "why": "tool/hairident: a fresh known-bad for the fragments at the lock tips (look_v5, the flag's build, is on no reachable machine): the pilot's lock shells without their overlap (lock_shells widen_lw 0, over 0: tools/hairident/gaps_spec.json): the hair's own pieces show in small bits between the shells (art_peeks_hair 22 -> 29)",
+ "flag": "the fragments at the lock tips (look_v5, Michael 2026-09-29)",
+ "commit": null,
+ "source": "~/animation-pipeline-hairident/charkit/out/hi_gaps",
+ "stored": "2026-10-01",
+ "bundle": "f80a2c6664622e93",
+ "qa_checks": 744
+}
