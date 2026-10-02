@@ -12,20 +12,27 @@ default. Nothing in the landing may move a check reading (the day's production b
 
 ## State (read first when resuming)
 
-Started 20:38 EDT. Commits: 39238efb (items 1 and 3, the doc draft), 8a86c5d4 (budget.json re-baselined), then the QA's
-adapter record (qa.json measured.draw.adapter, the gate's report line). `codediff.measure_changes(348397e7, HEAD)`: 0
-parts (no measuring code changed).
+**Done; gated.** Gate K **PASS**: tool/incremental f76684c3 into pipeline-3d 3144b1f6 (`remote gate --code
+tool/incremental`, build2; report charkit/out/gate/gate_tool-incremental_f76684c3_into_3144b1f6.md): nothing blocks, no
+check moved, 111 test files pass; the 32 QA parts listed under "measuring code changed with no registered step" are
+manifest.produced's race fix reached through the QA's shared code (no check moved: report-only). Build CPU raw 1326 ->
+1645 s (the candidate rebuilt the produced references and ran the venv steps: their keys changed), like for like 1252
+-> 1147 s (0.92x); the budget rule: candidate 1484 s on its basis, 0.95x the budget's 1555, 0.91x the baseline's 1637:
+within. Pre-gate PASS (f76684c3, 0 moved). Earlier: gate PASS d86cde39 into 348397e7 (before the race fix; 109 test
+files, no check moved, like for like 0.91x, the budget rule 0.95x). Commits after f76684c3: notes and docs only.
 
-Running (collect them):
-- `qa_r2`: tools/incremental/qa_adapters.py on render2, br's bundle drawn on lavapipe (cpu) and the L4 (gpu) side by
-  side (job script-incr-1001-210549-c3bb; fetched to charkit/out/incremental/qa_r2/adapters.json; log qa_r2.log).
-- `bv`: a geometry variant (charkit/out/incremental/clawd_variant.json: body.shoulder.fall 0.1 -> 0.14, the collar's
-  v_depth 0.5 -> 0.42) built on render2 into charkit/out/incremental/bv (log bv.log): the second geometry of the 2x2
-  (CPU and GPU drawing on both geometries). Next: the harness on bv (cpu,gpu), then the 2x2 table.
-- pregate (`pregate --box auto`, log charkit/out/incremental/pregate.log).
+Box state: none changed by this round beyond its own copies' outputs (charkit/out/incremental on build and render2).
 
-Next: the gate, `remote gate tool/incremental --into pipeline-3d --code tool/incremental` (gate.py changes: the budget
-rule and the 2x2's crossed QA runs at CHARKIT_QA_PROFILE=full are exercised only with this branch's gate code).
+**Readings:** this landing moves none (both gates: no check changed). The 5 adapter-dependent INFO checks
+(art_terminator_boots, face_shadow_3q, face_shadow_chin, face_shadow_neck_3q, hair_tone_edges) read differently on
+render2's L4 than on the CPU rasteriser, as they already did before this round whenever a gate or build landed on
+render2; the QA now records which adapter drew.
+
+**Left / next:** round 1b (the draw service: the GPU's saving without render2's slow cores), 1c (the QA's parts in
+parallel: wall), then rounds 2-6 of docs/INCREMENTAL.md. A per-box CPU factor for the budget (gate.cpu_speed) once
+like-for-like box measurements exist. CODEMAP not regenerated (new public names: gate.budget_basis, budget_rule,
+cpu_speed, qa_adapter; optimize.part_checks, confirm_profile; qarender.adapter_of; manifest._place): regenerate on
+integration.
 
 ## The produced-reference race (the coordinator's item, 21:30)
 
