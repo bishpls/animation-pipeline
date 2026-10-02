@@ -158,3 +158,22 @@ calibration records and the guard): collar_front/3q_truth >= 0.70 (Michael wants
   "shape_truth" keys). The truth checks on g8_base read the same after the merge. Tests: manifest, declared, registry,
   calibrate, spec_declared, shapetruth, hairtruth, rom, hairflags pass.
 - Waiting: the shoulder switch's merge (tool/garments4-shoulders c8d30430, not in pipeline-3d yet).
+
+## Step 2 (2026-10-01): the joined shoulder merged (pipeline-3d 348397e7, batch4), merged in
+- Merge commit: declared.inputs takes both `body` (pipeline-3d's base-body ref) and `truth`.
+- The recovery list (charkit/accepted/, the joined shoulder's default against the old body):
+  art_outline_collar 1.442 PASS -> 3.47 WARN; art_outline_neck 1.468 -> 10.307 WARN; art_terminator_neck (INFO now:
+  the neck lit under the chin, shade share 0.24 -> 0.02 front, terminator 0.043 L < MIN_TERM 0.05; the design draws the
+  chin shadow in all four views: find it in the neck's normals/shading on the joined surface or its shape under the
+  jaw; keep the ROM gains: arm into torso 0, no arm parting); bow_front_bleed 0 -> 0.1475 FAIL; collar_back/front/
+  profile_torn 0 -> 0.0101/0.0261/0.0197 FAIL; neck_v_front 0.7648 -> 0.7434 WARN, 3q 0.5663 -> 0.5493 FAIL (old
+  measure; remeasured here); sleeve_profile_profile_L 0.0307 -> 0.1139 FAIL, sleeve_three_quarter_profile_L 0.016 ->
+  0.0618 FAIL; the shoulder_* accepted for the guard (piece_top front 0.749 -> 0.507, -32%). rom_weights_stray is the
+  motion round's. Plus the ROM garment items above.
+- New in pipeline-3d: gate --batch, QA denominators (a part measuring fewer checks than it declares blocks), like-for-like
+  CPU, the budget rule (report-only).
+- The neck's chin shadow: faceshade.proxy_normals (the neck's normals turned round its axis and tilted down under the
+  jaw: s from the neck bone's base to the head joint, the neck within 1.25 x its radius rn, rn the median radius over
+  s 0.25-0.6) and cast_maps (the jaw's and hair's shadow baked on neck_w > 0 under the chin). To compare on g8_base vs
+  g8_c0: qa_chin_shadow.png, qa_artifacts.png, and the faceshade inputs (the neck joints, rn, k).
+- Running: box build g8_c0 (the merged default, joined shoulder) -> charkit/out/g8_c0 (log build_g8_c0.log).
