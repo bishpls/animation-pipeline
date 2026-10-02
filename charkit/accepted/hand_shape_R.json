@@ -1,0 +1,10 @@
+{
+ "check": "hand_shape_R",
+ "status": "WARN",
+ "value": 0.7241,
+ "by": "Michael",
+ "why": "Michael, 2026-10-01, relayed by the coordinator for tool/hands2 (hands3): the rest pose against the turnaround's front and back views sits ~5% under the comb (fit-scale 0.71-0.73 vs 0.76-0.77): inside the 15% guard; those views draw the hand narrow by convention, and the structure comes from the hand sheet's open hand (fixed landmark ratios). More hand work is deferred to the motion/dexterity phase. Reading accepted: WARN 0.6556 -> WARN 0.7241 (worst view back; front 0.775 -> 0.735, back 0.757 -> 0.724, three-quarter 0.656 -> 0.779).",
+ "at": "2026-10-01T21:19:19",
+ "branch": "tool/hands2",
+ "recorded_by": "tool/hands2's agent, on the coordinator's relay of Michael's call"
+}
