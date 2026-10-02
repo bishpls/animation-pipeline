@@ -171,7 +171,9 @@ record which layer finds it, how fast.
    `resolve` at its restored figure when it built the shared produced references, so cache hits and misses don't move
    the figure. budget.json re-baselined on today's default. Test: test_gate
    `test_budget_rule_blocks_over_the_budget_and_the_baseline`.
-2. **The QA's drawing on a GPU**: section 8.
+2. **The QA's drawing on a GPU**: verified and measured (section 8): readings 753 of 758 identical (5 INFO checks
+   move, no status or grade), the drawn parts' CPU -66% on the same box; render2's slow cores make routing every build
+   there a wash, so the default routing is unchanged; the QA records its adapter and the gate reports it.
 3. **The iterate profile as the QA-only default**: `python -m charkit qa BUNDLE` runs 'iterate' (motion QA skipped,
    reported SKIPPED and announced as `CHARKIT_QA_PROFILE iterate: motion skipped`) unless `--profile full`; optimize's
    confirm builds pass `--profile iterate` unless a term or keep pattern reads a motion check, and leave the skipped
@@ -182,4 +184,42 @@ record which layer finds it, how fast.
 
 ## 8. The QA's drawing on a GPU (round 1 measurements)
 
-(filled in from the round's measurements: docs/workstreams/incremental.md)
+Today's default (pipeline-3d 348397e7), one bundle (built on the build box and on render2: 962 arrays, 0 differ),
+its QA drawn three ways (charkit/out/incremental: bb, br, qa_r2; tools/incremental/qa_adapters.py):
+
+| QA drawn on | box | QA CPU s | QA wall s | the drawn parts' CPU s (declared, look, artifacts, face_flags, hair_noise, scalp) | readings against the build box's CPU drawing |
+| --- | --- | --- | --- | --- | --- |
+| llvmpipe (Mesa's CPU rasteriser), in the build | build | 981.6 | 609 | 591 | (the reference) |
+| lavapipe (CPU), beside the L4 run | render2 | 1211.3 | 844 | 614 | 758 of 758 identical |
+| the L4 (Vulkan), beside the lavapipe run | render2 | 855.7 | 799 | 208 | 753 of 758 identical |
+| the L4, in the build (render2's `auto` adapter) | render2 | 774.0 | 719 | 201 | 753 of 758; 0 differ from the run above |
+
+- **Readings.** The CPU rasterisers agree across boxes exactly; the L4 is deterministic (two runs, 0 differ). The L4
+  moves 5 checks, all INFO, with no status or grade change: art_terminator_boots 5.41 -> 5.679 (the body frame's boots
+  terminator; grade FAIL both), face_shadow_3q 0.2825 -> 0.2824, face_shadow_chin 0.6234 -> 0.6231 (grade FAIL both),
+  face_shadow_neck_3q 0.0781 -> 0.0782, hair_tone_edges 0.0766 -> 0.0763: pixels on the cel terminators and the
+  rasteriser's ties (the toonrender round saw the same between Metal and llvmpipe). Gates already land on render2 by
+  the box picker's free-CPU rule (8 of 2026-10-01's gates in the worktrees' job records), where `auto` draws on the L4:
+  these 5 readings have depended on the box all along (a gate's two builds share a box, so no gate compared across).
+  The QA now records the adapter (qa.json measured.draw.adapter) and the gate report names both builds'.
+- **Cost.** On the same box the L4 cuts the drawn parts' CPU by two thirds (614 -> 208 s) and the QA's by 29%
+  (1211 -> 856 s). But render2's cores run our numpy and Blender work 1.35-1.65x slower than the build box's (Blender
+  187 -> 251 s, hair_select 68 -> 113, rom 155 -> 243: rom's cost isn't its drawing), so a build there costs about what
+  it costs on the build box (1554 -> 1473 s CPU on the budget's basis, -5%) and its QA takes longer (609 -> 719-799 s
+  wall). Routing every gate to render2 would buy ~5% of CPU, lengthen the QA's wall, and queue every gate on one
+  10-slot box that also renders EEVEE boards: not the default (`remote --gpu build|gate` takes a render box on request).
+- **What would realise the saving:** the drawing split from the numpy work. (a) A draw service on the GPU box that the
+  build boxes' QA calls (qarender's frames and lookqa's light frames drawn remotely, the export sent once by its hash):
+  the build box keeps its fast cores for the rest, the QA's CPU falls by about the drawn parts' 400 s (-40%). It is
+  also Part 1's frame cache's natural home (frames as stored nodes, drawn where the GPU is). (b) A GPU on a fast-core
+  box: provisioning, Michael's call (the L4 comes on G2 machines, whose cores are render2's). Proposed as round 1b below.
+- **QA wall.** The QA runs its 40-odd parts one after another in one process (609 s wall for 982 s CPU on the build box):
+  independent parts in 3-4 processes would cut the wall to the longest chain (rom, 133 s; declared, 97 s), with the
+  same CPU. A cheap round of its own (1c below).
+
+Added rounds (before round 2):
+
+| round | scope | acceptance |
+| --- | --- | --- |
+| 1b: the draw service | `charkit drawserve` on the render box (a job, its export cache keyed by sha256), qarender / lookqa / artifactqa frames drawn through it when CHARKIT_DRAW=host:port, the adapter recorded per frame | a gate pair's readings equal to the in-box L4 drawing (0 differ), QA CPU on the build box down by the drawn parts' share (target -35%), wall not worse; the 5 adapter-dependent checks registered as a remeasure if gates move to it |
+| 1c: the QA's parts in parallel | qa3d.run's parts in N processes (the design memo shared on disk, the frames per process), the order and the report unchanged | qa.json identical to the serial run's; QA wall on the build box from 609 s to under 250 s |

@@ -72,7 +72,18 @@ and on render2's L4 (br, the `auto` adapter there):
   19.9 -> 10.8: 591 -> 201 s CPU (-66%) despite render2's slower cores. The numpy parts got slower on render2: rom
   154.6 -> 242.7 (its draws aren't the cost), motion 31 -> 49, skirt 23 -> 37, sheet_body 26 -> 34, hands 19 -> 28.
 - Whole build: 1717.9 -> 1472.8 s CPU raw; on the budget's basis 1554 -> 1473 (-5%); wall 1157 -> 1194 s.
-- Gates already land on render2 by the auto pick (7 of today's gates in the worktrees' job records), where `auto`
+- **Same box, side by side** (qa_r2: render2, br's bundle, lavapipe and the L4 at once): lavapipe's readings equal the
+  build box's (758 of 758: the CPU rasterisers agree across boxes); the L4's equal br's in-build L4 run (deterministic)
+  and differ from lavapipe in the same 5. QA CPU 1211.3 -> 855.7 s (-29%), wall 844 -> 799 s; the drawn parts 614 ->
+  208 s (-66%): declared 213.7 -> 87.2, look 135.3 -> 32.4, artifacts 93.2 -> 16.7, face_flags 74.2 -> 29.4,
+  hair_noise 71.3 -> 29.8, scalp 25.6 -> 12.4; rom 247.7 -> 243.8 (its cost isn't its drawing). (face_region,
+  sheet_body, skirt differ between the two runs by the design memo: the two processes share it on disk.)
+- **Decision (mine, reported):** the default routing stays (the box picker's free-CPU rule; `remote --gpu build|gate`
+  takes a render box on request). Routing every build to render2 buys ~5% CPU and lengthens the QA's wall (render2's
+  cores 1.35-1.65x slower for numpy and Blender), on one 10-slot box. The saving needs the drawing split from the build
+  (a draw service on the GPU box: round 1b in docs/INCREMENTAL.md). No reading changes with this landing; the 5
+  adapter-dependent INFO checks are recorded per build (qa.json measured.draw.adapter) and named in the gate report.
+- Gates already land on render2 by the auto pick (8 of today's gates in the worktrees' job records), where `auto`
   draws on the L4: those 5 INFO readings have depended on the box all along (within a gate both builds share a box).
 
 ## The brief (copied)
