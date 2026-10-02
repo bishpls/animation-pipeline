@@ -121,6 +121,50 @@ Held-out views: the fit on three views, the fourth assigned without a refit, sco
    the hem groups, fitted to the back's lobes and the profile's J hooks.
 6. The ahoge: its fitted template stays (it fits front + three-quarter + profile within 1.2 px at a 25-30 deg turn).
 
+
+## Results (2026-10-01, end of session)
+**Joint fit, against Michael's links** (hi_hull's context; `charkit/out/hairident/grid{2,3,4}/grid.md`; positives =
+links to a drawn lock: right / wrong / missing; not-visible links all right in every row, 14 / 0; 33 views belong to
+items no fitted lock covers: the flyaway strands and the hem's right side, outside the pilot's families):
+| fit | locks in 2+ views | positives right / wrong / missing | held out 3q (in fit: same) | held out profile |
+|---|---|---|---|---|
+| the pilot's association (greedy) | 2 of 17 | 1 / 1 / 14 | - | - |
+| A: compromise (joins over 12 px dropped) | 7 | 4 / 2 / 10 | 3 / 2 / 4, IoU 0.17 | 2 / 1 / 3, IoU 0.16 |
+| B: every assigned join kept | 10 | 6 / 2 / 8 | 3 / 2 / 4 | 2 / 1 / 3 |
+| **B2: B + held inside the figure where it faces away (the candidate)** | 10 | 5 / 3 / 8 | 3 / 2 / 4, IoU 0.17 | 2 / 1 / 3, IoU 0.17 |
+(Held-out front: only 1 positive link is testable; back: none (no fitted lock's home there but the hem group's,
+whose links are all not-visible).) Michael's link accuracy on positives: pilot 0.06 -> candidate 0.31-0.38.
+**Builds** (render2; pre-merge head 4b..; QA tables `python tools/hairident/hairtab.py ...`): hi_ident (A) and
+hi_identB (B) both trip the guard on the lower back's profile (0.664 -> 0.528 / 0.465, -20% / -30% against the hull):
+the joined side locks and the hem flicks, free in depth, spread over it in profile; and a right side lock stood out in
+front of the profile's face (fixed by contain_all, B2). Six placements (clean reading, `term6/t6a.json`): hull 3.211 /
+3.33, pilot 1.890 / 2.10, A 1.759 / 1.98 (peeks 22 / 18.8 against 16 / 15.8). 52-lock truth: hull 0.351, pilot 0.403,
+A 0.382, B 0.388. hair_back_lines: hull 0.932 W, pilot 0.584 W, A 0.499 P, B 0.165 P.
+**The shadow-edge check landed** (merged tool/hairtruth-art: artifactqa.HAIR_SHAPE_TRUTH True): art_terminator_hair
+and art_peeks_hair recalibrated on fresh known-bads (hi_torn: the hair's shading normals unsmoothed, 5.086 FAIL;
+hi_gaps: the pilot's shells without overlap, 29 FAIL), the design 1.0 / 0 PASS, today's default 3.211 / 16 (grade
+FAIL, status WARN: the art checks' cap); the design's measures stored (artifacts_design.json, stamp b7f5df42).
+
+## Next steps (exact)
+1. Michael reviews the board (`python -m charkit label board charkit/out/hairident/board`; built from hi2_hull,
+   hi2_pilot, hi2_cand on the merged head, grid5's held-out projections, term6 on those builds).
+2. **The default switch** (only on his yes, and only once the guard holds): set
+   `hair.shape.pieces_opts.lock_shells = tools/hairident/ident_B2.json` and `hair.shape.style = {shade_ellipsoid: 1.0}`
+   in charkit/spec/clawd.json and its alias clawd_body_pieces.json; first fix the lower back's profile (the guard):
+   keep the hem group out of the profile joins (ident `join_views` per group: back only) and hold joined side locks to
+   their family region in the joined view (contain_family on the joined views, contain 5); measure on a render2 build
+   with hairtab.py (every piece per view against the hull, -15% line) and term6all.py; then pregate --box auto and
+   `python -m charkit remote gate tool/hairident --into pipeline-3d` (expect: art_terminator_hair improve, back_lines
+   improve, scalp_px 4 -> ~65 W (reported), hair_folds up, CPU: the joint fit's rounds add ~1-2 min to pieces_hair,
+   check the 1.5x line cold against cold). tool/hairstrokes waits for the switch (its strokes sit on the locks).
+3. **The back** (no registered lock map there): the canonical rule's compromise: the hem's targets the splitter's
+   cells (unit 'cells'), identity back <-> profile only; or one more image call (1 left of ~4) only with a materially
+   different approach (the body sheet edited in place failed on silhouette; the head sheet's back hem isn't the body
+   sheet's).
+4. **Region by region** (each a render2 build against the hull, the guard per view, Michael's links scored): see
+   "Extending region by region" above; the bangs and the upper back need their links labelled first (`python -m
+   charkit label serve` on a new task from tools/hairident/mktask.py with the bangs' and upper back's items).
+
 ## Plan (the brief's order)
 1. `python -m charkit label serve TASK.json` (charkit/label.py, generic) + the hair identity task (~20 locks: side locks,
    back flicks; tools/hairident/mktask.py) -> hand the page to the coordinator.
