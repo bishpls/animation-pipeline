@@ -203,3 +203,30 @@ charkit/out/g8_c0; its QA carries the truth checks). The g8_base build (pre-shou
    neck weight: a collar weights option leaving neck/head out, opt-in in clawd.json).
 5. Clear each acceptance in charkit/accepted/ as its check passes; review page (design | the new references | before
    g8_c0 | after) with `python -m charkit review page`; pregate --box auto; gate.
+
+### Coordinator corrections (2026-10-01)
+- "Wrap up" = finish step 2 through a gate (not stop); no new scope beyond step 2; the motion-suite items are NOT
+  pulled into this round (dropped from the plan above). Step 1 lands with step 2 in one gate unless step 2 is many hours
+  out. Pregate on step 1's state: PASS (0 moved, 0 blocking; 21aaa856 into 348397e7).
+- The neck item verified and dropped (77939464; charkit/accepted/art_terminator_neck.json's why amended): g8_base vs
+  g8_c0 (tools/garments8/neckcheck.py -> charkit/out/garments8/neck/): face_shadow_chin 0.693 -> 0.623 (front 0.746 ->
+  0.713, 3q 0.640 -> 0.534); the neck shadow share under the board light 0.143/0.206/0.201 -> 0.132/0.152/0.138 (design
+  0.13-0.16); qa_chin_shadow.png shows it under the jaw in both. The artifact detector's numpy neck window (same area,
+  0.062 L^2) had its shade at its foot by the collar line (the old neck base), now lit by the raised shoulder: shade
+  0.24/0.25/0.18 -> 0.018/0.026/0.001, no edge in front, 3q, profile.
+
+### g8_c0 (the "before": joined shoulder default at the branch head)
+| check | g8_base (old body) | g8_c0 (joined) |
+|---|---|---|
+| collar_front / 3q_truth | 0.617 / 0.514 | 0.771 / 0.559 |
+| neck_v_front / 3q_skin | 0.574 / 0.505 | 0.562 / 0.499 |
+| top_front / 3q / profile / back_truth | 0.80 / 0.74 / 0.83 / 0.91 | 0.75 / 0.66 / 0.80 / 0.86 |
+| art_outline_neck / art_outline_collar | 1.47 / 1.44 | 10.31 / 3.47 |
+| bow_front_bleed | 0 | 0.1475 F |
+| collar_front / back / profile_torn | 0.001 / 0 / 0 | 0.026 / 0.010 / 0.020 F |
+| sleeve_profile_profile_L / sleeve_three_quarter_profile_L | 0.031 / 0.016 | 0.114 / 0.062 F |
+| neck_crease | 12.7 | 24.2 W |
+| piece_top f/3q/p/b | 0.749 / 0.800 / 0.635 / 0.931 | 0.507 / 0.669 / 0.657 / 0.962 |
+| piece_collar f/3q/p/b | 0.657 / 0.467 / 0.027 / 0.928 | 0.905 / 0.532 / 0.103 / 0.890 |
+- Running: sweep l1 (tools/garments8/l1.json: the truth-read lapel template T0 and 9 OAT variants) on build2 ->
+  charkit/out/garments8/sweeps/l1 (log charkit/out/garments8/sweep_l1.log).
