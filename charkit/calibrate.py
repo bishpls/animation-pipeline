@@ -37,6 +37,9 @@ nothing imported, so the gate reads the merged tree's without running it; no cen
     known_bad  the stored build's name (charkit/calib/known_bad/NAME.json), or None with `no_known_bad` saying why
     baseline   the floor's generators (names in the adapter's .generators)
     probes     (optional) structure probes (names in .generators)
+    invariant  (optional) generators that change only what the check must NOT see (the hands' MCP span under a thumb
+               moved alone: Michael 2026-10-01, a palm width read across the thumb): every seed must PASS, else the
+               verdict is 'confounded'
     shape      the piece shape checks that guard it (the gate's anti-gaming guard: this check improving while one of
                these drops by more than DROP in any view blocks); default: piece_<its first word> when qa.json has it
     better     'lower' or 'higher' (default: from the design against the floor)
@@ -330,6 +333,10 @@ def verdict(rec):
             '/'.join(sorted({D['moves'][m][1] or 'none' for m in bad})), ', '.join(bad[:4]), len(bad), len(st))
     if K.get('name') and K.get('status') != 'FAIL':
         return 'blind', 'the known-bad %s reads %s %s' % (K['name'], K.get('value'), K.get('status'))
+    moved = [g for g, r in (rec.get('invariant') or {}).items() if any(s != 'PASS' for s in r['statuses'])]
+    if moved:
+        return 'confounded', 'the check moved under %s (a change it must not see): %s' % (
+            moved[0], rec['invariant'][moved[0]]['values'])
     if not K.get('name') and not F:
         # (nothing it must fail: the design passing its own check proves nothing; sleeve_standoff, a 3D measure)
         return 'unmeasured', 'no known-bad (%s) and no random floor: nothing it must fail' % (
@@ -356,7 +363,7 @@ def verdict(rec):
         D.get('spread'), K['name'], K.get('value'), ', '.join('%s %s' % (g, f.get('status')) for g, f in F.items()))
 
 
-def assess(check, e, cur, bad, design, floors, probes, bad_name=None):
+def assess(check, e, cur, bad, design, floors, probes, bad_name=None, invariant=None):
     """one check's record from the part's runs: cur, bad ({check: dict} or None), design {move: checks}, floors
     {generator: [checks per seed]}, probes {generator: checks}."""
     rec = dict(check=check, part=e.get('part'), adapter=e.get('adapter'), module=e.get('module'),
@@ -392,13 +399,23 @@ def assess(check, e, cur, bad, design, floors, probes, bad_name=None):
                                passing=sum(s == 'PASS' for s in st))
     rec['probes'] = {g: dict(zip(('value', 'status'), _vs(C, check))) for g, C in (probes or {}).items()}
     rec['blind_to'] = sorted(g for g, p in rec['probes'].items() if p['status'] == 'PASS')
+    if invariant:
+        rec['invariant'] = {g: dict(values=[_vs(C, check)[0] for C in runs], statuses=[_vs(C, check)[1] for C in runs])
+                            for g, runs in invariant.items()}
     v, s = _vs(cur, check)
     fl = _median([f['median'] for f in rec['floor'].values()])
     dm = rec['design']['median']
     better = e.get('better') or (('higher' if dm > fl else 'lower') if _num(dm) and _num(fl) and dm != fl else None)
     rec['better'] = better
     margin = None
-    if _num(v) and _num(fl) and _num(dm) and dm != fl:
+    fms = [f['median'] for f in rec['floor'].values() if _num(f['median'])]
+    if _num(v) and _num(dm) and any(x > dm for x in fms) and any(x < dm for x in fms):
+        # floors on both sides of the design (a signed check graded on |ours - design|: handsheet_open_span's wide and
+        # narrow palms): the median of their medians lands near the design, so the margin is read on the distance from
+        # the design instead (1 at the design, 0 at the floors' median distance)
+        fd = _median([abs(x - dm) for x in fms])
+        margin = round(1.0 - abs(v - dm) / fd, 3) if fd else None
+    elif _num(v) and _num(fl) and _num(dm) and dm != fl:
         margin = round((v - fl) / (dm - fl), 3)
     rec['current'] = dict(value=v, status=s, margin=margin)
     rec['verdict'], rec['why'] = verdict(rec)
@@ -449,6 +466,7 @@ def run_group(module, adapter, es, checks, build, seeds=SEEDS, log=print):
         floors[g] = [once(g, s) for s in range(seeds)]
     for g in sorted({g for e in es for g in e.get('probes') or ()}):
         probes[g] = once(g, 0)
+    invs = {g: [once(g, s) for s in range(seeds)] for g in sorted({g for e in es for g in e.get('invariant') or ()})}
     out = {}
     for k in checks:
         e = entry_for(k, es)
@@ -460,9 +478,10 @@ def run_group(module, adapter, es, checks, build, seeds=SEEDS, log=print):
         else:
             rec = assess(k, e, cur, bads.get(kb) if kb else None, design,
                          {g: floors[g] for g in e.get('baseline') or ()}, {g: probes[g] for g in e.get('probes') or ()},
-                         bad_name=kb)
+                         bad_name=kb, invariant={g: invs[g] for g in e.get('invariant') or ()})
         rec['build'] = os.path.relpath(build, ROOT) if build.startswith(ROOT) else build
-        rec['generators'] = {g: A.generators.get(g) for g in list(e.get('baseline') or ()) + list(e.get('probes') or ())}
+        rec['generators'] = {g: A.generators.get(g) for g in list(e.get('baseline') or ()) + list(e.get('probes') or ())
+                             + list(e.get('invariant') or ())}
         rec['seconds'] = round(time.time() - t0, 1)
         out[k] = rec
     return out

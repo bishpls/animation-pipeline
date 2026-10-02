@@ -1,25 +1,43 @@
 {
- "doc": "The default build's CPU budget, seconds (infra round 5, task 2; REPORT ONLY: what blocks under policy K is Michael's call). Gate conditions: charkit/spec/clawd.json, threads capped at 4, --boards '' --no-blend; the venv steps (venv/*) are what a cold build pays, a gate's builds mostly restore them from the shared step cache. Set from the round's measured profile (docs/workstreams/infra5o.md, charkit profile) with about 10-15% headroom. The merge gate reports each stage's CPU, baseline and candidate, against these (charkit/profile.py budget_rows) and flags WARN past them. A branch that adds cost on purpose raises the number here, with a reason in its notes, so the change is reviewed.",
+ "doc": "The default build's CPU budget, seconds. Gate conditions: charkit/spec/clawd.json, threads capped at 4, --boards '' --no-blend, the build box's cores. BLOCKING (Michael, 2026-10-01; charkit.gate.budget_rule): a candidate blocks when its build CPU is more than 10% over `total` AND more than 5% over its baseline's, both read on this basis: the build's CPU with each cached venv step it restored counted at its `cold` cost (what running it costs) and `resolve` at its `cold` figure when the build made the shared produced references (the hull, the outfit masks, the hair layers: rebuilt once per key change, not a standing cost). The per-stage figures (`stages`) are report-only: the gate's table flags a stage past its figure, naming where cost went. A branch that adds cost on purpose raises `total` here, with its reason in its notes, so the change is reviewed in the merge. Other boxes read differently (measured 2026-10-01 on the same commit: build2's CPU seconds about 0.93x the build box's; render2's about 1.35-1.65x for the numpy and Blender work, its QA drawn on its L4): the baseline half of the rule (same box, same gate) keeps that from blocking.",
  "measured": {
   "gate baselines 2026-10-01 (total CPU s)": {"25b1936 (09-30 evening)": 577, "e9cb156a": 1122, "25ff0f25": 1310},
-  "cold builds (charkit/out/infra5)": {"b0 (60c0f1a4)": 1790, "b1": 1735}
+  "cold builds (charkit/out/infra5)": {"b0 (60c0f1a4)": 1790, "b1": 1735},
+  "re-baseline 2026-10-01 (incremental round 1, pipeline-3d 348397e7 = merge/batch4 d5a916a7)": {
+   "batch4 gate 3's candidate, build2, venv steps run, produced restored": 1455,
+   "bb: build box, --cache off, produced references built (resolve 225.9, code_head 0.02: the hull's build computed the head)": 1717.9,
+   "bb on the budget's basis (resolve at 7.2, code_head at 55)": 1554.2,
+   "br: render2, --cache off, the QA drawn on its L4": 1472.8
+  }
  },
- "total": 1450,
+ "total": 1555,
+ "cold": {
+  "outfit_draft": 0,
+  "code_head": 55,
+  "code_body": 4,
+  "hair_select": 68,
+  "geom_hair": 0,
+  "pieces_hair": 229,
+  "garments_geom": 22,
+  "resolve": 7
+ },
  "stages": {
-  "qa/*": 1150,
-  "blender/*": 230,
-  "venv/*": 500,
-  "qa/declared": 320,
-  "qa/look": 210,
-  "qa/artifacts": 160,
-  "qa/face_flags": 100,
+  "qa/*": 1130,
+  "blender/*": 215,
+  "venv/*": 450,
+  "qa/declared": 240,
+  "qa/rom": 180,
+  "qa/look": 150,
+  "qa/artifacts": 115,
+  "qa/face_flags": 70,
+  "qa/hair_noise": 80,
   "qa/motion": 130,
-  "qa/face_region": 60,
-  "qa/skirt": 50,
-  "blender/character": 75,
-  "blender/look_export": 70,
-  "venv/pieces_hair": 280,
-  "venv/hair_select": 110,
-  "venv/code_head": 90
+  "qa/face_region": 45,
+  "qa/skirt": 45,
+  "blender/character": 70,
+  "blender/look_export": 65,
+  "venv/pieces_hair": 265,
+  "venv/hair_select": 80,
+  "venv/code_head": 65
  }
 }

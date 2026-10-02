@@ -76,7 +76,10 @@ nothing imported: the gate and `calibrate` read a tree's without running it; no 
             cream panel); ours_cls: our piece's pixels of that model-sheet class only (pieceqa.our_classes: 'cream',
             the panel's material on our skirt); ref: 'silhouette' compares with the drawn pieces as our surfaces
             would draw them (the drawing's lines inside the figure given to the nearest piece: bodymeasure.drawn_labels;
-            area's default) instead of the outfit's fill masks
+            area's default) instead of the outfit's fill masks; truth: NAME, the piece against its shape truth (the
+            manifest's shape_truth[NAME], charkit.layerref: its layer without what lies on it, Michael 2026-10-01),
+            ours drawn the way that sheet draws the outfit (without the entry's `without` pieces, or the piece
+            alone); shape_iou's iou_tol there is bodymeasure.iou_tol at OUTLINE_TOL (the guard's metric) on the two
   limits    [pass, warn] (within: PASS, WARN; beyond: FAIL), or a reference to a part's own table
             ('charkit.pieceqa.LIMITS.rows'); better 'lower' (default; shape_iou 'higher') or 'higher' (at least)
   part      the QA part that reports it: 'declared' (default: this module's part) or a part that evaluates its own
@@ -189,6 +192,10 @@ def shape_iou(Mo, Md, ctx, metric='iou_tol', close=False, round_=4):
     Md = fit(Md, Mo.shape)
     if Md.sum() < pieceqa.MIN_PX:
         return None
+    if ctx.get('truth') is not None and not close:     # (a shape truth: the guard's metric on the two masks)
+        v = bodymeasure.iou_tol(Mo, Md, bodymeasure.OUTLINE_TOL * ppl) if metric == 'iou_tol' else \
+            float((Mo & Md).sum()) / max(1, int((Mo | Md).sum()))
+        return dict(value=round(float(v), round_), ours=int(Mo.sum()), design=int(Md.sum()))
     if close or ctx.get('graph') is None:
         if close:
             Md, Mo = pieceqa.clean(Md, ppl), (pieceqa.clean(Mo, ppl) if Mo.any() else Mo)
@@ -593,7 +600,7 @@ def remap_rows(m, Ro, Rd):
 
 
 def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol=0.015, edge=False, relative=None,
-               with_ink=False, round_=3):
+               with_ink=False, align=None, round_=3):
     """the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's
     ink, with its fainter strokes (faint: outfit.ridges, as partqa.design_lines reads the bow's creases), inside the drawn
     region (the piece's mask, or the drawn piece `region`'s: the skirt's cream panel; closed, holes filled, its outline's
@@ -607,7 +614,9 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
     region's at the same share across it (remap_rows), so a region drawn view-dependently (the skirt's cream panel, drawn
     face-on in three-quarter: wider than any 3D panel turned 35 degrees can show) still grades its lines' arrangement,
     and the region's own shape is the shape check's. with_ink: our ink strokes as our_ink draws them (at least a pixel wide:
-    a stroke thinner than a pixel still shows) with the lines (the hair's pieces: ctx 'ink')."""
+    a stroke thinner than a pixel still shows) with the lines (the hair's pieces: ctx 'ink'). align 'centroid': ours
+    (the piece and its lines) moved so its centroid meets the drawn piece's first (the hands: where our arm hangs is the
+    build pose's, body_*_arms; the lines' place on the hand is what this reads, as handqa lays hands on centroids)."""
     from scipy import ndimage
     from skimage.morphology import skeletonize
     from . import bodyqa, outfit
@@ -637,6 +646,12 @@ def ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, tol
         return dict(value=None, why=WHY_OURS)
     if with_ink and ctx.get('ink') is not None:
         lines = fit(lines, sh) | fit(ctx['ink'], sh)
+    if align == 'centroid':
+        from .calib.labels import _shift
+        yo, xo = np.nonzero(Mo)
+        yd, xd = np.nonzero(fit(Md, sh))
+        dy, dx = int(round(yd.mean() - yo.mean())), int(round(xd.mean() - xo.mean()))
+        Mo, lines = _shift(Mo, dy, dx, False), _shift(fit(lines, sh), dy, dx, False)
     zone_o = inner
     if relative:
         clo = ctx.get('cls_ours')
@@ -1276,6 +1291,8 @@ FOLD_FAMILIES = ('stair',)                        # families that read our geome
 HEAD_FAMILIES = ('line_weight',)        # families that read the head pictures (inputs' head: charkit.hairweight)
 TONE_FAMILIES = ('tones',)              # families that read our cel tones on the design grids (inputs' tones)
 HAIR = 'hair'                           # the hair as a piece: our hair_* objects, the drawing's hair class (no graph piece)
+HANDS = ('hand_L', 'hand_R')            # the hands as pieces (charkit.handqa's: the skin past the wrist cuff, ours from our
+                                        # labels as the drawn one from the drawing's; no graph piece)
 HAIR_OTHER = ('hair_bun', 'hair_ahoge')  # our hair objects that aren't the mass (with the clips: hairflagqa's `other`)
 
 
@@ -1288,7 +1305,7 @@ def grade(v, limits, better='lower'):
 
 # ------------------------------------------------------------------------------------------------------------ measuring
 def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair=False, head=False, tones=False,
-           body=False):
+           hands=False, body=False, truth=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines); with hair, the hair as a piece (HAIR: our hair_* objects against the drawing's
@@ -1313,6 +1330,8 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
                graph=graph, spec=B.spec, skin=[o.name for o in B.objects(groups=('skin',))])
     if hair:
         _with_hair(B, design, out)
+    if hands:
+        _with_hands(B, out)
     if lines:
         out['lines'] = our_lines(B, ctx['ppl'], ctx['az3'], tuple(O))
         if hair:
@@ -1338,7 +1357,62 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
     if body:                                      # (ref 'base_body': our skin alone, the base body sheet)
         out['base_body'] = base_body(design, tuple(O))
         out['our_body'] = our_body(B, ctx['ppl'], ctx['az3'], tuple(O))
+    if truth:                                     # (a declaration's `truth`: the shape truths and ours drawn their way)
+        _with_truths(B, out, ctx['ppl'], ctx['az3'])
     return out
+
+
+def _with_hands(B, I):
+    """the hands as pieces in the inputs I (in place): masks VIEW__hand_L/R the drawn hands (handqa.hand_mask: the
+    drawing's skin past its drawn cuff), own[view][hand_L/R] ours from our labels the same way (our skin past our cuff's
+    object: a calibration stand-in's labels give its own), pm[hand_*] empty (no graph piece)."""
+    from . import handqa, pieceqa
+    from .bodyqa import CLASS
+    names, pm, ppl = I['names'], I['pm'], I['ppl']
+    ids = [i + k for i, n in enumerate(names) if n in handqa._skin_names(B, names) for k in (0, 1000)]
+    I['masks'] = dict(I['masks'])
+    I['pm'] = dict(pm, **{h: [] for h in HANDS})
+    own = I.setdefault('own', {})
+    for v, Ov in I['O'].items():
+        d = I['dv'].get(v)
+        if d is None:
+            continue
+        cls, fg, lab = d['cls'], d['fg'], Ov['lab']
+        skin_d, skin_o = fg & (cls == CLASS['skin']), np.isin(lab, ids)
+        for s_ in handqa.sides(v):
+            md = I['masks'].get('%s__cuff_%s' % (v, s_))
+            if md is None or ('cuff_' + s_) not in pm:
+                continue
+            hd = handqa.hand_mask(skin_d, md[:cls.shape[0], :cls.shape[1]], ppl)
+            if hd is None:
+                continue
+            I['masks']['%s__hand_%s' % (v, s_)] = hd['mask']
+            mo = pieceqa.members(lab, names, pm, 'cuff_' + s_)
+            ho = handqa.hand_mask(skin_o, mo, ppl) if mo.sum() >= handqa.MIN_PX else None
+            own.setdefault(v, {})['hand_' + s_] = ho['mask'] if ho is not None else np.zeros(lab.shape, bool)
+
+
+def _with_truths(B, I, ppl, az3):
+    """the shape truths in the inputs I (in place): `truth` the manifest's entries and masks (layerref.load_truths),
+    `without(view, exclude, classes=False)` our labels (or model-sheet classes) z-buffered without the named objects
+    (pieceqa.our_labels / our_classes' hide; cached), `alone_of(view, keep)` the named objects alone
+    (pieceqa.alone). Read when measured, so a calibration stand-in's patched pieceqa gives its own."""
+    from . import layerref, pieceqa
+    ST, TM = layerref.load_truths(B.spec)
+    I['truth'] = dict(entries=ST, masks=TM)
+    cache = {}
+
+    def without(view, exclude, classes=False):
+        key = (view, tuple(sorted(exclude)), classes)
+        if key not in cache:
+            if classes:
+                cache[key] = pieceqa.our_classes(B, ppl, az3, (view,), hide=set(exclude)).get(view)
+            else:
+                got = pieceqa.our_labels(B, ppl, az3, (view,), hide=set(exclude))[0].get(view)
+                cache[key] = None if got is None else got['lab']
+        return cache[key]
+    I['without'] = without
+    I['alone_of'] = lambda view, keep: pieceqa.alone(B, I['names'], view, az3, ppl, keep)
 
 
 def _with_hair(B, design, I):
@@ -1600,6 +1674,37 @@ def limits_of(d):
     raise KeyError(L)
 
 
+def _truth_pair(I, view, name, pieces, family):
+    """a declaration's `truth` NAME in a view: (ours, the truth, ctx updates) or None where the truth has no mask there.
+    Ours is the piece drawn as the truth's sheet draws the outfit: without the entry's `without` pieces' objects (our
+    label image z-buffered without them), or its objects alone (`alone`); the truth the manifest's shape_truth mask
+    VIEW__NAME (charkit.layerref.build_truths). class_iou reads our model-sheet classes drawn the same way against the
+    truth's mask as the drawing's class. The plain IoU (no in-context piece shapes: ctx graph None)."""
+    from . import pieceqa
+    T = I.get('truth') or {}
+    e = (T.get('entries') or {}).get(name)
+    Md = (T.get('masks') or {}).get('%s__%s' % (view, name))
+    if e is None or Md is None:
+        return None
+    names, pm = I['names'], I['pm']
+    excl = sorted({n for p in e.get('without') or () for n, _ in pm.get(p, [])})
+    extra = dict(graph=None, truth=name)
+    if e.get('alone'):
+        keep = {n for p in pieces for n, _ in pm.get(p, [])}
+        A = I['alone_of'](view, keep)
+        Mo = np.zeros(I['O'][view]['lab'].shape, bool) if A is None else A
+    else:
+        lab = I['without'](view, excl)
+        if lab is None:
+            return None
+        Mo = pieceqa.members(lab, names, pm, pieces[0])
+        extra['lab'] = lab
+    if family in CLASS_FAMILIES:
+        extra['cls_ours'] = I['without'](view, excl, classes=True)
+        extra['cls'] = Md
+    return Mo, fit(Md, Mo.shape), extra
+
+
 def evaluate(decls, I):
     """the declarations measured on the inputs I (inputs(), or a part's own: O, names, masks, pm, ppl, dv, lines?) ->
     (table {check: dict(ours, design)}, checks {check: qa.json's dict}). A view the design doesn't draw the piece in, or
@@ -1654,7 +1759,12 @@ def evaluate(decls, I):
         Md = [M.get('%s__%s' % (view, drawn or p)) for p in pieces]
         if any(m is None for m in Md):                    # (the design doesn't draw it here)
             continue
-        Mo = [pieceqa.members(lab, names, pm, p) for p in pieces]
+        if any(p in HANDS for p in pieces):
+            if any(p not in (I.get('own') or {}).get(view, {}) for p in pieces if p in HANDS):
+                continue
+            Mo = [I['own'][view][p] if p in HANDS else pieceqa.members(lab, names, pm, p) for p in pieces]
+        else:
+            Mo = [pieceqa.members(lab, names, pm, p) for p in pieces]
         oc = params.pop('ours_cls', None)
         if oc is not None:                                # (our piece's pixels of one class: its material there)
             from . import bodyqa
@@ -1678,6 +1788,14 @@ def evaluate(decls, I):
             ctx['hair_other'] = member_mask(lab, {n: i for i, n in enumerate(names)}, I.get('hair_other_members') or [])
             ctx['head'] = I.get('head')
             ctx['tones'] = (I.get('tones') or {}).get(view)
+        tr = params.pop('truth', None)
+        if tr is not None:                                # (the piece's shape truth: ours drawn the sheet's way)
+            got = _truth_pair(I, view, tr, pieces, d['family'])
+            if got is None:
+                continue
+            Mo, Md, extra = got
+            Mo, Md = (Mo if len(pieces) > 1 else [Mo]), (Md if len(pieces) > 1 else [Md])
+            ctx.update(extra)
         ref = params.pop('ref', None) if d['family'] != 'area' else None
         if ref == 'silhouette':                           # (the drawn pieces with the drawing's lines given to them)
             S = [silhouette(I, view, p) for p in pieces]
@@ -1828,6 +1946,11 @@ def evaluate_part(part, I, decls=None):
     return evaluate(ds, I) if ds else ({}, {})
 
 
+def _drawn_of(p):
+    """a piece's drawn mask name: a hand (HANDS) is drawn as the skin past its cuff (handqa), so its cuff's mask."""
+    return 'cuff_' + p.split('_')[1] if p in HANDS else p
+
+
 def expected(B, design, part='declared'):
     """the part's denominator (registry `checks`): its declarations per view (expand) that the design side says can be
     measured: the view among the design's figures, every piece in the outfit graph's piece map and drawn in that view
@@ -1842,7 +1965,7 @@ def expected(B, design, part='declared'):
     if got is None or 'why' in design.sheet_context():
         return 0                                        # (no design sheet or outfit masks: the part reports SKIPPED)
     masks, graph, _ = got
-    pm = dict(bodymeasure.piece_map(graph, B.spec), **{HAIR: True})
+    pm = dict(bodymeasure.piece_map(graph, B.spec), **{HAIR: True}, **{h: True for h in HANDS})
     dv = design.design_views()
     n = 0
     for name, view, d in expand(ds):
@@ -1852,7 +1975,7 @@ def expected(B, design, part='declared'):
         drawn = (d.get('params') or {}).get('drawn')
         if any(p not in pm for p in pieces):
             continue
-        if any(p != HAIR and '%s__%s' % (view, drawn or p) not in masks for p in pieces):
+        if any(p != HAIR and '%s__%s' % (view, drawn or _drawn_of(p)) not in masks for p in pieces):
             continue
         n += 1
     return n
@@ -1871,11 +1994,14 @@ def declared(B, design=None, out=None):
                            for d in ds),
                folds=any(d['family'] in FOLD_FAMILIES for d in ds),
                hair=any(HAIR in (d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']]) for d in ds),
+               hands=any(set(HANDS) & set(d['piece'] if isinstance(d['piece'], (list, tuple)) else [d['piece']])
+                         for d in ds),
                head=tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds
                                                   if d['family'] in HEAD_FAMILIES)),
                tones=tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds
                                                    if d['family'] in TONE_FAMILIES)),
-               body=any((d.get('params') or {}).get('ref') == 'base_body' for d in ds))
+               body=any((d.get('params') or {}).get('ref') == 'base_body' for d in ds),
+               truth=any('truth' in (d.get('params') or {}) for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}

@@ -414,3 +414,322 @@ fits, builds and calibrations run on the boxes; local work is light (single eval
   at body.hand.line 0.5) and the finger separation lines (fingers overlap 0.215 of their width: outline hulls hidden).
 - Pregate skipped (laptop memory-critical; it runs the evaluator for both trees locally, and the box copy has no git):
   the after-build's real QA against the before stands in. Merged pipeline-3d 9be5b32 (40a0168). Gate launched.
+
+### Gate of hands2: **PASS under K** (tool/hands2 fc89db1d into pipeline-3d e003960d)
+Report charkit/out/gate/gate_tool-hands2_fc89db1d_into_e003960d.md. Nothing blocks: no new FAIL among existing checks,
+no flag regression, CPU 1.21x (1153.6 -> 1394.3 s); 39 calibration records accepted, 0 guard findings. Reported: the
+two skirt measures PASS -> WARN (body_front_skirt_width 0.982 -> 0.861, body_three_quarter_skirt_aline -0.012 ->
+0.09: the hand-row exclusion), the new hand_profile_cleftpos_L FAIL (-0.825; rest A's profile), flag values moved
+within PASS (art_mirror_waist 0.72 -> 0.754). The coordinator merges it as the interim (strictly better than the comb).
+
+## Round 6: hands3, the structure from the hand sheet (coordinator, Michael's call 2026-10-01)
+The turnaround's hands are small with merged fingers (the canonical rule's step 2: internal structure it can't resolve),
+so the structure comes from hand_breakdown.png's OPEN pose (top row second: five digits from the back; bottom row
+second: the thumb's side); the turnaround stays the authority for overall size (reach past the cuff). Michael also saw
+three-quarter showing no finger delineation (a blur). hands2 goes to pipeline-3d as an interim if its gate passes.
+Plan: 1. measure the open pose, fit the template's structure to it per row (tip count, per-digit length and width
+profile, shape IoU); 2. validate by posing the fitted structure (LBS on the finger bones) into relaxed, fist, point,
+graded against the sheet per row; 3. the rest pose against the turnaround (IoU per view no worse than the comb's);
+4. finger delineation: an ink check against the design's lines (front, 3q at least), our renderer drawing a line where
+two fingers touch (a seam gap or inked seams, both measured), the hand's dark outline; 5. review page (sheet | comb |
+hands2 | hands3, per pose and view; 3q rest close-ups), calibrate, pregate --box auto, gate.
+- **charkit/handsheet.py (2f…):** cells() (the sheet's 8 hands, the arm straight down), digits() (tips = the contour's
+  local maxima of distance from the wrist standing 0.06 of the reach above the clefts beside them; each digit's base at
+  the level of its shallower cleft, the far edge as far from the tip; length, width profile at 0.1-0.9 of its length,
+  angle, tip roundness; palm width across the clefts, the knuckle line), draw() (the template in the sheet's rows from
+  its own frame), SheetFit, `charkit handsheet fit|show`. The template gained fan_index..fan_little and thumb_across
+  (defaults: hands2's hand exactly); code_hand.search is the DE/Powell search both fits share (spawned workers rebuild
+  the fit from fit.src = 'module:factory').
+- **The sheet's open pose (shares of the reach past the cuff):** back: little 0.385 (angle -40 deg), ring 0.446 (-22),
+  middle 0.496 (-6), index 0.454 (+8), thumb 0.320 (+47; its base 0.356 along); widths at the base 0.093-0.119, at
+  0.9 of the length 0.045-0.061 (tip roundness 0.62-0.73); palm 0.404 across the clefts; knuckle line 0.494. Side:
+  three tips (two fingers, the thumb 0.277 at +32). Relative to the middle: little 0.78, ring 0.90, index 0.92.
+- hands2's template drawn open (fan 14/0/-16/-34, thumb out 45): back IoU 0.513 (palm 0.29 vs 0.40, knuckles 0.43 vs
+  0.49), side 0.351 (2 tips vs 3). **open1** fit running on the build box (charkit/out/hands3/open1, log open1.log).
+- **Open-pose fits (build box, `charkit handsheet fit`):** open1 merged two fingers for IoU while the per-digit terms
+  fell away (fixed: every drawn digit is matched, an unmatched one costs its terms; a tip more or fewer 0.25); open2
+  matched all five digits but the side row read curled (curl bound 0) and pure-side (the sheet's side is drawn turned:
+  view_turn_side, a comparison parameter, side IoU 0.39 -> 0.58 at -20 deg). **open3** (charkit/out/hands3/open3): back
+  IoU 0.640, 5/5 tips, lengths little 0.386/0.385, ring 0.464/0.446, middle 0.488/0.496, index 0.448/0.454, thumb
+  0.322/0.320; widths RMS 0.002-0.005 (thumb 0.020); angles within 2-9 deg (middle 7.5 vs -6.4); palm 0.387/0.404;
+  knuckles 0.497/0.494. Side IoU 0.713, 3/3 tips, lengths within 0.015. Structure taken into the spec (c… commit):
+  palm 0.5175, palm_w 0.281, wrist_w 0.109, palm_t 0.084, taper 0.461, overlap -0.017 (a hairline seam), fingers
+  0.936/1/0.979/0.812, thumb_base 0.093, thumb_across 0.481, thumb_len 0.389, thumb_w 0.082; line 1.0. The sheet's
+  open palm (0.40 of the reach) agrees with the turnaround's front hand once its turn is undone (~0.39).
+- **fingerlines_{view}_{L,R}** (declared in handqa.py: ink_inside on the hands as pieces, declared.py's new HANDS and
+  align 'centroid'; front/3q/back L, front/back R; limits 0.4/0.5; Michael's flag). Dry calibration on the box: design 0
+  (every move), paddle_hand (hands2's hand, stored known-bad) 0.72-0.83 front/back, 0.58 in 3q, floors 1.
+- **rest1** running (build box): open3's structure fixed; length, curl, spread, thumb_out/down, bend, dev fitted to
+  the turnaround, floors the comb's QA hand_shape views + 0.02 (charkit/out/hands3/floors_rest.json).
+- The seam gap: `tip_gap` (fingertips apart, the hulls draw the hairline) and code_hand.SEAM_MAX 0.005 L.
+- **rest1** (charkit/out/hands3/rest1): fit-scale IoU front 0.775/0.792, 3q 0.792/0.707, back 0.782/0.779, **profile
+  0.583** (comb 0.51, hands2 0.48), but the thumb folded in (thumb_out 1 deg): 3q L cleftpos 0.16 vs 0.62 and profile
+  taper 0.35 vs 0.51 would FAIL (new FAILs once hands2 is the base). Fit change: FAIL_COST 0.5 per graded term past its
+  WARN limit. **rest2** running (from rest1, thumb_out 14).
+- **poses1** (`charkit handposes fit`, build box; the rest = open3's structure with hands2's rest angles; LBS on the
+  template's own weights): open back 0.640 (5/5 tips) / side 0.548; relaxed 0.874 / 0.620; fist 0.799 / 0.654 (reach
+  0.70 of the open hand vs the sheet's 0.80); point 0.714 / 0.685 (0.95 vs 1.01). Fitted angles: fist MCP 31, PIP 98,
+  DIP 24, thumb oppose 79; point index -1, others 69/105/62. The side row now drawn at the sheet's turn (handsheet.TURN
+  side -13.4, open3's fit) for every pose.
+- **rest2** (FAIL_COST on): fit-scale IoU front 0.748/0.762, 3q 0.798/0.705, back 0.754/0.749, profile 0.584; every
+  graded term out of FAIL but back L cleftpos (0.665 vs drawn 0.565; the drawing's L/R differ by 0.05: a cleft at
+  0.56-0.62 keeps both backs within WARN, hands2's 0.619). Front/back 2-4% under the comb's QA.
+- **The references disagree on the palm's width** (single evaluations, rest2's angles; fit-scale turnaround IoU | the
+  sheet's open back IoU, its palm): palm_w 0.281 (the sheet's fit) front 0.75/0.76, back 0.75/0.75 | 0.640, 0.387 vs
+  0.404; 0.26: 0.776/0.795, 0.780/0.774, profile 0.556 | 0.622, 0.358; 0.245: 0.795/0.812, 0.798/0.793, profile 0.537 |
+  0.598, 0.340. The sheet's hand is ~15% wider for its reach than the turnaround's. The canonical rule's step 3: the
+  base takes the best fit across both: **JointFit** (`charkit handsheet joint`: structure shared, the sheet's open
+  angles 'open.*' and the rest angles separate, costs summed, the comb's floors kept). **joint1** running (build box,
+  charkit/out/hands3/joint1, log joint1.log).
+- **joint1 killed** (86 min, 16 of 30 generations, no gain over its start: a saturated box). The joint cost scanned over
+  palm_w alone (charkit/out/hands3/palm_scan.json) lands at the sheet's own palm (1.52 at 0.281; 1.60-1.88 at
+  0.245-0.275): no distinct compromise.
+- **Palm-width page for Michael** (coordinator, 2026-10-01): charkit/out/hands3/palmpage/page/index.html (`charkit
+  handsheet palm`: the drawings at one reach past the cuff, the palm across the knuckle line (0.494 of the reach)
+  measured on each, ours outlined at each palm with its IoU; panels charkit/out/hands3/palm/). Drawn palm (share of
+  the reach): the sheet's relaxed back 0.437, the turnaround's profile 0.472 (both broad-on: they agree), its front
+  0.310/0.313 and back 0.328/0.316 (narrow). Options (rest2's angles): A sheet palm_w 0.281: sheet IoU 0.860, palm
+  0.435; turnaround front 0.748/0.762, back 0.754/0.749, profile 0.584. B 0.245: 0.806, 0.376; 0.795/0.812,
+  0.798/0.793, 0.537. C 0.26 (the widest palm keeping front/back at or above the comb's): 0.834, 0.402; 0.776/0.795,
+  0.780/0.774, 0.556. A yaw scan (62 -> 45 at A's palm) doesn't narrow front/back (0.75-0.78), profile 0.58 -> 0.70,
+  far hand 3q 0.71 -> 0.58. **Waiting on Michael: A, B or C.**
+- **Next (after the palm call):** write the chosen palm_w and rest2's angles into the spec (setknobs.py), check back L
+  cleftpos (keep it within WARN: a cleft at 0.56-0.62), then QA-only builds on the build box for the seam gap
+  (tip_gap None / 0.003 / 0.006: fingerlines_* and the gaps), the chosen one on render2 with boards; `charkit handposes
+  fit` on the final rest (poses per row); the review page (sheet | comb | hands2 | hands3 per pose and view, 3q rest
+  close-ups); calibrate fingerlines_* (5 records) on the after-build; pregate --box auto; gate. The hands-only ink colour
+  (a per-vertex outline ink: Blender line material, export attribute, our renderer, look.js) stays in what's left.
+
+### Reframing (Michael, 2026-10-01, after the palm page): fixed structural ratios from landmarks; poses only validate
+The palm page's widths were wrong: handsheet.palm_line took the silhouette's full width across the arm at 0.494 of the
+reach, so a thumb crossing the line (the relaxed back-of-hand views) counted as palm, and one tucked edge-on (the
+turnaround's front and back) didn't: the "disagreement" was thumb pose. Using posed hands as structural references is
+fraught. **The hand engine is built from fixed structural ratios read off landmarks (thumb excluded), and posed
+drawings only validate poses** (joint angles; IoU after posing is a check, not the structure's fit). Addendum: every
+finger's three segments and the thumb's (metacarpal from its CMC near the wrist, proximal, distal) as ratios of the
+palm length, measured along the joint chain on the open hand (never as projected extents in posed drawings); a
+standard-ratio prior per style profile (middle > ring ~ index > little; segments ~1 : 0.6 : 0.45; the thumb reaching
+about the index's first joint adducted; anime slimmer and longer) as the default and sanity range: a character without a
+hand sheet gets the profile's defaults scaled to its turnaround, one with a sheet refines them from its open hand; the
+measure works from the wrist width too (c3's sheet can't be scaled by Clawd's cuffs). The superseded: palm_compare's
+palm_line, JointFit's silhouette-IoU structure fit (kept as tools, not the structure's source).
+- **Step 1 (landmarks, charkit/handsheet.py landmarks/web_lines; probe charkit/out/hands3/landmarks_probe.py, picture
+  landmarks.png, numbers landmarks.json).** The sheet's OPEN hand (every landmark visible: the three finger webs = the
+  silhouette's clefts): MCP span 1.064 cuff widths (the run along the MCP line, index's outer edge to the little's) /
+  1.029 (4 x the webs' spacing); palm length (the cuff's edge to the middle MCP) 1.109; span / palm length 0.96 / 0.93;
+  wrist at the cuff's edge 0.416 (0.375 of the palm length, 0.39 of the span); fingers MCP to tip over the palm length
+  little 0.715, ring 0.827, middle 0.920, index 0.843; base widths 0.17-0.20 of it; the thumb's web at 0.74 of the palm
+  length from the wrist, the thumb from its web 0.59, base width 0.22. Closed hands (webs from the drawn finger lines'
+  starts): the turnaround's front L/R and back R show one line each (not measurable), back L two (0.51 cuff widths:
+  not neighbouring lines), three-quarter L two (0.98), profile L three (0.82); the sheet's relaxed back picks the thumb's
+  edge line, its fist the knuckle creases (1.52): unreliable. **Thumb out, the references don't measurably disagree**:
+  where the turnaround shows the webs (profile L, 3q L) its MCP span is 0.82-0.98 cuff widths against the open hand's
+  1.03-1.06 (the drawn lines start below the true webs, profile and 3q foreshorten); the 0.437 vs 0.31 "disagreement"
+  (29%) was the thumb. The open hand is the structure's source; the turnaround sets the size.
+- Against an anatomical prior (to be set per style profile): span / palm length 0.93-0.96 vs ~0.75-0.85 and wrist / span
+  0.39 vs ~0.65-0.75 fall outside: the palm length and the wrist are read at the cuff's edge, and the cuff hides the
+  wrist crease (the visible palm starts lower; the visible "wrist" is the cuff's opening). Fingers: middle 0.92 of the
+  palm length (anatomy ~0.75-0.85; anime longer), order middle > index 0.843 ~ ring 0.827 > little 0.715. The open
+  hand draws no joint creases on its fingers, so the segments along the joint chain need the creases elsewhere (the
+  relaxed and point hands' finger lines) or the prior's 1 : 0.6 : 0.45.
+- **Steps 1-5 (coordinator: proceed).** Merged pipeline-3d 27a4b6c (0d86390; hands2 already in it as 60c0f1a). Box jobs
+  now go to `--box auto` (the freest box): a job reading an earlier output names its box (`--box build`: hands2_after_q,
+  the known-bad stores live there).
+- **The prior:** charkit/styles `hand` ([default, lo, hi] per ratio over the palm length; anime: middle 0.92 [0.78,
+  1.05], span 0.82 [0.7, 0.9], wrist 0.65 [0.5, 0.85], taper 0.6, thumb_w 0.21). Not widened to fit Clawd.
+- **The ratio template:** code_hand ratio mode (body.hand.palm_len set: from_ratios(hand_ratios(spec), palm_len,
+  wrist_offset)): palm_len the size, wrist_offset 0.034 (Clawd's wrist line is the cuff's edge), segments from the
+  ratios (the prior's 1 : 0.6 : 0.45, thumb 1 : 0.7 : 0.55).
+- **The landmarks, thumb-invariant** (handsheet.digits picks the thumb out: the radial-most digit of five, or one whose
+  cleft is well nearer the wrist; a finger's base only at a web shared with another finger; the wrist line under a cuff
+  is the cuff's edge, the first row the hand shows; a covered wrist isn't read). The sheet's open hand (ratios_of):
+  span 0.925, middle 0.917, index 0.916, ring 0.899, little 0.777, taper 0.549, thumb 1.31, thumb_w 0.22. Flags against
+  the anime prior: span (0.925 > 0.9) and thumb (1.31 > 1.15), both read from the cuff's edge (the palm short); the
+  wrist not measurable (cuffed).
+- **fit_ratios** (the template's ratios moved by the measured difference, our open hand drawn and read alike; no
+  silhouette IoU): within ~0.01 in 2-3 iterations; the template's ratios span 0.900, middle 1.096, index 0.948, ring
+  0.932, little 0.857, taper 0.443, thumb 1.907, thumb_w 0.233, wrist the prior's 0.65 (charkit/out/hands3/
+  fit_ratios.json). They differ from the measured ones because the template places joints and the measure reads the
+  webs (distal of the knuckles) and the wrist line's corner.
+- **The check: QA part hand_sheet** (charkit/handsheetqa.py): handsheet_open_span (4 x the finger webs' spacing over the
+  palm length, ours minus the sheet's; 0.05/0.10), handsheet_open_fingers (0.05/0.10), the posed IoUs INFO.
+  Calibration (charkit/calib/handsheet.py; calibrate's new `invariant` list: a generator the check must not see, else
+  'confounded'): the design 0 at every move; floors wide_palm +0.30, narrow_palm -0.23, long_palm -0.22 (fingers -0.45);
+  **thumb_only (the thumb alone turned 10-30 deg) 0.000-0.0096 in all 5 seeds** (before the fixes: 3 seeds unmeasured,
+  one -0.145 on the index's base, one -0.058 through the wrist line). Known-bad comb_hand (its spec's template).
+- **ratio2** running (build box): palm_len + rest angles, the ratio1-era ratios; rerun with fit_ratios.json's after.
+- **ratio2 invalid** (the ratio mode derived the knobs once at params(): palm_len moved to its bound with no effect);
+  fixed (code_hand.geometry: derived when the hand is built; test_ratio_mode_is_live).
+- **ratio3** (charkit/out/hands3/ratio3, fit_ratios' ratios, palm_len live): reach right (errors < 0.03 L), palm_len
+  0.314; but fit-scale IoU front 0.626/0.637, back 0.630/0.629, 3q 0.781/0.490, profile 0.545 (the comb's QA 0.76-0.77
+  front/back: -17%, the guard) and gaps 0.03-0.05. Cause: the template's thumb, fitted to the open hand's wrist-corner
+  to tip distance (1.31 PL measured -> 1.907 template), came out 0.6 L long: that one measure can't separate the thumb's
+  length from its angle, and its CMC is under the cuff. **The thumb takes the prior (1.0 PL), flagged** (single local
+  evaluations, ratio3's angles: thumb 1.0, thumb_down 10: front 0.707/0.727, back 0.723/0.717, 3q 0.780/0.751, profile
+  0.602, gaps 0.027-0.057 WARN). Still ~6% under the comb's front/back.
+- **ratio4 RUNNING** (build box: `remote --box build run ... hand fit`, charkit/out/hands3/ratio4, log ratio4.log):
+  the prior thumb, knobs palm_len, curl, spread, thumb_out, thumb_down, bend, dev, overlap; floors the comb's + 0.02.
+
+## Checkpoint (2026-10-01 evening, ~750k context): exact next steps for a relaunch
+1. Read ratio4 (charkit/out/hands3/ratio4/fit.json). If front/back stay under the comb's QA (0.761/0.769, 0.754/0.771)
+   by more than ~0.02, that is the turnaround and the sheet disagreeing on the rest silhouette with the structure from
+   landmarks (the canonical rule's step 3): report per-view costs to the coordinator rather than move the structure off
+   the sheet's landmarks. The fingertip gaps (0.03-0.06 at rest: the sheet's slimmer tips, taper 0.44) can be held by
+   `overlap` (in ratio4's knobs) or tip_gap negative; keep every graded hand check out of FAIL (hands2 is the base now:
+   back L cleftpos WARN 0.054 must not FAIL).
+2. Write the spec (setknobs.py or by hand: body.hand = palm_len, wrist_offset 0.034, ratios (fit_ratios.json's with
+   thumb 1.0, wrist the prior's), overlap, rest angles, yaw 61.88, out 5.5, line 1.0, tip_gap, fans 0, thumb_across 0.3).
+   Then `handsheet.fit_ratios(spec, over)` again at the new rest (the open pose is posed from the rest) and rewrite the
+   ratios; the hand_sheet checks (handsheet_open_span / _fingers) should then PASS on our hand.
+3. `charkit handposes fit --poses relaxed,fist,point` on the box (pose validation only: angles, IoU per row) and record.
+4. Builds: render2 with boards (`remote --box render2 build charkit/spec/clawd.json --out charkit/out/hands3_after
+   --boards body,design`), optionally a tip_gap variant (0.004) to measure the seam lines (fingerlines_*: the paddle
+   read 0.72-0.83 FAIL). Push the chosen build to the build box (`infra/gcp/build.sh push` with CHARKIT_BOX_ENV=build.env)
+   and re-push the known-bad stores there (comb_hand, mitten, paddle_hand under charkit/out/calib/builds).
+5. Calibrate on the build box: `remote --box build run --fetch charkit/calib/records calibrate
+   'fingerlines_*,handsheet_open_*' --build charkit/out/hands3_after` (7 records). The hand_* checks aren't remeasured
+   since hands2 (handqa unchanged but its DECLARED_CHECKS literal).
+6. Review page (charkit review page): the open hand with its landmarks and ratios drawn (landmarks_probe.py's picture),
+   ours vs the sheet per pose (handposes picture), the rest close-ups in 3q (hands_board, hands_close), before (comb,
+   hands2_base) | interim (hands2_after) | hands3; then `python -m charkit pregate --box auto` and `remote gate
+   tool/hands2 --into pipeline-3d` (merge pipeline-3d first).
+7. What's left beyond: the hands-only ink colour (a per-vertex outline ink through the Blender line material, the export,
+   charkit/render and look.js); c3's hand sheet (handsheet.cells needs a cuff for the wrist line: the uncuffed path,
+   the narrowest run, exists in landmarks(cuffed=False); scale by wrist width: palm_len_over_wrist).
+- **ratio4 landed, degenerate** (charkit/out/hands3/ratio4): the DE ran to curl 29.7 (its bound), dev -19, overlap 0.33,
+  palm_len 0.369 (the fingers curled shut to close the gaps): fit-scale IoU front 0.551/0.558, back 0.573/0.566, 3q
+  0.675/0.522, profile 0.659. Worse than the single evaluation at ratio3's angles with the prior thumb (front 0.707/0.727,
+  back 0.723/0.717, 3q 0.780/0.751, profile 0.602; ratio_start4.json with thumb_down 10). **Next rest fit:** start there,
+  Powell only (no DE), the curl bounded to about [-10, 12], overlap and dev fixed (0, ratio3's -2.2), knobs palm_len,
+  curl, spread, thumb_out, thumb_down, bend; if front/back still sit ~5% under the comb's QA, report the per-view costs
+  (the sheet's landmark structure vs the turnaround's rest silhouette) to the coordinator before going further.
+
+## Round 7: land hands3 (relaunched 2026-10-01 night; coordinator brief: finish and land, scope tight)
+**Michael's decision (2026-10-01): ACCEPT** the rest pose against the turnaround's front and back ~5% under the comb
+(0.71-0.73 vs 0.76-0.77): inside the 15% guard; those views draw the hand narrow by convention; the structure comes from
+the open hand. Record it as a named acceptance (charkit/accepted/) for whichever hand checks the gate lists. No further
+polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless path for other characters, polish).
+- Merged pipeline-3d ae865afc (8c862fb9: rom suite, hair truth). rom reads the fingers (finger_finger inside, the
+  knuckles' volume): watch its report-only rows at the gate.
+- `charkit hand fit --bounds '{"curl": [-10, 12]}'` (this run's knob bounds).
+- ratio_start4 evaluated (charkit/out/hands3/start4.log): IoU front 0.707/0.727, 3q 0.780/0.751, profile 0.602, back
+  0.723/0.717; **cleftpos FAILs front L/R and back L/R** (ours 0.745-0.768 vs drawn 0.565-0.644: the thumb near
+  parallel, thumb_out 3.8; hands2 PASSes them at 0.61-0.63), gaps 0.027-0.057 WARN, taper front 0.51 vs 0.40 WARN.
+  ratio4's degenerate path was the FAIL_COST cliff: curling the fingers shut escaped these FAILs.
+- **rest3** (build box, job hand-hands-1001-194909-df46, charkit/out/hands3/rest3, log rest3.log): Powell only from
+  ratio_start4, knobs palm_len, curl [-10, 12], spread, thumb_out, thumb_down, bend; overlap 0, dev -2.22 fixed; floors
+  hands2's QA views x 0.93 (charkit/out/hands3/floors_rest3.json).
+- **rest3 landed** (cost 2.60 -> 2.18): palm_len 0.3166, curl 2.53, spread 0.58, thumb_out 9.45, thumb_down 2.93, bend
+  -11.47; IoU front 0.703/0.722, 3q 0.779/0.706, profile 0.609, back 0.713/0.708; gaps 0-0.014 PASS, taper PASS; but
+  **cleftpos still FAIL front L/R, back L/R** (the pocket jumps: 0.96-0.97 L, 0.013-0.017 R vs drawn 0.57-0.64). The
+  prior thumb (1.0 PL = 0.31 L from the cuff's edge) ends ~0.35 L past the wrist; hands2's (PASS) ended ~0.445 L. The
+  sheet's own reading is 1.31 PL (from the wrist line, flagged > the prior's 1.15): the fit_ratios loop's 1.907 was the
+  measure confounding length with angle, not the sheet.
+- **rest4 / rest4p RUNNING** (build box; charkit/out/hands3/rest4 DE 25 x 70 + Powell, rest4p Powell only): from
+  rest3's angles with thumb_out 14 and the sheet's thumb 1.31 PL (rest4_start.json), knobs + `ratios.thumb` [1.0, 1.4]
+  (code_hand: a structural ratio as a fit knob), bounds palm_len [0.29, 0.34], curl [-10, 12], spread [-3, 5],
+  thumb_out [0, 35], thumb_down [0, 30], bend [-20, 10].
+- **rest4p chosen** (charkit/out/hands3/rest4p; written to the spec in the ratio mode, rest_final.json, 3f4d7a9c):
+  palm_len 0.3116, curl 4.45, spread 0.13, thumb_out 12.26, thumb_down 1.57, bend -1.46, dev -2.22; **the thumb's ratio
+  fitted 1.302 PL against the sheet's own reading 1.31** (an independent agreement; the prior's 1.0 left the cleft
+  FAILing). Fit-scale IoU front 0.708/0.724, 3q 0.806/0.803, profile 0.585, back 0.729/0.716; gaps 0; taper PASS;
+  cleftpos front 0.621/0.611 (drawn 0.644/0.639), 3q L 0.660 (0.622), back 0.613/0.607 (0.565/0.616: L WARN 0.048, as
+  hands2's 0.054), profile FAIL as before. rest4 (DE, cost 0.632) fixed the profile cleft (0.69 vs 0.736) but 3q R
+  0.675 and back L cleftpos 0.053 at the FAIL edge, thumb 1.38: not taken.
+- **Merged pipeline-3d 348397e7** (689f4108; batch4: the joined shoulder on): both specs conflicted on body.hand (taken
+  pipeline-3d's with hands3's hand: setknobs), declared.inputs(hands=, body=). The QA denominators: `hands` declares 42
+  (unchanged), `hand_sheet` now declares 2 + 2 x 4 poses = 10, fingerlines_* count in `declared`'s computed count.
+- **poses2 RUNNING** (build2, job handposes-hands-1001-203742-6ebe, charkit/out/hands3/poses2): open, relaxed, fist,
+  point fitted per row on the new rest. Then: POSES['open'] from it, `charkit handsheet ratios --over rest_final.json
+  --keys span,middle,index,ring,little,taper,thumb_w` (the thumb kept: the measure confounds its length and angle),
+  the build.
+- **poses2** (build2; charkit/out/hands3/poses2, on rest4p): fitted per row, IoU back / side (poses1 before): open
+  0.667 / 0.709 (0.640 / 0.548), tips 5/5, 3/3; relaxed 0.823 / 0.803 (0.874 / 0.620); fist 0.861 / 0.716 (0.799 /
+  0.654), reach 0.73 vs the sheet's 0.80; point 0.699 / 0.795 (0.714 / 0.685). Fitted angles: open spread 12.1, thumb
+  spread 24.8, oppose 14.9 (its curl -18 hyperextends to chase the reach: not taken); fist MCP 39, PIP 111, DIP 23,
+  thumb oppose 69; point index -2.6, others 74/112/37. POSES['open'] now flat on the rest (curl -4.45) with poses2's
+  fan and thumb; fist and point stay the library's (anatomical: 85/95/60), graded by hand_sheet's INFO rows.
+- **ratios2** (`charkit handsheet ratios`, build2; charkit/out/hands3/ratios2): converged within 0.004-0.008 in 4-6
+  iterations (the thumb kept); middle 1.096 -> 1.035, span 0.900 -> 0.891, taper 0.443 -> 0.425, thumb_w 0.233 ->
+  0.261; index/ring/little within 0.005. **rest5 RUNNING** (build box; charkit/out/hands3/rest5): the size and rest
+  angles refit at these ratios (Powell from rest_final, rest5_start.json).
+- **rest5** (charkit/out/hands3/rest5; at ratios2's ratios): palm_len 0.3203, curl 3.05, spread 0.78, thumb_out 13.97,
+  thumb 1.22 PL; fit-scale IoU front 0.691/0.705, back 0.705/0.692, 3q 0.793/0.784, profile 0.591; cleftpos all within
+  PASS/WARN but profile. **Not built:** front/back under Michael's accepted 0.71-0.73. Built **rest4p** (the spec as
+  committed; its open hand read on the flat open pose: middle +0.058 PL over the sheet's (handsheet_open_fingers WARN),
+  span +0.017, index/ring/little within 0.004; charkit/out/hands3/open_landmarks.png/.json). The page asks A (rest4p,
+  built) or B (rest5). Coordinator (Michael, end of session): no further fits or sweeps; land it.
+- The library's poses on the built hand (`handposes grade`, charkit/out/hands3/poses_lib): open 0.644 / 0.679, relaxed
+  0.870 / 0.727, fist 0.675 / 0.608 (its reach 0.53 of the open hand vs the drawn fist's 0.80: the library's 85/95/60
+  curls tighter than the drawing's fitted 39/111/23), point 0.667 / 0.720. Dexterity phase.
+- **Builds RUNNING:** charkit/out/hands3_after (boards body,design; auto box; log charkit/out/hands3/after.log) and its
+  QA-only twin charkit/out/hands3_after_q (build box; after_q.log). Then: calibrate 'fingerlines_*,handsheet_open_*'
+  on the build box against hands3_after_q, the review page (charkit/out/hands3/review/page.json), the acceptance,
+  pregate --box auto, gate.
+- **hands3_after_q's QA** (build box, rest4p, with pipeline-3d 348397e7's joined shoulder) against hands2's
+  (hands2_after_q; batch4's gate shows the joined shoulder moved hands2's hand checks by <= 0.0004):
+  hand_shape_L FAIL 0.488 -> FAIL 0.593 (front 0.761 -> 0.712, 3q 0.741 -> 0.774, profile 0.488 -> 0.593, back 0.736 ->
+  0.731); hand_shape_R WARN 0.656 -> WARN 0.724 (front 0.775 -> 0.735, 3q 0.656 -> 0.779, back 0.757 -> 0.724).
+  **Two new FAILs (they block under K):** hand_three_quarter_cleftpos_L PASS 0.008 -> FAIL -0.075 (the real render
+  parts the index and middle in 3q L: a slit, gaps 0.025, becomes the deepest pocket; the fit's template read gaps 0
+  there) and hand_profile_cleft_L WARN 0.525 -> FAIL 0.361 (the profile pocket's depth; the fit doesn't grade depth).
+  Moves: hand_front_cleftpos_R PASS -> WARN (-0.044), hand_profile_taper_L PASS -> WARN (-0.088); improved:
+  hand_three_quarter_cleft_L WARN -> PASS, 3q digits R WARN -> PASS, back L cleftpos 0.054 -> 0.040. New checks:
+  fingerlines front L FAIL 0.519, back L FAIL 0.563, front R WARN 0.476, back R PASS 0.381, 3q L PASS 0.27 (the paddle
+  read 0.72-0.83: the seams show partly); handsheet_open_span PASS +0.017, handsheet_open_fingers WARN +0.058 (middle).
+  Parts: hands 42/42, hand_sheet 10/10, declared 60 vs 47 (pipeline-3d's 55 vs 47 already; the hands' 5 now counted:
+  02063ef6).
+- Named acceptance recorded (a801ae2a): charkit/accepted/hand_shape_L.json (FAIL 0.5934), hand_shape_R.json (WARN
+  0.7241), Michael's call as relayed. **Not** recorded for the two new FAILs: Michael's call covers the front/back
+  shape, not the 3q cleft position or the profile cleft depth: the coordinator's / Michael's decision (accept by name,
+  or the dexterity phase fixes the seam: overlap > 0 closes the 3q slit, untested).
+- Running: calibrate (build box, calib.log), pregate --box auto (pregate.log), the boards build (after.log).
+- **Coordinator's decision:** the two new FAILs accepted by name (a1476126: charkit/accepted/
+  hand_three_quarter_cleftpos_L.json, hand_profile_cleft_L.json; by "coordinator, under Michael's 2026-10-01 hands
+  call"; the fixes to the dexterity phase: finger overlap > 0 for the 3q slit, untested; the pocket depth graded in the
+  fit). No overlap fix tonight.
+- **Calibration** (build box, hands3_after_q; calib.log): fingerlines_* x5 and handsheet_open_fingers CALIBRATED;
+  handsheet_open_span read COARSE (margin 0.238) though the design reads 0 at every move, comb_hand -0.176 FAIL, floors
+  +0.31/-0.26 FAIL, current 0.017 PASS: calibrate took the median of the two floors' medians (0.023, next to the
+  design) as the floor. Fixed in calibrate (floors either side of the design: the margin on the distance from it; test
+  test_floors_either_side_of_the_design); recalibrating span (calib2.log).
+- **pregate --box auto: PASS** (17 moved, 0 blocking; charkit/out/pregate/pregate_tool-hands2_43af5e1c_into_348397e7.md).
+- Review page: charkit/out/hands3/review/page/index.html (rendered on the build box: the page's inputs and builds pushed
+  there; `build.sh push DIR REMOTE` nests a directory inside an existing REMOTE: un-nested by hand).
+- handsheet_open_span recalibrated: CALIBRATED (margin 0.939; fbaf1cdf). Merged pipeline-3d 3144b1f6 (488885d7;
+  hairident, default off). **Gate RUNNING:** `remote gate tool/hands2 --into pipeline-3d` (log
+  charkit/out/hands3/gate.log; if the follower dies, `remote attach` the job id in its first lines).
+
+### Gate (tool/hands2 ece8360e into pipeline-3d 3144b1f6, build2): **FAIL on an infrastructure race, nothing measured**
+Report charkit/out/gate/gate_tool-hands2_ece8360e_into_3144b1f6.md. The one blocker: test_skirtqa.py raised
+`BadZipFile` (87.5 s in) reading the produced outfit masks while the gate's builds were rewriting them beside the
+fail-fast tests (our cli.py changes the producer's code key, so outfit_masks is rebuilt in the gate's worktrees); the
+builds were stopped, so no QA was compared. tool/garments8's gate into the same head failed identically (its report in
+that worktree): a gate-infra race (tests reading a produced input mid-write), not the hand. Per the coordinator
+(something blocks: checkpoint and report, no further loop): reported, not retried.
+- Best reading meanwhile: pregate PASS (0 blocking); the after-build's QA (hands3_after / _q) against hands2's: the two
+  new FAILs (accepted by name), hand_shape L/R accepted readings, no other hand check to FAIL; parts' denominators ok.
+- **Next (exact):** once the race is fixed (or a retry: `python -m charkit remote gate tool/hands2 --into pipeline-3d`;
+  `--box build` may hit the produced cache of hands3_after_q's outfit masks if the code key matches), read the gate
+  under K; expect reported: hand_front_cleftpos_R and hand_profile_taper_L PASS -> WARN, skirt measures near the hands,
+  rom's finger rows (report-only), the new fingerlines FAILs (new checks: reported).
+- Deferred to the dexterity phase: the hands-only ink colour; the cuffless path (c3); the finger overlap > 0 for the 3q
+  slit; the pocket depth graded in the fit; the library's fist (tighter than drawn); option B (rest5) if Michael picks it.
+- **Coordinator (2026-10-01 night):** keep A (rest4p, built: inside Michael's accepted range; the middle finger's 6%
+  WARN reported, not blocking); B (rest5) stays here as the alternative. Re-gate on the build box (`remote --box build
+  gate tool/hands2 --into pipeline-3d`, log charkit/out/hands3/gate2.log); the infra agent fixes the race.
+
+### Gate 2 (tool/hands2 218fd8da into pipeline-3d 3144b1f6, build box): **FAIL, one flag check by 0.001 over its line**
+Report charkit/out/gate/gate_tool-hands2_218fd8da_into_3144b1f6.md. The race didn't recur. **The one blocker:**
+flag check cuff_R_front_size 0.099 PASS -> 0.101 WARN (PASS within 0.10; the cuffs flag, Michael 2026-09-30): the right
+cuff's front area moved 0.002 with the new hand at the cuff's edge (the hand meets the cuff differently; the left
+cuff's sizes moved +0.001..+0.011 within PASS). Not fixed (coordinator: no further loop): an acceptance at the named
+reading (`gate --accept-fail cuff_R_front_size --status WARN --value 0.101`) is Michael's / the coordinator's call.
+Everything else passes K: CPU 0.98x (1600 -> 1608 s); the two new FAILs accepted by name; 7 calibration records
+calibrated; no guard finding (hand_shape views: front 0.761/0.775 -> 0.712/0.735, back 0.736/0.757 -> 0.731/0.724, 3q
+0.740/0.657 -> 0.774/0.779, profile 0.488 -> 0.593); parts ok (declared 60 vs 52); measuring code changed with no
+detected moves (32 parts listed, 0 checks). Reported: hand_front_cleftpos_R and hand_profile_taper_L PASS -> WARN;
+fingerlines front L 0.519 / back L 0.563 FAIL (new checks); rom_hand_skirt 0.0065 -> 0.0085 INFO.
+- **cuff_R_front_size accepted by name** at WARN 0.101 (the coordinator, under Michael's 2026-10-01 hands call;
+  charkit/accepted/cuff_R_front_size.json). No re-gate: tool/hands2 goes into tonight's combined checkpoint gate
+  (`gate --batch` honours the member branches' records). **Round 7 done.**

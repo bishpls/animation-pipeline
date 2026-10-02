@@ -2700,7 +2700,7 @@ def run(B, out, ref_image=None, mode='on', parts=None, profile=None):
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
                        'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
                        'part_status': status, 'profile': profile,
-                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B),
+                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B), adapter=qarender.adapter_of(B),
                                     export=os.path.basename(qarender.export_of(B) or '') or None)}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     if mode != 'off':
@@ -2714,8 +2714,11 @@ def main(args):
     the QA on a build's geometry bundle (default out: the build's qa folder); --trace appends its records to a trace
     (a build's own does it: python -m charkit build). --draw: the QA's drawing for this run (CHARKIT_QA_DRAW,
     charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS).
-    --profile iterate: an iteration's QA, the parts that declare it left out (motion QA's cloth solve), each reported
-    SKIPPED 'skipped by profile iterate' (CHARKIT_QA_PROFILE; profile_of)."""
+    --profile: the QA profile (CHARKIT_QA_PROFILE; profile_of). A QA-only run defaults to 'iterate' (Michael,
+    2026-10-01): the parts that declare it are left out (motion QA's cloth solve, ~25-100 s of CPU), each reported
+    SKIPPED 'skipped by profile iterate', and the run says so; --profile full (or CHARKIT_QA_PROFILE=full) runs
+    everything. Builds (qa3d.measure from charkit.cli) and gates (their builds, and the 2x2's crossed QA runs, which set
+    CHARKIT_QA_PROFILE=full) keep 'full'."""
     if not args or args[0] in ('-h', '--help'):
         print(main.__doc__); return
     from . import trace
@@ -2727,6 +2730,12 @@ def main(args):
         os.environ['LP_NUM_THREADS'] = str(int(opt('--threads')))
     if opt('--profile'):
         os.environ[PROFILE_ENV] = profile_of(opt('--profile'))
+    elif not os.environ.get(PROFILE_ENV):
+        os.environ[PROFILE_ENV] = 'iterate'                 # (a QA-only run's default; --profile full keeps everything)
+    left = sorted(skipped_by())
+    if left:
+        print('CHARKIT_QA_PROFILE %s: %s skipped (reported SKIPPED; --profile full runs %s)' % (
+            profile_of(), ', '.join(left), 'them' if len(left) > 1 else 'it'), flush=True)
     bdir = os.path.abspath(args[0])
     out = os.path.abspath(opt('--out', os.path.join(os.path.dirname(bdir), 'qa')))
     tp = opt('--trace')

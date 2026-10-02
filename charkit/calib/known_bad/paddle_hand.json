@@ -1,0 +1,10 @@
+{
+ "name": "paddle_hand",
+ "why": "hands2's interim hand (tool/hands2 e2db92f, the render2 after-build): the fingers held together and overlapping by 0.215 of their width, so each finger's outline hull lies inside its neighbour and no line shows where two fingers touch; the turnaround and the hand sheet draw 2-3 clear lines between the fingers",
+ "flag": "three-quarter shows no finger delineation, reading as a blur (Michael, 2026-10-01)",
+ "commit": "e2db92f",
+ "source": "~/animation-pipeline-hands/charkit/out/hands2_after",
+ "stored": "2026-10-01",
+ "bundle": "dd685ca9394b80e3",
+ "qa_checks": 651
+}

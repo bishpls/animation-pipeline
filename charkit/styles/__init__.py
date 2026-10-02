@@ -70,6 +70,9 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            'mean', 'fold'), fold_follow (0: the profile's front edge upright; 1: each row's fold at the face's depth
            there), converge (the irises' rest place toward the nose, eye widths, when the spec's iris doesn't set it;
            only with a turned surface: a plate's far eye in three-quarter loses its nasal white)
+  hand     the hand's structural ratios (charkit.code_hand.from_ratios): an anatomical prior per ratio, [default, lo, hi]
+           (the sanity range a measured ratio is flagged outside of); a character without a hand sheet gets the
+           defaults scaled to its turnaround, one with a sheet its open hand's landmarks (charkit.handsheet)
   physics  the planned drape and spring solvers (not built yet): how far a garment holds its drawn shape against
            gravity, cloth stiffness and damping, hair spring stiffness and damping, gravity scale. Declared here so the
            solvers are written against a profile from the start
@@ -99,6 +102,24 @@ DEFAULT = {
     'physics': {'hold_shape': 0.5, 'cloth_stiffness': 0.5, 'cloth_damping': 0.2, 'hair_stiffness': 0.5,
                 'hair_damping': 0.2, 'gravity': 1.0},
     'eyes': {'surface': 'plate'},
+    # the hand's structural ratios (charkit.code_hand.from_ratios; Michael 2026-10-01: the hand is built from fixed
+    # ratios, poses only rotate joints): an anatomical prior, each [default, lo, hi] (the sanity range a measured ratio
+    # is flagged outside of, not forced into). PL: the palm's length, the wrist crease to the middle finger's MCP
+    'hand': {
+        'span': [0.80, 0.70, 0.90],          # the MCP span (index's outer edge to the little finger's) / PL
+        'wrist': [0.72, 0.60, 0.85],         # the wrist's width / the MCP span
+        'thick': [0.35, 0.28, 0.45],         # the palm's thickness / the MCP span
+        'middle': [0.80, 0.70, 0.95],        # the middle finger, MCP to tip / PL
+        'index': [0.92, 0.85, 0.98],         # each other finger / the middle's (middle > ring ~ index > little)
+        'ring': [0.94, 0.86, 0.99],
+        'little': [0.78, 0.68, 0.88],
+        'segments': [1.0, 0.6, 0.45],        # a finger's proximal : middle : distal phalanges (from the knuckle)
+        'taper': [0.75, 0.55, 0.9],          # a finger's width at its tip / at its base
+        'thumb_cmc': [0.12, 0.0, 0.25],      # the thumb's CMC along the palm from the wrist / PL
+        'thumb': [1.0, 0.85, 1.15],          # the thumb, CMC to tip (metacarpal + proximal + distal) / PL
+        'thumb_segments': [1.0, 0.7, 0.55],  # metacarpal : proximal : distal
+        'thumb_w': [0.24, 0.18, 0.3],        # its width at the MCP / PL
+    },
 }
 
 

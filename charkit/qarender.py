@@ -78,6 +78,22 @@ def frames(B, why=None):
     return Q
 
 
+def adapter_of(B):
+    """the wgpu adapter B's render drawing drew on in this process (charkit.render.gpu.adapter_info: device, backend,
+    type 'CPU' for llvmpipe/lavapipe, 'DiscreteGPU' for the render box's L4), without loading anything -> dict or None
+    (nothing drawn by the renderer yet). The QA's readings depend on it at the rasteriser's ties: qa.json records it
+    (measured.draw.adapter) and the gate reports both builds'."""
+    path = export_of(B)
+    if path is None:
+        return None
+    from .render import buffers
+    for k, F in list(buffers._CACHE.items()):
+        if k[0] == os.path.abspath(path):
+            info = dict(getattr(F, 'info', None) or {})
+            return info or None
+    return None
+
+
 def note(B, what):
     """record which drawing measured (qa.json's measured.draw)."""
     got = B.memo('qarender.drawn', lambda: {})

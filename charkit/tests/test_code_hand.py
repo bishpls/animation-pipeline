@@ -90,7 +90,8 @@ def _along(J, f):
 def test_fingers_held_together():
     """neighbouring fingers touch along their length (round 4: de2fa87's four tubes fanned apart read as a comb, the
     fingertips' gaps 0.11-0.18 of the hand's span where the drawn hands show none): across the hand (the palm's plane),
-    the centre lines' distance at every station of the shorter finger is at most the two radii's sum, and the
+    the centre lines' distance at every station of the shorter finger is at most the two radii's sum (and a seam: a gap
+    the outline fills, code_hand.SEAM_MAX), and the
     fingertips converge (the tips' span narrower than the knuckles')."""
     P = ch.params(json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json'))))
     for side, H in _hands().items():
@@ -103,7 +104,7 @@ def test_fingers_held_together():
                 gap = abs((pa - pb) @ R[:, 1])
                 ra = 0.5 * (wa[0] + (wa[1] - wa[0]) * f)
                 rb = 0.5 * (wb[0] + (wb[1] - wb[0]) * f)
-                assert gap <= ra + rb + 1e-6, (side, a, b, f, gap, ra + rb)
+                assert gap <= ra + rb + ch.SEAM_MAX, (side, a, b, f, gap, ra + rb)
         across = lambda k: [D[n][0][k] @ R[:, 1] for n in ch.FINGERS]
         assert np.ptp(across(3)) < np.ptp(across(0)), side
 
@@ -127,6 +128,33 @@ def test_fist_precheck():
         assert min(rep['knuckle_area'].values()) >= 0.7, rep['knuckle_area']
         for k, v in rep['overlap'].items():
             assert v['deepest'] <= rep['rest_overlap'][k]['deepest'] + 0.006, (k, v, rep['rest_overlap'][k])
+
+
+def test_ratio_mode_is_live():
+    """the ratio mode (body.hand.palm_len): the hand built from its structural ratios at its size, derived when the hand
+    is built (ratio2 moved palm_len to its bound with no effect: the knobs had been derived once at params())."""
+    spec = json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')))
+    P = ch.params(spec, palm_len=0.3, wrist_offset=0.034)
+    J = np.array([[0.5, 0, -1.0], [0.6, 0, -1.8], [0.65, 0, -2.5], [0.67, 0, -2.8]])
+    tip = lambda P_: ch.hand(J, 'left', P_)['digits']['middle'][0][-1]
+    a, b = tip(P), tip(dict(P, palm_len=0.35))
+    assert np.linalg.norm(b - J[2]) > np.linalg.norm(a - J[2]) + 0.05
+    R = dict(P['ratios'], middle=P['ratios']['middle'] * 1.2)
+    c = tip(dict(P, ratios=R))
+    assert np.linalg.norm(c - J[2]) > np.linalg.norm(a - J[2]) + 0.02
+    G = ch.geometry(P)
+    assert abs(G['palm_w'] - P['ratios']['span'] * 0.3) < 1e-9 and abs(G['palm'] * G['length'] - (0.034 + 0.3)) < 1e-9
+
+
+def test_ratio_knob_is_live_and_copied():
+    """a structural ratio as a fit knob ('ratios.thumb'): it moves the built hand, and the start's ratios stay as they
+    were (the fit's candidates share the start dict)."""
+    spec = json.load(open(os.path.join(ROOT, 'charkit', 'spec', 'clawd.json')))
+    P0 = ch.params(spec, palm_len=0.3, wrist_offset=0.034)
+    t0 = P0['ratios']['thumb']
+    P = ch.set_knob(dict(P0), 'ratios.thumb', t0 * 1.3)
+    assert P0['ratios']['thumb'] == t0 and abs(ch.get_knob(P, 'ratios.thumb') - t0 * 1.3) < 1e-12
+    assert abs(ch.geometry(P)['thumb_len'] - ch.geometry(P0)['thumb_len'] * 1.3) < 1e-9
 
 
 if __name__ == '__main__':

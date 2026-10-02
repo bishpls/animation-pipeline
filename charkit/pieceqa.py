@@ -365,11 +365,14 @@ def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'),
     return out, names
 
 
-def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
-    """our model-sheet classes on the design's grids per view (bodyqa.ours: lines absorbed) -> {view: cls}."""
+def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), hide=()):
+    """our model-sheet classes on the design's grids per view (bodyqa.ours: lines absorbed); hide: object names left out
+    (as our_labels': ours drawn as a shape truth's sheet draws the outfit, declared's `truth`) -> {view: cls}."""
     from . import qa3d
     from .faceqa import zbuffer
-    meshes, _ = qa3d.scene_objects(B)
+    meshes, nm = qa3d.scene_objects(B)
+    if hide:
+        meshes = [m for m, n in zip(meshes, nm) if n not in hide]
     As = B.assembly
     iw = np.array(qa3d.iris_centres(B))
     az = bodyqa.azimuths(az3)

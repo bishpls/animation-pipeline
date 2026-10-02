@@ -21,6 +21,7 @@
     python -m charkit evaldrift [SPEC] [--stages]                      # the numpy evaluator against a box build (charkit/evaldrift.py)
     python -m charkit evalmesh lab | build BUILD [--render]           # our Subdivision Surface and Solidify against Blender's (charkit/evalmesh.py)
     python -m charkit rom BUILD [--out DIR] [--poses a,b] [--boards]   # the range-of-motion suite: the rig posed and measured (charkit/rom.py)
+    python -m charkit rom video BUILD [--out DIR] [--poses a,b]        # the rig animated through the test poses: mp4 + contact sheet (charkit/romvideo.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -49,6 +50,7 @@
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
     python -m charkit hand fit|show --build BUILD [--spec S] [--over JSON] [--png P]   # the hand template vs the drawn hands
+    python -m charkit handsheet fit|show [--pose open] [--over JSON]   # the template's structure vs the hand sheet's poses
                                                  # the hair pieces rebuilt over a build with overrides and measured
     python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
     python -m charkit eyes BUILD_DIR [--against OTHER_BUILD] [--out DIR]     # the eyes and mouth against the design
@@ -958,6 +960,12 @@ def main(argv=None):
     elif cmd == 'hand':
         from . import code_hand
         sys.exit(code_hand.main(rest))
+    elif cmd == 'handsheet':
+        from . import handsheet
+        sys.exit(handsheet.main(rest))
+    elif cmd == 'handposes':
+        from . import handposes
+        sys.exit(handposes.main(rest))
     elif cmd == 'pieces':
         from . import piecepage
         piecepage.main(rest)
@@ -1009,6 +1017,9 @@ def main(argv=None):
         from . import evalmesh
         raise SystemExit(evalmesh.main(rest))
     elif cmd == 'rom':
+        if rest[:1] == ['video']:                  # the motion video check (charkit/romvideo.py)
+            from . import romvideo
+            raise SystemExit(romvideo.main(rest[1:]))
         from . import rom
         raise SystemExit(rom.main(rest))
     elif cmd == 'slots':
