@@ -50,7 +50,8 @@ class Scene:
                 if k_.startswith(vn + '__') and m_.shape == hm.shape:
                     hm = hm | m_
             self.sdist[vn] = (nd.distance_transform_edt(~hm) - nd.distance_transform_edt(hm)).astype(np.float32)
-        self._fd, self._ed, self._co = {}, {}, {}
+        self._fd, self._ed, self._co, self._fig = {}, {}, {}, {}
+        self.contain_all = bool(o.get('contain_all', False))
 
     # ---------------------------------------------------------------------------------------------- build_shells' own
     def az(self, vn):
@@ -113,6 +114,32 @@ class Scene:
                           for vn in vs}
         else:
             lk.contain = {vn: (self.az(vn), self.fam_dist(vn, lk.family), hw) for vn in vs}
+        if self.contain_all:
+            # (tool/hairident) the views it faces away from: inside the drawn figure there (the visual hull's own
+            # constraint: a lock hidden behind the head may lie anywhere the figure covers, never outside it; a side
+            # lock the three-quarter pulled forward stood out in front of the profile's face)
+            for vn in self.S['views']:
+                if vn in self.views and vn not in lk.contain:
+                    fd = self.fig_dist(vn)
+                    lk.contain[vn] = (self.az(vn), self.coef(('fig', vn), fd) if o.get('det') else fd, 0.0)
+
+    def fig_dist(self, vn):
+        """the drawn figure on a view's design grid (the sheet's figure mask, as the splitter's inputs cut it) as a
+        signed distance (px: + outside)."""
+        if vn not in self._fig:
+            from scipy import ndimage as nd
+            from charkit import hairlayers as hl
+            V = self.views[vn]
+            us, zs, shape, _ = hl.design_grid(V, V.ppl)
+            m = V.sample(np.asarray(V.mask).astype(np.uint8), us, zs).T > 0
+            sh = self.S['views'][vn]['img'].shape
+            if m.shape != sh:
+                q = np.zeros(sh, bool)
+                h, w = min(sh[0], m.shape[0]), min(sh[1], m.shape[1])
+                q[:h, :w] = m[:h, :w]
+                m = q
+            self._fig[vn] = (nd.distance_transform_edt(~m) - nd.distance_transform_edt(m)).astype(np.float32)
+        return self._fig[vn]
 
     def targets(self, vn, fam, unit='locks'):
         """build_shells' targets: each splitter lock's part in the family's mask, fragments merged -> [dict(id, lock,
@@ -256,7 +283,8 @@ def lock_picture(sc, fits, masks, path, rgb=None, k=2, pad=40):
 IDENT = dict(rounds=3, assign_max=12.0, tip_w=0.25, overlap_min=0.3, overlap_w=6.0, layer_w=4.0, layer_gap=0.3,
              depth_two=0.0, view_w={}, az_eff={}, join_cost_max=6.0, nfev=150, refit_nfev=300,
              depth_sigma=0.0, depth_sigma_known=0.03, shift_pen=0.15, known_sep=30.0, assign_facing=-0.25,
-             primary_slack=3.0, later_primaries='after', height_cost=False)
+             primary_slack=3.0, later_primaries='after', height_cost=False, depth_two_groups=False,
+             contain_all=False)
 # rounds          assignment / refit rounds (stops early when no view's assignment changes)
 # assign_max      px: a lock left unassigned in a view costs this (the Hungarian's dummy column): a pair dearer stays apart
 # tip_w           the tips' height apart (px) per px of centreline cost
@@ -267,6 +295,9 @@ IDENT = dict(rounds=3, assign_max=12.0, tip_w=0.25, overlap_min=0.3, overlap_w=6
 # layer_gap       ranks closer than this don't order a pair
 # depth_two       view_depth once a lock is fitted in two or more views (the views place it in depth; the envelope's
 #                 first surface, round 2's hull, pulled each view's lock onto it and the joined views fought: 0 frees it)
+# contain_all     a lock held inside the drawn figure in the views it faces away from too (Scene.set_contain)
+# depth_two_groups  depth_two for a group's locks too (off: a laid-over group, the hem's flicks, keeps its own pulls onto
+#                 the curling mass: freed, they left the lower back's profile)
 # view_w          {view: weight} of a view's terms in the refit (a view drawn view-dependently counts less)
 # az_eff          {view: {family: deg}}: the azimuth a view's drawing places a family at (the three-quarter's side locks
 #                 are drawn as if turned further than its face: tools/hairident/az3scan.py)
@@ -326,6 +357,7 @@ class Ident:
         self.sc, self.log = sc, log or (lambda *a: None)
         self.cfg = dict(cfg or {})
         self.io = dict(IDENT, **(self.cfg.get('ident') or {}))
+        sc.contain_all = sc.contain_all or bool(self.io['contain_all'])
         self.views = [v for v in views if v in sc.S['views'] and v in sc.views]
         self.locks, self.meta = [], []     # meta: dict(family, primary, target id, group opts)
         self.tg = {}
@@ -488,7 +520,7 @@ class Ident:
         lk.drawn = dict(drawn0)
         for vn, t in views_targets.items():
             lk.add_view(vn, self.az_of(vn, mt['family']), t['mask'], t['root'], t['lock'], t['layer'])
-        if len(lk.drawn) > 1 and self.io['depth_two'] is not None:
+        if len(lk.drawn) > 1 and self.io['depth_two'] is not None and (mt['group'] is None or self.io['depth_two_groups']):
             lk.o = dict(lk.o, view_depth=self.io['depth_two'])
         else:
             lk.o = dict(lk.o, view_depth=sc.o['view_depth'])
