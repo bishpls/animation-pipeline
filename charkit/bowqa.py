@@ -224,7 +224,7 @@ def forward(loops_d, jacket_d):
 
 
 # ------------------------------------------------------------------------------------------------------------ the part
-@qa_part('bow_profile', order=1767, table='bow_profile')
+@qa_part('bow_profile', order=1767, table='bow_profile', checks=4)
 def bow_profile(B, design=None, out=None):
     """Michael's flag on the bow in profile (2026-09-30): the tails' forward projection and hang, the loops' thickness
     and lean, against the design's."""

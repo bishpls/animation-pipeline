@@ -1,0 +1,166 @@
+{
+ "base": "charkit/out/r4b_pilot",
+ "stage": "hair",
+ "objects": [
+  "hair_bangs",
+  "hair_side_lock_L",
+  "hair_side_lock_R",
+  "hair_upper_back",
+  "hair_lower_back",
+  "hair_bun_L",
+  "hair_bun_R",
+  "hair_ahoge",
+  "hair_flyaways"
+ ],
+ "parts": [
+  "artifacts",
+  "hair_noise",
+  "hair_flags"
+ ],
+ "control": true,
+ "set": {},
+ "variants": {
+  "pilot_pd10_c5": {
+   "hair.shape.pieces_opts.lock_shells.groups": [
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      100,
+      175
+     ],
+     "replace": false,
+     "name": "lower_back_back",
+     "opts": {
+      "prior_depth": 10.0,
+      "contain": 5.0
+     }
+    }
+   ]
+  },
+  "hem2": {
+   "hair.shape.pieces_opts.lock_shells.groups": [
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      90,
+      180
+     ],
+     "replace": false,
+     "name": "hem_L"
+    },
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      -180,
+      -90
+     ],
+     "replace": false,
+     "name": "hem_R"
+    }
+   ]
+  },
+  "hem2_pd10_c5": {
+   "hair.shape.pieces_opts.lock_shells.groups": [
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      90,
+      180
+     ],
+     "replace": false,
+     "name": "hem_L",
+     "opts": {
+      "prior_depth": 10.0,
+      "contain": 5.0
+     }
+    },
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      -180,
+      -90
+     ],
+     "replace": false,
+     "name": "hem_R",
+     "opts": {
+      "prior_depth": 10.0,
+      "contain": 5.0
+     }
+    }
+   ]
+  },
+  "hem2_pd3_vd3_c5": {
+   "hair.shape.pieces_opts.lock_shells.groups": [
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      90,
+      180
+     ],
+     "replace": false,
+     "name": "hem_L",
+     "opts": {
+      "prior_depth": 3.0,
+      "view_depth": 3.0,
+      "contain": 5.0
+     }
+    },
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      -180,
+      -90
+     ],
+     "replace": false,
+     "name": "hem_R",
+     "opts": {
+      "prior_depth": 3.0,
+      "view_depth": 3.0,
+      "contain": 5.0
+     }
+    }
+   ]
+  },
+  "hem2_pd10_c5_ink20": {
+   "hair.shape.pieces_opts.lock_shells.groups": [
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      90,
+      180
+     ],
+     "replace": false,
+     "name": "hem_L",
+     "opts": {
+      "prior_depth": 10.0,
+      "contain": 5.0,
+      "over_ink": 0.2
+     }
+    },
+    {
+     "family": "lower_back",
+     "view": "back",
+     "phi": [
+      -180,
+      -90
+     ],
+     "replace": false,
+     "name": "hem_R",
+     "opts": {
+      "prior_depth": 10.0,
+      "contain": 5.0,
+      "over_ink": 0.2
+     }
+    }
+   ]
+  }
+ }
+}

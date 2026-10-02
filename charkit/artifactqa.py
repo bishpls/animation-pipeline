@@ -76,6 +76,7 @@ HAIR_SHAPE_TRUTH = False    # the hair region against its shape truth (charkit.s
                             # art_terminator_hair's and art_peeks_hair's known-bad (look_v5) can be measured again: their
                             # calibration records can't be refreshed without it (tool/hairtruth-art flips it)
 TONE_BLUR = 0.9             # px: our tone buffer softened as a render's pixel filter (~0.5) and a drawing's cut (0.7)
+MIN_TERM = 0.05             # L: a region's terminator shorter than this in a view is none to speak of (one tone there)
 
 
 # ------------------------------------------------------------------------------------------------------ outlines
@@ -1227,9 +1228,20 @@ def _value(rec, det):
         return None
     if det == 'fragments':
         return round((x['area'] + x['sliver_area']) / max(x['len'], 1e-9), 6)
-    if det == 'terminator' and x.get('len', 0) < 0.05:
+    if det == 'terminator' and x.get('len', 0) < MIN_TERM:
         return None                                    # (no terminator to speak of: one tone)
     return x.get(key)
+
+
+def _one_tone(ours_m, frame, r):
+    """the views where ours drew region r and its terminator was measured but is under MIN_TERM long (one tone)
+    -> {view: its length (L)}."""
+    out = {}
+    for v in VIEWS:
+        x = (((ours_m.get(frame) or {}).get(v) or {}).get(r) or {}).get('terminator')
+        if x and x.get('len', 0) < MIN_TERM:
+            out[v] = x.get('len', 0)
+    return out
 
 
 def grade(ratio, det):
@@ -1337,6 +1349,15 @@ def checks(ours_m, design_m):
                     if any(x is not None for x in o.values()):
                         C['%s_%s' % (det, r)] = {'status': 'INFO', 'value': None, 'per_view': o,
                                                  'why': 'no design view to compare with'}
+                    elif det == 'terminator' and any(x is not None for x in d.values()) and _one_tone(ours_m, frame, r):
+                        # (measured, not skipped: ours drew the region in one tone in every view where the design
+                        # has a terminator. Dropping the check left the part a check short of its denominator with no
+                        # reason given: merge/batch4's joined shoulder, the neck lit under the chin)
+                        n = _one_tone(ours_m, frame, r)
+                        C['%s_%s' % (det, r)] = {
+                            'status': 'INFO', 'value': None, 'per_view': o, 'design': d, 'len': n,
+                            'why': 'ours one tone: no terminator to speak of (under %g L) in any view (%s) where the '
+                                   'design has one' % (MIN_TERM, ', '.join('%s %.3g L' % kv for kv in n.items()))}
                     continue
                 worst = max(ratio, key=ratio.get)
                 C['%s_%s' % (det, r)] = {'value': ratio[worst], 'worst': worst, 'per_view': o, 'design': d,
@@ -1581,7 +1602,7 @@ def store_design(bdir):
     return path
 
 
-@qa_part('artifacts', order=2200, prefix='art_', table='artifacts')
+@qa_part('artifacts', order=2200, prefix='art_', table='artifacts', checks=58)
 def measure(B, design=None, out=None):
     """the artifact part (QA part 'artifacts', after the look): ours on the QA's numpy drawings, the design's turnarounds
     measured the same way (stored: design_measures), graded against the design -> (table, checks). A check CALIBRATED on

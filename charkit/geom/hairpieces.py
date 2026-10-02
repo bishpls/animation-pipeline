@@ -3255,7 +3255,18 @@ def shade_normals(pieces, L, style, ls=None):
             Vp.append(Vq); Tp.append(np.asarray(Tq) + o_); o_ += len(Vq)
         Ve = V
         at_ = ls.get('shade_at', 'vertex')
-        if at_ in ('nearest', 'nearest_over'):
+        if at_ in ('surface', 'surface_over'):
+            # (tool/hairshell3) a shell's vertex takes the proxy's normal at the proxy's surface point nearest it (the
+            # mass right under it, not its sparse nearest vertex: round 2's 'nearest' stepped between them), so the
+            # terminator runs on across a lock laid over the mass ('surface_over': the laid-over groups' shells only)
+            from .bvh import BVH
+            key = 'over' if at_ == 'surface_over' else 'shell'
+            m_ = np.concatenate([np.asarray(pieces[n].get(key, np.zeros(len(pieces[n]['V']), bool)), bool)
+                                 for n in names])
+            if m_.any():
+                Ve = V.copy()
+                Ve[m_] = BVH(Mesh(np.concatenate(Vp), np.concatenate(Tp))).nearest(V[m_])[2]
+        elif at_ in ('nearest', 'nearest_over'):
             # (shade_at) a shell's vertex takes the proxy's normal at the proxy's nearest vertex: the shell shades as
             # the mass right under it, so the terminator runs on across a lock laid over the mass ('nearest_over': the
             # laid-over groups' shells only, the hem flicks)
@@ -3301,6 +3312,17 @@ def shade_normals(pieces, L, style, ls=None):
             G_ = np.where((np.einsum('ij,ij->i', G_, Ne) < 0)[:, None], -G_, G_)
             Ne = np.where(out[:, None], (1 - wv[:, None]) * Ne + wv[:, None] * G_, Ne)
             Ne /= np.linalg.norm(Ne, axis=1, keepdims=True) + 1e-12
+        if ls and ls.get('over_tone') == 'root' and p.get('over') is not None and np.any(p['over']) and \
+                p.get('lock') is not None:
+            # (tool/hairshell3) each laid-over shell (a hem flick) in one tone, its root's: no terminator across a
+            # flick, as the strands (below)
+            Ne = Ne.copy()
+            for k in np.unique(p['lock'][np.asarray(p['over'], bool)]):
+                m = np.nonzero(p['lock'] == k)[0]
+                ch = (p.get('chains') or [])[k] if k < len(p.get('chains') or []) else None
+                if len(m) and ch is not None and len(ch):
+                    r = m[np.argmin(np.linalg.norm(p['V'][m] - np.asarray(ch[0]), axis=1))]
+                    Ne[m] = Ne[r]
         if p.get('family') in style.get('strand_tone_families', STRAND_TONE_FAMILIES) and \
                 style.get('strand_tone', 'surface') == 'root' and p.get('lock') is not None:
             # each strand one tone, its root's (the mass's normal where it grows from, the vertex nearest the chain's

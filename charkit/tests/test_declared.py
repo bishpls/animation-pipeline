@@ -262,6 +262,33 @@ def test_top_line_reads_the_shoulder_line_where_it_is_seen():
     assert collarqa.trough([1.0, 0.5, 1.0]) == 0.5
 
 
+def test_band_rows_reads_the_lapels_width_and_the_v():
+    """band_rows (the lapels framing the V): two bands either side of a V, ours 2 px wider on each band's outer edge on
+    every row reads width 0.02 L at 100 px per L and the inner edge 0; a bow over the right band's lower rows (the
+    drawing's and ours) leaves those rows' right side out; ours with the V's inner edges 3 px in reads inner 0.03."""
+    from charkit import bodyqa
+    ppl = 100.0
+    H, W = int((bodyqa.WIN['top'] + 1.0) * ppl), 200
+    r0 = int(round((bodyqa.WIN['top'] + 0.47) * ppl))
+
+    def bands(extra=0, inset=0):
+        M = np.zeros((H, W), bool)
+        for k in range(30):
+            r = r0 + k
+            M[r, 60 - extra:90 - k // 3 + inset] = True                 # the left band, its inner edge the V's
+            M[r, 110 + k // 3 - inset:140 + extra] = True
+        return M
+    bow = np.zeros((H, W), bool)
+    bow[r0 + 20:r0 + 30, 130:150] = True
+    ctx = dict(ppl=ppl, view='front', masks={'front__bow': bow}, pm=None)
+    w = declared.band_rows(bands(extra=2), bands(), ctx, z=(-0.47, -0.77), measure='width', min_rows=5)
+    assert abs(w['value'] - 0.02) < 1e-9 and w['count'] == 30 + 20      # the right band's 10 bow rows left out
+    i = declared.band_rows(bands(extra=2), bands(), ctx, z=(-0.47, -0.77), measure='inner')
+    assert i['value'] == 0.0
+    v = declared.band_rows(bands(inset=3), bands(), ctx, z=(-0.47, -0.77), measure='inner')
+    assert abs(v['value'] - 0.03) < 1e-9
+
+
 def stair_masks(shear=0.0, fold_cols=(), H=300, W=400):
     """a piece over a stepped dark band (classes: 6 orange, 8 dark): three steps 100 px wide, each 30 px lower than
     the one before, its treads sheared by `shear` px of rise over a tread; drawn folds (lines) at fold_cols."""
@@ -301,3 +328,51 @@ def test_stair_corners_folds_and_spacing():
     # the zigzag's step crossed (the middle tread, a riser at either end) counts; the end tread crossed is reported
     assert c['value'] == 1 and c['design'] == 0 and c['count'][0][:2] == [1, 2]
     assert declared.stair(Ms, M, dict(ctx, cls_ours=cls_s, lines=None), measure='corner')['value'] > 10
+
+
+def body_masks(arm_dx=0, axilla_dz=0, hair_rows=0):
+    """a figure on the WIN grid: a torso |x| < 0.35 L, arms from the shoulder (z -0.6) out to |x| 0.65 + arm_dx,
+    parted from the torso below z -1.0 - axilla_dz; hair over the top `hair_rows` rows of the left arm."""
+    from charkit import bodyqa
+    Wn = bodyqa.WIN
+    shp = (int((Wn['top'] - Wn['bottom']) * PPL), int(2 * Wn['x'] * PPL))
+    row = lambda z: int(round((Wn['top'] - z) * PPL))
+    col = lambda x: int(round((x + Wn['x']) * PPL))
+    m = np.zeros(shp, bool)
+    m[row(-0.55):row(-1.6), col(-0.35):col(0.35)] = True
+    for sg in (-1, 1):
+        a, b = sorted((col(sg * 0.35), col(sg * (0.65 + arm_dx))))
+        m[row(-0.6):row(-1.0 - axilla_dz), a:b] = True
+        a2, b2 = sorted((col(sg * 0.45), col(sg * (0.65 + arm_dx))))
+        m[row(-1.0 - axilla_dz):row(-1.4), a2:b2] = True
+    hair = np.zeros(shp, bool)
+    if hair_rows:
+        hair[row(-0.6):row(-0.6) + hair_rows, :col(0)] = True
+    return m, hair
+
+
+def test_side_line_reads_the_outer_edge_and_the_armpit():
+    # the body's deltoid and upper arm against the base body sheet (tool/garments4 round 5): the outer edge per row
+    # and where the arm parts from the torso; rows whose drawn edge lies by the hair left out
+    Md, hair = body_masks()
+    Mo, _ = body_masks(arm_dx=0.05)
+    ctx = dict(ppl=PPL, hair_drawn=None)
+    r = declared.side_line(Mo, Md, ctx, z=((-0.62, -0.95),), measure='dx')
+    assert abs(r['value'] - 0.05) < 0.012
+    assert declared.side_line(Md, Md, ctx, z=((-0.62, -0.95),))['value'] == 0
+    Ma, _ = body_masks(axilla_dz=0.1)
+    ax = declared.side_line(Ma, Md, ctx, z=((-0.62, -1.3),), measure='axilla')
+    assert abs(ax['value'] - 0.1) < 0.02 and ax['ours']['left']['ours'] < ax['ours']['left']['design']
+    Mh, hair = body_masks(hair_rows=10)
+    rh = declared.side_line(Mo, Mh, dict(ctx, hair_drawn=hair), z=((-0.62, -0.95),), sides=('left',))
+    assert rh['ours']['left_0']['rows'] < r['ours']['left_0']['rows']        # the hair's rows left out
+
+
+def test_body_window_clears_above_and_outside():
+    clip = declared.body_window(PPL, below=-0.42, window=(-0.9, 0.9, -0.42, -1.2))
+    m, _ = body_masks()
+    c = clip(np.ones_like(m))
+    from charkit import bodyqa
+    r0 = int(round((bodyqa.WIN['top'] + 0.42) * PPL))
+    assert not c[:r0].any() and c[r0 + 1:r0 + 5].any()
+    assert c.sum() < m.size and clip(m).sum() <= m.sum()

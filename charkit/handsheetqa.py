@@ -49,7 +49,7 @@ def sheet():
     return handsheet.cells()
 
 
-@qa_part('hand_sheet', order=1786, prefix='handsheet_', table='hand_sheet')
+@qa_part('hand_sheet', order=1786, prefix='handsheet_', table='hand_sheet', checks=2 + 2 * len(POSES))
 def hand_sheet(B, design=None, out=None):
     return measure(B, design, out)
 

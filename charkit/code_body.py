@@ -352,7 +352,9 @@ def shoulders(sh, rows, ts, th_c, R, Pi, meas, ay, env, Bh):
     rows added under the cut (SHOULDER_ROWS), each row's section widened to shoulder_width's half-width (its front and
     back depths, exponent and centre kept: the chest and back don't move), eased back into the fitted torso below,
     then held inside the hull's envelope less CLEAR and behind the pieces in front (IN_FRONT) as the fit is.
-    sh: {z (the level top, L from the eye line), x (the shoulder point's half-width), round, hold, fall (L)}.
+    sh: {z (the level top, L from the eye line), x (the shoulder point's half-width), round, hold, fall (L), az
+    (optional, degrees: the widening only within az of either side, eased in by cos^2 toward the front and back, so the
+    chest and the V keep their fitted rows: the joined shoulder's, whose bridge is the deltoid)}.
     -> (rows, ts, R, params, measured) on the new rows."""
     extra = [rows[0] - e for e in SHOULDER_ROWS if rows[0] - e > rows[1]]
     rows2 = np.sort(np.r_[rows, extra])[::-1]
@@ -366,16 +368,156 @@ def shoulders(sh, rows, ts, th_c, R, Pi, meas, ay, env, Bh):
     B2 = np.minimum(Bh[i0], Bh[i1])
     M2 = meas[np.rint(idx).astype(int)]
     a, w = shoulder_width(rows2, sh)
+    g = None
+    if sh.get('az'):                                      # (the sides only: |th| near 90 degrees)
+        q = np.clip(np.abs(np.abs(th_c) - np.pi / 2) / np.radians(float(sh['az'])), 0, 1)
+        g = np.cos(0.5 * np.pi * q) ** 2
     for k in range(1, len(rows2)):                        # (the cut's ring stays the neck ring: the head's zip)
-        if not np.isfinite(a[k]) or w[k] <= 0 or a[k] <= P2[k, 0]:
+        if not np.isfinite(a[k]) or w[k] <= 0:
             continue
-        p = P2[k].copy()
-        p[0] = P2[k, 0] + w[k] * (a[k] - P2[k, 0])
-        Rs = section_r(p, th_c, ay)
+        if g is None and a[k] <= P2[k, 0]:
+            continue
+        if g is not None:
+            # the side's own radius taken out to the template's width there, eased round by g
+            side = np.argmin(np.abs(np.abs(th_c) - np.pi / 2))
+            need = w[k] * max(0.0, a[k] - float(R2[k, side]))
+            Rs = R2[k] + g * need
+        else:
+            p = P2[k].copy()
+            p[0] = P2[k, 0] + w[k] * (a[k] - P2[k, 0])
+            Rs = section_r(p, th_c, ay)
         Rs = np.minimum(Rs, env.at(np.full(len(th_c), ts2[k]), th_c) - CLEAR)
         Rs = np.minimum(Rs, B2[k])
         R2[k] = np.maximum(R2[k], Rs)
     return rows2, ts2, R2, P2, M2
+
+
+# ----------------------------------------------------------------------------------------------- the joined shoulder
+SOCKET = dict(top=0.30, bottom=-1.0, half=30.0, shift=0.0, s0=0.12, lift=(25.0, 75.0), reach=(0.45, 0.45),
+              loops=6, blend=3, clav=(0.6, 0.2), arm_w=(0.0, 1.0), torso_arm=(0.0, 0.1), pivot=0.0)
+# the shoulder joining the arm to the torso (body.shoulder.socket; Michael's diagnosis, 2026-10-01: the body had no
+# shoulder: the torso a tube, the arms capped tubes beside it, nothing joining them). A hole in the torso's side, its
+# rows from where the side reaches `top` L out (on the shoulder's top) down to the armpit at `bottom` (L from the eye
+# line; or `top_z`, its top row's height, under the reach of the neck's join), its columns within `half` degrees of the
+# side (moved `shift` degrees toward the front); and a bridge from its
+# rim to the arm's ring `s0` L down the arm's chain: per rim vertex one cubic leaving the torso toward the hole's
+# middle, lifted `lift` degrees off its surface (at the rim's top and its bottom, interpolated by height round it),
+# arriving along the arm, its tangents `reach` (start, end) of the chord long; `loops` rings between (the edge loops
+# round the shoulder); the arm's columns matched to the rim's at s0 and evened over `blend` rings. clav: the clavicle's
+# weight on the rim and how far (L) it reaches over the torso from it; arm_w: the bridge's share of the way over which
+# the upper arm's weight comes in (a smoothstep from the rim's weights to the arm's); torso_arm: the upper arm's weight
+# on the rim and how far (L) it reaches over the torso; pivot: the rig's shoulder joint (the upper arm's head, where it
+# turns) moved this far (L) up the arm's line from the chain's root (the 2D rig's joint, ~0.16 L under the deltoid's
+# centre on Clawd); the garments placed on the arm keep the chain's root (the body data's arm_roots).
+
+
+def _wrap(a):
+    return (np.asarray(a, float) + np.pi) % (2 * np.pi) - np.pi
+
+
+def socket_rim(T_, side, so):
+    """the torso's hole for an arm (socket()'s rows and columns on the torso's grid) -> dict(i0, i1, cols (the
+    window's columns in order round), loop [(row, column)] round its rim (top edge, front/back edge, bottom, the other),
+    drop_v (its inside vertices), drop_f (its cells: (row, column) of each quad's first corner))."""
+    F = T_['F']
+    n = len(F.th)
+    z = CUT - F.ts
+    sg = 1.0 if side == 'left' else -1.0
+    th_s = sg * np.pi / 2
+    th_c = th_s - sg * np.radians(float(so.get('shift', 0.0)))
+    jm = int(np.argmin(np.abs(_wrap(F.th - th_c))))
+    h = max(1, int(round(np.radians(float(so['half'])) / (2 * np.pi / n))))
+    cols = [(jm + o) % n for o in range(-h, h + 1)]
+    js = int(np.argmin(np.abs(_wrap(F.th - th_s))))
+    if so.get('top_z') is not None:                       # (the rim's top row by height: under the neck's join)
+        i0 = max(2, int(np.argmin(np.abs(z - float(so['top_z'])))))
+    else:
+        i0 = next((i for i in range(2, len(F.ts)) if F.R[i, js] >= float(so['top'])), None)
+    i1 = int(np.argmin(np.abs(z - float(so['bottom']))))
+    if i0 is None or i1 < i0 + 2:
+        raise ValueError('shoulder socket %s: the side never reaches %.3f L, or the armpit row %d is above it'
+                         % (side, so['top'], i1))
+    loop = [(i0, j) for j in cols] + [(i, cols[-1]) for i in range(i0 + 1, i1 + 1)] + \
+           [(i1, j) for j in cols[-2::-1]] + [(i, cols[0]) for i in range(i1 - 1, i0, -1)]
+    drop_v = [(i, j) for i in range(i0 + 1, i1) for j in cols[1:-1]]
+    drop_f = [(i, j) for i in range(i0, i1) for j in cols[:-1]]
+    return dict(i0=i0, i1=i1, cols=cols, loop=loop, drop_v=drop_v, drop_f=drop_f)
+
+
+def _grid_normals(P):
+    """outward normals of a torso grid (rows, columns round, 3), by central differences (the axis's side: the rows' own
+    centres) -> (rows, columns, 3)."""
+    dj = np.roll(P, -1, 1) - np.roll(P, 1, 1)
+    di = np.empty_like(P)
+    di[1:-1] = P[2:] - P[:-2]
+    di[0], di[-1] = P[1] - P[0], P[-1] - P[-2]
+    Nn = np.cross(dj, di)
+    c = P.mean(1, keepdims=True)
+    Nn *= np.sign(np.sum(Nn * (P - c), -1, keepdims=True) + 1e-12)
+    return Nn / np.maximum(np.linalg.norm(Nn, axis=-1, keepdims=True), 1e-12)
+
+
+def shoulder_bridge(T_, L_, side, so, rim):
+    """the bridge from the torso's hole (socket_rim) to the arm, and the arm's rings from there on (see SOCKET)
+    -> dict(loop (the rim, ordered as the arm's columns run), S (N, 3) the rim's points, P (loops, N, 3) the bridge,
+    u (loops,) each loop's share of the way, rows (the arm's s from s0), A (rows, N, 3) the arm's rings, th (rows, N))."""
+    F, ax = T_['F'], T_['ax']
+    TT, TH = np.meshgrid(F.ts, F.th, indexing='ij')
+    PT = ax.point(TT, TH, F.R)
+    NT = _grid_normals(PT)
+    loop = list(rim['loop'])
+    S = np.array([PT[i, j] for i, j in loop])
+    Ns = np.array([NT[i, j] for i, j in loop])
+    ch, prm, rows = L_['chain'], L_['params'], L_['rows']
+    s0 = float(so['s0'])
+    sec = lambda s: np.array([np.interp(s, rows, prm[:, q]) for q in range(prm.shape[1])])
+    Ca = ch.point(np.array([s0]), np.array([0.0]), np.array([0.0]))[0]
+    Cs = S.mean(0)
+    b = (Ca - Cs) / np.linalg.norm(Ca - Cs)
+    e1 = np.array([0.0, 0.0, 1.0]) - b * b[2]
+    e1 /= np.linalg.norm(e1)
+    e2 = np.cross(b, e1)
+    ang = lambda Q, c: np.arctan2((Q - c) @ e2, (Q - c) @ e1)
+    # the arm's ring at s0, finely: its angle round the bridge's axis against the chain's theta
+    thf = np.linspace(-np.pi, np.pi, 2880, endpoint=False)
+    Af = ch.point(np.full(len(thf), s0), thf, section_r(sec(s0), thf, 0.0))
+    pa = np.unwrap(ang(Af, Ca))
+    if pa[-1] < pa[0]:
+        thf, pa = thf[::-1], pa[::-1]
+    ps = ang(S, Cs)
+    ps = pa[0] + np.mod(ps - pa[0], 2 * np.pi)
+    th0 = np.unwrap(np.interp(ps, pa, thf))
+    if th0[-1] < th0[0]:                                  # (the arm's columns run with theta: the rim runs with them)
+        loop, S, Ns, th0 = loop[::-1], S[::-1], Ns[::-1], th0[::-1]
+        th0 = np.unwrap(th0)
+    N = len(loop)
+    # the arm's rings: s0, then its own rows past it; the columns at the rim's angles, evened over `blend` rings
+    step = rows[1] - rows[0]
+    ar = np.r_[s0, rows[rows > s0 + 0.5 * step]]
+    even = th0[0] + 2 * np.pi * np.arange(N) / N
+    even += np.mean(_wrap(th0 - even))
+    nb = max(1, int(so.get('blend', 3)))
+    TH_ = np.stack([th0 + (even - th0) * min(1.0, q / nb) for q in range(len(ar))])
+    R_ = np.stack([section_r(sec(s), TH_[q], 0.0) for q, s in enumerate(ar)])
+    A = ch.point(np.repeat(ar[:, None], N, 1), TH_, R_)
+    A0 = A[0]
+    # the bridge: a cubic per column from the rim to the arm's ring
+    D = ch.axes[0].d
+    lt, lb = (np.radians(float(x)) for x in so.get('lift', SOCKET['lift']))
+    zs = S[:, 2]
+    wz = (zs - zs.min()) / max(1e-9, np.ptp(zs))
+    lam = lb + (lt - lb) * wz
+    to_c = Cs - S
+    hm = to_c - Ns * np.sum(to_c * Ns, 1, keepdims=True)
+    hm /= np.maximum(np.linalg.norm(hm, axis=1, keepdims=True), 1e-12)
+    T0 = np.cos(lam)[:, None] * hm + np.sin(lam)[:, None] * Ns
+    c = np.linalg.norm(A0 - S, axis=1)[:, None]
+    k0, k1 = (float(x) for x in so.get('reach', SOCKET['reach']))
+    P1, P2 = S + k0 * c * T0, A0 - k1 * c * D
+    K = int(so.get('loops', 6))
+    u = np.arange(1, K + 1) / (K + 1)
+    Bz = np.stack([(1 - x) ** 3 * S + 3 * (1 - x) ** 2 * x * P1 + 3 * (1 - x) * x * x * P2 + x ** 3 * A0 for x in u])
+    return dict(loop=loop, S=S, P=Bz, u=u, rows=ar, A=A, th=TH_)
 
 
 LIMBS = {'leg': (('UpperLeg', 'LowerLeg'), {'skin': 0.0, 'boot': 0.016}, 0.32),
@@ -633,10 +775,41 @@ def body(H, sk, drawn=None, drawn_back=None, shoulder=None, arm=None):
     limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None, pose=arm if k == 'arm' else None)
              for k in ('leg', 'arm') for s_ in ('left', 'right')}
     feet = {'foot_' + s_: foot(H, s_, limbs['leg_' + s_]['chain'].J[-1]) for s_ in ('left', 'right')}
-    meshes = {'torso': torso_mesh(T_)}
-    meshes.update({n: limb_mesh(L_) for n, L_ in limbs.items()})
+    sockets = {}
+    if shoulder and shoulder.get('socket') is not None:
+        so = dict(SOCKET, **(shoulder.get('socket') or {}))
+        for s_ in ('left', 'right'):
+            rim = socket_rim(T_, s_, so)
+            sockets[s_] = dict(rim, **shoulder_bridge(T_, limbs['arm_' + s_], s_, so, rim), spec=so)
+    meshes = {'torso': torso_mesh(T_) if not sockets else joined_torso_mesh(T_, sockets)}
+    meshes.update({n: limb_mesh(L_) if n[4:] not in sockets else joined_arm_mesh(sockets[n[4:]])
+                   for n, L_ in limbs.items()})
     meshes.update({n: foot_mesh(F_) for n, F_ in feet.items()})
-    return dict(torso=T_, limbs=limbs, feet=feet, meshes=meshes)
+    return dict(torso=T_, limbs=limbs, feet=feet, meshes=meshes, sockets=sockets)
+
+
+def joined_torso_mesh(T_, sockets):
+    """the torso's triangles with the sockets' holes (for the review page's views) -> (V, T)."""
+    ax, F = T_['ax'], T_['F']
+    TT, TH = np.meshgrid(F.ts, F.th, indexing='ij')
+    P = ax.point(TT, TH, F.R)
+    nr, n = P.shape[:2]
+    drop = {c for so in sockets.values() for c in so['drop_f']}
+    T = []
+    for i in range(nr - 1):
+        for j in range(n):
+            if (i, j) in drop:
+                continue
+            a, b_, c, d = i * n + j, i * n + (j + 1) % n, (i + 1) * n + (j + 1) % n, (i + 1) * n + j
+            T += [(a, b_, c), (a, c, d)]
+    return P.reshape(-1, 3), np.array(T)
+
+
+def joined_arm_mesh(so):
+    """an arm from its socket's rim: the bridge's loops and the arm's rings as one tube (open at the rim) -> (V, T)."""
+    G = np.concatenate([so['S'][None], so['P'], so['A']])
+    V, T = _tube(G, G.shape[1], caps=(False, True))
+    return V, T
 
 
 def foot_rings(F_):
@@ -658,6 +831,7 @@ UV_SLOTS = {'torso': (0.0, 0.0, 0.25, 1.0), 'leg_left': (0.25, 0.2, 0.33, 1.0), 
             'arm_left': (0.41, 0.2, 0.46, 1.0), 'arm_right': (0.46, 0.2, 0.5, 1.0),
             'foot_left': (0.25, 0.0, 0.375, 0.1), 'foot_right': (0.375, 0.0, 0.5, 0.1)}
 # (the feet, inside the boots, gave the band v 0.1-0.2 to the hands' parts: code_hand.UV_BAND)
+BRIDGE_UV = 0.9                   # a joined arm's UV slot: its rings below this share of the slot, the bridge above
 TOE_SHARE = 0.35                  # the front of the foot, as a share of its length, is the toes'
 HEAD_UV_BOX = (0.5, 0.0, 1.0, 1.0)
 BLEND = 0.06                      # L: a bone's weight eases into the next over this either side of their joint
@@ -678,9 +852,11 @@ def _blend(x, edges, n):
     return W / np.maximum(W.sum(1, keepdims=True), 1e-9)
 
 
-def _grid(P, uv_slot, cap_start, cap_end):
+def _grid(P, uv_slot, cap_start, cap_end, holes=None):
     """a part's rings (rows, nth, 3) as quads (and fan caps) with a UV per ring and column (the seam column doubled)
-    -> (V, faces, face_uv (per face, its corners' UV indices), uvs, ring rows per vertex (the caps' centres: -1 / rows))."""
+    -> (V, faces, face_uv (per face, its corners' UV indices), uvs, ring rows per vertex (the caps' centres: -1 / rows)).
+    holes: (drop_v, drop_f), sets of (row, column): vertices and cells (a quad by its first corner) left out (the joined
+    shoulder's sockets); then a sixth value, the (rows, nth) map of each grid vertex's index (-1: dropped)."""
     nr, nth = P.shape[:2]
     V = [P.reshape(-1, 3)]
     rowof = [np.repeat(np.arange(nr), nth)]
@@ -688,8 +864,11 @@ def _grid(P, uv_slot, cap_start, cap_end):
     uvs = [(u0 + (u1 - u0) * j / nth, v1 - (v1 - v0) * i / max(1, nr - 1)) for i in range(nr) for j in range(nth + 1)]
     uvi = lambda i, j: i * (nth + 1) + j
     faces, fuv = [], []
+    dv, df = (set(map(tuple, holes[0])), set(map(tuple, holes[1]))) if holes is not None else (set(), set())
     for i in range(nr - 1):
         for j in range(nth):
+            if (i, j) in df:
+                continue
             j2 = (j + 1) % nth
             faces.append((i * nth + j, i * nth + j2, (i + 1) * nth + j2, (i + 1) * nth + j))
             fuv.append((uvi(i, j), uvi(i, j + 1), uvi(i + 1, j + 1), uvi(i + 1, j)))
@@ -708,7 +887,33 @@ def _grid(P, uv_slot, cap_start, cap_end):
     # is reversed for outward normals (the shells lift along them, the collar's ray finds the surface, outlines see out)
     faces = [tuple(reversed(f)) for f in faces]
     fuv = [tuple(reversed(q)) for q in fuv]
-    return np.concatenate(V), faces, fuv, uvs, np.concatenate(rowof)
+    V, rowof = np.concatenate(V), np.concatenate(rowof)
+    if holes is None:
+        return V, faces, fuv, uvs, rowof
+    keep = np.ones(len(V), bool)
+    for i, j in dv:
+        keep[i * nth + j] = False
+    new = np.cumsum(keep) - 1
+    if any(not keep[v] for f in faces for v in f):
+        raise ValueError('a dropped vertex is still in a kept face')
+    faces = [tuple(int(new[v]) for v in f) for f in faces]
+    idx = np.where(keep[:nr * nth], new[:nr * nth], -1).reshape(nr, nth)
+    return V[keep], faces, fuv, uvs, rowof[keep], idx
+
+
+def bridge_faces(loops, uv0=0):
+    """quads between consecutive loops of vertex indices (the rim, the bridge's loops, the arm's first ring: each N
+    long, its columns running as the arm's), wound as _grid winds a part (outward), with their UV indices (a grid of
+    len(loops) x (N + 1) from uv0, the seam column doubled) -> (faces, face_uv)."""
+    N = len(loops[0])
+    F, Q = [], []
+    uvi = lambda k, m: uv0 + k * (N + 1) + m
+    for k in range(len(loops) - 1):
+        for m in range(N):
+            m2 = (m + 1) % N
+            F.append(tuple(reversed((int(loops[k][m]), int(loops[k][m2]), int(loops[k + 1][m2]), int(loops[k + 1][m])))))
+            Q.append(tuple(reversed((uvi(k, m), uvi(k, m + 1), uvi(k + 1, m + 1), uvi(k + 1, m)))))
+    return F, Q
 
 
 def build_body_data(spec, chin, log=print):
@@ -728,19 +933,56 @@ def build_body_data(spec, chin, log=print):
     Vs, Fs, FUV, UVs, W = [], [], [], [], {}
     nv = nuv = 0
     neck_ring = None
+    torso_rings = None
     parts = {}
+    socks = [sd for sd in ('left', 'right') if 'shoulder_%s_P' % sd in Z.files]   # the joined shoulders
+    keep_w = {}                                         # per part: (start, bones, per-vertex weights) for the bridges
     for name in PARTS:
         Pp = Z[name + '_P']
-        cap_start = name != 'torso'                        # the torso's top ring stays open: the neck ring
-        V_, F_, fuv_, uv_, row = _grid(Pp, UV_SLOTS[name], cap_start, True)
+        joined_arm = name.startswith('arm_') and name[4:] in socks
+        cap_start = name != 'torso' and not joined_arm     # the torso's top ring stays open: the neck ring
+        slot = UV_SLOTS[name]
+        if joined_arm:                                     # (the bridge takes the slot's top: BRIDGE_UV)
+            slot = (slot[0], slot[1], slot[2], slot[1] + BRIDGE_UV * (slot[3] - slot[1]))
+        if name == 'torso' and socks:
+            holes = ([tuple(x) for sd in socks for x in Z['shoulder_%s_drop_v' % sd]],
+                     [tuple(x) for sd in socks for x in Z['shoulder_%s_drop_f' % sd]])
+            V_, F_, fuv_, uv_, row, idx = _grid(Pp, slot, cap_start, True, holes=holes)
+        else:
+            V_, F_, fuv_, uv_, row = _grid(Pp, slot, cap_start, True)
+            idx = None
         nr, nth = Pp.shape[:2]
         if name == 'torso':
-            neck_ring = list(range(nv, nv + nth))
+            if idx is None:
+                neck_ring = list(range(nv, nv + nth))
+            else:
+                neck_ring = [nv + int(k) for k in idx[0]]
+                torso_rings = [[nv + int(k) for k in r if k >= 0] for r in idx]
+                keep_w['torso_idx'] = idx
             z = Z['torso_z'][np.clip(row, 0, nr - 1)]
             edges = [sk['upperChest'][1][1], sk['chest'][1][1], sk['spine'][1][1], sk['hips'][1][1]]
             Wp = _blend(-z, [-e for e in edges], len(TORSO_BONES))
-            for i, b in enumerate(TORSO_BONES):
+            bones_t = list(TORSO_BONES)
+            for sd in socks:
+                # the clavicle's share over the shoulder: most on the hole's rim, easing out over the torso, none
+                # under the armpit's row nor across the midline
+                lp = Z['shoulder_%s_loop' % sd]
+                cw, reach = (float(x) for x in Z['shoulder_%s_clav' % sd])
+                Rim = Pp[lp[:, 0], lp[:, 1]]
+                d = np.min(np.linalg.norm(V_[:, None, :] - Rim[None], axis=-1), 1)
+                sg = 1.0 if sd == 'left' else -1.0
+                zb = float(Z['torso_z'][int(lp[:, 0].max())])
+                wc = cw * np.clip(1 - d / max(reach, 1e-9), 0, 1) ** 2 * (sg * V_[:, 0] > 0.05) * \
+                    np.clip((V_[:, 2] - zb) / 0.08, 0, 1)
+                wk = 'shoulder_%s_w' % sd
+                a_w, a_r = (float(x) for x in (Z[wk][2:4] if wk in Z.files else (0.0, 0.1)))
+                wa = a_w * np.clip(1 - d / max(a_r, 1e-9), 0, 1) ** 2 * (sg * V_[:, 0] > 0.05)
+                wa = np.minimum(wa, 1 - wc)
+                Wp = np.c_[Wp * (1 - wc - wa)[:, None], wc, wa]
+                bones_t += [sd + 'Shoulder', sd + 'UpperArm']
+            for i, b in enumerate(bones_t):
                 W.setdefault(b, []).append((nv, Wp[:, i]))
+            keep_w['torso'] = (nv, bones_t, Wp)
         elif name.startswith('foot_'):
             side = name.split('_')[1]
             y = Pp.reshape(-1, 3)[:, 1]
@@ -758,12 +1000,60 @@ def build_body_data(spec, chin, log=print):
             Wp = _blend(s, list(s0[1:len(bones)]), len(bones))
             for i, b in enumerate(bones):
                 W.setdefault(b, []).append((nv, Wp[:, i]))
+            keep_w[name] = (nv, bones, Wp)
         parts[name] = (nv, nv + len(V_))
         Vs.append(world(V_))
         Fs += [tuple(v + nv for v in f) for f in F_]
         FUV += [tuple(u + nuv for u in q) for q in fuv_]
         UVs += uv_
         nv += len(V_); nuv += len(uv_)
+    # the joined shoulders: each bridge's loops between the torso's rim and the arm's first ring, its weights eased
+    # from the rim's (the trunk and the clavicle) to the arm's (code_body.SOCKET)
+    for sd in socks:
+        Bp = Z['shoulder_%s_P' % sd]
+        u = Z['shoulder_%s_u' % sd]
+        lp = Z['shoulder_%s_loop' % sd]
+        K, N = Bp.shape[:2]
+        idx = keep_w['torso_idx']
+        t0 = keep_w['torso'][0]
+        rim = np.array([t0 + int(idx[i, j]) for i, j in lp])
+        a0, abones, aW = keep_w['arm_' + sd]
+        if aW.shape[0] < N or Z['arm_%s_P' % sd].shape[1] != N:
+            raise ValueError('shoulder %s: the arm has %d columns, the rim %d' % (sd, Z['arm_%s_P' % sd].shape[1], N))
+        ring = a0 + np.arange(N)
+        start = nv
+        Vb = Bp.reshape(-1, 3)
+        loops = [rim] + [start + k * N + np.arange(N) for k in range(K)] + [ring]
+        u0, v0, u1, v1 = UV_SLOTS['arm_' + sd]
+        vb = v0 + BRIDGE_UV * (v1 - v0)
+        nl = len(loops)
+        uvb = [(u0 + (u1 - u0) * m / N, v1 - (v1 - vb) * k / (nl - 1)) for k in range(nl) for m in range(N + 1)]
+        f_, q_ = bridge_faces(loops, nuv)
+        Fs += f_
+        FUV += q_
+        # weights: the rim's (torso part's rows) to the arm ring's, by a smoothstep of the loop's share of the way
+        tb, tW = keep_w['torso'][1], keep_w['torso'][2]
+        rimW = tW[rim - t0]
+        armW = aW[:N]
+        wk = 'shoulder_%s_w' % sd
+        ua, ub = (float(x) for x in (Z[wk][:2] if wk in Z.files else (0.0, 1.0)))
+        g = np.clip((u - ua) / max(ub - ua, 1e-9), 0, 1)
+        g = (g * g * (3 - 2 * g))[:, None, None]
+        allb = list(tb) + [b for b in abones if b not in tb]
+        Rw = np.zeros((N, len(allb)))
+        Aw = np.zeros((N, len(allb)))
+        for i, b in enumerate(tb):
+            Rw[:, allb.index(b)] += rimW[:, i]
+        for i, b in enumerate(abones):
+            Aw[:, allb.index(b)] += armW[:, i]
+        Wb = ((1 - g) * Rw[None] + g * Aw[None]).reshape(-1, len(allb))
+        for i, b in enumerate(allb):
+            if Wb[:, i].any():
+                W.setdefault(b, []).append((start, Wb[:, i]))
+        parts['shoulder_' + sd] = (start, start + len(Vb))
+        Vs.append(world(Vb))
+        UVs += uvb
+        nv += len(Vb); nuv += len(uvb)
     # the hands (charkit/code_hand.py): each part a capped tube of rings with its rings' weights on its bones
     hparts = [str(x) for x in Z['hand_parts']] if 'hand_parts' in Z.files else []
     for k, name in enumerate(hparts):
@@ -799,9 +1089,14 @@ def build_body_data(spec, chin, log=print):
         raise ValueError('authored body: no joint for %s' % missing[:5])
     log('code body: %d verts, %d faces, %d bones weighted' % (nv, len(Fs), len(weights)))
     eye_y = float(np.mean(Z['eyes'][:, 1])) * L if 'eyes' in Z.files else None     # (world y: x and z need no move)
-    return dict(verts=V, faces=Fs, face_uv=FUV, uvs=np.array(UVs), weights=weights, joints=J, neck_ring=neck_ring,
-                params=P, head_len=L, scale=1.0, head_w=np.zeros(nv), marks={}, authored=True,
-                head_uv_box=HEAD_UV_BOX, parts=parts, eye_y=eye_y)
+    out = dict(verts=V, faces=Fs, face_uv=FUV, uvs=np.array(UVs), weights=weights, joints=J, neck_ring=neck_ring,
+               params=P, head_len=L, scale=1.0, head_w=np.zeros(nv), marks={}, authored=True,
+               head_uv_box=HEAD_UV_BOX, parts=parts, eye_y=eye_y)
+    if torso_rings is not None:
+        out['torso_rings'] = torso_rings                  # (the sockets' rows are partial rings: code_base._torso_rings)
+    if socks:                                             # (the arms' chain roots: the garments placed on the arm)
+        out['arm_roots'] = {sd: [float(x) for x in world(Z['arm_%s_J' % sd][0])] for sd in ('left', 'right')}
+    return out
 
 
 def _joints(Z, sk, world, L):
@@ -821,7 +1116,10 @@ def _joints(Z, sk, world, L):
         arm = Z['arm_%s_J' % side]; leg = Z['leg_%s_J' % side]
         cz = sk[side + 'Shoulder'][0][1]
         J['clavicle.%s____head' % S_] = world((0.3 * arm[0][0], ty(cz), cz))
-        J['shoulder01.%s____head' % S_] = world(arm[0])
+        pk = 'shoulder_%s_pivot' % side
+        pv = float(Z[pk]) if pk in Z.files else 0.0
+        dv = (arm[1] - arm[0]) / max(1e-9, np.linalg.norm(arm[1] - arm[0]))
+        J['shoulder01.%s____head' % S_] = world(arm[0] - pv * dv)
         J['lowerarm01.%s____head' % S_] = world(arm[1])
         J['wrist.%s____head' % S_] = world(arm[2])
         hk = 'hand_%s_joints' % side

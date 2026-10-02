@@ -571,7 +571,7 @@ def features(h, seams, ppl):
                 cleft_at=None if ca is None else round(ca, 4), profile=[round(float(x) / max(r, 1e-9), 3) for x in W])
 
 
-@qa_part('hands', order=1785, prefix='hand_', table='hands')
+@qa_part('hands', order=1785, prefix='hand_', table='hands', checks=42)
 def hands(B, design=None, out=None):
     return measure(B, design, out)
 

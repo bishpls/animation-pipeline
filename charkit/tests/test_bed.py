@@ -70,3 +70,30 @@ def test_a_garment_is_cached_on_the_garments_it_reads():
     k0 = bodyeval._h(bodyeval.garment_deps(G['sleeve_R'], spec))
     spec['garments'][0]['cap'] = 0.18
     assert bodyeval._h(bodyeval.garment_deps(G['sleeve_R'], spec)) != k0
+
+
+def test_shoulder_pad_raises_the_upward_faces_by_the_table():
+    # a flat-topped box: its top raised by the table's dz at each |x| (0 outside the table), its sides not at all
+    from charkit import garments
+    L = 1.0
+    A = {'head': {'L': L}}
+    xs = np.linspace(-1, 1, 21)
+    V, F = [], []
+    for z in (0.0, 1.0):
+        for x in xs:
+            V.append((x, 0.0, z))
+    n = len(xs)
+    for i in range(n - 1):                      # the side wall (a strip facing -y) and the top (facing +z)
+        F.append((i, i + 1, n + i + 1, n + i))
+    top = [(x, y, 1.0) for y in (0.0, 1.0) for x in xs]
+    V += top
+    m = len(V) - 2 * n
+    for i in range(n - 1):
+        F.append((2 * n + i, 2 * n + i + 1, 2 * n + n + i + 1, 2 * n + n + i))
+    V = np.array(V, float)
+    out = garments.shoulder_pad(A, V, F, dict(lift=[[0.3, 0.1], [0.5, 0.1]], nz=(0.2, 0.7), smooth=0))
+    d = out[:, 2] - V[:, 2]
+    k = np.arange(2 * n, len(V))
+    ax_ = np.abs(V[k, 0])
+    assert np.allclose(d[k][(ax_ >= 0.3) & (ax_ <= 0.5)], 0.1) and np.allclose(d[k][ax_ > 0.55], 0.0)
+    assert np.allclose(d[:n], 0.0)              # the wall's bottom row faces sideways: not raised

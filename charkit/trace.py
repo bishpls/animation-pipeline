@@ -170,31 +170,36 @@ def event(kind, name=None, **values):
 def span(name, **values):
     """time a sub-step; values given up front, plus any the body adds to the yielded dict."""
     extra = {}
-    t = time.perf_counter()
+    t, c = time.perf_counter(), time.process_time()
     try:
         yield extra
     finally:
         if _T is not None:
-            _T.write('span', name, dt=round(time.perf_counter() - t, 4), **values, **extra)
+            got = dict(values, **extra)
+            got.setdefault('cpu', round(time.process_time() - c, 4))   # (this process's CPU, every thread: the profile)
+            _T.write('span', name, dt=round(time.perf_counter() - t, 4), **got)
 
 
 @contextlib.contextmanager
 def stage(name, S=None, objects=None):
     """time a scene stage, then record what it did to the scene: objects added, changed (geometry hash moved) or removed,
     with their stats, the landmarks, and hashes of the spec sections the stage reads."""
-    t = time.perf_counter()
+    t, c = time.perf_counter(), time.process_time()
     extra = {}
     try:
         yield extra
     finally:
         if _T is not None:
-            dt = time.perf_counter() - t
+            dt, cpu = time.perf_counter() - t, time.process_time() - c
+            t1, c1 = time.perf_counter(), time.process_time()
             snap = scene_snapshot(objects, _T.prev, reuse=extra.pop('_reuse', ()))
             added = {k: v for k, v in snap.items() if k not in _T.prev}
             changed = {k: v for k, v in snap.items() if k in _T.prev and (_T.prev[k]['hash'] != v['hash'] or
                                                                            _T.prev[k].get('modifiers') != v.get('modifiers'))}
             removed = sorted(k for k in _T.prev if k not in snap)
-            rec = dict(dt=round(dt, 4), added=added, changed=changed, removed=removed, objects=len(snap))
+            # (cpu: the stage's CPU seconds, the Blender process's every thread; snap, snap_cpu: the trace's own
+            # snapshot after it, wall and CPU: charkit.profile's per-stage table)
+            rec = dict(dt=round(dt, 4), cpu=round(cpu, 4), added=added, changed=changed, removed=removed, objects=len(snap))
             if S is not None:
                 rec['knobs'] = {k: _hash_json(portable(S.spec.get(k), _T.out)) for k in STAGE_KEYS.get(name, ())
                                 if k in S.spec}
@@ -202,6 +207,7 @@ def stage(name, S=None, objects=None):
                 if lm:
                     rec['landmarks'] = lm
             rec.update(extra)
+            rec.update(snap=round(time.perf_counter() - t1, 4), snap_cpu=round(time.process_time() - c1, 4))
             _T.write('stage', name, **rec)
             _T.prev = snap
 

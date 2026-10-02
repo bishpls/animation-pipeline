@@ -1,0 +1,74 @@
+{
+ "base": "charkit/out/g5_c1",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "face_region",
+  "sheet_pieces"
+ ],
+ "checks": [
+  "shoulder_*",
+  "collar_*",
+  "art_outline_collar",
+  "art_outline_neck",
+  "art_fragments_collar",
+  "neck_v_*",
+  "neck_crease",
+  "sleeve_*",
+  "bow_front_bleed",
+  "piece_top",
+  "piece_collar",
+  "piece_sleeve_*",
+  "piece_bow",
+  "body_*_iou_skin"
+ ],
+ "oat": {
+  "garments.top.cuts": [
+   [
+    [
+     "hips",
+     0.0,
+     "above",
+     0.1
+    ],
+    [
+     "neck",
+     0.0,
+     "below",
+     0.05
+    ]
+   ],
+   [
+    [
+     "hips",
+     0.0,
+     "above",
+     0.1
+    ],
+    [
+     "neck",
+     0.0,
+     "below",
+     0.06
+    ]
+   ],
+   [
+    [
+     "hips",
+     0.0,
+     "above",
+     0.1
+    ],
+    [
+     "neck",
+     0.0,
+     "below",
+     0.08
+    ]
+   ]
+  ]
+ }
+}

@@ -734,7 +734,7 @@ class Context:
         tb = round(time.time() - t, 1)
         ch = self.changed(geo)
         names = ch if objects is None else objects
-        objs = {n: o for n, o in geo.items() if n in set(names)}
+        objs = {n: o for n, o in geo.items() if n in set(names) or n == sw.SKIN_MASK}
         B = self.S.bundle(objs)
         C = sw.measure(B, self.parts, row['set'])
         rec = dict(name=row['name'], checks=sw.kept(C), seconds=round(time.time() - t, 1), seconds_build=tb,

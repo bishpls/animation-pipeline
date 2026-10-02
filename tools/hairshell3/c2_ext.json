@@ -1,0 +1,43 @@
+{
+ "families": [
+  "side_locks",
+  "bangs"
+ ],
+ "under": [
+  "bangs"
+ ],
+ "groups": [
+  {
+   "family": "lower_back",
+   "view": "back",
+   "phi": [
+    90,
+    180
+   ],
+   "replace": false,
+   "name": "hem_L",
+   "opts": {
+    "prior_depth": 3.0,
+    "view_depth": 3.0,
+    "contain": 5.0,
+    "hug_free": 0.3
+   }
+  },
+  {
+   "family": "lower_back",
+   "view": "back",
+   "phi": [
+    -180,
+    -90
+   ],
+   "replace": false,
+   "name": "hem_R",
+   "opts": {
+    "prior_depth": 3.0,
+    "view_depth": 3.0,
+    "contain": 5.0,
+    "hug_free": 0.3
+   }
+  }
+ ]
+}
