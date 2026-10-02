@@ -684,3 +684,15 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
   shape, not the 3q cleft position or the profile cleft depth: the coordinator's / Michael's decision (accept by name,
   or the dexterity phase fixes the seam: overlap > 0 closes the 3q slit, untested).
 - Running: calibrate (build box, calib.log), pregate --box auto (pregate.log), the boards build (after.log).
+- **Coordinator's decision:** the two new FAILs accepted by name (a1476126: charkit/accepted/
+  hand_three_quarter_cleftpos_L.json, hand_profile_cleft_L.json; by "coordinator, under Michael's 2026-10-01 hands
+  call"; the fixes to the dexterity phase: finger overlap > 0 for the 3q slit, untested; the pocket depth graded in the
+  fit). No overlap fix tonight.
+- **Calibration** (build box, hands3_after_q; calib.log): fingerlines_* x5 and handsheet_open_fingers CALIBRATED;
+  handsheet_open_span read COARSE (margin 0.238) though the design reads 0 at every move, comb_hand -0.176 FAIL, floors
+  +0.31/-0.26 FAIL, current 0.017 PASS: calibrate took the median of the two floors' medians (0.023, next to the
+  design) as the floor. Fixed in calibrate (floors either side of the design: the margin on the distance from it; test
+  test_floors_either_side_of_the_design); recalibrating span (calib2.log).
+- **pregate --box auto: PASS** (17 moved, 0 blocking; charkit/out/pregate/pregate_tool-hands2_43af5e1c_into_348397e7.md).
+- Review page: charkit/out/hands3/review/page/index.html (rendered on the build box: the page's inputs and builds pushed
+  there; `build.sh push DIR REMOTE` nests a directory inside an existing REMOTE: un-nested by hand).
