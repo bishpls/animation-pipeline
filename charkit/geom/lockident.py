@@ -355,6 +355,7 @@ class Ident:
                [(g['family'], g) for g in self.cfg.get('groups', ())]
         for fam, grp in jobs:
             prim = [grp['view']] if grp else list(o['primary'].get(fam, ('front',)))
+            prim = [p_ for p_ in prim if p_ in self.views] or prim     # (a held-out primary: the next one leads)
             if self.io['later_primaries'] == 'after':
                 prim = prim[:1]
             for pv in prim:
@@ -397,7 +398,7 @@ class Ident:
         sc, o = self.sc, self.sc.o
         n0 = len(self.locks)
         for fam in self.cfg.get('families', ('side_locks',)):
-            for pv in list(o['primary'].get(fam, ('front',)))[1:]:
+            for pv in [p_ for p_ in o['primary'].get(fam, ('front',)) if p_ in self.views][1:]:
                 if pv not in self.views:
                     continue
                 taken = {t['id'] for i, t in A.get(pv, {}).items() if self.meta[i]['family'] == fam}
@@ -492,6 +493,7 @@ class Ident:
         else:
             lk.o = dict(lk.o, view_depth=sc.o['view_depth'])
         sc.fit(lk, cap=self.io['refit_nfev'])
+        lk.cost = {vn: c for vn, c in lk.cost.items() if vn in lk.drawn}      # (a dropped view's old cost out)
         bad = [vn for vn, c in lk.cost.items() if vn != mt['primary'] and c > self.io['join_cost_max']]
         if not bad and mt.get('solo') is not None and len(lk.cost) > 1 and \
                 lk.cost.get(mt['primary'], 0.0) > mt['solo'] + self.io['primary_slack']:
@@ -502,6 +504,7 @@ class Ident:
             if len(lk.drawn) == 1:
                 lk.o = dict(lk.o, view_depth=sc.o['view_depth'])
             sc.fit(lk, cap=self.io['refit_nfev'])
+            lk.cost = {vn: c for vn, c in lk.cost.items() if vn in lk.drawn}
         mt['assign'] = {vn: (views_targets[vn]['id'] if vn in views_targets else mt['target'])
                         for vn in lk.drawn}
         mt['dropped'] = bad

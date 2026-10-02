@@ -33,7 +33,7 @@ def main(a):
         ROOT, 'charkit/refs/clawd/hair_lock_links.json'))))
     rb.setup(build, out)                       # the context and inputs cached once (out/ctx.pkl, out/inputs.pkl)
     hold = rb._opt(a, '--holdout', None)
-    jobs = [(n, c, n == hold) for n, c in grid.items()]
+    jobs = [(n, c, n in (hold or '').split(',')) for n, c in grid.items()]
     import multiprocessing as mp
     with mp.get_context('fork').Pool(len(jobs)) as pool:
         res = dict(pool.map(one, jobs, chunksize=1))
