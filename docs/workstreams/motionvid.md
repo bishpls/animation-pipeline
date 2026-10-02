@@ -42,7 +42,17 @@ Report-only: no build output changes. Pregate, then gate into pipeline-3d.
 - Node constraints on motion1's m1_s2 (40 nodes: rotation 36, roll 4): honoured with tool/motion1 merged (a throwaway
   branch, deleted), "not evaluated" without (`charkit/out/motionvid/m1s2_{nodes,plain}`, m1s2_compare.png).
 
+## Gate
+- Merged pipeline-3d 3144b1f6 (hairident) cleanly as ff45723e. Pregate on build2: PASS (0 moved, 0 blocking).
+- Gate on build2 (job gate-motionvid-1001-214656-81d3): tool/motionvid 9038e7f9 into pipeline-3d 3144b1f6 **PASS**
+  under K: nothing blocks; reported: the declared part's count (55 vs 47, pre-existing) and build CPU like for like
+  1252 -> 1150 s (0.92x); the candidate built cold (cli.py, reviewpage.py, romvideo.py read by the build); the tests
+  pass (test_romvideo.py, test_reviewpage.py among them). Report:
+  `charkit/out/gate/gate_tool-motionvid_9038e7f9_into_3144b1f6.md`. Later commits: notes only.
+
 ## Next
-1. Pregate on the box, gate into pipeline-3d (report-only: no check moves expected; cli.py changes what the build
-   reads, so the candidate builds cold).
-2. The final run on the production build the coordinator names (the command above).
+1. The final run on the production build the coordinator names (the command at the top of State), then
+   `python tools/motionvid/make_page.py`-style extras only if wanted (the tool's own page is complete).
+2. Open for Michael: the face light on a bowed head (A keep look.js's full head-space light / B yaw only).
+3. Possible follow-ups: the motion QA clips with the cloth baked (charkit.sim.bake), spring chains once the export
+   carries VRMC_springBone.
