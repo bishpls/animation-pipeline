@@ -730,6 +730,127 @@
     "no back view (the back hides the clips); its heads are drawn 1.6% larger than head_turnaround's"
    ]
   },
+  "hair_lock_map": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-10-01",
+    "size": "2560x1440",
+    "quality": "high",
+    "n": 2,
+    "chosen": "take 2 of 2 of hair_lock_map_lines (higher line recall in the registered views; take 1 passes the same views)",
+    "inputs": [
+     "head_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "hair_lock_map_lines",
+    "ledger": "tools/ledger.jsonl",
+    "approved": "Michael, 2026-10-01 (up to ~4 calls for a lock-delineated hair reference, via the coordinator)",
+    "sha256": "e0e6ebeb39ed0c7a7a2a8a6dd22ec4e943de8d0c55fac45d409757befe670317",
+    "other_takes": {
+     "hair_lock_map_lines take 1": "passes three-quarter and profile; back FAIL (hem flicks 3 of 7 inside one region)",
+     "hair_lock_map_colours take 1": "FAIL every view on the drawn lines (recall 0.34-0.47 < 0.50, its flat colour fields read; a k-means reading passed but its fragments made the boundaries dense: floor 0.34-0.48); back hem flicks 7 of 7",
+     "hair_lock_map_colours take 2": "FAIL (the heads not found: views mislaid)",
+     "hair_lock_map_body takes 1-2 (body_turnaround edited in place)": "FAIL (hair silhouette 0.66-0.87: the hair redrawn shorter; lines at the floor)"
+    }
+   },
+   "path": "charkit/refs/clawd/gen/hair_lock_map.png",
+   "role": "the hair as a LOCK MAP (tool/hairident, Michael 2026-10-01: the back mass drawn as one mass with few lock lines left neither the splitter nor the lock fit a target there): head_turnaround's four heads redrawn at the same pose and scale with the hair one flat orange cut into closed locks by ink lines, the back of the head and the lower back divided into locks running up from the hem's flicks. Registered for the THREE-QUARTER and PROFILE views only (the refcheck's pass rule, declared before the calls: docs/workstreams/hairident.md); its front and back are not authorities",
+   "views": [
+    "three_quarter",
+    "profile"
+   ],
+   "authority_split": {
+    "structure": "the lock boundaries in the three-quarter and the profile, the profile's back mass included",
+    "placement": "body_turnaround (the hair's silhouette, its drawn lock lines where it draws them, the hem's flicks)",
+    "map": "not in the top-level authority map (see base_body_turnaround's)"
+   },
+   "refcheck": {
+    "command": "python tools/hairident/lockmap.py charkit/refs/clawd/gen/hair_lock_map.png OUT --kind lines",
+    "rule": "silhouette >= 0.80 and scales within 5%; the profile's back mass >= 4 closed regions of 0.01 L^2; the back: >= 6 regions below the buns, >= 5 reaching 0.3 L, the 7 hem flicks each >= 70% in one region and >= 5 distinct; the drawn lock lines recalled >= 0.50 within 2.5 px",
+    "views": {
+     "front": {
+      "scale": 0.53919,
+      "scale_vs_ppl": 1.0251,
+      "eye": [
+       489.6,
+       272.9
+      ],
+      "hair_iou": 0.864,
+      "regions": 41,
+      "regions_big": 31,
+      "line_recall": 0.696,
+      "line_floor": 0.395,
+      "pass": true
+     },
+     "three_quarter": {
+      "scale": 0.53919,
+      "scale_vs_ppl": 1.0251,
+      "eye": [
+       488.2,
+       272.3
+      ],
+      "hair_iou": 0.899,
+      "regions": 43,
+      "regions_big": 28,
+      "line_recall": 0.735,
+      "line_floor": 0.4,
+      "pass": true
+     },
+     "profile": {
+      "scale": 0.53114,
+      "scale_vs_ppl": 1.0098,
+      "eye": [
+       486.9,
+       273.2
+      ],
+      "hair_iou": 0.929,
+      "regions": 33,
+      "regions_big": 23,
+      "back_mass_regions": 9,
+      "line_recall": 0.757,
+      "line_floor": 0.375,
+      "pass": true
+     },
+     "back": {
+      "scale": 0.53651,
+      "scale_vs_ppl": 1.02,
+      "eye": [
+       488.3,
+       271.8
+      ],
+      "hair_iou": 0.927,
+      "regions": 28,
+      "regions_big": 26,
+      "below_buns": 19,
+      "reaching": 8,
+      "flicks_inside": [
+       0.633,
+       0.669,
+       0.944,
+       0.944,
+       0.553,
+       0.571,
+       0.581
+      ],
+      "flicks_ok": 2,
+      "flicks_distinct": 2,
+      "line_recall": 0.625,
+      "line_floor": 0.311,
+      "pass": false
+     }
+    },
+    "scale_spread": 0.0153,
+    "known_bad": "two views mislaid (lockmap.py --swap): the swapped views FAIL (hair IoU 0.61-0.75, line recall 0.27-0.51)",
+    "ceiling": "head_turnaround's own ink recalls 0.42-0.46 of body_turnaround's drawn lock lines (floor 0.08-0.20)"
+   },
+   "cautions": [
+    "redrawn from head_turnaround, not body_turnaround: its locks follow the head sheet's drawing, whose back hem differs from the body sheet's (why the back fails)",
+    "the lock lines in the smooth masses are the image model's invention, consistent with the hem's flicks only where the refcheck says",
+    "a structure reference for labelling and lock targets; every size and position stays the turnarounds'"
+   ]
+  },
   "skirt_layers": {
    "kind": "generated_reference",
    "tracked": true,

@@ -1,0 +1,6 @@
+{"base": {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175], "replace": false, "opts": {"prior_depth": 10.0, "contain": 5.0, "hug_free": 0.3}}]},
+ "shift": {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175], "replace": false, "opts": {"prior_depth": 10.0, "contain": 5.0, "hug_free": 0.3}}], "ident": {"depth_sigma": 0.15}},
+ "shift_az60": {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175], "replace": false, "opts": {"prior_depth": 10.0, "contain": 5.0, "hug_free": 0.3}}], "ident": {"depth_sigma": 0.15, "az_eff": {"three_quarter": {"side_locks": 60}}}},
+ "shift_az60_w3q": {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175], "replace": false, "opts": {"prior_depth": 10.0, "contain": 5.0, "hug_free": 0.3}}], "ident": {"depth_sigma": 0.15, "az_eff": {"three_quarter": {"side_locks": 60}}, "view_w": {"three_quarter": 0.5}}},
+ "shift_az60_wide": {"families": ["side_locks"], "groups": [{"family": "lower_back", "view": "back", "phi": [100, 175], "replace": false, "opts": {"prior_depth": 10.0, "contain": 5.0, "hug_free": 0.3}}], "ident": {"depth_sigma": 0.15, "az_eff": {"three_quarter": {"side_locks": 60}}, "assign_max": 18.0, "join_cost_max": 8.0}}
+}

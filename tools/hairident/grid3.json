@@ -1,0 +1,62 @@
+{
+ "A_compromise": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.15,
+   "assign_max": 20,
+   "join_cost_max": 12,
+   "primary_slack": 6,
+   "view_w": {
+    "three_quarter": 0.5
+   }
+  }
+ },
+ "B_keep_all": {
+  "families": [
+   "side_locks"
+  ],
+  "groups": [
+   {
+    "family": "lower_back",
+    "view": "back",
+    "phi": [
+     100,
+     175
+    ],
+    "replace": false,
+    "opts": {
+     "prior_depth": 10.0,
+     "contain": 5.0,
+     "hug_free": 0.3
+    }
+   }
+  ],
+  "ident": {
+   "depth_sigma": 0.15,
+   "assign_max": 20,
+   "join_cost_max": 1000,
+   "primary_slack": 1000,
+   "view_w": {
+    "three_quarter": 0.5
+   }
+  }
+ }
+}

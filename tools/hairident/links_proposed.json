@@ -1,0 +1,384 @@
+{
+ "source": "proposals",
+ "links": {
+  "side_locks.R_front": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:side_locks/R_front"
+    ],
+    "three_quarter": [
+     "T:side_locks/R_front"
+    ],
+    "profile": [],
+    "back": []
+   },
+   "unsure": [],
+   "number": 1,
+   "title": "her right face-framing lock (by her right eye)"
+  },
+  "side_locks.R_jaw": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:side_locks/R_jaw"
+    ],
+    "three_quarter": [
+     "T:side_locks/R_jaw"
+    ],
+    "profile": [],
+    "back": []
+   },
+   "unsure": [],
+   "number": 2,
+   "title": "her right jaw lock, the next one out and down"
+  },
+  "S56": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "S:56"
+    ],
+    "three_quarter": [
+     "S:45"
+    ],
+    "profile": [],
+    "back": []
+   },
+   "unsure": [],
+   "number": 3,
+   "title": "her right outer side lock, upper"
+  },
+  "S55.1": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "S:55.1"
+    ],
+    "three_quarter": [
+     "S:45"
+    ],
+    "profile": [],
+    "back": []
+   },
+   "unsure": [],
+   "number": 4,
+   "title": "her right outer side lock, lower"
+  },
+  "side_locks.L_front": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:side_locks/L_front"
+    ],
+    "three_quarter": [
+     "T:side_locks/L_front"
+    ],
+    "profile": [
+     "T:side_locks/L_front"
+    ],
+    "back": []
+   },
+   "unsure": [],
+   "number": 5,
+   "title": "her left face-framing lock (under the star)"
+  },
+  "side_locks.L_jaw": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:side_locks/L_jaw"
+    ],
+    "three_quarter": [
+     "T:side_locks/L_jaw"
+    ],
+    "profile": [
+     "T:side_locks/L_jaw"
+    ],
+    "back": []
+   },
+   "unsure": [],
+   "number": 6,
+   "title": "her left jaw lock, the next one out and down"
+  },
+  "S52.1": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "S:52.1"
+    ],
+    "three_quarter": [
+     "T:side_locks/L_front"
+    ],
+    "profile": [
+     "T:side_locks/L_front"
+    ],
+    "back": []
+   },
+   "unsure": [],
+   "number": 7,
+   "title": "her left outer side lock, upper"
+  },
+  "S57.1": {
+   "family": "side_locks",
+   "home": "front",
+   "views": {
+    "front": [
+     "S:57.1"
+    ],
+    "three_quarter": [
+     "S:43"
+    ],
+    "profile": [
+     "T:side_locks/L_front"
+    ],
+    "back": []
+   },
+   "unsure": [],
+   "number": 8,
+   "title": "her left outer side lock, lower"
+  },
+  "flyaways.flick_R1": {
+   "family": "flyaways",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:flyaways/flick_R1"
+    ],
+    "three_quarter": [],
+    "profile": [],
+    "back": [
+     "T:flyaways/flick_R1"
+    ]
+   },
+   "unsure": [],
+   "number": 9,
+   "title": "her right upper side flick"
+  },
+  "flyaways.flick_R2": {
+   "family": "flyaways",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:flyaways/flick_R2"
+    ],
+    "three_quarter": [
+     "S:44"
+    ],
+    "profile": [],
+    "back": [
+     "T:flyaways/flick_R2"
+    ]
+   },
+   "unsure": [],
+   "number": 10,
+   "title": "her right middle side flick"
+  },
+  "flyaways.flick_L1": {
+   "family": "flyaways",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:flyaways/flick_L1"
+    ],
+    "three_quarter": [
+     "S:41"
+    ],
+    "profile": [
+     "T:side_locks/L_front"
+    ],
+    "back": [
+     "T:flyaways/flick_L1"
+    ]
+   },
+   "unsure": [],
+   "number": 11,
+   "title": "her left upper side flick"
+  },
+  "flyaways.flick_L2": {
+   "family": "flyaways",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:flyaways/flick_L2"
+    ],
+    "three_quarter": [
+     "S:43"
+    ],
+    "profile": [
+     "T:side_locks/L_jaw"
+    ],
+    "back": [
+     "T:flyaways/flick_L2"
+    ]
+   },
+   "unsure": [],
+   "number": 12,
+   "title": "her left middle side flick"
+  },
+  "flyaways.under_bun_R": {
+   "family": "flyaways",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:flyaways/under_bun_R"
+    ],
+    "three_quarter": [],
+    "profile": [],
+    "back": [
+     "T:flyaways/under_bun_R"
+    ]
+   },
+   "unsure": [],
+   "number": 13,
+   "title": "the strand under her right bun"
+  },
+  "flyaways.under_bun_L": {
+   "family": "flyaways",
+   "home": "front",
+   "views": {
+    "front": [
+     "T:flyaways/under_bun_L"
+    ],
+    "three_quarter": [
+     "T:flyaways/under_bun_L"
+    ],
+    "profile": [
+     "T:flyaways/under_bun_L"
+    ],
+    "back": [
+     "T:flyaways/under_bun_L"
+    ]
+   },
+   "unsure": [],
+   "number": 14,
+   "title": "the strand under her left bun"
+  },
+  "lower_back.flick_L3": {
+   "family": "lower_back",
+   "home": "back",
+   "views": {
+    "back": [
+     "T:lower_back/flick_L3"
+    ],
+    "front": [
+     "T:lower_back/flick_L3"
+    ],
+    "three_quarter": [
+     "S:43"
+    ],
+    "profile": [
+     "S:32.5"
+    ]
+   },
+   "unsure": [],
+   "number": 15,
+   "title": "the hem's outermost flick on her left"
+  },
+  "lower_back.flick_L2": {
+   "family": "lower_back",
+   "home": "back",
+   "views": {
+    "back": [
+     "T:lower_back/flick_L2"
+    ],
+    "front": [],
+    "three_quarter": [],
+    "profile": [
+     "S:31.1"
+    ]
+   },
+   "unsure": [],
+   "number": 16,
+   "title": "the hem flick second from her left"
+  },
+  "lower_back.flick_L1": {
+   "family": "lower_back",
+   "home": "back",
+   "views": {
+    "back": [
+     "T:lower_back/flick_L1"
+    ],
+    "front": [],
+    "three_quarter": [],
+    "profile": [
+     "S:31.1"
+    ]
+   },
+   "unsure": [],
+   "number": 17,
+   "title": "the hem flick third from her left"
+  },
+  "lower_back.flick_C": {
+   "family": "lower_back",
+   "home": "back",
+   "views": {
+    "back": [
+     "T:lower_back/flick_C"
+    ],
+    "front": [],
+    "three_quarter": [],
+    "profile": [
+     "T:lower_back/flick_P2"
+    ]
+   },
+   "unsure": [],
+   "number": 18,
+   "title": "the hem's centre flick"
+  },
+  "lower_back.flick_R1": {
+   "family": "lower_back",
+   "home": "back",
+   "views": {
+    "back": [
+     "T:lower_back/flick_R1"
+    ],
+    "front": [],
+    "three_quarter": [],
+    "profile": []
+   },
+   "unsure": [],
+   "number": 19,
+   "title": "the hem flick third from her right"
+  },
+  "lower_back.flick_R2": {
+   "family": "lower_back",
+   "home": "back",
+   "views": {
+    "back": [
+     "T:lower_back/flick_R2"
+    ],
+    "front": [],
+    "three_quarter": [],
+    "profile": []
+   },
+   "unsure": [],
+   "number": 20,
+   "title": "the hem flick second from her right"
+  },
+  "lower_back.flick_R3": {
+   "family": "lower_back",
+   "home": "back",
+   "views": {
+    "back": [
+     "T:lower_back/flick_R3"
+    ],
+    "front": [
+     "T:lower_back/flick_R3"
+    ],
+    "three_quarter": [],
+    "profile": []
+   },
+   "unsure": [],
+   "number": 21,
+   "title": "the hem's outermost flick on her right"
+  }
+ }
+}
