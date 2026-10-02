@@ -610,11 +610,14 @@ def run(build, out=None, poses=None, clips=('rom', 'motionqa'), views=VIEWS, res
                 imgs = cache[key]
             else:
                 imgs = cache[key] = draw(c['key'].at(w), w)
-            if phase == 'hold' and not any(h[0] is c for h in holds):
+            first_hold = phase == 'hold' and not any(h[0] is c for h in holds)
+            if first_hold:
                 holds.append((c, imgs))
             t = time.time()
             fr = compose_frame(imgs, c, len(C), phase, w, k / fps, k, len(sch), fonts, views=views, frame=nframe)
             tm['label'] += time.time() - t
+            if first_hold and len(holds) == 1:           # (the page's poster: the first clip at its hold)
+                Image.fromarray(fr).save(os.path.join(out, 'poster.jpg'), quality=90)
             t = time.time()
             if E is not None and E.proc:
                 E.write(fr)
@@ -635,6 +638,7 @@ def run(build, out=None, poses=None, clips=('rom', 'motionqa'), views=VIEWS, res
     rep = dict(build=os.path.abspath(build), export=os.path.basename(rig.path), out=os.path.abspath(out),
                video=os.path.basename(vid) if (E is not None and E.proc and rc == 0) else None,
                encoder=E.name if E is not None else None, contact=os.path.basename(sheet) if sheet else None,
+               poster='poster.jpg' if holds else None,
                frames_dir='frames' if keep_frames else None, fps=fps, timing_s=list(timing), views=list(views),
                res=[W, H], view_res=list(res), ss=ss, frames=nframe, duration_s=round(nframe / fps, 2),
                renders=renders, adapter=R.info, clips=rows, features=rig_features(rig, head_light),
@@ -722,7 +726,9 @@ def page(rep, rom_json=None, log=print):
     if rep.get('video'):
         spec['videos'] = [dict(title='The video', text='%d clips, rest -> pose -> rest; a chapter per clip seeks to its '
                                'start.' % len(rep['clips']), videos=[dict(
-                                   path=os.path.join(out, rep['video']), caption='%s: %s, %d fps, %dx%d' % (
+                                   path=os.path.join(out, rep['video']),
+                                   poster=os.path.join(out, rep['poster']) if rep.get('poster') else None,
+                                   caption='%s: %s, %d fps, %dx%d' % (
                                        name, rep['encoder'], rep['fps'], rep['res'][0], rep['res'][1]),
                                    chapters=[dict(label='%02d %s' % (c['index'], c['name']), t=c['start_s'])
                                              for c in rep['clips']])])]

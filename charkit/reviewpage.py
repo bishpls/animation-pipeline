@@ -24,7 +24,7 @@ PAGE.json:
               a string or [text, status] (PASS / WARN / FAIL / INFO: coloured as the checks are)
   figures     extra sections of given pictures after the notes: [{"title", "text", "height", "images": [{"path",
               "caption"}]}] (a round's own measurement pictures: the drawn locks, a fit's overlay)
-  videos      extra sections of given videos after the notes, before the figures: [{"title", "text", "videos":
+  videos      extra sections of given videos after the notes, before the tables: [{"title", "text", "videos":
               [{"path", "caption", "poster", "chapters": [{"label", "t"}]}]}] (a motion check's mp4: copied under img/,
               played inline; each chapter a button that seeks the video to t seconds)
 
@@ -513,10 +513,10 @@ def make(spec, out=None, log=print):
     H.append('</div>')
     for p in spec.get('notes') or ():
         H.append('<p>%s</p>' % esc(p))
-    for sec in spec.get('tables') or ():
-        H.append(table_section(sec))
     for sec in spec.get('videos') or ():
         H.append(videos_section(page, sec))
+    for sec in spec.get('tables') or ():
+        H.append(table_section(sec))
     for sec in spec.get('figures') or ():
         H.append(figures_section(page, sec))
     # per view: the design beside every build, the full figure at one height, the head at one px per L
