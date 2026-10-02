@@ -76,7 +76,10 @@ nothing imported: the gate and `calibrate` read a tree's without running it; no 
             cream panel); ours_cls: our piece's pixels of that model-sheet class only (pieceqa.our_classes: 'cream',
             the panel's material on our skirt); ref: 'silhouette' compares with the drawn pieces as our surfaces
             would draw them (the drawing's lines inside the figure given to the nearest piece: bodymeasure.drawn_labels;
-            area's default) instead of the outfit's fill masks
+            area's default) instead of the outfit's fill masks; truth: NAME, the piece against its shape truth (the
+            manifest's shape_truth[NAME], charkit.layerref: its layer without what lies on it, Michael 2026-10-01),
+            ours drawn the way that sheet draws the outfit (without the entry's `without` pieces, or the piece
+            alone); shape_iou's iou_tol there is bodymeasure.iou_tol at OUTLINE_TOL (the guard's metric) on the two
   limits    [pass, warn] (within: PASS, WARN; beyond: FAIL), or a reference to a part's own table
             ('charkit.pieceqa.LIMITS.rows'); better 'lower' (default; shape_iou 'higher') or 'higher' (at least)
   part      the QA part that reports it: 'declared' (default: this module's part) or a part that evaluates its own
@@ -189,6 +192,10 @@ def shape_iou(Mo, Md, ctx, metric='iou_tol', close=False, round_=4):
     Md = fit(Md, Mo.shape)
     if Md.sum() < pieceqa.MIN_PX:
         return None
+    if ctx.get('truth') is not None and not close:     # (a shape truth: the guard's metric on the two masks)
+        v = bodymeasure.iou_tol(Mo, Md, bodymeasure.OUTLINE_TOL * ppl) if metric == 'iou_tol' else \
+            float((Mo & Md).sum()) / max(1, int((Mo | Md).sum()))
+        return dict(value=round(float(v), round_), ours=int(Mo.sum()), design=int(Md.sum()))
     if close or ctx.get('graph') is None:
         if close:
             Md, Mo = pieceqa.clean(Md, ppl), (pieceqa.clean(Mo, ppl) if Mo.any() else Mo)
@@ -1298,7 +1305,7 @@ def grade(v, limits, better='lower'):
 
 # ------------------------------------------------------------------------------------------------------------ measuring
 def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair=False, head=False, tones=False,
-           hands=False, body=False):
+           hands=False, body=False, truth=False):
     """what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the
     calibration's stand-ins patch it), the drawn piece masks, the piece map, the design's views; with lines, our
     outline pixels per view (our_lines); with hair, the hair as a piece (HAIR: our hair_* objects against the drawing's
@@ -1350,6 +1357,8 @@ def inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False, hair
     if body:                                      # (ref 'base_body': our skin alone, the base body sheet)
         out['base_body'] = base_body(design, tuple(O))
         out['our_body'] = our_body(B, ctx['ppl'], ctx['az3'], tuple(O))
+    if truth:                                     # (a declaration's `truth`: the shape truths and ours drawn their way)
+        _with_truths(B, out, ctx['ppl'], ctx['az3'])
     return out
 
 
@@ -1381,6 +1390,29 @@ def _with_hands(B, I):
             mo = pieceqa.members(lab, names, pm, 'cuff_' + s_)
             ho = handqa.hand_mask(skin_o, mo, ppl) if mo.sum() >= handqa.MIN_PX else None
             own.setdefault(v, {})['hand_' + s_] = ho['mask'] if ho is not None else np.zeros(lab.shape, bool)
+
+
+def _with_truths(B, I, ppl, az3):
+    """the shape truths in the inputs I (in place): `truth` the manifest's entries and masks (layerref.load_truths),
+    `without(view, exclude, classes=False)` our labels (or model-sheet classes) z-buffered without the named objects
+    (pieceqa.our_labels / our_classes' hide; cached), `alone_of(view, keep)` the named objects alone
+    (pieceqa.alone). Read when measured, so a calibration stand-in's patched pieceqa gives its own."""
+    from . import layerref, pieceqa
+    ST, TM = layerref.load_truths(B.spec)
+    I['truth'] = dict(entries=ST, masks=TM)
+    cache = {}
+
+    def without(view, exclude, classes=False):
+        key = (view, tuple(sorted(exclude)), classes)
+        if key not in cache:
+            if classes:
+                cache[key] = pieceqa.our_classes(B, ppl, az3, (view,), hide=set(exclude)).get(view)
+            else:
+                got = pieceqa.our_labels(B, ppl, az3, (view,), hide=set(exclude))[0].get(view)
+                cache[key] = None if got is None else got['lab']
+        return cache[key]
+    I['without'] = without
+    I['alone_of'] = lambda view, keep: pieceqa.alone(B, I['names'], view, az3, ppl, keep)
 
 
 def _with_hair(B, design, I):
@@ -1642,6 +1674,37 @@ def limits_of(d):
     raise KeyError(L)
 
 
+def _truth_pair(I, view, name, pieces, family):
+    """a declaration's `truth` NAME in a view: (ours, the truth, ctx updates) or None where the truth has no mask there.
+    Ours is the piece drawn as the truth's sheet draws the outfit: without the entry's `without` pieces' objects (our
+    label image z-buffered without them), or its objects alone (`alone`); the truth the manifest's shape_truth mask
+    VIEW__NAME (charkit.layerref.build_truths). class_iou reads our model-sheet classes drawn the same way against the
+    truth's mask as the drawing's class. The plain IoU (no in-context piece shapes: ctx graph None)."""
+    from . import pieceqa
+    T = I.get('truth') or {}
+    e = (T.get('entries') or {}).get(name)
+    Md = (T.get('masks') or {}).get('%s__%s' % (view, name))
+    if e is None or Md is None:
+        return None
+    names, pm = I['names'], I['pm']
+    excl = sorted({n for p in e.get('without') or () for n, _ in pm.get(p, [])})
+    extra = dict(graph=None, truth=name)
+    if e.get('alone'):
+        keep = {n for p in pieces for n, _ in pm.get(p, [])}
+        A = I['alone_of'](view, keep)
+        Mo = np.zeros(I['O'][view]['lab'].shape, bool) if A is None else A
+    else:
+        lab = I['without'](view, excl)
+        if lab is None:
+            return None
+        Mo = pieceqa.members(lab, names, pm, pieces[0])
+        extra['lab'] = lab
+    if family in CLASS_FAMILIES:
+        extra['cls_ours'] = I['without'](view, excl, classes=True)
+        extra['cls'] = Md
+    return Mo, fit(Md, Mo.shape), extra
+
+
 def evaluate(decls, I):
     """the declarations measured on the inputs I (inputs(), or a part's own: O, names, masks, pm, ppl, dv, lines?) ->
     (table {check: dict(ours, design)}, checks {check: qa.json's dict}). A view the design doesn't draw the piece in, or
@@ -1725,6 +1788,14 @@ def evaluate(decls, I):
             ctx['hair_other'] = member_mask(lab, {n: i for i, n in enumerate(names)}, I.get('hair_other_members') or [])
             ctx['head'] = I.get('head')
             ctx['tones'] = (I.get('tones') or {}).get(view)
+        tr = params.pop('truth', None)
+        if tr is not None:                                # (the piece's shape truth: ours drawn the sheet's way)
+            got = _truth_pair(I, view, tr, pieces, d['family'])
+            if got is None:
+                continue
+            Mo, Md, extra = got
+            Mo, Md = (Mo if len(pieces) > 1 else [Mo]), (Md if len(pieces) > 1 else [Md])
+            ctx.update(extra)
         ref = params.pop('ref', None) if d['family'] != 'area' else None
         if ref == 'silhouette':                           # (the drawn pieces with the drawing's lines given to them)
             S = [silhouette(I, view, p) for p in pieces]
@@ -1929,7 +2000,8 @@ def declared(B, design=None, out=None):
                                                   if d['family'] in HEAD_FAMILIES)),
                tones=tuple(v for v in VIEWS if any(v in (d.get('views') or VIEWS) for d in ds
                                                    if d['family'] in TONE_FAMILIES)),
-               body=any((d.get('params') or {}).get('ref') == 'base_body' for d in ds))
+               body=any((d.get('params') or {}).get('ref') == 'base_body' for d in ds),
+               truth=any('truth' in (d.get('params') or {}) for d in ds))
     if I is None:
         return None, {d['check'].format(view=v): {'status': 'SKIPPED', 'why': 'no design sheet or outfit masks'}
                       for d in ds for v in (d.get('views') or VIEWS)}

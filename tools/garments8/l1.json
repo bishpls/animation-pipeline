@@ -1,0 +1,332 @@
+{
+ "base": "charkit/out/g8_c0",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "face_region",
+  "sheet_pieces"
+ ],
+ "checks": [
+  "collar_*_truth",
+  "top_*_truth",
+  "neck_v_*",
+  "art_outline_neck",
+  "art_outline_collar",
+  "art_mirror_waist",
+  "art_speckle_neck",
+  "art_fragments_collar",
+  "bow_front_bleed",
+  "neck_crease",
+  "collar_*_torn",
+  "shoulder_*",
+  "sleeve_*_profile_*",
+  "piece_collar",
+  "piece_top",
+  "piece_bow"
+ ],
+ "variants": {
+  "T0": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_pt_hi": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.22,
+     -0.76
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_pt_lo": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.18,
+     -0.84
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_in_hi": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_sh_in": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.37,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_sh_lo": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.52
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_ba20": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 20
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_ba45": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 45
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_off": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.025,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  },
+  "T_a75": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 75,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.0,
+     -0.88
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   }
+  }
+ }
+}

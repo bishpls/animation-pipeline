@@ -1,0 +1,113 @@
+{
+ "check": "collar_three_quarter_truth",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T18:19:11",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "piece_collar"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9367,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.9276,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.9381,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.9307,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9488,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.9526,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.9469,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.9469,
+    "PASS"
+   ]
+  },
+  "min": 0.9276,
+  "max": 0.9526,
+  "spread": 0.025,
+  "median": 0.9425
+ },
+ "known_bad": {
+  "name": "g8_lapels0",
+  "value": 0.5136,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_pieces": {
+   "values": [
+    0.3213,
+    0.2053,
+    0.3959,
+    0.3487,
+    0.4182
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.3487,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.5136,
+  "status": "FAIL",
+  "margin": 0.442
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.025), g8_lapels0 reads 0.5136 FAIL, the floor voronoi_pieces FAIL, affine_pieces FAIL",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/g8_base",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 373.0
+}

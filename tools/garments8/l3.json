@@ -1,0 +1,536 @@
+{
+ "base": "charkit/out/g8_c0",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts",
+  "face_region",
+  "sheet_pieces"
+ ],
+ "checks": [
+  "collar_*_truth",
+  "top_*_truth",
+  "neck_v_*",
+  "art_outline_neck",
+  "art_outline_collar",
+  "art_mirror_waist",
+  "art_speckle_neck",
+  "art_fragments_collar",
+  "bow_front_bleed",
+  "neck_crease",
+  "collar_*_torn",
+  "shoulder_*",
+  "sleeve_*_profile_*",
+  "piece_collar",
+  "piece_top",
+  "piece_bow"
+ ],
+ "variants": {
+  "vh40": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 40
+  },
+  "vh40_V": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 40,
+   "garments.bodice_panel.cuts": [
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04
+    ],
+    [
+     "eye",
+     0,
+     "below",
+     -0.88
+    ]
+   ],
+   "garments.top.opening.half": [
+    [
+     -1.6,
+     0.175
+    ],
+    [
+     -1.2,
+     0.175
+    ],
+    [
+     -1.15,
+     0.15
+    ],
+    [
+     -1.05,
+     0.12
+    ],
+    [
+     -0.95,
+     0.09
+    ],
+    [
+     -0.88,
+     0.055
+    ],
+    [
+     -0.8,
+     0.055
+    ],
+    [
+     -0.72,
+     0.095
+    ],
+    [
+     -0.65,
+     0.115
+    ],
+    [
+     -0.6,
+     0.14
+    ],
+    [
+     -0.55,
+     0.155
+    ],
+    [
+     -0.5,
+     0.17
+    ]
+   ]
+  },
+  "vh46": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 46
+  },
+  "vh46_V": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 46,
+   "garments.bodice_panel.cuts": [
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04
+    ],
+    [
+     "eye",
+     0,
+     "below",
+     -0.88
+    ]
+   ],
+   "garments.top.opening.half": [
+    [
+     -1.6,
+     0.175
+    ],
+    [
+     -1.2,
+     0.175
+    ],
+    [
+     -1.15,
+     0.15
+    ],
+    [
+     -1.05,
+     0.12
+    ],
+    [
+     -0.95,
+     0.09
+    ],
+    [
+     -0.88,
+     0.055
+    ],
+    [
+     -0.8,
+     0.055
+    ],
+    [
+     -0.72,
+     0.095
+    ],
+    [
+     -0.65,
+     0.115
+    ],
+    [
+     -0.6,
+     0.14
+    ],
+    [
+     -0.55,
+     0.155
+    ],
+    [
+     -0.5,
+     0.17
+    ]
+   ]
+  },
+  "vh52": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 52
+  },
+  "vh52_V": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 52,
+   "garments.bodice_panel.cuts": [
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04
+    ],
+    [
+     "eye",
+     0,
+     "below",
+     -0.88
+    ]
+   ],
+   "garments.top.opening.half": [
+    [
+     -1.6,
+     0.175
+    ],
+    [
+     -1.2,
+     0.175
+    ],
+    [
+     -1.15,
+     0.15
+    ],
+    [
+     -1.05,
+     0.12
+    ],
+    [
+     -0.95,
+     0.09
+    ],
+    [
+     -0.88,
+     0.055
+    ],
+    [
+     -0.8,
+     0.055
+    ],
+    [
+     -0.72,
+     0.095
+    ],
+    [
+     -0.65,
+     0.115
+    ],
+    [
+     -0.6,
+     0.14
+    ],
+    [
+     -0.55,
+     0.155
+    ],
+    [
+     -0.5,
+     0.17
+    ]
+   ]
+  },
+  "vh58": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 58
+  },
+  "vh58_V": {
+   "garments.collar.lapel": {
+    "mode": "project",
+    "a": 85,
+    "spread": 1.0,
+    "off": 0.04,
+    "smooth": {
+     "grid": 0.01,
+     "dilate": 0.03,
+     "blur": 0.02
+    },
+    "point": [
+     0.2,
+     -0.8
+    ],
+    "shoulder": [
+     0.4,
+     -0.49
+    ],
+    "inner": [
+     0.02,
+     -0.82
+    ],
+    "bottom_a": 30
+   },
+   "garments.collar.flat_front": {
+    "a": 85,
+    "fade": 15
+   },
+   "garments.collar.v_half": 58,
+   "garments.bodice_panel.cuts": [
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04
+    ],
+    [
+     "eye",
+     0,
+     "below",
+     -0.88
+    ]
+   ],
+   "garments.top.opening.half": [
+    [
+     -1.6,
+     0.175
+    ],
+    [
+     -1.2,
+     0.175
+    ],
+    [
+     -1.15,
+     0.15
+    ],
+    [
+     -1.05,
+     0.12
+    ],
+    [
+     -0.95,
+     0.09
+    ],
+    [
+     -0.88,
+     0.055
+    ],
+    [
+     -0.8,
+     0.055
+    ],
+    [
+     -0.72,
+     0.095
+    ],
+    [
+     -0.65,
+     0.115
+    ],
+    [
+     -0.6,
+     0.14
+    ],
+    [
+     -0.55,
+     0.155
+    ],
+    [
+     -0.5,
+     0.17
+    ]
+   ]
+  }
+ }
+}
