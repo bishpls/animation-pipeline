@@ -288,3 +288,9 @@ charkit/out/garments8/sweeps/l3/sweep.json (control = g8_c0):
 - Review page: charkit/out/garments8/review/index.html (tools/garments8/review.json; `python -m charkit review page
   tools/garments8/review.json --out charkit/out/garments8/review`).
 - Box gate running: `remote gate tool/garments8 --into pipeline-3d` (log charkit/out/garments8/gate1.log).
+- Gate 1 (016ce01d into 3144b1f6): FAIL, 1 blocker: test_skirtqa.py (BadZipFile: an npz read while being written, 89.6 s
+  into the tests; the builds stopped). It passes locally (8 passed). Likely the produced outfit masks being built by a
+  concurrent test (pipeline-3d's hairident changed their cache key, so the box had no entry: locally a miss too, built
+  34 s). Warmed the box's produced cache (`remote run --box build2 outfit score charkit/spec/clawd.json`), gate 2
+  launched (log charkit/out/garments8/gate2.log). If it recurs: an infra item (the produced reference's write isn't
+  atomic for a concurrent reader), not this branch's.
