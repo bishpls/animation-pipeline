@@ -421,7 +421,8 @@ OPEN_KNOBS = ('palm', 'palm_w', 'wrist_w', 'palm_t', 'taper', 'overlap', 'finger
 def main(args):
     """python -m charkit handsheet fit [--pose open] [--spec S] [--over JSON] [--knobs a,b] [--method de --workers N
                                         --maxiter N] [--rounds N] [--png P] [--json J]
-       python -m charkit handsheet show [--pose open] [--spec S] [--over JSON] --out PNG"""
+       python -m charkit handsheet show [--pose open] [--spec S] [--over JSON] --out PNG
+       python -m charkit handsheet ratios [--spec S] [--over JSON] [--keys span,middle,..] [--iters N] [--json J]"""
     import json
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     from . import code_hand
@@ -429,6 +430,18 @@ def main(args):
     over = json.loads(opt('--over')) if opt('--over') else None
     if args and args[0] == 'joint':
         return joint_main(args)
+    if args and args[0] == 'ratios':
+        # the ratio refit at a rest (fit_ratios: our open hand drawn and read as the sheet's, the ratios moved by the
+        # difference): --over the ratio mode's knobs, --keys the ratios fitted (default FIT_RATIOS) -> --json
+        keys = tuple(opt('--keys').split(',')) if opt('--keys') else FIT_RATIOS
+        R, hist = fit_ratios(json.load(open(spec_path)), over or {}, iters=int(opt('--iters', 6)), keys=keys,
+                             log=lambda *a: print(*a, flush=True))
+        res = dict(target=ratios_of(cells()[('open', 'back')]), ratios=R, history=hist, keys=list(keys))
+        print(json.dumps(res, indent=1, default=float))
+        if opt('--json'):
+            os.makedirs(os.path.dirname(os.path.abspath(opt('--json'))), exist_ok=True)
+            json.dump(res, open(opt('--json'), 'w'), indent=1, default=float)
+        return 0
     if args and args[0] == 'palm':
         rep = palm_compare(opt('--build'), spec_path, json.loads(opt('--variants')), opt('--out'))
         print(json.dumps(rep, indent=1))
