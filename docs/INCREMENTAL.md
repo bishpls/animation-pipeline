@@ -202,6 +202,9 @@ its QA drawn three ways (charkit/out/incremental: bb, br, qa_r2; tools/increment
   the box picker's free-CPU rule (8 of 2026-10-01's gates in the worktrees' job records), where `auto` draws on the L4:
   these 5 readings have depended on the box all along (a gate's two builds share a box, so no gate compared across).
   The QA now records the adapter (qa.json measured.draw.adapter) and the gate report names both builds'.
+- **Two geometries.** A variant (the shoulder's fall and the collar's depth: 42 checks move) drawn both ways: the
+  same 5 INFO checks differ by the same amounts, no status changes, and the 42 geometry moves read alike under both
+  drawings. Same box: QA CPU 1125 -> 685 s (-39%).
 - **Cost.** On the same box the L4 cuts the drawn parts' CPU by two thirds (614 -> 208 s) and the QA's by 29%
   (1211 -> 856 s). But render2's cores run our numpy and Blender work 1.35-1.65x slower than the build box's (Blender
   187 -> 251 s, hair_select 68 -> 113, rom 155 -> 243: rom's cost isn't its drawing), so a build there costs about what

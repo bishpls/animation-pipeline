@@ -100,6 +100,19 @@ and on render2's L4 (br, the `auto` adapter there):
   208 s (-66%): declared 213.7 -> 87.2, look 135.3 -> 32.4, artifacts 93.2 -> 16.7, face_flags 74.2 -> 29.4,
   hair_noise 71.3 -> 29.8, scalp 25.6 -> 12.4; rom 247.7 -> 243.8 (its cost isn't its drawing). (face_region,
   sheet_body, skirt differ between the two runs by the design memo: the two processes share it on disk.)
+- **The 2x2 over two geometries** (qa_bv: the variant bv, body.shoulder.fall 0.1 -> 0.14 and the collar's v_depth
+  0.5 -> 0.42, which moves 42 checks): the CPU and L4 drawings differ in the same 5 INFO checks by the same amounts on
+  both geometries (the variant doesn't reach the boots, face or hair), 0 status changes either way; the 42 checks the
+  geometry moves move alike under both drawings (statuses agree). Same box: QA CPU 1124.8 -> 685.1 s (-39%), wall 790
+  -> 650 s. The L4 harness run equals bv's in-build L4 QA (0 differ).
+
+  | check | base, CPU | base, L4 | variant, CPU | variant, L4 |
+  | --- | --- | --- | --- | --- |
+  | art_terminator_boots | 5.41 INFO | 5.679 INFO | 5.41 INFO | 5.679 INFO |
+  | face_shadow_3q | 0.2825 INFO | 0.2824 INFO | 0.2825 INFO | 0.2824 INFO |
+  | face_shadow_chin | 0.6234 INFO | 0.6231 INFO | 0.6234 INFO | 0.6231 INFO |
+  | face_shadow_neck_3q | 0.0781 INFO | 0.0782 INFO | 0.0781 INFO | 0.0782 INFO |
+  | hair_tone_edges | 0.0766 INFO | 0.0763 INFO | 0.0766 INFO | 0.0763 INFO |
 - **Decision (mine, reported):** the default routing stays (the box picker's free-CPU rule; `remote --gpu build|gate`
   takes a render box on request). Routing every build to render2 buys ~5% CPU and lengthens the QA's wall (render2's
   cores 1.35-1.65x slower for numpy and Blender), on one 10-slot box. The saving needs the drawing split from the build
