@@ -250,3 +250,34 @@ truth_vs_hand.png, recon2.json):
   the truth's V (B_V): neck_v_front 0.558 -> 0.717, 3q 0.523 -> 0.531, top_front_truth 0.773 -> 0.796, piece_top front
   0.56 -> 0.59; but art_outline_neck 7.4 -> 9.3 and neck_crease 24.2 W -> 34.6 F on B (lapels off 0.025 + inner -0.82;
   28.2 W with off 0.015): neck_crease is an existing check: a regression to FAIL blocks.
+
+### Sweep l3: v_half on the truth-read lapels (the coordinator's one targeted step) -> no row clears the landing bar
+Base: T0 with the V point at -0.82 (inner [0.02, -0.82], off 0.04); v_half 40/46/52/58, each with and without l2's V
+(the bodice panel cut to -0.88, the jacket's opening along the truth's V). tools/garments8/rowjudge.py on
+charkit/out/garments8/sweeps/l3/sweep.json (control = g8_c0):
+| row | collar truth f / 3q | neck_v f / 3q | art_outline_neck | neck_crease | piece_collar guard (worst) | new FAIL |
+|---|---|---|---|---|---|---|
+| control | 0.771 / 0.559 | 0.562 / 0.498 | 11.23 | 24.2 W | - | - |
+| vh40 | 0.887 / 0.500 | 0.570 / 0.519 | 6.16 | 14.8 | f -16%, 3q -27%, p -27% | collar_three_quarter_torn |
+| vh40_V | 0.892 / 0.509 | 0.725 / 0.512 | 9.08 | 14.8 | 3q -25%, p -27% | collar_three_quarter_torn |
+| vh46_V | 0.907 / 0.529 | 0.735 / 0.558 | 9.90 | 50.1 F | 3q -20%, p -24% | 3q torn, neck_crease |
+| vh52_V | 0.901 / 0.532 | 0.757 / 0.582 | 7.49 | 105.8 F | 3q -17%, p -23% | 3q torn, neck_crease |
+| vh58_V | 0.876 / 0.522 | 0.772 / 0.587 | 7.33 | 13.7 P | 3q -17%, p -22% | collar_three_quarter_torn |
+- Every row breaks the guard on piece_collar three-quarter (-17..-27%) and profile (-22..-27%) and adds
+  collar_three_quarter_torn (control 0.001 W -> 0.012-0.063 F: the flat lapels' edge in three-quarter); v_half 46/52
+  also push neck_crease to FAIL (the collar's mask under the neck). The front recovers (collar truth 0.88-0.91 PASS,
+  piece_collar front within 15% from v_half 46), the V opens with l2's changes (neck_v_front 0.56 -> 0.73-0.77).
+- So per the coordinator: not landed; step 1 gated alone. The lapels stay as in pipeline-3d's default.
+
+### Next steps for the lapels (next round, start here)
+1. The three-quarter is the open problem: the flat lapels in 3q (the near lapel's outer part and the far lapel's
+   shoulder band) cover the drawn V's skin and leave the drawn collar's shoulder end bare (recon2_T0.png, right).
+   Measure the 3q lapel per row against the truth (collar_three_quarter_truth stays ~0.50-0.53 in every l1-l3 row:
+   none of the front-view knobs move it): the projected lapels are laid from the front view (garments.collar lapel
+   project: the columns straight in the front view), so their 3q shape is whatever that projection gives on the
+   chest. A 3q-aware term (the lapel's azimuth spread `spread`, the outer edge's depth `off` per azimuth, or fitting
+   the template in 3q too: the truth's 3q collar) is the lever to try; and the profile (piece_collar profile -22%).
+2. collar_three_quarter_torn with the flat lapels: their 3q edge (0.012-0.063 F); off 0.025 cleared it in l1
+   (0.000) but pushed neck_crease to FAIL (34.6): the collar's hide_under mask (reach/rim) with the new collar.
+3. Then the V (l2/l3's opening + panel cut: neck_v_front 0.73-0.77) and the puffs' dome (bow_front_bleed 0.158,
+   sleeve_*_profile_L) as planned; the motion items are not this round's.
