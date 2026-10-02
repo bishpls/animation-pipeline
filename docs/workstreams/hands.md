@@ -653,3 +653,16 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
   iterations (the thumb kept); middle 1.096 -> 1.035, span 0.900 -> 0.891, taper 0.443 -> 0.425, thumb_w 0.233 ->
   0.261; index/ring/little within 0.005. **rest5 RUNNING** (build box; charkit/out/hands3/rest5): the size and rest
   angles refit at these ratios (Powell from rest_final, rest5_start.json).
+- **rest5** (charkit/out/hands3/rest5; at ratios2's ratios): palm_len 0.3203, curl 3.05, spread 0.78, thumb_out 13.97,
+  thumb 1.22 PL; fit-scale IoU front 0.691/0.705, back 0.705/0.692, 3q 0.793/0.784, profile 0.591; cleftpos all within
+  PASS/WARN but profile. **Not built:** front/back under Michael's accepted 0.71-0.73. Built **rest4p** (the spec as
+  committed; its open hand read on the flat open pose: middle +0.058 PL over the sheet's (handsheet_open_fingers WARN),
+  span +0.017, index/ring/little within 0.004; charkit/out/hands3/open_landmarks.png/.json). The page asks A (rest4p,
+  built) or B (rest5). Coordinator (Michael, end of session): no further fits or sweeps; land it.
+- The library's poses on the built hand (`handposes grade`, charkit/out/hands3/poses_lib): open 0.644 / 0.679, relaxed
+  0.870 / 0.727, fist 0.675 / 0.608 (its reach 0.53 of the open hand vs the drawn fist's 0.80: the library's 85/95/60
+  curls tighter than the drawing's fitted 39/111/23), point 0.667 / 0.720. Dexterity phase.
+- **Builds RUNNING:** charkit/out/hands3_after (boards body,design; auto box; log charkit/out/hands3/after.log) and its
+  QA-only twin charkit/out/hands3_after_q (build box; after_q.log). Then: calibrate 'fingerlines_*,handsheet_open_*'
+  on the build box against hands3_after_q, the review page (charkit/out/hands3/review/page.json), the acceptance,
+  pregate --box auto, gate.
