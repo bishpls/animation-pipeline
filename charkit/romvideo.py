@@ -5,7 +5,7 @@ reads a build and writes nothing into it but its own folder.
 
     python -m charkit rom video BUILD [--out DIR] [--poses a,b] [--clips rom,motionqa] [--views 0,35,90]
                                       [--res 640x800] [--fps 24] [--timing 1,0.5,1] [--export PATH] [--frames] [--ss 2]
-                                      [--rom ROM.json] [--no-page]
+                                      [--rom ROM.json] [--no-page] [--head-light posed|rest]
         -> DIR/rom_video.mp4 (H.264, yuv420p, 24 fps: plays in a browser), DIR/contact.png (each clip at its hold, every
            view), DIR/video.json (the clips and their frames, the rig features honoured, seconds per frame),
            DIR/page/index.html (the review page, charkit.reviewpage, from DIR/page.json: the video with a chapter per
@@ -28,8 +28,9 @@ The pictures: the ROM boards' views (rom.board_views: orthographic, one scale fo
 picture's height) at VIEWS (front, three-quarter, profile), side by side, each frame labelled with the clip's index, name,
 group and phase. Like a runtime (engine/three/charkit/look.js), the face's SDF shading and the baked cast shadows' lookup
 read the key light in the posed head's frame; like the ROM boards, the baked cast shadows are off (they belong to the
-rest pose) and the outlined objects' normals are recomputed on the posed surface (charkit.render.normals). Identical
-poses render once (a clip's out is its in reversed; the hold one picture; every clip's rest the same).
+rest pose) and the outlined objects' normals are recomputed on the posed surface (charkit.render.normals);
+--head-light rest draws the face as the boards do (tools/motionvid/parity.py: then within 1-2 levels of the boards'
+pictures). Identical poses render once (a clip's out is its in reversed; the hold one picture; every clip's rest the same).
 """
 import copy, json, os, shutil, subprocess, sys, time
 
@@ -319,7 +320,7 @@ def posed_renderer(M, adapter=None, ss=2):
 
 
 # --------------------------------------------------------------------------------------------------- the rig's features
-def rig_features(rig):
+def rig_features(rig, head_light='posed'):
     """what the export carries that a runtime plays, and which of it this video honours -> [dict(feature, carried,
     honoured, how)]."""
     js = rig.M.js
@@ -357,8 +358,10 @@ def rig_features(rig):
              'nothing to simulate'),
         dict(feature='morph targets (expressions)', carried='%d' % morphs if morphs else 'none (the look export)',
              honoured=False, how='the rest face throughout'),
-        dict(feature='head-space light', carried='look extension (face SDF, cast lookup)', honoured=True,
-             how='the key light read in the posed head\'s frame, as engine/three/charkit/look.js does'),
+        dict(feature='head-space light', carried='look extension (face SDF, cast lookup)',
+             honoured=head_light == 'posed', how='the key light read in the posed head\'s frame, as '
+             'engine/three/charkit/look.js does' if head_light == 'posed' else 'the key light in the rest head\'s frame '
+             '(--head-light rest: as the ROM boards draw)'),
         dict(feature='baked cast shadows', carried='rest pose only', honoured=False,
              how='off, as on the ROM boards (they belong to the rest pose)'),
         dict(feature='cloth (motion QA)', carried='a build-side solve, not in the export', honoured=False,
@@ -535,8 +538,9 @@ def encode_frames(d, fps=FPS, log=print):
 
 # ------------------------------------------------------------------------------------------------------------ the run
 def run(build, out=None, poses=None, clips=('rom', 'motionqa'), views=VIEWS, res=RES, fps=FPS, timing=TIMING,
-        export=None, frames=False, ss=2, adapter=None, log=print):
-    """the video, the contact sheet and video.json for a build -> the report (video.json's dict)."""
+        export=None, frames=False, ss=2, adapter=None, head_light='posed', log=print):
+    """the video, the contact sheet and video.json for a build -> the report (video.json's dict). head_light 'posed':
+    the face's light in the posed head's frame (look.js); 'rest': in the rest head's (the ROM boards')."""
     from . import rom
     from PIL import Image
     t0, c0 = time.time(), time.process_time()
@@ -581,7 +585,7 @@ def run(build, out=None, poses=None, clips=('rom', 'motionqa'), views=VIEWS, res
         tb = time.time()
         posed = sk.prims(D)
         tc = time.time()
-        R.set_pose(posed, C3 @ Rh @ C3.T)
+        R.set_pose(posed, C3 @ Rh @ C3.T if head_light == 'posed' else None)
         td = time.time()
         imgs = [R.render(v) for v in V]
         te = time.time()
@@ -633,7 +637,8 @@ def run(build, out=None, poses=None, clips=('rom', 'motionqa'), views=VIEWS, res
                encoder=E.name if E is not None else None, contact=os.path.basename(sheet) if sheet else None,
                frames_dir='frames' if keep_frames else None, fps=fps, timing_s=list(timing), views=list(views),
                res=[W, H], view_res=list(res), ss=ss, frames=nframe, duration_s=round(nframe / fps, 2),
-               renders=renders, adapter=R.info, clips=rows, features=rig_features(rig),
+               renders=renders, adapter=R.info, clips=rows, features=rig_features(rig, head_light),
+               head_light=head_light,
                seconds=dict(wall=round(wall, 1), cpu=round(time.process_time() - c0, 1), rig=round(t_rig, 1),
                             setup=round(t_setup, 1), encode=round(E.seconds, 1) if E is not None and E.proc else None,
                             **{k: round(v, 1) for k, v in tm.items()}),
@@ -748,7 +753,8 @@ def main(args):
               clips=tuple(lst(opt('--clips', 'rom,motionqa'))),
               views=tuple(int(x) for x in lst(opt('--views', ','.join(map(str, VIEWS))))), res=res,
               fps=int(opt('--fps', FPS)), timing=tuple(float(x) for x in lst(opt('--timing', '1,0.5,1'))),
-              export=opt('--export'), frames='--frames' in args, ss=int(opt('--ss', 2)))
+              export=opt('--export'), frames='--frames' in args, ss=int(opt('--ss', 2)),
+              head_light=opt('--head-light', 'posed'))
     if '--no-page' not in args:
         rep['page'] = page(rep, opt('--rom'))[1]
     print(json.dumps({k: rep.get(k) for k in ('out', 'video', 'contact', 'page', 'frames', 'duration_s', 'per_frame_s',
