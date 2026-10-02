@@ -643,3 +643,13 @@ polish: deferred to the dexterity phase (the hands-only ink colour, the cuffless
   point fitted per row on the new rest. Then: POSES['open'] from it, `charkit handsheet ratios --over rest_final.json
   --keys span,middle,index,ring,little,taper,thumb_w` (the thumb kept: the measure confounds its length and angle),
   the build.
+- **poses2** (build2; charkit/out/hands3/poses2, on rest4p): fitted per row, IoU back / side (poses1 before): open
+  0.667 / 0.709 (0.640 / 0.548), tips 5/5, 3/3; relaxed 0.823 / 0.803 (0.874 / 0.620); fist 0.861 / 0.716 (0.799 /
+  0.654), reach 0.73 vs the sheet's 0.80; point 0.699 / 0.795 (0.714 / 0.685). Fitted angles: open spread 12.1, thumb
+  spread 24.8, oppose 14.9 (its curl -18 hyperextends to chase the reach: not taken); fist MCP 39, PIP 111, DIP 23,
+  thumb oppose 69; point index -2.6, others 74/112/37. POSES['open'] now flat on the rest (curl -4.45) with poses2's
+  fan and thumb; fist and point stay the library's (anatomical: 85/95/60), graded by hand_sheet's INFO rows.
+- **ratios2** (`charkit handsheet ratios`, build2; charkit/out/hands3/ratios2): converged within 0.004-0.008 in 4-6
+  iterations (the thumb kept); middle 1.096 -> 1.035, span 0.900 -> 0.891, taper 0.443 -> 0.425, thumb_w 0.233 ->
+  0.261; index/ring/little within 0.005. **rest5 RUNNING** (build box; charkit/out/hands3/rest5): the size and rest
+  angles refit at these ratios (Powell from rest_final, rest5_start.json).
