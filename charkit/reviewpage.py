@@ -24,6 +24,9 @@ PAGE.json:
               a string or [text, status] (PASS / WARN / FAIL / INFO: coloured as the checks are)
   figures     extra sections of given pictures after the notes: [{"title", "text", "height", "images": [{"path",
               "caption"}]}] (a round's own measurement pictures: the drawn locks, a fit's overlay)
+  videos      extra sections of given videos after the notes, before the figures: [{"title", "text", "videos":
+              [{"path", "caption", "poster", "chapters": [{"label", "t"}]}]}] (a motion check's mp4: copied under img/,
+              played inline; each chapter a button that seeks the video to t seconds)
 
 Writes DIR/index.html and DIR/img/ (default charkit/out/review_pages/<title slug>/); every picture links its source.
 The design's pictures come from the manifest's head and body turnarounds (charkit.preview.design_refs); a build's from
@@ -440,6 +443,38 @@ def figures_section(page, sec):
     return ''.join(H)
 
 
+def videos_section(page, sec):
+    """a section of given videos: {"title", "text", "videos": [{"path", "caption", "poster", "chapters": [{"label",
+    "t"}]}]}, each copied under img/ and played inline (H.264 mp4 plays in every browser), its chapters as buttons that
+    seek it."""
+    import shutil
+    H = ['<h2>%s</h2>' % esc(sec.get('title') or '')]
+    if sec.get('text'):
+        H.append('<p class="k">%s</p>' % esc(sec['text']))
+    for k, v in enumerate(sec.get('videos') or ()):
+        src = os.path.abspath(os.path.expanduser(v['path']))
+        if not os.path.exists(src):
+            continue
+        tag = 'vid_%s_%d' % (_slug(sec.get('title'))[:24], k)
+        dst = os.path.join(page.img, '%s_%s' % (tag, os.path.basename(src)))
+        shutil.copyfile(src, dst)
+        poster = ''
+        if v.get('poster') and os.path.exists(os.path.expanduser(v['poster'])):
+            pp = os.path.join(page.img, '%s_poster_%s' % (tag, os.path.basename(v['poster'])))
+            shutil.copyfile(os.path.expanduser(v['poster']), pp)
+            poster = ' poster="%s"' % esc(page.rel(pp))
+        H.append('<figure style="max-width:100%%"><video id="%s" src="%s"%s controls loop muted playsinline '
+                 'preload="metadata" style="display:block;max-width:100%%;height:auto"></video><figcaption '
+                 'style="max-width:none">%s <a href="%s">(the file)</a></figcaption></figure>' % (
+                     tag, esc(page.rel(dst)), poster, esc(v.get('caption') or ''), esc(page.rel(dst))))
+        ch = v.get('chapters') or ()
+        if ch:
+            H.append('<div class="row" style="gap:4px;margin-top:6px">%s</div>' % ''.join(
+                '<button type="button" onclick="var v=document.getElementById(\'%s\');v.currentTime=%.3f;v.play()">'
+                '%s</button>' % (tag, float(c['t']), esc(c['label'])) for c in ch))
+    return ''.join(H)
+
+
 # ------------------------------------------------------------------------------------------------------------ the page
 def make(spec, out=None, log=print):
     """the page from a PAGE.json's dict -> its index.html path."""
@@ -480,6 +515,8 @@ def make(spec, out=None, log=print):
         H.append('<p>%s</p>' % esc(p))
     for sec in spec.get('tables') or ():
         H.append(table_section(sec))
+    for sec in spec.get('videos') or ():
+        H.append(videos_section(page, sec))
     for sec in spec.get('figures') or ():
         H.append(figures_section(page, sec))
     # per view: the design beside every build, the full figure at one height, the head at one px per L
