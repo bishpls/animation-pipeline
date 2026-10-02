@@ -63,11 +63,14 @@ The declaration is a sweep's (base, stage, spec, set, parts, checks, objects, bo
               its share of the budget (evaluations, generations and minutes split evenly; the stall rule per start),
               one history (rows named sNAME_gGG_KK), the best across them all; without it, one search from the x0s
   reference   {NAME: {PATH: value}}: points evaluated beside the search for comparison (a hand-found result)
-  confirm     {top 3, spec, args, where 'auto' | 'here' | 'remote', box, control 'auto', compare {NAME: BUILD}}: the
-              best `top` distinct feasible candidates built for real (`charkit build`: Blender, the render drawing,
-              every QA part), scored against a real build of the control (the base build itself when `set` is empty)
+  confirm     {top 3, spec, args, where 'auto' | 'here' | 'remote', box, control 'auto', compare {NAME: BUILD},
+              profile}: the best `top` distinct feasible candidates built for real (`charkit build`: Blender, the render
+              drawing, the QA), scored against a real build of the control (the base build itself when `set` is empty)
               with every term and constraint, the real-only ones included; the pick is the best confirmed feasible;
-              compare: existing builds scored the same way beside them (a hand-found result)
+              compare: existing builds scored the same way beside them (a hand-found result). profile: the confirm
+              builds' QA profile, default 'iterate' (Michael, 2026-10-01): motion QA skipped, explicitly (confirm.json
+              `profile` and `skipped`, the log), its checks left out of the comparison on both sides; 'full' when a term
+              or a keep pattern reads a check of a part iterate skips, or when set so (gates keep everything)
   fidelity    {PATTERN: 'fast' | 'real'}: overrides FIDELITY for this run (a check the audit read differently)
 
 Fidelity (FIDELITY, REAL_PARTS; `optimize audit BUILD` measures it): the screen draws every row with the numpy
@@ -1044,6 +1047,41 @@ def load_decl(decl):
     return sw.load_decl(d)
 
 
+def part_checks(parts, q):
+    """the checks these QA parts measure, from a build's qa.json (its record of each part's checks, the parts' prefixes
+    and their SKIPPED entries' keys) -> {names}."""
+    from . import registry
+    parts = set(parts or ())
+    if not parts or not q:
+        return set()
+    rec = ((q.get('measured') or {}).get('part_checks') or {})
+    out = {c for p_ in parts for c in rec.get(p_) or ()}
+    reg = [p_ for p_ in registry.parts() if p_.name in parts]
+    out |= {k for k in q.get('checks') or {} if any(p_.prefix and k.startswith(p_.prefix) for p_ in reg)}
+    return out | {p_.skip_key for p_ in reg}
+
+
+def confirm_profile(P, base_q=None):
+    """the confirm builds' QA profile -> (profile, [the parts it skips], why): confirm.profile when set, else 'iterate'
+    (Michael, 2026-10-01: motion QA skipped, and reported), unless an objective term or a keep pattern reads a check of a
+    part iterate skips (by the base build's record of the part's checks, or the part's prefix): then 'full'."""
+    from . import qa3d, registry
+    want = (P.confirm or {}).get('profile')
+    if want:
+        prof = qa3d.profile_of(want)
+        return prof, sorted(qa3d.skipped_by(prof)), 'confirm.profile'
+    skip = sorted(qa3d.skipped_by('iterate'))
+    owned = part_checks(skip, base_q) - {p_.skip_key for p_ in registry.parts() if p_.name in skip}
+    pref = [p_.prefix for p_ in registry.parts() if p_.name in skip and p_.prefix]
+    pats = [t['check'] for t in P.objective] + list(P.constraints.get('keep') or [])
+    reads = lambda pat: any(fnmatch.fnmatchcase(c, pat) for c in owned) or any(
+        pat.startswith(x) or fnmatch.fnmatchcase(x, pat) for x in pref)
+    need = [pat for pat in pats if reads(pat)]
+    if need:
+        return 'full', [], 'the objective or keep reads %s, measured by %s' % (', '.join(need), ', '.join(skip))
+    return 'iterate', skip, 'the default: %s skipped, explicitly' % (', '.join(skip) or 'nothing')
+
+
 # ---------------------------------------------------------------------------------------------------------- the run
 class Run:
     """one optimization: its folder, history (the cache), state and limits."""
@@ -1582,6 +1620,17 @@ class Run:
         spec_path = C.get('spec') or self.decl.get('spec') or 'charkit/spec/clawd.json'
         spec_path = spec_path if os.path.isabs(spec_path) else os.path.join(ROOT, spec_path)
         raw = json.load(open(spec_path))
+        try:
+            base_q = json.load(open(os.path.join(self.decl.get('base') or '', 'qa', 'qa.json')))
+        except (OSError, ValueError):
+            base_q = None
+        prof, skipped_parts, why_prof = confirm_profile(P, base_q)
+        ca = list(C.get('args') or [])
+        if '--profile' in ca and ca.index('--profile') + 1 < len(ca):     # (the declaration's own args say)
+            from . import qa3d
+            prof = qa3d.profile_of(ca[ca.index('--profile') + 1])
+            skipped_parts, why_prof = sorted(qa3d.skipped_by(prof)), 'confirm.args'
+        self.log('optimize: confirm: QA profile %s (%s)' % (prof, why_prof))
         where = C.get('where') or 'auto'
         if where == 'auto':
             where = 'here' if sys.platform.startswith('linux') and os.path.isdir('/srv/work') else 'remote'
@@ -1595,6 +1644,8 @@ class Run:
             json.dump(s, open(sp, 'w'), indent=1)
             bdir = os.path.join(d, 'build')
             args = list(C.get('args') or [])
+            if '--profile' not in args:
+                args += ['--profile', prof]
             if where == 'here':
                 cmd = [sys.executable, '-m', 'charkit', 'build', sp, '--out', bdir] + args
             else:
@@ -1622,7 +1673,9 @@ class Run:
             res = dict(error='no real control', builds=[dict(name=h['name'], build=b) for h, _, b, _ in jobs])
             json.dump(res, open(self.path('confirm.json'), 'w'), indent=1)
             return res
-        R = Scorer(P, q0.get('checks') or {}, mode='real', log=self.log)
+        # (the parts the profile skipped: their checks left out of the comparison on both sides, and said so)
+        drop = part_checks(skipped_parts, q0)
+        R = Scorer(P, {k: v for k, v in (q0.get('checks') or {}).items() if k not in drop}, mode='real', log=self.log)
         rows = []
         for h, d, bdir, cmd in jobs:
             qp = os.path.join(bdir, 'qa', 'qa.json')
@@ -1630,7 +1683,7 @@ class Run:
                 rows.append(dict(name=h['name'], build=bdir, error='no qa.json (see %s)' % os.path.join(d, 'build.log')))
                 continue
             q = json.load(open(qp))
-            sc = R.score(q.get('checks') or {})
+            sc = R.score({k: v for k, v in (q.get('checks') or {}).items() if k not in drop})
             cpu = None
             try:
                 cpu = json.load(open(os.path.join(bdir, 'build_cpu.json'))).get('cpu_seconds')
@@ -1649,7 +1702,11 @@ class Run:
         ok.sort(key=lambda r: r['f'])
         res = dict(against=ref_name, against_qa=base_qa if not need_ctrl else os.path.join(
             self.path('confirm', CONTROL, 'build'), 'qa', 'qa.json'), terms=[t['check'] for t in R.terms],
-            rows=rows, pick=ok[0]['name'] if ok else None, where=where)
+            rows=rows, pick=ok[0]['name'] if ok else None, where=where, profile=prof,
+            skipped={p_: sorted(part_checks([p_], q0)) for p_ in skipped_parts})
+        if skipped_parts:
+            self.log('optimize: confirm: %s skipped by the QA profile %s (%d checks left out of the comparison)' % (
+                ', '.join(skipped_parts), prof, len(drop)))
         json.dump(sw._plain(res), open(self.path('confirm.json'), 'w'), indent=1)
         st = json.load(open(self.path('state.json')))
         st['confirmed'] = True

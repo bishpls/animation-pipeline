@@ -648,6 +648,79 @@ def test_build_cpu_is_compared_like_for_like(tmp_path=None):
     assert v == 'FAIL' and block[0]['kind'] == 'build CPU'
 
 
+def test_budget_rule_blocks_over_the_budget_and_the_baseline(tmp_path=None):
+    """Michael's budget rule (2026-10-01): a candidate blocks when its build CPU is more than 10% over charkit/budget.json's
+    total AND more than 5% over its baseline's; either alone is reported, not blocked. Both are read in build-box
+    seconds (the box's speed) with a restored venv step counted at the budget's cold cost and `resolve` at its
+    restored figure when it built produced references, so a cache hit or a rebuild of the shared references doesn't
+    move the figure; and the shipped budget.json carries what the rule reads."""
+    import pathlib
+    tmp_path = tmp_path or pathlib.Path(tempfile.mkdtemp())
+    budget = {'total': 1000.0, 'cold': {'code_head': 60.0, 'pieces_hair': 200.0, 'resolve': 5.0}}
+    ph = lambda **k: {n: [1.0, v] for n, v in k.items()}
+
+    def build(name, cpu, phases, steps=None, produced=None):
+        d = tmp_path / name
+        d.mkdir()
+        json.dump({'cpu_seconds': cpu, 'phases': ph(**phases), 'restored': {'steps': steps or {},
+                                                                            'produced': produced or {}}},
+                  open(d / 'build_cpu.json', 'w'))
+        return str(d)
+    # the baseline restored code_head and pieces_hair (1 s each): counted at their cold cost, 810 - 2 + 260 = 1068
+    base = build('base', 810.0, dict(resolve=4.0, code_head=1.0, pieces_hair=1.0, blender=180.0, qa=620.0),
+                 {'code_head': 'restored', 'pieces_hair': 'restored'}, {'hull': 'hit'})
+    B = gate.budget_basis(base, budget)
+    assert B['seconds'] == 1068.0 and [c[0] for c in B['counted']] == ['code_head', 'pieces_hair'], B
+    # the same code, the steps run cold and the produced references rebuilt (resolve 250 -> counted as 5): 1070
+    same = build('same', 1315.0, dict(resolve=250.0, code_head=60.0, pieces_hair=200.0, blender=180.0, qa=620.0),
+                 {'code_head': 'ran', 'pieces_hair': 'ran'}, {'hull': 'built'})
+    assert gate.budget_basis(same, budget)['seconds'] == 1070.0
+    r = gate.budget_rule(base, same, budget)
+    assert not r['block'] and r['over_budget'] == 1.07, r
+    # the QA 120 s dearer (1188: 1.19x the budget, 1.11x the baseline): blocks
+    dear = build('dear', 930.0, dict(resolve=4.0, code_head=1.0, pieces_hair=1.0, blender=180.0, qa=740.0),
+                 {'code_head': 'restored', 'pieces_hair': 'restored'})
+    r = gate.budget_rule(base, dear, budget)
+    assert r['block'] and r['over_budget'] == 1.188 and r['over_base'] == 1.112, r
+    v, block, R = _judge({'checks': {}}, {'checks': {}}, cpu_seconds=[810.0, 930.0], budget_rule=r)
+    assert v == 'FAIL' and [b['kind'] for b in block] == ['build CPU budget'], block
+    assert 'over its budget' in gate._why(block[0]) and '1.19x' in gate._why(block[0])
+    # over the budget, but no dearer than its baseline (someone else's creep, or the box): reported, not blocked
+    r = gate.budget_rule(dear, dear, budget)
+    assert r['over_budget'] > 1.1 and r['over_base'] == 1.0 and not r['block']
+    v, block, R = _judge({'checks': {}}, {'checks': {}}, cpu_seconds=[930.0, 930.0], budget_rule=r)
+    assert v == 'PASS', block
+    # 11% dearer than its baseline but within 10% of the budget: not blocked (the 1.5x rule still applies alone)
+    cheap = build('cheap', 700.0, dict(resolve=4.0, code_head=1.0, pieces_hair=1.0, blender=150.0, qa=540.0),
+                  {'code_head': 'restored', 'pieces_hair': 'restored'})
+    r = gate.budget_rule(cheap, base, budget)
+    assert r['over_base'] > 1.05 and r['over_budget'] < 1.1 and not r['block'], r
+    # the box's speed: build2's seconds (1.25x a build-box core) scaled to build-box seconds before the budget reads them
+    r = gate.budget_rule(base, dear, budget, speed=1.25)
+    assert r['cand'] == round((930.0 - 2.0) * 1.25 + 260.0, 1), r
+    # no baseline record: the baseline half can't be read, nothing blocks
+    r = gate.budget_rule(str(tmp_path / 'nowhere'), dear, budget)
+    assert r['over_base'] is None and not r['block']
+    # the shipped budget: a total, the cold costs of the cached venv steps and resolve
+    from charkit import profile
+    S = profile.load_budget()
+    assert S['total'] > 0 and all(S['cold'].get(k) is not None for k in ('code_head', 'hair_select', 'pieces_hair',
+                                                                         'resolve')), S
+
+
+def test_remote_gate_passes_the_box_speed():
+    """`remote gate` runs `charkit gate` with the box's CPU_SPEED (its env file), which gate.cpu_speed reads."""
+    os.environ.pop('CHARKIT_CPU_SPEED', None)
+    assert gate.cpu_speed() == 1.0
+    os.environ['CHARKIT_CPU_SPEED'] = '1.25'
+    try:
+        assert gate.cpu_speed() == 1.25
+    finally:
+        os.environ.pop('CHARKIT_CPU_SPEED')
+    src = open(os.path.join(os.path.dirname(gate.__file__), 'remote.py')).read()
+    assert 'CHARKIT_CPU_SPEED=%(speed)s python -m charkit gate' in src and 'speed=q(_speed())' in src
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

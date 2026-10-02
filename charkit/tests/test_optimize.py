@@ -246,6 +246,32 @@ def test_qa_stage_through_the_sweep():
         assert next(h for h in R.H if h['name'] == 'control')['checks']['probe_z']['value'] == 4.0
 
 
+def test_confirm_builds_run_the_iterate_profile_unless_a_term_reads_motion():
+    """the confirm builds' QA profile (Michael, 2026-10-01): 'iterate' by default, motion QA skipped explicitly and its
+    checks left out of the comparison on both sides; 'full' when an objective term or a keep pattern reads a motion check,
+    or when confirm.profile says so."""
+    mk = lambda obj, keep=(), **conf: op.Problem(dict(optimize=dict(
+        knobs=[dict(path='a', lo=0, hi=1)], objective=[dict(check=c, toward='pass', limits=[1, 2]) for c in obj],
+        constraints=dict(keep=list(keep)), confirm=conf)))
+    base = {'checks': {'motion_kick_skirt_inside': dict(value=0.1, status='PASS'), 'art_x': dict(value=1, status='PASS')},
+            'measured': {'part_checks': {'motion': ['motion_kick_skirt_inside', 'motion_squat_skirt_stretch']}}}
+    prof, skip, why = op.confirm_profile(mk(['art_*']), base)
+    assert prof == 'iterate' and skip == ['motion'] and 'motion skipped' in why, (prof, skip, why)
+    for obj, keep in ((['motion_kick_*'], ()), (['art_*'], ['motion_*']), (['motion_squat_skirt_stretch'], ()),
+                      (['art_*'], ['*'])):
+        prof, skip, why = op.confirm_profile(mk(obj, keep), base)
+        assert prof == 'full' and skip == [] and 'motion' in why, (obj, keep, prof, why)
+    assert op.confirm_profile(mk(['art_*'], profile='full'), base)[:2] == ('full', [])
+    # the comparison leaves the skipped part's checks out: those the base build recorded, its prefix and its SKIPPED key
+    row = {'motion': dict(status='SKIPPED', why='skipped by profile iterate'), 'art_x': dict(value=1, status='PASS')}
+    drop = op.part_checks(['motion'], base)
+    assert drop == {'motion_kick_skirt_inside', 'motion_squat_skirt_stretch', 'motion'}, drop
+    P = mk(['art_x'])
+    S = op.Scorer(P, {k: v for k, v in base['checks'].items() if k not in drop}, mode='real', log=QUIET)
+    r = S.score({k: v for k, v in row.items() if k not in drop})
+    assert r['feasible'] and not r['viol'], r
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

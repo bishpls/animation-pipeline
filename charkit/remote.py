@@ -267,12 +267,14 @@ def gate(args):
             'git checkout -q -f %(checkout)s && mkdir -p charkit/out /srv/work/gate-out /srv/work/_gate/%(gid)s && '
             'ln -s /srv/work/gate-out charkit/out/gate && '
             'python -m charkit slots %(slots)d >/dev/null && '
-            '{ python -m charkit gate %(branch)s --into %(into)s%(more)s 2>&1 | tee %(G)s.log; rc=${PIPESTATUS[0]}; } ; '
+            '{ CHARKIT_CPU_SPEED=%(speed)s python -m charkit gate %(branch)s --into %(into)s%(more)s 2>&1 | tee %(G)s.log; '
+            'rc=${PIPESTATUS[0]}; } ; '
             'for r in $(sed -n "s/^report //p" %(G)s.log); do cp "${r%%.md}.md" "${r%%.md}.json" /srv/work/_gate/%(gid)s/ '
             '2>/dev/null; cp "${r%%.md}.summary.json" /srv/work/_gate/%(gid)s/ 2>/dev/null; done; %(publish)scleanup; '
             'find /srv/work/gate-out -maxdepth 1 -name "cand_*" -mtime +3 -exec rm -rf {} + 2>/dev/null; exit $rc'
             % dict(fetch=q(fetch), G=G, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
-                   slots=_slots(), more=more, publish=publish, checkout=sha[gate_code] if gate_code else q(into)))
+                   slots=_slots(), more=more, publish=publish, checkout=sha[gate_code] if gate_code else q(into),
+                   speed=q(_speed())))
     # with the box's environment, not in this worktree's synced copy (a worktree that has only ever gated has none)
     # (the report comes back into this gate's own folder, keyed by its id, and only a report of this branch at this
     # sha into this head is taken from it: never "the newest report" in charkit/out/gate)
@@ -292,6 +294,15 @@ def gate(args):
     # the report was published to the bucket when the gate ended: no second connection through the tunnel
     collect(what)
     return gate_result(what, code)
+
+
+def _speed():
+    """the chosen box's per-core speed against the build box's (CPU_SPEED in its env file; 1 when unset): the gate's
+    budget rule reads its builds' CPU in build-box seconds (charkit.gate.cpu_speed)."""
+    try:
+        return '%g' % float((_env('CPU_SPEED') or '1').strip('"\''))
+    except ValueError:
+        return '1'
 
 
 GATES_HERE = os.path.join('charkit', 'out', 'remote', 'gates')   # each gate's report as it came back, by the gate's id
