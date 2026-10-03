@@ -25,7 +25,7 @@ This is the working method for this repo. It distils three earlier projects (EMB
    - **When the music or a section is too short for its shots to conclude, cut shots: never the conclusions.** Fewer,
      complete shots beat more, clipped ones. In a music video, or extend the section by whole bars; anywhere else the
      score is written to the locked cut (§0.6).
-   - **Measured, every draft:** each shot logs its payoff frame. A pacing audit (shot lengths, payoff-to-cut hold,
+   - **Measured, every draft:** each shot logs its payoff frame. A pacing audit (`tools/edit_audit.py`, from the film's shot list) (shot lengths, payoff-to-cut hold,
      the flagged list, the median shot) runs before any draft goes to Michael, and its flags are fixed or justified.
      Reference medians (the Special Movie's 1.37 s) describe other films; they are not targets.
    - **Transitions too:** a cut away starts only after the outgoing shot's motion has resolved.
@@ -62,6 +62,16 @@ This is the working method for this repo. It distils three earlier projects (EMB
      trailer's review v5), and trimming or padding shots to fill musical sections bends the picture. If the picture changes
      after the score exists, re-score the changed stretch rather than splicing it.
    - A picture lock is therefore a milestone the user signs off before scoring starts.
+   - **In practice** (the trailer's score, built from an existing song):
+     - Play the song's own sections whole and in its own order. Join only where the song itself makes a join. Spliced
+       partial sections and written holds (fermatas absorbing the picture's odd timings) both sounded unfinished (Michael,
+       on review v5 and v6).
+     - Small moves inside the pacing rule that let whole sections fit are better than musical surgery: half a second more
+       hold, or a cut shot restored.
+     - Measure every join (per-bar loudness across it). A quiet breather straight after the loudest section reads as the
+       music giving out (review v7 at 1:18: a 6-8 dB sag). Choose a section that keeps the drive.
+     - Land only the few hits that matter (a reveal, the title, the final hit). The rest of the picture's beats may fall
+       where they fall.
 
 ## 1. Pipeline
 
@@ -391,3 +401,24 @@ The full account is `projects/so-back/MAKING-OF.md`. The general pieces are prom
 **Review**
 - **Gemini as a critic was usually wrong here, not just noisy.** About one checkable claim in four held up, and its song
   rankings were pure position bias. The director's notes and frame-level checks carried the review.
+
+## 16. More lessons (Geno's release trailer, a Melee character reveal)
+
+Trailer conventions are in `docs/references/character-trailers.md`. The general pieces are promoted (`docs/TOOLS.md`):
+`tools/edit_audit.py`, `tools/cutscan.py`, and the Melee kit in `tools/machinima/melee` (director cues 40-79, `sandbox.sh`
+for parallel Dolphins, the HPS and DSP-ADPCM audio codecs, `datkit` for fighters, stages and menus, the art and motion tools).
+- **Every shot earns its place:** a reference that lands, a real laugh, or hype. Michael cut 6 of 13 montage shots after
+  review v4: gags whose reference didn't land, a taunt that lingered, low-impact kills and throws. Propose cuts like these
+  before the user has to. End on the strongest scene.
+- **Never let a cut interrupt the showpiece,** and never cheat the order of events with a timing cut. Play the event in
+  real time in one take. If coverage is needed, replay the identical run with more cameras.
+- **Deterministic coverage needs the RNG locked:** the film camera changes Melee's RNG, so multi-camera replays diverge
+  unless the RNG is locked (cue `rnglock`). Verify identity on the logs.
+- **Directed cameras stay inside each stage's measured safe envelope** (backdrops show voids off-axis). Film HUD shots at
+  the game's own projection (`hudwide`), not stretched to 16:9.
+- **Record every take's full settings** (environment variables and the script's commit) in its `info.json`. A re-shoot of
+  the battle could not reproduce the chosen take: its settings were never written down, and the script's defaults diverged.
+- **In-engine slow motion repeats frames** (the game advances one frame per N rendered). Measure the repeat pattern and
+  play that stretch at N times speed in the edit: that is the game-speed motion exactly, no re-shoot needed.
+- **Emphasis for the music is still emphasis:** slow motion and flashes added to land a hit on a beat read as artificial
+  once the score serves the picture (§0.5, §0.6).

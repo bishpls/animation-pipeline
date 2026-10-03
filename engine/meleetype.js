@@ -6,6 +6,8 @@
 //                                          // word graphics: black outline, white inner stroke, gradient fill with streaks
 //   mname('falcon', x, y, { h: 70, set: 'banner' | 'label', panel: true })   // the results screen's name plate
 //   mdigits('5.5', x, y, { h: 300 })      // the HUD's damage digits (the percent font); '.' and '%' included
+//   mtext('↓ + B (hold to ★3)', x, y, { size: 64, sym: true })   // sym: symbols the font lacks, drawn as glyphs in its
+//                                          // dress: arrows ↑↗→↘↓↙←↖ and [A:22.5] (any angle, 0 right, 90 up), ★, ·, °
 // (x, y) is the centre of the text's cap height; align: 'center' (default) | 'left' | 'right'.
 // Game-derived images live outside the repo (e.g. ~/games/melee/type, served through the film's assets/plates symlink):
 // pass their served path to MT.load(base).
@@ -59,9 +61,34 @@ function mword(name, x, y, o = {}) {
 }
 
 // ---- our words in the game's menu font, dressed like the word graphics
-function mtLayout(str, size, track = 0) {
+// symbols the menu font lacks (opt-in, o.sym): drawn into the letters' mask, so they take the same outline, stroke and fill.
+// adv: the advance as a share of the size
+const MT_ARROWS = { '↑': 90, '↗': 45, '→': 0, '↘': -45, '↓': -90, '↙': -135, '←': 180, '↖': 135 };
+const MT_SYM_ADV = { arrow: .84, star: .8, dot: .36, deg: .3 };
+function mtTokens(str, sym) {
+  if (!sym) return [...str];
+  const out = [], re = /\[A:(-?[\d.]+)\]|\[(U|UR|R|DR|D|DL|L|UL|STAR|DEG)\]|./gsu;
+  const NAMED = { U: 90, UR: 45, R: 0, DR: -45, D: -90, DL: -135, L: 180, UL: 135 };
+  for (const m of str.matchAll(re)) {
+    if (m[1] !== undefined) out.push({ sym: 'arrow', deg: +m[1] });
+    else if (m[2] === 'STAR') out.push({ sym: 'star' });
+    else if (m[2] === 'DEG') out.push({ sym: 'deg' });
+    else if (m[2] !== undefined) out.push({ sym: 'arrow', deg: NAMED[m[2]] });
+    else if (MT_ARROWS[m[0]] !== undefined) out.push({ sym: 'arrow', deg: MT_ARROWS[m[0]] });
+    else if (m[0] === '★') out.push({ sym: 'star' });
+    else if (m[0] === '·') out.push({ sym: 'dot' });
+    else if (m[0] === '°') out.push({ sym: 'deg' });
+    else out.push(m[0]);
+  }
+  return out;
+}
+function mtLayout(str, size, track = 0, sym = false) {
   const F = MT.M.font, k = size / F.native, out = []; let x = 0;
-  for (const ch of str) {
+  for (const ch of mtTokens(str, sym)) {
+    if (typeof ch === 'object') {
+      const adv = MT_SYM_ADV[ch.sym] * size;
+      out.push({ sym: ch.sym, deg: ch.deg, x, adv }); x += adv + track * size; continue;
+    }
     if (ch === ' ') { x += size * .32; continue; }
     const g = F.glyphs[ch] || F.glyphs[ch.toUpperCase()] || F.glyphs[{ "'": '’', '-': '−', '"': '”' }[ch] || ''];
     if (!g) { x += size * .5; continue; }
@@ -70,10 +97,30 @@ function mtLayout(str, size, track = 0) {
   }
   return { glyphs: out, w: x - track * size };
 }
+// a symbol's shape, white, into the mask at its cell (x0, y0 the cell's top left; the caps run ~14%-90% of the cell)
+function mtSymbol(c, g, x0, y0, size) {
+  const cx = x0 + g.adv / 2, cy = y0 + size * .52;
+  c.save(); c.fillStyle = '#fff'; c.translate(cx, cy);
+  if (g.sym === 'arrow') {
+    c.rotate(-g.deg * Math.PI / 180);
+    const L = size * .8, w = size * .19, hw = size * .32, hl = size * .34;
+    c.beginPath(); c.moveTo(-L / 2, -w / 2); c.lineTo(L / 2 - hl, -w / 2); c.lineTo(L / 2 - hl, -hw); c.lineTo(L / 2, 0);
+    c.lineTo(L / 2 - hl, hw); c.lineTo(L / 2 - hl, w / 2); c.lineTo(-L / 2, w / 2); c.closePath(); c.fill();
+  } else if (g.sym === 'star') {
+    const R = size * .4, r = R * .45; c.beginPath();
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r : R; c.lineTo(Math.cos(a) * q, Math.sin(a) * q + size * .03); }
+    c.closePath(); c.fill();
+  } else if (g.sym === 'dot') {
+    c.beginPath(); c.arc(0, 0, size * .075, 0, Math.PI * 2); c.fill();
+  } else if (g.sym === 'deg') {
+    c.translate(0, -size * .25); c.beginPath(); c.arc(0, 0, size * .1, 0, Math.PI * 2); c.arc(0, 0, size * .05, 0, Math.PI * 2, true); c.fill();
+  }
+  c.restore();
+}
 function mtext(str, x, y, o = {}) {
   if (!MT.M || !MT.img.font) return;
   const size = o.size || 120, style = MT_STYLES[o.style || 'game'] || MT_STYLES.game;
-  const key = [str, size, o.style, o.fill, o.outline, o.track ?? .075, o.stroke, o.shadow].join('|');
+  const key = [str, size, o.style, o.fill, o.outline, o.track ?? .075, o.stroke, o.shadow, o.sym].join('|');
   let c = MT.cache.get(key);
   if (!c) { c = mtRender(str, size, style, o); MT.cache.set(key, c); if (MT.cache.size > 200) MT.cache.delete(MT.cache.keys().next().value); }
   X.save(); X.translate(x + mtAnchor(c.tw, o.align), y);
@@ -83,13 +130,16 @@ function mtext(str, x, y, o = {}) {
   return { w: c.tw, h: size };
 }
 function mtRender(str, size, style, o) {
-  const F = MT.M.font, L = mtLayout(str, size, o.track ?? .075), s = size / F.native;
+  const F = MT.M.font, L = mtLayout(str, size, o.track ?? .075, !!o.sym), s = size / F.native;
   const ro = o.outline === false ? 0 : (o.outline || .1) * size, rw = o.stroke === 0 ? 0 : (o.stroke || .045) * size;
   const sh = o.shadow === false ? 0 : (o.shadow || .07) * size, pad = Math.ceil(ro + sh + 6);
   const W2 = Math.ceil(L.w + 2 * pad), H2 = Math.ceil(size + 2 * pad);
   // the letters' mask (the atlas's white glyphs)
   const m = mtBuf('mask', W2, H2), cell = F.cell, cols = F.cols;
-  for (const g of L.glyphs) m.x.drawImage(MT.img.font, (g.i % cols) * cell, Math.floor(g.i / cols) * cell, cell, cell, pad + g.x, pad, size, size);
+  for (const g of L.glyphs) {
+    if (g.sym) mtSymbol(m.x, g, pad + g.x, pad, size);
+    else m.x.drawImage(MT.img.font, (g.i % cols) * cell, Math.floor(g.i / cols) * cell, cell, cell, pad + g.x, pad, size, size);
+  }
   // dilate the mask by r into buffer b (stamping on two rings), tinted col
   const dil = (name, r, col, dx = 0, dy = 0) => {
     const b = mtBuf(name, W2, H2);

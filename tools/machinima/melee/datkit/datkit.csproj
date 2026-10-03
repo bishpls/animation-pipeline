@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- datkit: read and write Melee's HSD .dat files for new fighters, on HSDRaw (Ploaj/HSDLib, MIT), cloned to vendor/HSDLib -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>CA1416;CS8632</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../vendor/HSDLib/HSDRaw/HSDRaw.csproj" />
+  </ItemGroup>
+</Project>

@@ -24,10 +24,42 @@ CKIND = {'falcon': 0x00, 'dk': 0x01, 'fox': 0x02, 'gnw': 0x03, 'kirby': 0x04, 'b
          'mario': 0x08, 'marth': 0x09, 'mewtwo': 0x0A, 'ness': 0x0B, 'peach': 0x0C, 'pikachu': 0x0D, 'ics': 0x0E, 'puff': 0x0F,
          'samus': 0x10, 'yoshi': 0x11, 'zelda': 0x12, 'sheik': 0x13, 'falco': 0x14, 'ylink': 0x15, 'doc': 0x16, 'roy': 0x17,
          'pichu': 0x18, 'ganon': 0x19, 'geno': 0x22}
-STAGE = {'final_destination': 0x20, 'battlefield': 0x1F}
+STAGE = {'final_destination': 0x20, 'battlefield': 0x1F, 'fountain': 0x02, 'stadium': 0x03, 'yoshis_story': 0x08,
+         'peachs_castle': 0x04, 'mushroom_kingdom': 0x13, 'mushroom_kingdom2': 0x14, 'test': 0x01,
+         'adventure_mushroom': 0x3B,   # Adventure 1-1 (GrNKr.dat, Gr_Kind_KinokoRoute): a scrolling route stage, not in VS
+         'dream_land': 0x1C, 'forest_maze': 0x15, 'kongo_jungle': 0x05, 'jungle_japes': 0x0C, 'great_bay': 0x0D,
+         'yoshis_island': 0x10, 'green_greens': 0x11,
+         # the trailer's Part Two (geno-film2)
+         'brinstar': 0x06, 'corneria': 0x07, 'onett': 0x09, 'rainbow_cruise': 0x0B, 'hyrule_temple': 0x0E,
+         'poke_floats': 0x17, 'big_blue': 0x18}   # StKind (the decomp's gr/forward.h); the Forest Maze takes the unused Akaneia slot
 EASE = {'cut': 0, 'linear': 1, 'inout': 2, 'in': 3, 'out': 4}
-CUE = {'freeze': 1, 'stage': 2, 'bgcolor': 3, 'setpos': 4, 'face': 5, 'motion': 6, 'percent': 7, 'mark': 8, 'end': 9, 'reset': 10, 'approach': 11, 'auto': 12, 'trace': 13, 'status': 14, 'shield': 15, 'glass': 40, 'gamecam': 41}
-TRACK = {None: 0, 'world': 0, 'mid': 1, 'p0': 2, 'p1': 3}
+CUE = {'freeze': 1, 'stage': 2, 'bgcolor': 3, 'setpos': 4, 'face': 5, 'motion': 6, 'percent': 7, 'mark': 8, 'end': 9, 'reset': 10, 'approach': 11, 'auto': 12, 'trace': 13, 'status': 14, 'shield': 15, 'feet': 16, 'shieldhp': 17, 'item': 18, 'sfx': 19, 'anim': 20, 'grdump': 21, 'items': 22, 'shoot': 23, 'stall': 24, 'perf': 25,
+        'glass': 40, 'gamecam': 41,   # 1-25 Geno's labs, 40-41 SO BACK's lanes (main), 50 on the Geno trailer: director.h's enum
+        # the trailer lab's (projects/geno/trailer/lab; director.h)
+        # numbered from 50 (geno 1-25, main's SO BACK kit 40-41)
+        'starko': 50, 'slow': 51, 'metal': 52, 'animrate': 53, 'colanim': 54, 'entry': 55, 'enemy': 56, 'respawn': 57,
+        'hud': 58, 'itemtrace': 59, 'itemvel': 60, 'itempin': 61, 'itemclear': 62, 'efclear': 63,
+        # the trailer lab's round 2 (geno-trailer-lab2), from 64
+        'place': 64, 'starcontact': 65, 'bill': 66, 'bone': 67, 'react': 68,
+        # the trailer's Part Two (geno-film2), 69-74 (Parts One and Three from 75)
+        'hudwide': 69, 'foodvar': 70,
+        # the trailer's film crew, Parts One and Three (projects/geno/trailer/film/part1_3), from 75 (the montage: 69-74)
+        'kbvel': 75, 'holdentry': 76, 'eyes': 77, 'holddead': 78, 'rnglock': 79}
+TRACK = {None: 0, 'world': 0, 'mid': 1, 'p0': 2, 'p1': 3, 'p2': 4, 'p3': 5, 'all': 6}
+# fighter parts (the decomp's FtPart enum, ft/forward.h) for Film.bone
+FTPART = {'TopN': 0, 'TransN': 1, 'XRotN': 2, 'YRotN': 3, 'HipN': 4, 'WaistN': 5, 'LLegJA': 6, 'LLegJ': 7, 'LKneeJ': 8,
+          'LFootJA': 9, 'LFootJ': 10, 'RLegJA': 11, 'RLegJ': 12, 'RKneeJ': 13, 'RFootJA': 14, 'RFootJ': 15, 'BustN': 16,
+          'LShoulderN': 17, 'LShoulderJA': 18, 'LShoulderJ': 19, 'LArmJ': 20, 'LHandN': 21, 'L1stNa': 22, 'L1stNb': 23,
+          'L2ndNa': 24, 'L2ndNb': 25, 'L3rdNa': 26, 'L3rdNb': 27, 'L4thNa': 28, 'L4thNb': 29, 'LThumbNa': 30,
+          'LThumbNb': 31, 'LHandNb': 32, 'NeckN': 33, 'HeadN': 34}
+# stage enemies (the zako spawner, Film.enemy): the Goomba is in ItCo (any stage); Koopas need their stage's item data
+ENEMY = {'goomba': 0x2B, 'redead': 0x2C, 'octorok': 0x2D, 'koopa': 0xD3, 'paratroopa': 0xD4, 'likelike': 0xD5}
+# common items (the decomp's ItemKind) for Film.item
+ITEM = {'capsule': 0x00, 'crate': 0x01, 'barrel': 0x02, 'egg': 0x03, 'partyball': 0x04, 'bobomb': 0x06, 'saturn': 0x07,
+        'heart': 0x08, 'tomato': 0x09, 'star': 0x0A, 'bat': 0x0B, 'sword': 0x0C, 'parasol': 0x0D, 'greenshell': 0x0E,
+        'redshell': 0x0F, 'raygun': 0x10, 'freezie': 0x11, 'food': 0x12, 'mine': 0x13, 'flipper': 0x14, 'scope': 0x15,
+        'starrod': 0x16, 'lipstick': 0x17, 'fan': 0x18, 'flower': 0x19, 'mushroom': 0x1A, 'poison': 0x1B,
+        'hammer': 0x1C, 'warpstar': 0x1D, 'screw': 0x1E, 'bunny': 0x1F, 'metal': 0x20, 'cloak': 0x21, 'pokeball': 0x22}
 
 # Input recipes: a list of (frame offset, frames held, stick, cstick, buttons, trigger) and the first active hitbox frame
 # counted from the input frame (frame 1 = the frame the input is read). Directions are for facing right; `dir=-1` mirrors x.
@@ -223,11 +255,30 @@ class Port:
     def taunt(self, t):
         return self.hold(t, 2, btn='DU')
 
+    REACT_DIR = {None: 0, 'up': 1, 'down': 2, 'forward': 3, 'back': 4}
 
-BOOT = {'debug_vs': 0x0E, 'vs': 0x02, 'title': 0x00, 'menu': 0x01, 'training': 0x1C, 'challenger': 0x14}
-NO_MENU = ['const int dir_boot_mode = 0x0E; /* GM_DEBUG_VS */', 'const int dir_nmenu_pads = 0;',
+    def react(self, t, state, until, btn='', stick=None):
+        """Closed loop, once (director DIR_REACT): from t until `until`, on the first frame this fighter is in motion state
+        `state` after another one, press btn (a new press) and the stick ('up', 'down', 'forward', 'back': relative to his
+        facing), held 2 frames: the first frame the state allows the action (a grab out of landing lag, a jump out of
+        shieldstun). Logged as REACT."""
+        b = 0
+        for k in (btn.split('+') if btn else []):
+            b |= BTN[k]
+        self.f.cue(t, 'react', self.i, state, b + 4096 * self.REACT_DIR[stick], self.frame(until))
+        return self
+
+
+BOOT = {'debug_vs': 0x0E, 'vs': 0x02, 'title': 0x00, 'menu': 0x01, 'training': 0x1C, 'challenger': 0x14,
+        'prize': 0x14,   # the challenger mode with no human starts on its prize screen (Menu(boot='prize', prize=...))
+        'boot': 0x28}    # the game's own boot (GM_BOOT): the memory card check, the opening, the title screen
+# (the 1P modes can't be booted into directly: from a cold boot GM_CLASSIC asserts in lbarchive.c, its archives not yet
+# loaded; reach them through boot='menu', as fresh_save_lab does)
+CHKIND_NONE = 0x21   # ChKind_None: the challenger record's "no human" (the game's unlock-only flow)
+NO_MENU = ['const int dir_boot_mode = 0x0E; /* GM_DEBUG_VS */', 'const int dir_unlock_all = 1;', 'const int dir_nmenu_pads = 0;',
            'const DirMenuPad dir_menu_pads[] = { { 0 } };', 'const int dir_nmenu_gotos = 0;',
-           'const DirMenuGoto dir_menu_gotos[] = { { 0 } };']
+           'const DirMenuGoto dir_menu_gotos[] = { { 0 } };', 'const int dir_results_music = 0;']
+# (a film emits its own dir_stage_music; a menu test's matches play their music as the game does)
 # character select cells (icon bounds from mncharsel.c): the centre of each icon, for Menu.goto
 CSS_COLS = [(-30.0, -24.4), (-24.4, -17.4), (-17.4, -10.4), (-10.4, -3.4), (-3.4, 3.6), (3.6, 10.6), (10.6, 17.6),
             (17.6, 24.4), (24.4, 30.2)]
@@ -236,6 +287,22 @@ CSS_GRID = {'doc': (0, 0), 'mario': (1, 0), 'luigi': (2, 0), 'bowser': (3, 0), '
             'falcon': (7, 0), 'ganon': (8, 0), 'falco': (0, 1), 'fox': (1, 1), 'ness': (2, 1), 'ics': (3, 1), 'kirby': (4, 1),
             'samus': (5, 1), 'zelda': (6, 1), 'link': (7, 1), 'ylink': (8, 1), 'pichu': (1, 2), 'pikachu': (2, 2),
             'puff': (3, 2), 'mewtwo': (4, 2), 'gnw': (5, 2), 'marth': (6, 2), 'roy': (7, 2), 'geno': (8, 2)}
+
+
+def nametag_c(name):
+    """A name tag as a C string of Shift-JIS bytes (the name table's own storage: 2 bytes a character): ASCII goes
+    full-width (the game's name entry writes ！ as 81 49), ♪ is 81 F4, and the heart (♡ or ♥; neither is in CP932) is
+    Shift_JIS-2004's ♡, 83 BB: the code the trailer lab's font patch maps to its outlined heart (SMRPG's ♡♪!?)."""
+    if not name: return '""'
+    if isinstance(name, bytes): b = name
+    else:
+        b = b''
+        for ch in name:
+            if ch in '♥♡': b += b'\x83\xbb'; continue
+            if 0x21 <= ord(ch) <= 0x7E: ch = chr(ord(ch) + 0xFEE0)
+            b += ch.encode('cp932')
+    assert len(b) <= 8, name
+    return '"' + ''.join(f'\\x{x:02X}' for x in b) + '"'
 
 
 def css_cell(name):
@@ -252,8 +319,22 @@ class Menu:
         m.press(140, 0, 'A')                 # a 3-frame tap
         m.emit('build/csstest.c')
     """
-    def __init__(self, boot='vs', len_s=60.0, coll=0):
+    def __init__(self, boot='vs', len_s=60.0, coll=0, challenger=None, prize=None, music=True, unlock=True):
+        """challenger=(human, cpu): the challenger screen's record (CKIND names or numbers) for boot='challenger'.
+        boot='prize' with prize=(cpu, [notification ids]): straight to the prize screen, those save-data notifications
+        raised (e.g. 0, Jigglypuff's; the game's own ids, gm_1601.c lbl_803B78C8), and a Geno cpu adds his own two.
+        music=False mutes the menus' music (their sounds and the announcer stay): a plate for a scored edit.
+        unlock=False leaves Melee's own unlockable characters and stages as the save has them (a fresh save: locked),
+        instead of unlocking all of them at boot: a player's build, or a fresh-save check."""
         self.boot, self.n, self.st, self.gotos, self.coll = BOOT[boot], int(round(len_s * FPS)), {}, [], coll
+        self.music = music
+        self.unlock = bool(unlock)
+        self.challenger = [CKIND.get(k, k) for k in challenger] if challenger else None
+        self.prize = []
+        if boot == 'prize':
+            cpu, ids = prize
+            self.challenger = [CHKIND_NONE, CKIND.get(cpu, cpu)]
+            self.prize = [int(i) + 1 for i in ids][:4]
 
     def hold(self, f, port, dur, stick=(0, 0), btn='', c=(0, 0), trig=0):
         b = 0
@@ -281,12 +362,22 @@ class Menu:
                 if v != prev: ev.append((i, port, v)); prev = v
         ev.sort(key=lambda e: (e[0], e[1]))
         L = ['/* generated by tools/machinima/melee/dsl.py (a menu test): do not edit */', '#include "director.h"', '',
-             f'const int dir_boot_mode = {self.boot};', f'const int dir_show_coll = {self.coll};',
+             f'const int dir_boot_mode = {self.boot};', f'const int dir_unlock_all = {int(self.unlock)};',
+             f'const int dir_show_coll = {self.coll};', f'const int dir_stage_music = {1 if self.music else 0};',
+             'const int dir_results_music = 0;',
              f'const int dir_nmenu_pads = {len(ev)};', 'const DirMenuPad dir_menu_pads[] = {']
         L += [f'    {{ {i}, {p}, {v[5]}, 0x{v[0]:X}, {v[1]}, {v[2]}, {v[3]}, {v[4]} }},' for i, p, v in ev] or ['    { 0 },']
         L += ['};', f'const int dir_nmenu_gotos = {len(self.gotos)};', 'const DirMenuGoto dir_menu_gotos[] = {']
         L += [f'    {{ {a}, {b}, {p}, {x:.3f}f, {y:.3f}f }},' for a, b, p, x, y in self.gotos] or ['    { 0 },']
-        L += ['};', 'const DirSetup dir_setup = { 0 };', f'const int dir_len = {self.n};',
+        if self.challenger:
+            h, c = self.challenger
+            pz = (self.prize + [0, 0, 0, 0])[:4]
+            setup = (f'const DirSetup dir_setup = {{ 0, 2, 0, {{ {h}, {c}, 0, 0 }}, {{ 0, 0, 0, 0 }}, '
+                     '{ 0.0f, 0.0f, 0.0f, 0.0f }, { 1, 1, 1, 1 }, 1u, 0.0f, { 0, 0, 0, 0 }, 0, { "", "", "", "" }, '
+                     f'{{ {pz[0]}, {pz[1]}, {pz[2]}, {pz[3]} }} }};')
+        else:
+            setup = 'const DirSetup dir_setup = { 0 };'
+        L += ['};', setup, f'const int dir_len = {self.n};',
               'const int dir_npads = 0;', 'const DirPad dir_pads[] = { { 0 } };',
               'const int dir_ncams = 0;', 'const DirCam dir_cams[] = { { 0 } };',
               'const int dir_ncues = 0;', 'const DirCue dir_cues[] = { { 0 } };']
@@ -301,12 +392,27 @@ class Film:
         self.calib = json.load(open(calib)) if calib and os.path.exists(calib) else {}
         # the timing solve: per-hit input shifts measured by report.py --fix ('port:hitframe' -> frames late)
         self.fix = json.load(open(fix)) if fix and os.path.exists(fix) else {}
-        self.cfg = dict(stage='final_destination', entry=False, seed=1, aspect=0.0, coll=0, stocks=0)
+        self.cfg = dict(stage='final_destination', entry=False, seed=1, aspect=0.0, coll=0, stocks=0, music=False)
         self.menu = []                   # (loop frame since boot, port, dur, buttons): pads held after the match (menu_hold)
+        self.nametags = {}
+        self.teams, self.fifth = {}, None
 
-    def setup(self, players, stage='final_destination', seed=1, entry=False, aspect=0.0, coll=0, stocks=0):
-        """coll: the developer display, 1 the model with hitboxes and hurtboxes, 2 the capsules only. stocks: a stock match."""
-        self.cfg.update(stage=stage, seed=seed, entry=entry, aspect=aspect, coll=coll, stocks=stocks)
+    def setup(self, players, stage='final_destination', seed=1, entry=False, aspect=0.0, coll=0, stocks=0, music=False,
+              nametags=None, teams=None, fifth=None, sixth=None):
+        """coll: the developer display, 1 the model with hitboxes and hurtboxes, 2 the capsules only. stocks: a stock match.
+        nametags: {port: name} VS name tags (up to 4 characters; ASCII is written full-width, the game's own storage);
+        shown with Film.hud(t, 1 or 2). bytes pass through as raw Shift-JIS.
+        teams: {slot: team} (0 red, 1 blue, 2 green; slots 0-4): a team match with friendly fire off.
+        fifth: (char, dict(x, face, color, cpu=level 1-9, cpukind=0 stands still / 4 VS mode's)): a fifth fighter, a CPU in
+        player slot 4 (Melee has four pads, the game six player slots); cues that place or set a fighter take port 4.
+        sixth: the same for player slot 5, port 5 (needs fifth): six fighters, every slot the game has."""
+        self.cfg.update(stage=stage, seed=seed, entry=entry, aspect=aspect, coll=coll, stocks=stocks, music=music)
+        self.nametags = dict(nametags or {})
+        self.teams = dict(teams or {})
+        self.fifth = fifth
+        self.sixth = sixth
+        if sixth and not fifth:
+            raise ValueError('a sixth fighter needs a fifth (DirSetup is positional)')
         self.players = players
         self.chars = [p[0] for p in players]
         self.ports = [Port(self, i) for i in range(len(players))]
@@ -321,6 +427,11 @@ class Film:
     def cam(self, t, eye, at, fov=30.0, roll=0.0, ease='inout', track=None):
         """A camera key. With track ('mid', 'p0', 'p1') eye and at are offsets from that smoothed tracking point."""
         self.cams.append((self.frame(t), EASE[ease], eye, at, fov, roll, TRACK[track]))
+        return self
+
+    def game_camera(self):
+        """Film with the game's own camera (the match framing: it follows and zooms on the fighters) instead of keys."""
+        self.game_cam = True
         return self
 
     def orbit(self, t, at, dist, yaw=0.0, pitch=0.0, fov=30.0, roll=0.0, ease='inout', track=None):
@@ -349,9 +460,144 @@ class Film:
     def percent(self, t, port, pct): return self.cue(t, 'percent', port, pct)
     def setpos(self, t, port, x, y=0.0): return self.cue(t, 'setpos', port, x, y)
     def face(self, t, port, d): return self.cue(t, 'face', port, d)
-    def reset(self, t, port, x, face, fresh=False): return self.cue(t, 'reset', port, x, face, 1.0 if fresh else 0.0)  # fresh: clear the stale-move table (labs)
+    def reset(self, t, port, x, face, fresh=True):
+        """Stand the fighter at x, facing, in Wait with no momentum. fresh (the default on the Geno line: every lab repeats
+        moves and was measured fresh) also clears his stale-move table; fresh=False keeps the game's staling, as main's
+        films were captured (FRAME PERFECT's damage)."""
+        return self.cue(t, 'reset', port, x, face, 1.0 if fresh else 0.0)
     def status(self, t, port): return self.cue(t, 'status', port)
     def shield(self, t, port): return self.cue(t, 'shield', port)
+    def feet(self, t, port): return self.cue(t, 'feet', port)
+    def sfx(self, t, sound_id, vol=127):
+        """Play a sound (its sem id, e.g. 550054) centred, as a move script's SoundEffect does; logged as SFX."""
+        return self.cue(t, 'sfx', 0, sound_id, vol)
+    def anim(self, t, port, entry):
+        """Play an action-table entry's animation and script in the fighter's current state (the engine's idle-variant
+        player): for animations no state plays, e.g. ItemBlind (148); logged as ANIM."""
+        return self.cue(t, 'anim', port, entry)
+    def grdump(self, t, every=False):
+        """Log the stage as the engine holds it now: STAGE (blast zones, camera range), LINE per live collision line (floors
+        only unless every), GROUND per fighter (the floor line under it)."""
+        return self.cue(t, 'grdump', 0, 1 if every else 0)
+    def items(self, t):
+        """Log every live item's kind and position this frame (ITEMS s kind x y): projectile paths."""
+        return self.cue(t, 'items', 0)
+    def shoot(self, t, port, kind, state, speed, ahead=10.0, up=8.0):
+        """Fire a laser-type projectile (an ::ItemKind number and its article state) as port's, straight ahead of him at
+        `speed` units a frame from `ahead` along his facing and `up` above his feet (director.c DIR_SHOOT)."""
+        return self.cue(t, 'shoot', port, kind * 16 + state + 4096 * round(speed * 10), ahead, up)
+    def stall(self, t, ms=40):
+        """Busy-wait ms milliseconds of console time in frame t: a lag frame on purpose (the next loop frame logs LAGFRAME),
+        so a lag measurement proves its counter is live (director.c DIR_STALL; logged as STALL)."""
+        return self.cue(t, 'stall', 0, ms)
+    def perf(self, t, on=True):
+        """From frame t, log PERF s cpu draw total mtx every frame: the engine's timings of the last loop frame in 60ths of
+        a second (HSD_PerfLastStat; total over 1.0 overran the frame) and its matrix loads (director.c DIR_PERF)."""
+        return self.cue(t, 'perf', 0, 1 if on else 0)
+    # ---- the trailer lab's cues (director.h DIR_STARKO ..)
+    def starko(self, t, port):
+        """A star KO from where the fighter is (ftCo_800D40B8): the flight into the background and the twinkle."""
+        return self.cue(t, 'starko', port)
+    def slow(self, t, n):
+        """Slow motion: one game frame in n from t (1 = normal); the camera keeps moving every frame."""
+        return self.cue(t, 'slow', 0, n)
+    def metal(self, t, port, on=True): return self.cue(t, 'metal', port, 1 if on else 0)
+    def animrate(self, t, port, rate):
+        """The fighter's animation rate (0 holds its pose); an action change resets it."""
+        return self.cue(t, 'animrate', port, rate)
+    def colanim(self, t, port, cid):
+        """A PlCo colour animation on the fighter (0x75 the entry's glow); -1 clears it."""
+        return self.cue(t, 'colanim', port, cid)
+    def entry(self, t, port):
+        """Replay the match-start entry: hidden, then grown out of the trophy stand."""
+        return self.cue(t, 'entry', port)
+    def enemy(self, t, kind, x, y=0.0, variant=0, rel=None):
+        """Spawn a stage enemy (ENEMY name or ::ItemKind) at (x, y) through the zako spawner; rel=port: x, y from that
+        fighter (a scrolling stage)."""
+        return self.cue(t, 'enemy', variant | ((rel + 1) << 4 if rel is not None else 0), ENEMY.get(kind, kind), x, y)
+    def respawn(self, t, port, costume):
+        """Recreate the port's fighter in another costume where it stands."""
+        return self.cue(t, 'respawn', port, costume)
+    def hud(self, t, mode):
+        """0 hidden, 1 name tags only, 2 the whole HUD, 3 the whole HUD without the off-screen magnifier bubbles."""
+        return self.cue(t, 'hud', 0, mode)
+    def itemtrace(self, t, until):
+        """Log every live item every frame until `until` (ITR s kind x y state dmg)."""
+        return self.cue(t, 'itemtrace', 0, self.frame(until))
+    def itemvel(self, t, vx, vy):
+        """Set the newest item's velocity (0, 0 holds a Starman still)."""
+        return self.cue(t, 'itemvel', 0, vx, vy)
+
+    def itempin(self, t, on=True, float_=False, add=False, kind=None):
+        """Pin every live item's x (enemies walk in place) until each is hit; on=False releases them; float_=True pins
+        y too with no velocity (a box held in the air until it is hit). add=True pins only the items not pinned yet, in
+        this mode, keeping the others' (Goombas walking in place, then a box floating). kind: only that item (an ITEM or
+        ENEMY name or ::ItemKind; a stage's own items, Mushroom Kingdom's bricks, can fill the 16 pins)."""
+        k = ITEM.get(kind, ENEMY.get(kind, kind)) if kind is not None else 0
+        return self.cue(t, 'itempin', 0, (2 if float_ else 1) if on else 0, 1 if add else 0, k)
+
+    def efclear(self, t, port):
+        """Destroy the fighter's attached effects (the entry's light pillars and sparkles)."""
+        return self.cue(t, 'efclear', port)
+
+    def itemclear(self, t):
+        """Destroy every live item no fighter holds (between a lab's tries)."""
+        return self.cue(t, 'itemclear')
+
+    # ---- the trailer lab's round 2 (director.h DIR_PLACE ..)
+    def place(self, t, port, x, y, face):
+        """Stand the fighter on the floor under (x, y) (a floor that isn't y = 0: Peach's Castle's 84.25, the Forest Maze's
+        mushroom cap at 28), in Wait with no momentum and fresh moves; logs PLACE with the floor line."""
+        return self.cue(t, 'place', port, x, y, face)
+
+    def starcontact(self, t, on=True, kb=0.0, angle=0.0):
+        """SMRPG's star run: while on, a stage enemy touching a fighter under a Starman takes a hit from him (knockback kb,
+        default 120, at `angle` degrees, default 70) and flies off as a hit KOs it; logs STARHIT."""
+        return self.cue(t, 'starcontact', 0, 1 if on else 0, kb, angle)
+
+    def bill(self, t, variant=-1, trace_until=0):
+        """Princess Peach's Castle's Banzai Bill: 0-8 launches that flight now, -1 the game's own pick, -2 stops the natural
+        timer, -3 logs its parameters; trace_until logs the flight and explosion (BILLPOS) until that frame."""
+        return self.cue(t, 'bill', 0, variant, self.frame(trace_until) if trace_until else 0)
+
+    def bone(self, t, port, part, until):
+        """Log a fighter part's world position and axes every frame until `until` (BONE lines; part: an FTPART name)."""
+        return self.cue(t, 'bone', port, FTPART.get(part, part), self.frame(until))
+
+    def hudwide(self, t):
+        """A widescreen film's HUD in its own 4:3 shape (director DIR_HUDWIDE): pillarboxed in the 16:9 frame, not widened."""
+        return self.cue(t, 'hudwide')
+
+    def foodvar(self, t, variant):
+        """The newest live Food item takes this variant (its index in the Food article's table: the model and the heal)."""
+        return self.cue(t, 'foodvar', 0, variant)
+
+    # ---- the trailer's film crew, Parts One and Three (director.h DIR_KBVEL ..)
+    def kbvel(self, t, port, vx, vy):
+        """Set the fighter's knockback velocity (decays in the air as a hit's does): a launch with no hit."""
+        return self.cue(t, 'kbvel', port, vx, vy)
+
+    def holdentry(self, t, port, on=True):
+        """Hold the entry's trophy stand (EntryEnd's timer kept): the figure stays on it; off, the stand sinks (30 frames)."""
+        return self.cue(t, 'holdentry', port, 1 if on else 0)
+
+    def eyes(self, t, port, frame):
+        """The eye texture's frame (0 open, 1 half, 2 closed, 3 squint, 4-5 aside); held until a move script sets the eyes."""
+        return self.cue(t, 'eyes', port, frame)
+
+    def holddead(self, t, port, on=True):
+        """Hold a star-KO'd fighter after his twinkle (his respawn waits): a clean sky; off, the respawn goes on."""
+        return self.cue(t, 'holddead', port, 1 if on else 0)
+
+    def rnglock(self, t, on=True, log=False):
+        """Reseed the game's RNG every frame from the script frame: two cameras on one script play the same match (the
+        camera changes what the game draws, and drawing can draw random numbers). log: RNG lines, the seed each frame
+        found."""
+        return self.cue(t, 'rnglock', 0, (2 if log else 1) if on else 0)
+
+    def item(self, t, kind, x, y=0.0):
+        """Spawn a common item (ITEM[name] or an ::ItemKind number) at (x, y), as the game drops one."""
+        return self.cue(t, 'item', 0, ITEM.get(kind, kind), x, y)
 
     # ---- compile
     def pads(self):
@@ -363,9 +609,24 @@ class Film:
                     out.append((s, p.i, st or (0, 0, 0, 0, 0, 0))); prev = st
         return sorted(out, key=lambda e: (e[0], e[1]))
 
+    def _tail(self):
+        """DirSetup's trailing fields (geno-film2): the prize ids (zeros: a film never boots the prize screen; geno-silhouette's
+        field comes first), teams, then the fifth fighter, then the sixth (geno-camera); empty when none is set."""
+        if not (self.teams or self.fifth): return ''
+        tm = [int(self.teams.get(i, 0)) for i in range(5)]
+        t = f", {{ 0, 0, 0, 0 }}, {1 if self.teams else 0}, {{ {', '.join(map(str, tm))} }}"
+        for extra in (self.fifth, getattr(self, 'sixth', None)):   # the fifth's fields, then the sixth's (appended)
+            if not extra:
+                break
+            c, o = extra
+            t += (f", 1, {CKIND[c]}, {int(o.get('color', 0))}, {int(o.get('face', 1))}, {float(o.get('x', 0.0)):.4f}f, "
+                  f"{int(o.get('cpu', 1))}, {int(o.get('cpukind', 0))}")
+        return t
+
     def emit(self, path):
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
         cams = sorted(self.cams, key=lambda c: c[0]) or [(0, 0, (0, 30, 250), (0, 20, 0), 30.0, 0.0, 0)]
+        if getattr(self, 'game_cam', False): cams = []        # the game's own camera: no keys, no free camera
         cues = sorted(self.cues, key=lambda c: c[0])
         pads = self.pads()
         f4 = lambda v: f'{float(v):.4f}f'
@@ -377,15 +638,19 @@ class Film:
         cpu = [pl[1].get('cpu', 0) for pl in self.players] + [0] * (4 - len(self.players))   # 1-9: a CPU at that level
         L.append(f"const DirSetup dir_setup = {{ {STAGE[self.cfg['stage']]}, {len(self.players)}, {int(self.cfg['entry'])}, "
                  f"{{ {', '.join(map(str, ck))} }}, {{ {', '.join(map(str, col))} }}, {{ {', '.join(map(f4, xs))} }}, "
-                 f"{{ {', '.join(map(str, fc))} }}, {self.cfg['seed']}u, {f4(self.cfg['aspect'])}, {{ {', '.join(map(str, cpu))} }}, {self.cfg['stocks']} }};")
+                 f"{{ {', '.join(map(str, fc))} }}, {self.cfg['seed']}u, {f4(self.cfg['aspect'])}, {{ {', '.join(map(str, cpu))} }}, {self.cfg['stocks']}"
+                 + (f", {{ {', '.join(nametag_c(self.nametags.get(i)) for i in range(4))} }}" if (self.nametags or self.teams or self.fifth) else '')
+                 + self._tail() + " };")
         if self.menu:                    # menu pads held after the match (menu_hold); a film without them emits NO_MENU unchanged
             ev = sorted([(f0, p, b) for f0, p, d, b in self.menu] + [(f0 + d, p, 0) for f0, p, d, b in self.menu])
-            L += ['const int dir_boot_mode = 0x0E; /* GM_DEBUG_VS */', f'const int dir_nmenu_pads = {len(ev)};',
+            L += ['const int dir_boot_mode = 0x0E; /* GM_DEBUG_VS */', 'const int dir_unlock_all = 1;',
+                  f'const int dir_nmenu_pads = {len(ev)};',
                   'const DirMenuPad dir_menu_pads[] = {'] + [f'    {{ {f0}, {p}, 0, 0x{b:X}, 0, 0, 0, 0 }},' for f0, p, b in ev] + \
-                 ['};', 'const int dir_nmenu_gotos = 0;', 'const DirMenuGoto dir_menu_gotos[] = { { 0 } };']
+                 ['};', 'const int dir_nmenu_gotos = 0;', 'const DirMenuGoto dir_menu_gotos[] = { { 0 } };',
+                  'const int dir_results_music = 0;']
         else:
             L += NO_MENU
-        L += [f"const int dir_show_coll = {self.cfg['coll']};"]
+        L += [f"const int dir_show_coll = {self.cfg['coll']};", f"const int dir_stage_music = {int(self.cfg['music'])};"]
         L.append(f'const int dir_len = {self.n};')
         L.append(f'const int dir_npads = {len(pads)};')
         L.append('const DirPad dir_pads[] = {')
@@ -395,6 +660,7 @@ class Film:
         L.append('const DirCam dir_cams[] = {')
         for s, e, eye, at, fov, roll, tr in cams:
             L.append(f'    {{ {s}, {e}, {tr}, {{ {", ".join(map(f4, eye))} }}, {{ {", ".join(map(f4, at))} }}, {f4(fov)}, {f4(roll)} }},')
+        if not cams: L.append('    { 0 },')
         L.append('};')
         L.append(f'const int dir_ncues = {len(cues)};')
         L.append('const DirCue dir_cues[] = {')

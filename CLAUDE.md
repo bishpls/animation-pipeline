@@ -10,12 +10,13 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
 - **Video-generation models are off by default.** EMBER III's Veo take was judged slop. Use one only with the user's
   explicit sign-off for that film, and only for short cut-ins code can't match. Bridge from a code-rendered start frame
   to an illustrated end frame, and run it one request at a time (`tools/seedance.py`; see CRAFT §11).
-- **One clock:** the picture locks to `projects/<film>/assets/cues.json` (from `tools/audio_analyze.py`).
+- **One clock:** in a music video the picture locks to `projects/<film>/assets/cues.json` (from `tools/audio_analyze.py`);
+  in a trailer or narrative film the locked picture is the clock and the score follows it (below).
 - **Let every shot conclude** (`docs/CRAFT.md` §0.5): play the action to its payoff, then hold (≥ 0.75 s after an action's
   payoff, ≥ 1 s after a punchline or reveal, cards ≥ 1.5 s once legible); cut on completed actions, never mid-motion. **Audio
   concludes too:** voice lines, cries, roars and sound effects play out before the cut (or carry over deliberately). If a
-  section is too short, cut shots, not conclusions. Run the pacing audit, picture and audio, on every draft before it goes
-  to Michael.
+  section is too short, cut shots, not conclusions. Run the pacing audit, picture and audio (`tools/edit_audit.py`), on
+  every draft before it goes to Michael.
 - **Score to picture** (`docs/CRAFT.md` §0.6): for trailers and other narrative films, cut the picture to its action and
   the pacing rule with nothing pinned to the music, get the user's picture lock, then compose the score to the locked cut.
   Edit picture to the track only for music videos. Never splice a score's sections to follow a picture edit; re-score the
@@ -57,6 +58,7 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - `songmap.py`: spectrogram and lyric map of a song
   - `tts.py`: narration, with word timestamps
   - `sfx.py`: sound effects; `sfxmix.py`: the SFX stem from the picture's cue list, mixed over the song
+  - `edit_audit.py`: the pacing audit (CRAFT §0.5) on every draft; `cutscan.py`: cut detection for reference films
   - `gemini.py`: a media second opinion; as a critic usually wrong on specifics (`docs/REVIEW.md`): a pointer at most
   - `imagegen.py`: references and keys (`--size 2K`); `gptimage.py`: rig art and pose edits
   - `chroma.py`: flat-green keys to transparent PNG; `rigkit.py`: register, colour-match and composite drawings in rig builders

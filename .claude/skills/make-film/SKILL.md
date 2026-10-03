@@ -12,6 +12,7 @@ The method and hard-won rules are in `docs/CRAFT.md`. Read §0, §4, §7 and the
 - Research reference works when the genre has conventions (e.g. idol MVs): spawn a research agent for the case studies.
 
 ## 1. Sound first, because it is the clock
+**For a music video.** For a trailer or a narrative short the picture is the clock: storyboard and cut the picture to its action and the pacing rule first, get the user's picture lock, then compose the score to the cut (CRAFT §0.6; trailer conventions in `docs/references/character-trailers.md`).
 - **Song:** write the lyrics and a composition plan (`projects/<film>/song/plan.json`, section chunks with styles). Generate 4–7 takes with `tools/music.py`, at most 2 at a time.
   - **Choose on evidence, then by ear:**
     - Shortlist with `audio_analyze.py` (grid fit), `tools/songscreen.py` (phase per section, drop, key, harshness) and `lyric_check.py` (intelligibility).
@@ -37,7 +38,7 @@ Write `STORYBOARD.md` as a shot table: times cut to beats or sung words, the lyr
 - Render a slate animatic, then fork one agent per section file. Each owns only its file, reports shared bugs, and reviews its own sheets and strips (at least three passes). Give each a clear brief: the shots, the key sung times, the seams, and the quality bar.
 
 ## 5. Review rounds
-- **Render and critique:** `--frames --workers=6 --clean`, `--encode`, your own `--shots` sheet and seam sheets, `tools/filmscan.py` over the frames for pops, and the user's watch-through (`docs/REVIEW.md`). A Gemini pass is optional, a pointer at most.
+- **Render and critique:** `--frames --workers=6 --clean`, `--encode`, your own `--shots` sheet and seam sheets, `tools/filmscan.py` over the frames for pops, `tools/edit_audit.py` on the shot list and the draft (CRAFT §0.5: holds, ringing sounds, cuts on frame, clicks, loudness), and the user's watch-through (`docs/REVIEW.md`). A Gemini pass is optional, a pointer at most.
 - **Verify before fixing:** confirm every claim at full resolution, because critics hallucinate.
 - **Revise:** batch the shared fixes yourself, then send each section agent its notes. Repeat until the notes are polish.
 

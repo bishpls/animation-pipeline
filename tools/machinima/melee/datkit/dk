@@ -1,0 +1,3 @@
+#!/bin/sh
+# run the datkit build in bin/spec (build: dotnet build -c Release -o bin/spec)
+DOTNET_ROOT=$HOME/.dotnet exec $HOME/.dotnet/dotnet "$(dirname "$0")/bin/spec/datkit.dll" "$@"

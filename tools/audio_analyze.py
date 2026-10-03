@@ -23,7 +23,7 @@ dur = len(y) / sr
 
 # ---- sections + words from the generator's metadata
 sections, words = [], []
-ev_path = re.sub(r'\.mp3$', '.events.jsonl', path)
+ev_path = re.sub(r'\.(mp3|wav|flac)$', '.events.jsonl', path)
 if os.path.exists(ev_path):
     t = 0.0
     for line in open(ev_path):

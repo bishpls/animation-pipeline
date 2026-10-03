@@ -2,6 +2,8 @@
 
     .venv/bin/python tools/gemini.py FILE [FILE ...] --prompt "..." [--model gemini-3.1-pro-preview] [--out notes.md]
 
+A FILE can also be a public YouTube link, which Gemini watches directly (no download): references, not assets.
+
 Gemini hears audio and watches video. Treat it as a critic, not an oracle: it's useful for catching
 things you can't perceive directly (vocal clarity, mix problems, seams, pacing felt at full speed).
 """
@@ -33,6 +35,9 @@ def upload(path):
 def ask(files, prompt, model='gemini-3.1-pro-preview'):
     parts = []
     for p in files:
+        if p.startswith(('https://www.youtube.com/', 'https://youtube.com/', 'https://youtu.be/')):
+            parts += [{'text': f'[{p}]'}, {'file_data': {'file_uri': p}}]
+            continue
         uri, mime = upload(p)
         parts += [{'text': f'[{os.path.basename(p)}]'}, {'file_data': {'mime_type': mime, 'file_uri': uri}}]
     parts.append({'text': prompt})
