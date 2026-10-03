@@ -136,7 +136,7 @@ Game data (disc images, the game's executable, builds, captured plates, raw game
 ## Review and bookkeeping
 | tool | what |
 |---|---|
-| `edit_audit.py` | the edit audit (CRAFT §0.5), from the film's shot list (id, t0, len, kind, payoff, carry-over, audio): each hold after its payoff against the minimums, short shots and runs of them, sounds still ringing at a cut; with `--video`, cuts on their frame, clicks at cuts, loudness and true peak. Run it on every draft |
+| `edit_audit.py` | the edit audit (CRAFT §0.5), from the film's shot list (id, t0, len, kind, payoff, carry-over, audio): each hold after its payoff against the minimums, short shots and runs of them, sounds still ringing at a cut; with `--video`, cuts on their frame, clicks at cuts, loudness and true peak; with `--music`, sags in the score (valleys under both shoulders). Run it on every draft |
 | `filmscan.py` | frame-difference scan of a rendered film: every unplanned pop or jump, minus the known cuts |
 | `cutscan.py` | cut detection for reference films: the shot list, one thumbnail per shot, strips of a moment (how the trailer references were analysed) |
 | `gemini.py` | a second opinion on any media file. As a critic it has been usually wrong on specifics (SO BACK: about one claim in four held up; rankings showed pure position bias): a pointer at most (docs/REVIEW.md) |

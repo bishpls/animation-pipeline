@@ -422,3 +422,29 @@ for parallel Dolphins, the HPS and DSP-ADPCM audio codecs, `datkit` for fighters
   play that stretch at N times speed in the edit: that is the game-speed motion exactly, no re-shoot needed.
 - **Emphasis for the music is still emphasis:** slow motion and flashes added to land a hit on a beat read as artificial
   once the score serves the picture (§0.5, §0.6).
+
+**What we got wrong, and the guardrail for each.** Eight review rounds were partly spent on these.
+- **We started on the wrong clock.** The make-film order ("sound first, because it is the clock") is a music-video rule,
+  and we applied it to a trailer without deciding. The score was arranged in bars, and the cut pinned shots to its joints.
+  *Guardrail:* name the clock when the film is framed (make-film step 0). For a trailer or narrative film it is the picture.
+- **The tooling made music-pinning the default.** The cut table pinned shots to music joints, and its fill shots stretched
+  to reach them. The restructure even added bars to sections and lengthened shots to fill them, which bent the picture.
+  *Guardrail:* a narrative cut holds each shot's own length (payoff plus hold). Music joints are a hit list, not pins.
+- **We edited both sides at once.** Each picture change triggered score surgery: a section cut, FINAL halved, the montage
+  spliced down by whole bar-pairs, turn bars written to bridge splices. Review v5's joins were "jarring".
+  *Guardrail:* picture lock first. A change after the lock re-scores the stretch rather than splicing it.
+- **We added emphasis for the music.** The Hurly Gloves' x4 slow flight and flash, a 0.3% warp to put the 9999 on a stab,
+  and a music stab Michael removed ("sounds jarring and wrong").
+  *Guardrail:* §0.5's "no emphasis where nothing happens" covers music-sync emphasis too.
+- **"Scored to picture" became alignment surgery again.** Review v6 wrote fermatas and a breath purely to land picture
+  hits on downbeats, and they "sounded unfinished".
+  *Guardrail:* musical flow beats alignment. Land the few hits that matter, and let the rest fall where they fall.
+- **A sag went to review unmeasured.** Review v7 put D, the song's quiet breather, straight after its loudest section.
+  An agent had noted the drop into D two rounds earlier. Michael heard it at 1:18.
+  *Guardrail:* `tools/edit_audit.py --music` reports every valley under both shoulders. Fix it or justify it before review.
+- **The picture lock was only half picture-led.** It froze the music-bent lengths of the shots that used to fill to
+  joints, rather than re-deriving each one's natural length.
+  *Guardrail:* re-derive every shot's length from its payoff at the lock.
+- **Decisions were made on bad labels.** The Marth shield-grind combo went on the drop list as "generic combat" and was
+  cut on that word. 6.18's description still said "Beam" when its footage was a back throw.
+  *Guardrail:* before asking for a decision, describe what the footage actually shows, checked against the plate.

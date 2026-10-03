@@ -8,7 +8,8 @@ description: End-to-end workflow for making a new film in this repo: song or nar
 The method and hard-won rules are in `docs/CRAFT.md`. Read §0, §4, §7 and the lesson section closest to your format first. Every tool is indexed in `docs/TOOLS.md`; rigged characters follow `docs/RIGGING.md`, dance and lip-sync `docs/MOTION.md`, reviews `docs/REVIEW.md`, and work split across sessions or agents `docs/SESSIONS.md`. This skill is the order of operations.
 
 ## 0. Frame it (with the user)
-- Pitch the concept in a few lines: the idea, the look, the format (16:9 or 9:16) and the length. Ask only the questions whose answers change the plan: format, language, narration, any video-model use (off by default), and credit/branding.
+- Pitch the concept in a few lines: the idea, the look, the format (16:9 or 9:16) and the length.
+- **Name the clock.** In a music video the song is the clock (step 1 below). In a trailer or narrative short the picture is: cut it to its action, lock it with the user, then score it (CRAFT §0.6 and §16's "what we got wrong"). Ask only the questions whose answers change the plan: format, language, narration, any video-model use (off by default), and credit/branding.
 - Research reference works when the genre has conventions (e.g. idol MVs): spawn a research agent for the case studies.
 
 ## 1. Sound first, because it is the clock

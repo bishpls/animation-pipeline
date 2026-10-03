@@ -1,7 +1,7 @@
 """The edit audit (docs/CRAFT.md §0.5, "let every shot conclude"; run it on every draft before it goes to Michael).
 Generalised from Geno's trailer edit kit (pacing.py + check.py), so any film can run it from its own shot list.
 
-    .venv/bin/python tools/edit_audit.py SHOTS.json [--video DRAFT.mp4] [--sfx STEM.wav] [--out AUDIT.json]
+    .venv/bin/python tools/edit_audit.py SHOTS.json [--video DRAFT.mp4] [--sfx STEM.wav] [--music STEM [--range A:B]] [--out AUDIT.json]
 
 SHOTS.json, exported by the film (e.g. `node engine/render.mjs P --eval='JSON.stringify(...)'` over its own cut table):
     {"fps": 60, "shots": [{"id": "4.6", "t0": 27.48, "len": 3.42, "kind": "action", "payoff": 2.67,
@@ -22,6 +22,9 @@ Checks:
            (and well over the shot's bed) is flagged with how long it needs, unless `tail` carries it that far.
   --video  each cut on its frame (the onset of the frame-difference spike, +-6 frames); clicks at every cut (the 3 kHz+
            band's 3 ms energy at the cut against the 30 ms either side, flagged over 6 dB); loudness and true peak (EBU R128).
+  --music  sags in the score (or any mix): the level in 0.4 s windows against both shoulders (the medians 1.6-4 s before
+           and after); runs of 1 s or more averaging 4 dB under the quieter shoulder are reported. A quiet breather between loud sections reads as the music
+           giving out (Geno's trailer, review v7 at 1:18): fix it or justify it. --range limits it to where music plays.
 Prints a summary and writes the full result as JSON (default: next to SHOTS.json as *_audit.json).
 """
 import argparse, json, math, os, statistics, subprocess
@@ -129,14 +132,39 @@ def video_checks(video, shots, fps):
                 loudness=loud)
 
 
+def music_sags(path, rng=None, win=.4, hop=.1, gap=1.6, ctx=4.0, step=3.0, depth=4.0, minlen=1.0):
+    """valleys in the music's level: windows under BOTH shoulders (the medians of the level gap..ctx s before and after),
+    in runs of minlen s or more whose mean depth is at least `depth` dB (a sag, a dropout, a breather that stalls)"""
+    y = decode(path)
+    a, b = (0.0, len(y) / SR) if not rng else rng
+    ts = np.arange(a, b - win, hop)
+    L = np.array([db(y[int(t * SR):int((t + win) * SR)]) for t in ts])
+    d = np.zeros(len(ts))
+    for i, t in enumerate(ts):
+        left, right = L[(ts >= t - ctx) & (ts <= t - gap)], L[(ts >= t + gap) & (ts <= t + ctx)]
+        if len(left) and len(right): d[i] = min(np.median(left), np.median(right)) - L[i]
+    runs, i = [], 0
+    while i < len(ts):
+        if d[i] <= step: i += 1; continue
+        j = i
+        while j + 1 < len(ts) and d[j + 1] > step: j += 1
+        t0, t1, m = float(ts[i]), float(ts[j] + win), float(d[i:j + 1].mean())
+        if t1 - t0 >= minlen and m >= depth:
+            runs.append(dict(t0=round(t0, 2), t1=round(t1, 2), depth_db=round(m, 1), deepest_db=round(float(d[i:j + 1].max()), 1)))
+        i = j + 1
+    return runs
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('shots'); ap.add_argument('--video'); ap.add_argument('--sfx'); ap.add_argument('--out')
+    ap.add_argument('--music'); ap.add_argument('--range', help='A:B seconds for --music')
     a = ap.parse_args()
     spec = json.load(open(a.shots))
     fps = spec.get('fps', 60); shots = spec['shots']
     res = dict(pacing=pacing(shots, a.sfx), shots=shots)
     if a.video: res['video'] = video_checks(a.video, shots, fps)
+    if a.music: res['music_sags'] = music_sags(a.music, tuple(map(float, a.range.split(':'))) if a.range else None)
     out = a.out or os.path.splitext(a.shots)[0] + '_audit.json'
     json.dump(res, open(out, 'w'), indent=1)
     p = res['pacing']
@@ -149,6 +177,8 @@ def main():
               + ''.join(f"; {c['id']} f{c['f0']} measured {c['measured']}" for c in v['cuts_off']))
         print(f"  loudness {v['loudness']['I']} LUFS, true peak {v['loudness']['TP']} dBTP; clicks over 6 dB: "
               + (', '.join(f"{c['id']} ({c['db_over']})" for c in v['clicks_over_6db']) or 'none'))
+    if a.music:
+        print('  music sags: ' + (', '.join(f"{r['t0']:.1f}-{r['t1']:.1f} s ({r['depth_db']} dB under)" for r in res['music_sags']) or 'none'))
     print('wrote', out)
 
 
