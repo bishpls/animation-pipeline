@@ -23,7 +23,8 @@ This is the working method for this repo. It distils three earlier projects (EMB
      - shots ≥ ~1.5 s, except impact frames (≤ 8 frames) and a deliberate flurry (at most 3 short shots in a row, justified
        in the cut's notes).
    - **When the music or a section is too short for its shots to conclude, cut shots: never the conclusions.** Fewer,
-     complete shots beat more, clipped ones. Or extend the section by whole bars.
+     complete shots beat more, clipped ones. In a music video, or extend the section by whole bars; anywhere else the
+     score is written to the locked cut (§0.6).
    - **Measured, every draft:** each shot logs its payoff frame. A pacing audit (shot lengths, payoff-to-cut hold,
      the flagged list, the median shot) runs before any draft goes to Michael, and its flags are fixed or justified.
      Reference medians (the Special Movie's 1.37 s) describe other films; they are not targets.
@@ -44,6 +45,23 @@ This is the working method for this repo. It distils three earlier projects (EMB
      outgoing audio: a sound that began in the shot and is still above −20 dB of its own peak at the cut is flagged.
      Music must not drop out unintentionally either: a hard stop or silence in the score is a choice to justify, since
      it reads as a dropout.
+
+0.6 **Score to picture; edit to the track only for music videos.** (Michael, after Geno's trailer review v5, 2026-10-03:
+   "the difference between cutting video to fit a score, and cutting a score to fit video… in a music video, the entire
+   somatic audiovisual package is the POINT. For something like this, the music should serve the video.")
+   - **A music video:** the song is the clock and the point, and the picture is cut to it (§1, `cues.json`).
+   - **A trailer, a short, anything narrative:** the picture leads and the music serves it. In-scene beats need not land on
+     the music's beats. The order:
+     1. Cut the picture to its own action and the pacing rule (§0.5), with the game's or production sound, and at most a
+        temp track that nothing is pinned to.
+     2. Lock the picture with the user.
+     3. Compose the score to the locked cut: a short hit list from the picture (the moments that matter: a reveal, the
+        big hit, the title), sections written to the cut's real durations, and the tempo and phrase lengths bending to the
+        picture (tempo changes, odd bars, fermatas, held chords, written transitions). Never bend the picture to the bars.
+   - **Never interleave the two.** Splicing a score by whole sections to follow a re-cut picture gives jarring joins (the
+     trailer's review v5), and trimming or padding shots to fill musical sections bends the picture. If the picture changes
+     after the score exists, re-score the changed stretch rather than splicing it.
+   - A picture lock is therefore a milestone the user signs off before scoring starts.
 
 ## 1. Pipeline
 

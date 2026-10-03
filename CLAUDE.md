@@ -16,6 +16,10 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   concludes too:** voice lines, cries, roars and sound effects play out before the cut (or carry over deliberately). If a
   section is too short, cut shots, not conclusions. Run the pacing audit, picture and audio, on every draft before it goes
   to Michael.
+- **Score to picture** (`docs/CRAFT.md` §0.6): for trailers and other narrative films, cut the picture to its action and
+  the pacing rule with nothing pinned to the music, get the user's picture lock, then compose the score to the locked cut.
+  Edit picture to the track only for music videos. Never splice a score's sections to follow a picture edit; re-score the
+  changed stretch.
 - **Look at your work:** render contact sheets, strips and crops, open them, and fix what you see. Then watch full-length
   passes. Verify any AI critic's claim at full resolution before acting on it.
 - **Measure, don't only look:** granular observability and tight feedback loops are the biggest unlock. The Melee work leans on
